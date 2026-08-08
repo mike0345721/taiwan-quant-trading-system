@@ -83,7 +83,7 @@ $p0ForwardSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $p0ForwardTaskName -Action $p0ForwardAction -Trigger $p0ForwardTrigger `
   -Settings $p0ForwardSettings `
-  -Description 'Run the paper-only P0 forward observer. Broker order routes remain disabled.' `
+  -Description 'Run the paper-only P0 forward observer. Execution remains disabled.' `
   -Force | Out-Null
 
 & (Join-Path $PSScriptRoot 'start-dashboard-hidden.ps1')
