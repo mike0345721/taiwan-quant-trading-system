@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $taskName = 'TwChipDashboard-DailyUpdate'
 $forwardTaskName = 'TwChipDashboard-V310FrozenForward'
+$p0ForwardTaskName = 'TwChipDashboard-P0ForwardPaper'
 $startupDir = [Environment]::GetFolderPath('Startup')
 $desktopDir = [Environment]::GetFolderPath('Desktop')
 $desktopDirs = @($desktopDir)
@@ -16,6 +17,7 @@ $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
 if ($Remove) {
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
   Unregister-ScheduledTask -TaskName $forwardTaskName -Confirm:$false -ErrorAction SilentlyContinue
+  Unregister-ScheduledTask -TaskName $p0ForwardTaskName -Confirm:$false -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $startupLink -Force -ErrorAction SilentlyContinue
   foreach ($folder in $desktopDirs) {
     Remove-Item -LiteralPath (Join-Path $folder 'Taiwan Stock Dashboard.lnk') -Force -ErrorAction SilentlyContinue
@@ -71,10 +73,25 @@ Register-ScheduledTask -TaskName $forwardTaskName -Action $forwardAction -Trigge
   -Description 'Run the read-only V3.10 frozen forward prediction and outcome lifecycle.' `
   -Force | Out-Null
 
+$p0ForwardScript = Join-Path $PSScriptRoot 'run-p0-forward-paper-hidden.ps1'
+$p0ForwardAction = New-ScheduledTaskAction -Execute $powershell `
+  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$p0ForwardScript`"" `
+  -WorkingDirectory $root
+$p0ForwardTrigger = New-ScheduledTaskTrigger -Weekly `
+  -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:35'
+$p0ForwardSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun `
+  -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName $p0ForwardTaskName -Action $p0ForwardAction -Trigger $p0ForwardTrigger `
+  -Settings $p0ForwardSettings `
+  -Description 'Run the paper-only P0 forward observer. Broker order routes remain disabled.' `
+  -Force | Out-Null
+
 & (Join-Path $PSScriptRoot 'start-dashboard-hidden.ps1')
 Write-Host 'Automation installed.'
 Write-Host 'The dashboard starts after Windows sign-in.'
 Write-Host 'Official data updates Monday-Friday at 08:30 and 21:15.'
 Write-Host 'V3.10 frozen forward observer starts Monday-Friday at 08:35 and never enables execution.'
+Write-Host 'P0 forward paper observer starts Monday-Friday at 08:35 and remains paper-only.'
 Write-Host 'After Windows sign-in, missed official updates are checked and recovered automatically.'
+Write-Host 'Missed P0 forward paper sessions are never backfilled.'
 Write-Host 'A dashboard shortcut was created on the desktop.'
