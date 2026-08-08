@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "phase-a-feature-spec-v1",
+  "featureVersion": "phase-a-canonical-features-1.0.0",
+  "cutoffDate": "2026-07-30",
+  "timezone": "Asia/Taipei",
+  "fixedTransforms": [
+    "raw",
+    "delta_1d",
+    "sum_or_change_3d",
+    "sum_or_change_5d",
+    "past_only_z60"
+  ],
+  "rules": {
+    "maximumScalesPerConcept": 3,
+    "availableAt": "daily source must be officially available before next trading day decision",
+    "missing": "null_not_zero",
+    "standardization": "train_or_past_only",
+    "sameMeaningFeaturesCannotVoteSeparately": true
+  },
+  "groups": [
+    {
+      "factorGroup": "Cash",
+      "sourceTable": "spot_institutional_daily",
+      "baseFeatures": [
+        {"factorId":"cash_foreign_net","columns":["foreign_net_e"],"transforms":["raw","sum_or_change_3d","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_trust_net","columns":["trust_net_e"],"transforms":["raw","sum_or_change_3d","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_dealer_proprietary_net","columns":["dealer_proprietary_net_e"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_dealer_hedge_net","columns":["dealer_hedge_net_e"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_dealer_total_net","columns":["dealer_total_net_e"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_institutional_total","columns":["institutional_total_e"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cash_participant_alignment","columns":["foreign_net_e","trust_net_e","dealer_total_net_e"],"transforms":["raw"]}
+      ]
+    },
+    {
+      "factorGroup": "Futures",
+      "sourceTable": "futures_positions_daily",
+      "baseFeatures": [
+        {"factorId":"futures_foreign_long","columns":["foreign_long"],"transforms":["raw","delta_1d","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"futures_foreign_short","columns":["foreign_short"],"transforms":["raw","delta_1d","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"futures_foreign_net","columns":["foreign_net"],"transforms":["raw","delta_1d","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"futures_dealer_net","columns":["dealer_net"],"transforms":["raw","delta_1d","sum_or_change_5d"]},
+        {"factorId":"futures_trust_net","columns":["trust_net"],"transforms":["raw","delta_1d","sum_or_change_5d"]}
+      ],
+      "additionalSources": [
+        {"table":"futures_oi_daily","factorIds":["near_contract_oi","near_scope_market_oi","all_contracts_market_oi","days_to_near_expiry","rollover_risk","contract_changed"]},
+        {"table":"large_trader_futures_daily","factorIds":["top5_long","top10_long","top5_short","top10_short","market_open_interest"]},
+        {"table":"basis_term_structure_daily","factorIds":["term_spread_bps","term_change_1d_bps","term_change_5d_bps","term_change_z60","close_basis_bps","basis_change_1d_bps","basis_change_5d_bps","basis_level_z60"]}
+      ]
+    },
+    {
+      "factorGroup": "Options",
+      "sourceTable": "options_contract_daily",
+      "baseFeatures": [
+        {"factorId":"options_volume_pc_ratio","columns":["volume_pc_ratio"],"transforms":["raw","delta_1d","past_only_z60"]},
+        {"factorId":"options_oi_pc_ratio","columns":["oi_pc_ratio"],"transforms":["raw","delta_1d","past_only_z60"]},
+        {"factorId":"options_call_oi","columns":["call_oi"],"transforms":["raw","delta_1d","sum_or_change_5d"]},
+        {"factorId":"options_put_oi","columns":["put_oi"],"transforms":["raw","delta_1d","sum_or_change_5d"]},
+        {"factorId":"options_max_pain_distance","columns":["max_pain"],"referenceColumns":["market_daily.tx_close"],"transforms":["raw"]},
+        {"factorId":"options_wall_asymmetry","columns":["call_wall_strike","put_wall_strike"],"referenceColumns":["market_daily.tx_close"],"transforms":["raw"]},
+        {"factorId":"options_days_to_expiry","columns":["days_to_expiry"],"transforms":["raw"]}
+      ],
+      "additionalSources": [
+        {"table":"option_volatility_daily","factorIds":["realized_vol_20d","atm_iv","put_25d_iv","call_25d_iv","skew_25d","iv_rv_spread"]},
+        {"table":"option_volatility_term_daily","factorIds":["weekly_atm_iv","monthly_atm_iv","monthly_minus_weekly_iv"]}
+      ]
+    },
+    {
+      "factorGroup": "Breadth",
+      "sourceTable": "market_daily",
+      "baseFeatures": [
+        {"factorId":"breadth_listed_advance_decline","columns":["listed_advance","listed_decline"],"transforms":["raw","sum_or_change_3d","sum_or_change_5d"]},
+        {"factorId":"breadth_otc_advance_decline","columns":["otc_advance","otc_decline"],"transforms":["raw","sum_or_change_3d","sum_or_change_5d"]},
+        {"factorId":"breadth_listed_limit_balance","columns":["listed_limit_up","listed_limit_down"],"transforms":["raw"]},
+        {"factorId":"breadth_otc_limit_balance","columns":["otc_limit_up","otc_limit_down"],"transforms":["raw"]}
+      ]
+    },
+    {
+      "factorGroup": "CrossMarket",
+      "sourceTable": "global_market_daily",
+      "baseFeatures": [
+        {"factorId":"cross_ndx_return","symbol":"NDX","columns":["return_pct"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cross_sox_return","symbol":"SOX","columns":["return_pct"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cross_usdtwd_return","symbol":"USDTWD","columns":["return_pct"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"cross_gold_return","symbol":"GOLD","columns":["return_pct"],"transforms":["raw","sum_or_change_5d"]},
+        {"factorId":"cross_copper_return","symbol":"COPPER","columns":["return_pct"],"transforms":["raw","sum_or_change_5d"]}
+      ],
+      "additionalSources": [
+        {"table":"macro_observations","factorIds":["VIXCLS","DGS2","DGS10","DFII10","BAMLH0A0HYM2","DTWEXBGS","DCOILWTICO","DEXCHUS","DEXJPUS"]}
+      ]
+    },
+    {
+      "factorGroup": "PriceRegime",
+      "sourceTable": "market_daily",
+      "baseFeatures": [
+        {"factorId":"price_twii_return","columns":["twii_change_pct"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"price_tx_return","columns":["tx_change_pct"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"price_tx_volume","columns":["tx_volume"],"transforms":["raw","sum_or_change_5d","past_only_z60"]},
+        {"factorId":"price_tx_open_interest","columns":["tx_open_interest"],"transforms":["raw","delta_1d","sum_or_change_5d","past_only_z60"]}
+      ]
+    }
+  ]
+}

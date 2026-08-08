@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "phase-b-b0-paired-daily-accounting-v1",
+  "contractStatus": "PREREGISTRATION_DRAFT",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "baselineId": "T0_H0_PHASE_B_BASELINE_V1",
+  "primaryCostView": "BASE_2_TICKS_PER_SIDE",
+  "pairedUniverseRule": "S0_AND_S1_USE_IDENTICAL_LEGAL_SESSION_DATES_IN_IDENTICAL_ORDER",
+  "dailyAccounting": {
+    "s0DailyPnl": "original frozen T0 Base net PnL; original NO_TRADE equals 0",
+    "s1NonHighRiskTrade": "s1DailyPnl = s0DailyPnl",
+    "s1HighRiskTrade": "s1DailyPnl = 0",
+    "s1OriginalNoTrade": "s1DailyPnl = 0",
+    "incrementalDailyPnl": "s1DailyPnl - s0DailyPnl"
+  },
+  "requiredSessionFields": [
+    "tradeDate",
+    "candidateScore",
+    "trainFoldThreshold",
+    "riskState",
+    "vetoDecision",
+    "originalT0TradeState",
+    "originalT0Direction",
+    "originalT0BasePnl",
+    "s0DailyPnl",
+    "s1DailyPnl",
+    "incrementalDailyPnl",
+    "availableAt",
+    "foldId",
+    "evidenceHash"
+  ],
+  "drawdownTimeline": {
+    "sameDates": true,
+    "sameOrder": true,
+    "vetoDayS1Pnl": 0,
+    "originalNoTradePnl": 0,
+    "dropVetoDatesAllowed": false,
+    "tradeDateCompressionAllowed": false
+  },
+  "tradeRetentionFormula": "S1 executed trade count / S0-Paired trade count",
+  "es10": {
+    "definition": "mean Base net PnL of the worst 10 percent of executed trades",
+    "s0Population": "S0-Paired executed trades",
+    "s1Population": "S1 retained executed trades",
+    "worstFivePercent": "STRESS_DIAGNOSTIC_ONLY"
+  },
+  "missingCandidate": {
+    "primaryState": "CANDIDATE_UNAVAILABLE",
+    "primaryPairedAction": "REMOVE_SAME_DATE_FROM_BOTH_S0_AND_S1",
+    "forbiddenImputations": [0, "NEUTRAL", "LOW_RISK", "PREVIOUS_VALUE"],
+    "operationalView": "DATA_QUALITY_VETO_NO_TRADE_DESCRIPTIVE_ONLY"
+  },
+  "recomputeT0TradesAllowed": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

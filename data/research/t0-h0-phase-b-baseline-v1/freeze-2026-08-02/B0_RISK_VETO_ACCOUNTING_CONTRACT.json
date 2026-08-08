@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "phase-b-b0-risk-veto-accounting-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "riskStateEnum": ["HIGH_RISK", "NOT_HIGH_RISK", "UNAVAILABLE"],
+  "vetoEligibleFormula": "originalT0TradeState == TRADE",
+  "vetoAppliedFormula": "riskState == HIGH_RISK AND vetoEligible == true",
+  "highRiskOriginalNoTrade": {
+    "riskState": "HIGH_RISK",
+    "vetoApplied": false,
+    "s0DailyPnl": 0,
+    "s1DailyPnl": 0,
+    "incrementalDailyPnl": 0,
+    "preserveOriginalNoTradeReason": true,
+    "countInVetoTradeCount": false
+  },
+  "highRiskOriginalTrade": {
+    "vetoApplied": true,
+    "s1DailyPnl": 0,
+    "noTradeReason": "NO_TRADE_RISK_VETO_F3C02"
+  },
+  "tradeRetention": {
+    "numerator": "retainedOriginalTrades",
+    "denominator": "s0PairedOriginalTrades",
+    "originalNoTradeCountsAsVetoSuccess": false
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

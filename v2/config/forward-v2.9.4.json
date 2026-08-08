@@ -1,0 +1,30 @@
+{
+  "version": "2.9.4",
+  "frozenAt": "2026-07-14T00:00:00+08:00",
+  "freezeThroughDate": "2026-07-09",
+  "status": "research_only",
+  "strategyKeys": [
+    "foreign_futures_price_oi",
+    "foreign_futures_price_oi_h2"
+  ],
+  "assumptions": {
+    "costPoints": 8,
+    "quantileLow": 0.3,
+    "quantileHigh": 0.7,
+    "minimumTrainingDays": 160,
+    "entryTiming": "next_taiwan_day_open",
+    "overlapPolicy": "suppress_until_prior_exit",
+    "contractPolicy": "same_contract_only"
+  },
+  "rules": {
+    "direction": "foreign_futures_5d_change_agrees_with_price_and_market_oi_growth",
+    "highVolatility": "observe_only_not_live_veto",
+    "holdingSelection": "risk_adjusted_nested_validation_not_yet_operational"
+  },
+  "prohibitions": [
+    "no_broker_connection",
+    "no_order_submission",
+    "no_retroactive_rule_change",
+    "no_unresolved_outcome_as_performance"
+  ]
+}

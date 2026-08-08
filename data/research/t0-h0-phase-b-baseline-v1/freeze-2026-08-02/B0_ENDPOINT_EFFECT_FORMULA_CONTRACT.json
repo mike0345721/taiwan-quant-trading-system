@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "phase-b-b0-endpoint-effect-formula-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "maxDrawdownImprovement": {
+    "ddLoss0": "abs(s0MaxDrawdown)",
+    "ddLoss1": "abs(s1MaxDrawdown)",
+    "unavailableWhen": "ddLoss0 == 0",
+    "formula": "(ddLoss0 - ddLoss1) / ddLoss0",
+    "margin": 0.1
+  },
+  "es10Improvement": {
+    "esLoss0": "max(0, -s0ES10)",
+    "esLoss1": "max(0, -s1ES10)",
+    "unavailableWhen": "esLoss0 == 0",
+    "formula": "(esLoss0 - esLoss1) / esLoss0",
+    "margin": 0.1
+  },
+  "expectancyChange": {
+    "unavailableWhen": "abs(s0Expectancy) < 1 TWD",
+    "unavailableState": "UNAVAILABLE_BASELINE_NEAR_ZERO",
+    "formula": "(s1Expectancy - s0Expectancy) / abs(s0Expectancy)",
+    "margin": -0.05
+  },
+  "profitFactorNonInferiority": {
+    "formula": "s1PF - s0PF",
+    "margin": -0.05,
+    "inPrimaryHolmFamily": false,
+    "governanceGate": true
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

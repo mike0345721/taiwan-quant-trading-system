@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "phase-a-target-spec-v1",
+  "targetVersion": "phase-a-daily-targets-1.0.0",
+  "cutoffDate": "2026-07-30",
+  "timezone": "Asia/Taipei",
+  "rules": {
+    "sourceDailyDataUsableFrom": "next_trading_day",
+    "rollTransition": "exclude_contract_sensitive_target",
+    "thresholds": "train_fold_only",
+    "missing": "null_not_zero",
+    "untouchedHoldoutClaimAllowed": false
+  },
+  "targets": [
+    {
+      "targetId": "next_day_tx_return",
+      "role": "Direction",
+      "kind": "continuous",
+      "formula": "next trading day TX close / current TX close - 1",
+      "primary": true
+    },
+    {
+      "targetId": "next_day_direction",
+      "role": "Direction",
+      "kind": "binary",
+      "formula": "next_day_tx_return > 0",
+      "primary": true
+    },
+    {
+      "targetId": "next_day_absolute_return",
+      "role": "Volatility",
+      "kind": "continuous",
+      "formula": "abs(next_day_tx_return)",
+      "primary": true
+    },
+    {
+      "targetId": "next_day_range",
+      "role": "Risk",
+      "kind": "continuous",
+      "formula": "(next day same-contract high - low) / current close",
+      "primary": true
+    },
+    {
+      "targetId": "next_day_large_move",
+      "role": "Risk",
+      "kind": "binary",
+      "formula": "next_day_absolute_return >= train-fold 80th percentile",
+      "primary": true
+    },
+    {
+      "targetId": "next_day_downside_tail",
+      "role": "Risk",
+      "kind": "binary",
+      "formula": "next_day_tx_return <= train-fold 10th percentile",
+      "primary": true
+    },
+    {
+      "targetId": "next_5d_tx_return",
+      "role": "Direction",
+      "kind": "continuous",
+      "formula": "fifth next trading day TX close / current TX close - 1",
+      "primary": false
+    }
+  ]
+}

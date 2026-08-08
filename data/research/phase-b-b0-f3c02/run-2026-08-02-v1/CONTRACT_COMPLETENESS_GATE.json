@@ -1,0 +1,75 @@
+{
+  "candidateId": "F3C02",
+  "executable": false,
+  "executionAuthorized": false,
+  "formalWeight": 0,
+  "issueCount": 10,
+  "issues": [
+    {
+      "contractId": "BOOTSTRAP_INFERENCE",
+      "field": "prngAlgorithm",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "BOOTSTRAP_INFERENCE",
+      "field": "hashToSeedMapping",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "BOOTSTRAP_INFERENCE",
+      "field": "canonicalSerialization",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "BOOTSTRAP_INFERENCE",
+      "field": "numericPrecision",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "BOOTSTRAP_INFERENCE",
+      "field": "unavailableRepresentation",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "NEGATIVE_CONTROL_EXACT",
+      "field": "withinFoldScorePermutation.algorithm",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "NEGATIVE_CONTROL_EXACT",
+      "field": "withinFoldScorePermutation.hashToSeedMapping",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "NEGATIVE_CONTROL_EXACT",
+      "field": "randomFeatureControl.generationAlgorithm",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "NEGATIVE_CONTROL_EXACT",
+      "field": "randomFeatureControl.distribution",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    },
+    {
+      "contractId": "NEGATIVE_CONTROL_EXACT",
+      "field": "randomFeatureControl.hashToSeedMapping",
+      "reason": "MISSING_EXECUTION_SEMANTIC",
+      "severity": "HARD_FAIL"
+    }
+  ],
+  "nextStageAllowed": false,
+  "preregistrationFreezeLogicalHash": "0aab3d27ad125d64e056954fb8660709de156563d22daa9a1da555cad59420ed",
+  "prohibitedOutputsCreated": false,
+  "researchOnly": true,
+  "schemaVersion": "phase-b-b0-contract-completeness-gate-v1",
+  "status": "HARD_FAIL"
+}

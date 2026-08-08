@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "state": "failed",
+  "generatedAt": "2026-07-17T13:20:08.881Z",
+  "ledger": "v2\\data\\forward\\v3-decision-ledger.jsonl",
+  "records": 0,
+  "firstDate": null,
+  "latestDate": null,
+  "errors": [
+    "ledger_not_found"
+  ],
+  "frozenResearchOnly": true,
+  "executionAuthorized": false
+}

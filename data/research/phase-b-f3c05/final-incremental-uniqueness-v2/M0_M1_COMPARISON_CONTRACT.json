@@ -1,0 +1,1 @@
+{"contractHash":"cac505910933d1218dca9add3f12ee65869c44186c4f1567352c445d0acd4fe7","firstFoldWithoutPriorMetaOosHistory":"WF01","foldOrder":["WF01","WF02","WF03","WF04","WF05"],"lambda":1,"m0Features":["f3c01Score"],"m1Features":["f3c01Score","f3c05Score"],"modelType":"RIDGE_REGRESSION","purgeRows":1,"standardization":"TRAIN_ONLY"}

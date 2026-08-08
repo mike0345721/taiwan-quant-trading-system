@@ -1,0 +1,27 @@
+{
+  "candidateId": "F3C01",
+  "usageState": "DESCRIPTIVE_CONTINUOUS_SCORE_ONLY",
+  "requiredLabels": [
+    "DESCRIPTIVE_ONLY",
+    "CALIBRATION_DRIFT_DETECTED",
+    "NO_FORMAL_THRESHOLD",
+    "NOT_TRADE_ELIGIBLE"
+  ],
+  "allowed": [
+    "DISPLAY_RAW_CONTINUOUS_SCORE_WITH_LINEAGE",
+    "DISPLAY_SCORE_CHRONOLOGY",
+    "DISCLOSE_CALIBRATION_DRIFT"
+  ],
+  "prohibited": [
+    "HIGH_NORMAL_STATE",
+    "RISK_VETO",
+    "LONG_SHORT_DIRECTION",
+    "POSITION_SIZING",
+    "SIGNAL_INPUT",
+    "STRATEGY_FILTER",
+    "PAPER_TRADING",
+    "EXECUTION"
+  ],
+  "boundaryRescueAuthorized": false,
+  "forwardSampleAccumulationAuthorized": false
+}

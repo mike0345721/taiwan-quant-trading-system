@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "f3c05-final-incremental-uniqueness-contract-v1",
+  "candidateId": "F3C05",
+  "researchQuestion": "Does the frozen continuous F3C05 OOS score add stable and material OOS information for its frozen target after controlling for the continuous F3C01 OOS score?",
+  "minimumCommonPairedSessions": 100,
+  "targetModelRule": {
+    "continuous": "RIDGE_REGRESSION",
+    "binary": "RIDGE_LOGISTIC",
+    "other": "TARGET_MODEL_OWNER_REVIEW_REQUIRED"
+  },
+  "lambda": 1,
+  "standardization": "TRAIN_ONLY",
+  "purgeRows": 1,
+  "m0Features": ["f3c01Score"],
+  "m1Features": ["f3c01Score", "f3c05Score"],
+  "primaryEndpoint": "F3C05_INCREMENTAL_OOS_LOSS_IMPROVEMENT",
+  "continuousPrimaryLoss": "RMSE",
+  "minimumIncrementalImprovement": 0.05,
+  "minimumPositiveFoldShare": 0.60,
+  "bootstrap": {"method": "MOVING_BLOCK", "blockLengths": [5, 10], "iterationsPerBlock": 2000, "requiredConservativeLower95": 0},
+  "scorePermutation": {"method": "WITHIN_FOLD_F3C05_SCORE", "iterations": 2000, "requiredPValueBelow": 0.05},
+  "concentrationRemovalCounts": [1, 3, 5],
+  "prohibited": ["BOUNDARY", "INTERACTION", "POLYNOMIAL", "TREE_MODEL", "AUTOML", "FEATURE_SELECTION", "HYPERPARAMETER_SEARCH", "T0_PNL", "POSITION_SIZING", "RISK_VETO", "DIRECTION_STATE"],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

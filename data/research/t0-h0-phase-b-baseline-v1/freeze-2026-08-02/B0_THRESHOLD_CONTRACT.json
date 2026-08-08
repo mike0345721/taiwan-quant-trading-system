@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "phase-b-b0-threshold-contract-v1",
+  "contractStatus": "PREREGISTRATION_DRAFT",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "candidateEvidenceHash": "e5fe4583473045c9e6b5e9506ba868e486102f708697ae36de800c944a34cc7f",
+  "thresholdSource": "TRAIN_FOLD_ONLY",
+  "thresholdQuantile": 0.8,
+  "highRiskCondition": "candidateScore >= trainFoldThreshold",
+  "quantileMethod": {
+    "id": "LINEAR_INTERPOLATION_N_MINUS_1",
+    "sourceImplementation": "src/phase-a-univariate.mjs::quantile",
+    "algorithm": "sort finite numeric values ascending; position=(n-1)*q; linearly interpolate between floor(position) and ceil(position)",
+    "probability": 0.8
+  },
+  "tieMethod": "GREATER_THAN_OR_EQUAL_HIGH_RISK",
+  "scorePrecision": "IEEE_754_BINARY64_NO_PRECLASSIFICATION_ROUNDING",
+  "nullHandling": {
+    "trainScores": "FILTER_NULL_UNDEFINED_AND_NONFINITE; HARD_FAIL_IF_EMPTY",
+    "testScore": "CANDIDATE_UNAVAILABLE",
+    "threshold": "HARD_FAIL_IF_NULL_OR_NONFINITE"
+  },
+  "requiredFoldFields": [
+    "foldId",
+    "trainingStartDate",
+    "trainingEndDate",
+    "thresholdValue",
+    "thresholdHash"
+  ],
+  "thresholdHashCanonicalFields": [
+    "candidateId",
+    "candidateEvidenceHash",
+    "foldId",
+    "trainingStartDate",
+    "trainingEndDate",
+    "quantileMethod",
+    "thresholdQuantile",
+    "tieMethod",
+    "scorePrecision",
+    "nullHandling",
+    "thresholdValue",
+    "modelEvidenceHash",
+    "scalerEvidenceHash"
+  ],
+  "thresholdHashMethod": "SHA256_CANONICAL_JSON_UTF8_STABLE_FIELD_ORDER",
+  "forbiddenInputs": [
+    "TEST_FOLD",
+    "T0_PNL",
+    "FUTURE_DATA",
+    "FULL_SAMPLE_SCORE_DISTRIBUTION",
+    "OTHER_FOLD_TEST_RESULTS"
+  ],
+  "thresholdSearchAllowed": false,
+  "alternativeQuantilesAllowed": [],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

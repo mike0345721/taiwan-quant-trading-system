@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "t0-h0-formal-closeout-v1",
+  "runId": "run-2026-08-02-v1",
+  "workPackage": "T0 HISTORICAL H0 FORMAL 137-SESSION RUN",
+  "closeoutState": "OWNER_REVIEW_PENDING",
+  "engineeringGate": "PASS",
+  "edgeEvaluation": "DESCRIPTIVE_ONLY_NOT_A_PROMOTION_DECISION",
+  "baselineFreezeAuthorized": false,
+  "phaseBAuthorized": false,
+  "frozenInputs": {
+    "t0SpecHash": "c2baf6a63cf69407ae9e686af46bb5832adcebf9d859b170fe9096c8f7389253",
+    "costPolicyHash": "ee9d6200150513164729d438998b609676f8dd373ec1c24b648e100814db0cfc",
+    "strictManifestHash": "87bbf9a01ccec29fcf29251f98ed71f55590ecab213693d6d3f95584b8d6f2ff",
+    "ownerBriefHash": "483ceb938af1d14345eeeec1843892fcb0d9a7a6e2f3ecb31b271bc059266946",
+    "naturalTickPreflightLogicalHash": "b565ec7d5d4f69e2199abb8acc549a6d3160ac8a34a57a1298e1f5a3c16c3a77"
+  },
+  "counts": {
+    "manifestSessionCount": 137,
+    "processedSessionCount": 137,
+    "researchEligibleSessionCount": 137,
+    "tradeCount": 133,
+    "noTradeCount": 4,
+    "noSampleCount": 0,
+    "naturalTickReplayCount": 137,
+    "ohlcFallbackCount": 0,
+    "longCount": 80,
+    "shortCount": 53,
+    "stopExitCount": 34,
+    "timeExitCount": 99,
+    "falseBreakoutCount": 55
+  },
+  "formalRun": {
+    "logicalOutputHash": "d7891ed064e38d960b6c69c8dafbd133aae3528350e12df6f2217228f720345c",
+    "runManifestHash": "1af7de75305e8eb1c62eecd3b4f272491a121966779111499e57bb6365e6b1d4",
+    "summaryHash": "ca303385fd0e190e5aa08023874b658e0596c948a59003f590c034433df0657f",
+    "executiveSummaryHash": "c8bc790b8e105a0598ac2c48283a846eb02b725e133569f68b48d97922a8760e",
+    "fiveCostViewsHash": "8f62dc2b5f9d2a748f13df59cd42894e99b7b969d0ed687dc7463466f37b16a8",
+    "dayResultsManifestHash": "9e4a44374396d084e154287555b3b305f0461943087b18f92ee91d6565a20ce8",
+    "naturalEventAuditHash": "cc23d0b0e727de8bd78172ea1da97b9322b30f6e8bdbf0d96fad86335d4e36c8",
+    "resourceUsageHash": "6ba2ed79e63f66b18ad6aeef153b09258ef8dbd1ec03b8573dbf16d122144d99"
+  },
+  "primaryBaseResult": {
+    "costView": "BASE_2_TICKS_PER_SIDE",
+    "netPnlTwd": 241401,
+    "expectancyPerTradeTwd": 1815.045112781955,
+    "profitFactor": 1.1028767878709878,
+    "winRate": 0.47368421052631576,
+    "maximumDrawdownTwd": -414136,
+    "afterRemovingTop3DaysNetPnlTwd": -158163
+  },
+  "idempotency": {
+    "resumeStatus": "COMPLETED_ALREADY_ZERO_WRITES",
+    "skippedJobs": 137,
+    "changedFileCount": 0,
+    "removedFileCount": 0,
+    "logicalOutputHashUnchanged": true
+  },
+  "tests": {
+    "total": 249,
+    "passed": 249,
+    "failed": 0
+  },
+  "frozenProtection": {
+    "artifactCount": 2051,
+    "beforeCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2",
+    "afterCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2",
+    "changedCount": 0,
+    "addedOrRemovedCount": 0
+  },
+  "closeoutReport": {
+    "path": "T0_H0_FORMAL_137_SESSION_CLOSEOUT.md",
+    "sha256": "01c4ae9cb0ca80880e31dd6d5ea69521770cf2b1bdefc17ed77ca062fe3d3dba"
+  },
+  "codexCloseoutProposal": "PASS_ENGINEERING_PAUSE_FOR_OWNER_BASELINE_DECISION",
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "phase-b-b0-negative-control-exact-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "sharedSemantics": ["PAIRED_UNIVERSE", "THRESHOLD_RULE", "VETO_ACCOUNTING", "ENDPOINT_FORMULAS", "BASE_2_TICKS_PER_SIDE"],
+  "availableAtLeadCheck": {
+    "gateType": "HARD_GATE",
+    "passRule": "all candidate inputs and scores are legally available before the paired T0 decision time",
+    "failAction": "REJECT"
+  },
+  "withinFoldScorePermutation": {
+    "permutationUnit": "CANDIDATE_SCORE_WITHIN_EACH_TEST_FOLD",
+    "iterations": 2000,
+    "seedDerivation": "SHA256(20260730 + candidateId + WITHIN_FOLD_SCORE_PERMUTATION + iteration)",
+    "preserve": ["FOLD_MEMBERSHIP", "PAIRED_SESSION_UNIVERSE", "S0_RECORDS"],
+    "passRule": "observed primary endpoint gate vector must be strictly more favorable than the 95th percentile of its permutation null without violating expectancy non-inferiority",
+    "inPrimaryHolmFamily": false,
+    "independentGate": true
+  },
+  "randomFeatureControl": {
+    "permutationUnit": "ONE_RANDOM_FEATURE_VECTOR_PER_FOLD_MATCHED_TO_TRAIN_AND_TEST_ROWS",
+    "iterations": 2000,
+    "seedDerivation": "SHA256(20260730 + candidateId + RANDOM_FEATURE_CONTROL + foldId + iteration)",
+    "preserve": ["FOLD_ASSIGNMENT", "MODEL_CLASS", "FEATURE_DIMENSION", "THRESHOLD_RULE", "PAIRED_SESSION_UNIVERSE"],
+    "passRule": "observed primary endpoint gate vector must be strictly more favorable than the 95th percentile of the random-feature null without violating expectancy non-inferiority",
+    "inPrimaryHolmFamily": false,
+    "independentGate": true
+  },
+  "aucOnlyComparisonForbidden": true,
+  "negativeControlFailureAction": "NO_PROMOTION",
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

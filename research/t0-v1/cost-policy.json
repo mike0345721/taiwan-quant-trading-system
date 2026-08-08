@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "1.0.0",
+  "policyId": "t0-cost-policy-v1",
+  "feePolicyVersion": "owner-broker-fee-v1",
+  "feeSource": "OWNER_PROVIDED",
+  "feeSourceDate": "2026-08-02",
+  "commissionIncludesExchangeAndClearingUnlessStatementProvesOtherwise": true,
+  "instruments": {
+    "TX": { "commissionPerSideTwd": 30, "roundTripCommissionTwd": 60, "contractMultiplier": 200, "tickSizeIndexPoints": 1, "t0PrincipalInstrument": true },
+    "MTX": { "commissionPerSideTwd": 17, "roundTripCommissionTwd": 34, "contractMultiplier": 50, "tickSizeIndexPoints": 1, "t0PrincipalInstrument": false },
+    "TMF": { "commissionPerSideTwd": 12, "roundTripCommissionTwd": 24, "contractMultiplier": 10, "tickSizeIndexPoints": 1, "t0PrincipalInstrument": false },
+    "TXO": { "commissionPerSideTwd": 14, "roundTripCommissionTwd": 28, "phaseBTradingCostEligible": false }
+  },
+  "tax": {
+    "futuresTransactionTaxRate": 0.00002,
+    "calculation": "round(actualFillIndex * contractMultiplier * futuresTransactionTaxRate)",
+    "calculatedPerSide": true,
+    "taxRuleVersion": "owner-official-stock-index-futures-tax-v1",
+    "taxEffectiveFrom": "2019-01-01",
+    "taxSource": "MINISTRY_OF_FINANCE_TAIWAN_ORDER_TAI-CAI-SHUI-10704698870",
+    "taxSourceUrl": "https://law-out.mof.gov.tw/LawContent.aspx?id=GL010556",
+    "taxSourceHashBasis": "rate|calculation|effectiveFrom|source|ruleVersion",
+    "notPermanentlyHardcoded": true
+  },
+  "baseTicksPerSide": 2,
+  "costViews": [
+    { "viewId": "GROSS", "slippageTicksPerSide": 0, "includeCommission": false, "includeTax": false, "primaryH0View": false },
+    { "viewId": "OPTIMISTIC_1_TICK_PER_SIDE", "slippageTicksPerSide": 1, "includeCommission": true, "includeTax": true, "primaryH0View": false },
+    { "viewId": "BASE_2_TICKS_PER_SIDE", "slippageTicksPerSide": 2, "includeCommission": true, "includeTax": true, "primaryH0View": true },
+    { "viewId": "CONSERVATIVE_3_TICKS_PER_SIDE", "slippageTicksPerSide": 3, "includeCommission": true, "includeTax": true, "primaryH0View": false },
+    { "viewId": "SEVERE_STRESS_5_TICKS_PER_SIDE", "slippageTicksPerSide": 5, "includeCommission": true, "includeTax": true, "primaryH0View": false }
+  ],
+  "taxAndCommissionReferenceView": {
+    "viewId": "TAX_PLUS_COMMISSION_REFERENCE",
+    "slippageTicksPerSide": 0,
+    "includeCommission": true,
+    "includeTax": true,
+    "primaryH0View": false
+  },
+  "slippageGovernance": {
+    "oneTickIsLiquidityGoodReferenceOnly": true,
+    "threeAndFiveTicksAreRequiredStressTests": true,
+    "fiveTicksIsNotExpectedNormalFill": true,
+    "scenarioMayNotBeSelectedByHistoricalPerformance": true,
+    "gapThroughStopReference": "FIRST_LEGAL_ADVERSE_FILL_PRICE",
+    "gapThroughStopThenAddsScenarioSlippage": true,
+    "stopPriceMustNotReplaceFirstLegalAdverseFill": true
+  },
+  "requiredTradeOutputs": [
+    "grossPnl",
+    "entryCommission",
+    "exitCommission",
+    "entryTax",
+    "exitTax",
+    "entrySlippage",
+    "exitSlippage",
+    "totalCost",
+    "netPnl"
+  ],
+  "safeguards": {
+    "noDuplicateExchangeOrClearingFee": true,
+    "txoExcludedFromT0": true,
+    "mtxTmfRequireOwnReplayForExecutionValidation": true,
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false
+  }
+}

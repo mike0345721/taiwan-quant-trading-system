@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "phase-a-a12-univariate-v1",
+  "factorId": "contract_changed",
+  "targetId": "next_day_tx_return",
+  "fold": {
+    "foldId": "CHRONO_70_30_PURGE_1",
+    "trainEndDate": "2025-08-22",
+    "purgeDate": "2025-08-25",
+    "evaluationStartDate": "2025-08-26",
+    "eligible": true
+  },
+  "thresholdsFromDevelopmentOnly": {
+    "largeMove80": 0.012969158150405558,
+    "downsideTail10": -0.01159583522971408,
+    "highVolMedian": 0.00989525405296772,
+    "trendMagnitudeMedian": 0.031192257498785847
+  },
+  "counts": {
+    "full": 710,
+    "development": 496,
+    "purge": 1,
+    "evaluation": 213
+  },
+  "full": {
+    "n": 710,
+    "pearson": 0.03997240802148719,
+    "spearman": 0.030965298048224194,
+    "targetMean": 0.001247282238215872,
+    "targetSd": 0.015630978085450047
+  },
+  "development": {
+    "n": 496,
+    "pearson": -0.002063694610017965,
+    "spearman": -0.02053324490957904,
+    "targetMean": 0.0008091986139260894,
+    "targetSd": 0.014357096755932414
+  },
+  "evaluation": {
+    "n": 213,
+    "pearson": 0.1201267273945151,
+    "spearman": 0.13421262787606802,
+    "targetMean": 0.002174240092881803,
+    "targetSd": 0.018200986188488165
+  },
+  "evaluationQuintiles": {
+    "developmentCuts": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "buckets": [
+      {
+        "bucket": 1,
+        "n": 202,
+        "factorMin": 0,
+        "factorMax": 0,
+        "targetMean": 0.0016640227417314473
+      },
+      {
+        "bucket": 2,
+        "n": 0,
+        "factorMin": null,
+        "factorMax": null,
+        "targetMean": null
+      },
+      {
+        "bucket": 3,
+        "n": 0,
+        "factorMin": null,
+        "factorMax": null,
+        "targetMean": null
+      },
+      {
+        "bucket": 4,
+        "n": 0,
+        "factorMin": null,
+        "factorMax": null,
+        "targetMean": null
+      },
+      {
+        "bucket": 5,
+        "n": 11,
+        "factorMin": 1,
+        "factorMax": 1,
+        "targetMean": 0.0115436859958247
+      }
+    ],
+    "monotonicitySpearman": null,
+    "topMinusBottom": 0.009879663254093254,
+    "standardizedTopMinusBottom": 0.5428092275759202
+  },
+  "evaluationStability": {
+    "byYear": [
+      {
+        "group": "2025",
+        "n": 83,
+        "pearson": 0.24841896534843524,
+        "spearman": 0.1878410466592389,
+        "targetMean": 0.002113909888612243,
+        "targetSd": 0.01136819542340392
+      },
+      {
+        "group": "2026",
+        "n": 130,
+        "pearson": 0.0839276133214832,
+        "spearman": 0.09126927612692001,
+        "targetMean": 0.0022127586079154454,
+        "targetSd": 0.02145383135437381
+      }
+    ],
+    "byVolatilityRegime": [
+      {
+        "group": "HIGH_VOL",
+        "n": 163,
+        "pearson": 0.12585445923070115,
+        "spearman": 0.12558918941904101,
+        "targetMean": 0.0013641776949279102,
+        "targetSd": 0.01994948278290693
+      },
+      {
+        "group": "LOW_VOL",
+        "n": 50,
+        "pearson": 0.1157112753990613,
+        "spearman": 0.13437716654683438,
+        "targetMean": 0.004815043510211494,
+        "targetSd": 0.010232369904435159
+      }
+    ],
+    "byTrendRegime": [
+      {
+        "group": "RANGE",
+        "n": 46,
+        "pearson": -0.060069861986623535,
+        "spearman": -0.1686216737516289,
+        "targetMean": 0.00027245346006583425,
+        "targetSd": 0.020927229834266595
+      },
+      {
+        "group": "TREND",
+        "n": 167,
+        "pearson": 0.17427565401180203,
+        "spearman": 0.20243236949954582,
+        "targetMean": 0.0026980855126993754,
+        "targetSd": 0.017338461468678408
+      }
+    ],
+    "bySettlementRegime": [
+      {
+        "group": "NON_SETTLEMENT",
+        "n": 195,
+        "pearson": 0.1209144118113671,
+        "spearman": 0.13702062466157888,
+        "targetMean": 0.0023876973955295525,
+        "targetSd": 0.01851461163965929
+      },
+      {
+        "group": "SETTLEMENT_WINDOW",
+        "n": 18,
+        "pearson": null,
+        "spearman": null,
+        "targetMean": -0.00013821401913548402,
+        "targetSd": 0.014166495557447404
+      }
+    ],
+    "top5ContributionShare": 0.39187267507217194
+  },
+  "evaluationStatus": "DESCRIPTIVE_COMPLETE",
+  "historicalEvidence": "UNASSESSED_UNTIL_A13",
+  "promotionEligible": false,
+  "promotionStage": "F1_OR_F2_PENDING_A13",
+  "nextAllowedStep": "A13_LOW_COST_NEGATIVE_CONTROLS",
+  "researchOnly": true,
+  "formalWeight": 0,
+  "executionAuthorized": false,
+  "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+  "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+  "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+  "featureDataDigest": "c6e527051b4586975718205735513c1227205688613d8ceb8035e275f0dd24d7",
+  "targetDataDigest": "e771499c393fc3eb26ea1f4cea9ea8bab2685aed1e6b7aa0a37fbdb2a2918618"
+}

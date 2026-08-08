@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "phase-a-a13-negative-controls-v1",
+  "factorId": "contract_changed",
+  "targetId": "next_day_downside_tail",
+  "evaluationRows": 213,
+  "configuration": {
+    "permutationIterations": 200,
+    "randomFeatureIterations": 50,
+    "blockSize": 5,
+    "minimumEvaluationRows": 60,
+    "randomSeed": 379741037,
+    "observedStatistic": "ABS_SPEARMAN",
+    "permutationMethod": "MOVING_BLOCK_FACTOR_PERMUTATION",
+    "randomFeatureMethod": "SEEDED_STANDARD_GAUSSIAN"
+  },
+  "observed": {
+    "spearman": -0.053329929688883566,
+    "absoluteSpearman": 0.053329929688883566,
+    "standardizedQuintileSpread": 0.24097866119361883
+  },
+  "movingBlockPlacebo": {
+    "empiricalP": 0.7164179104477612,
+    "statisticP50": 0.053329929688883566,
+    "statisticP95": 0.11290336334134374,
+    "exceedanceCount": 143
+  },
+  "randomFeatureCompetition": {
+    "statisticP50": 0.05235212215074239,
+    "statisticP95": 0.11316035850792851,
+    "observedExceedsP95": false
+  },
+  "leadLagDiagnostic": {
+    "lag1Spearman": 0.11246248144676235,
+    "lead1Spearman": 0.05701586268696324,
+    "leadDominanceLimit": 0.10665985937776713
+  },
+  "concentrationDiagnostic": {
+    "top5ContributionShare": 0.26180218386476545
+  },
+  "screeningChecks": [
+    {
+      "checkId": "MINIMUM_EFFECT_SIZE",
+      "passed": true,
+      "observed": 0.053329929688883566,
+      "threshold": 0.05
+    },
+    {
+      "checkId": "MOVING_BLOCK_PLACEBO",
+      "passed": false,
+      "observed": 0.7164179104477612,
+      "threshold": 0.1
+    },
+    {
+      "checkId": "RANDOM_FEATURE_COMPETITION",
+      "passed": false,
+      "observed": 0.053329929688883566,
+      "threshold": 0.11316035850792851
+    },
+    {
+      "checkId": "QUINTILE_EFFECT_SIZE",
+      "passed": true,
+      "observed": 0.24097866119361883,
+      "threshold": 0.1
+    },
+    {
+      "checkId": "EXTREME_DAY_CONCENTRATION",
+      "passed": true,
+      "observed": 0.26180218386476545,
+      "threshold": 0.4
+    },
+    {
+      "checkId": "FUTURE_LEAD_DOMINANCE",
+      "passed": true,
+      "observed": 0.05701586268696324,
+      "threshold": 0.10665985937776713
+    }
+  ],
+  "evaluationStatus": "ROUND1_NEGATIVE_CONTROL_FAIL",
+  "historicalEvidence": "NEGATIVE_OR_UNSTABLE",
+  "computeAllocationEligible": false,
+  "promotionEligible": false,
+  "promotionStage": "F1_OR_F2_PENDING_STRONG_CONTROLS",
+  "nextAllowedStep": "PAUSE_ROUND1_SCREENING",
+  "researchOnly": true,
+  "formalWeight": 0,
+  "executionAuthorized": false,
+  "fold": {
+    "foldId": "CHRONO_70_30_PURGE_1",
+    "trainEndDate": "2025-08-22",
+    "purgeDate": "2025-08-25",
+    "evaluationStartDate": "2025-08-26",
+    "eligible": true
+  },
+  "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+  "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+  "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+  "featureDataDigest": "c6e527051b4586975718205735513c1227205688613d8ceb8035e275f0dd24d7",
+  "targetDataDigest": "e771499c393fc3eb26ea1f4cea9ea8bab2685aed1e6b7aa0a37fbdb2a2918618",
+  "a12OutputHash": "4c5d900c3564811aa519f4994e64efe9afa0631aac1202aee0f74721dc84226f"
+}

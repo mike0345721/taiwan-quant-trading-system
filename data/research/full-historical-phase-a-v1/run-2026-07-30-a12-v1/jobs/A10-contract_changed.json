@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "phase-a-a10-factor-quality-v1",
+  "stage": "A10",
+  "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+  "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+  "factorId": "contract_changed",
+  "baseFactorId": "contract_changed",
+  "factorGroup": "Futures",
+  "transform": "raw",
+  "sourceTable": "futures_oi_daily",
+  "observations": 747,
+  "validObservations": 747,
+  "coveragePct": 100,
+  "qualityCounts": {
+    "PASS": 747
+  },
+  "qualityState": "PASS",
+  "qualityReason": null,
+  "researchOnly": true,
+  "formalWeight": 0,
+  "executionAuthorized": false
+}

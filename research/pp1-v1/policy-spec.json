@@ -1,0 +1,28 @@
+{
+  "policyVersion": "PP1_MARKET_SEMANTICS_V1",
+  "status": "OWNER_APPROVED_IMPLEMENTATION",
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "officialFrontDefinition": "nearest eligible TX monthly contract whose final trading session has not completed",
+  "liquidityLead": {
+    "candidateRoles": ["NEAREST_ELIGIBLE_MONTH", "NEXT_MONTHLY"],
+    "tieTolerancePct": 5,
+    "freezeWithinSession": true,
+    "dayReference": "prior completed night session volume",
+    "nightReference": "completed day session volume"
+  },
+  "openingQuality": {
+    "auctionAtSessionStart": "PASS",
+    "firstLegalTradeMaxDelaySeconds": 60,
+    "thresholdPolicyStatus": "OWNER_POLICY_V1",
+    "optimizedOnTradingTarget": false
+  },
+  "closeQualitySeconds": {
+    "DAY": { "passMax": 2, "degradedMax": 10 },
+    "NIGHT": { "passMax": 20, "degradedMax": 60 }
+  },
+  "researchContractPolicyVersion": "PP1_RESEARCH_CONTRACT_V1",
+  "tradingContractPolicyVersion": "PP1_TRADING_CONTRACT_V1"
+}
+

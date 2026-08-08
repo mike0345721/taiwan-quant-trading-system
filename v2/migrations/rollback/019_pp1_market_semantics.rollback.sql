@@ -1,0 +1,10 @@
+PRAGMA foreign_keys = OFF;
+DROP TABLE IF EXISTS pp1_continuous_series_points;
+DROP TABLE IF EXISTS pp1_gap_observations;
+DROP TABLE IF EXISTS pp1_contract_selections;
+DROP TABLE IF EXISTS pp1_contract_selection_sets;
+DROP TABLE IF EXISTS pp1_contract_identities;
+DROP TABLE IF EXISTS pp1_session_contexts;
+DROP TABLE IF EXISTS pp1_source_snapshots;
+DELETE FROM schema_migrations WHERE version='019_pp1_market_semantics.sql';
+PRAGMA foreign_keys = ON;

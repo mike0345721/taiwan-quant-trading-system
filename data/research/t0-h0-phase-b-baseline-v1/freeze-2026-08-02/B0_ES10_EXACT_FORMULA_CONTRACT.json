@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "phase-b-b0-es10-exact-formula-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "appliesSeparatelyTo": ["S0", "S1"],
+  "executedTradePnlDefinition": "BASE_NET_PNL_OF_ACTUALLY_EXECUTED_TRADES_ONLY",
+  "tradeCountFormula": "executedTradePnl.length",
+  "kFormula": "max(1, ceil(tradeCount * 0.10))",
+  "es10Formula": "arithmetic mean of first k values after ascending sort of executedTradePnl",
+  "excludeFromTradeLevelES10": ["VETO_DAY", "ORIGINAL_NO_TRADE"],
+  "dailyEquityZeroPreservedForExcluded": true,
+  "zeroPaddingForbidden": true,
+  "zeroTradeState": "UNAVAILABLE",
+  "zeroTradeF4PassAllowed": false,
+  "worst5Percent": {
+    "tailFraction": 0.05,
+    "sameFormula": true,
+    "stressDiagnosticOnly": true
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

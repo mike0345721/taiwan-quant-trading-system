@@ -1,0 +1,46 @@
+{
+  "version": "2.10.0",
+  "status": "research_only",
+  "scoringRule": "Each correlated group may contribute at most one calibrated vote. Risk vetoes can block a direction vote; missing data never becomes neutral zero.",
+  "outputs": [
+    "directionBias",
+    "volatilityRisk",
+    "gapRisk",
+    "trendSuitability",
+    "tradability",
+    "noChaseLongReason",
+    "noChaseShortReason"
+  ],
+  "groups": {
+    "fundingPressure": {
+      "role": "environment_and_direction_confirmation",
+      "factors": ["USDTWD", "DTWEXBGS", "DEXCHUS", "foreignSpot"],
+      "researchWeight": 0,
+      "note": "美元、人民幣與外資流量高度相關，不可逐項累加。"
+    },
+    "ratePressure": {
+      "role": "valuation_and_risk_environment",
+      "factors": ["DGS2", "DFII10", "DGS10_MINUS_DGS2", "FOMC_EVENT", "BOJ_EVENT", "CBC_EVENT"],
+      "researchWeight": 0,
+      "note": "央行事件與每日殖利率分開研究。"
+    },
+    "riskPressure": {
+      "role": "volatility_gap_and_veto",
+      "factors": ["VIXCLS", "TAIWAN_VIX", "BAMLH0A0HYM2", "GOLD", "DCOILWTICO"],
+      "researchWeight": 0,
+      "note": "優先判斷是否縮小部位或禁止追價，不直接猜方向。"
+    },
+    "semiconductorCycle": {
+      "role": "medium_term_regime",
+      "factors": ["SOX", "COPPER", "PCOPPUSDM", "TW_EXPORT_ICT_YOY", "TW_EXPORT_ELEC_YOY", "TW_EXPORT_ORDERS_YOY", "TW_SEMICON_PRODUCTION_YOY", "TSMC_REVENUE_YOY"],
+      "researchWeight": 0,
+      "note": "月資料只在實際發布後生效。"
+    },
+    "chipConfirmation": {
+      "role": "post_close_direction_confirmation",
+      "factors": ["foreignSpot", "foreignFuturesDelta1d", "marketOiDelta1d", "optionWalls", "optionTermStructure", "optionSkew"],
+      "researchWeight": 0,
+      "note": "先做交互作用與簡化因子配對增量，不能以籌碼名稱多就增加信心。"
+    }
+  }
+}

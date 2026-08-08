@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "phase-b-b0-bootstrap-inference-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "iterations": 2000,
+  "blockLengths": [5, 10],
+  "quantileMethod": "LINEAR_INTERPOLATION_N_MINUS_1",
+  "confidenceMethod": "BASIC_ONE_SIDED_95_PERCENT_LOWER_BOUND",
+  "bootstrapErrorFormula": "thetaStar[b] - thetaHat",
+  "lowerBoundFormula": "thetaHat - quantile95(bootstrapError)",
+  "rawPFormula": "(1 + count(bootstrapError[b] >= thetaHat - margin)) / (B + 1)",
+  "conservativeAggregation": {
+    "gateLowerBound": "min(block5LowerBound, block10LowerBound)",
+    "gateRawP": "max(block5RawP, block10RawP)"
+  },
+  "primaryHolmFamily": ["MAX_DRAWDOWN_IMPROVEMENT", "ES10_IMPROVEMENT", "EXPECTANCY_NON_INFERIORITY"],
+  "holmAlpha": 0.05,
+  "endpointPassRequires": ["EFFECT_VALUE_AT_OR_ABOVE_MARGIN", "GATE_LOWER_BOUND_AT_OR_ABOVE_MARGIN", "HOLM_ADJUSTED_P_BELOW_0_05"],
+  "seedBase": 20260730,
+  "seedDerivation": "SHA256(seedBase + candidateId + endpointId + blockLength)",
+  "saveSeedHash": true,
+  "selectMoreFavorableBlockResultForbidden": true,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

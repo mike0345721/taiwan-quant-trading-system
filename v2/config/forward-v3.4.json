@@ -1,0 +1,16 @@
+{
+  "version": "3.4.0",
+  "frozenAt": "2026-07-15T10:00:00+08:00",
+  "freezeThroughDate": "2026-07-14",
+  "status": "research_only",
+  "strategyKeys": ["price_oi_reversal_h2", "foreign_short_build_reversal_h3"],
+  "assumptions": {
+    "costPoints": 8,
+    "quantileLow": 0.3,
+    "quantileHigh": 0.7,
+    "minimumTrainingDays": 160,
+    "entryTiming": "next_taiwan_day_open",
+    "contractPolicy": "same_contract_only"
+  },
+  "prohibitions": ["no_broker_connection", "no_order_submission", "no_retroactive_rule_change", "no_backfill_as_forward_evidence"]
+}

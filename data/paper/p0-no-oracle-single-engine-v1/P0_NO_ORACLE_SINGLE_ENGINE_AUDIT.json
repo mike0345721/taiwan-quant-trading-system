@@ -1,0 +1,1141 @@
+{
+  "schemaVersion": "p0-no-oracle-single-engine-audit-v1",
+  "status": "PASS",
+  "sessionCount": 137,
+  "comparatorMismatchCount": 0,
+  "ledgerAudit": {
+    "ok": true,
+    "eventCount": 1483,
+    "aggregateCount": 137,
+    "finalStates": {
+      "2026-01-02-DAY": "SESSION_RECONCILED",
+      "2026-01-05-DAY": "SESSION_RECONCILED",
+      "2026-01-06-DAY": "SESSION_RECONCILED",
+      "2026-01-07-DAY": "SESSION_RECONCILED",
+      "2026-01-08-DAY": "SESSION_RECONCILED",
+      "2026-01-09-DAY": "SESSION_RECONCILED",
+      "2026-01-12-DAY": "SESSION_RECONCILED",
+      "2026-01-13-DAY": "SESSION_RECONCILED",
+      "2026-01-14-DAY": "SESSION_RECONCILED",
+      "2026-01-15-DAY": "SESSION_RECONCILED",
+      "2026-01-16-DAY": "SESSION_RECONCILED",
+      "2026-01-19-DAY": "SESSION_RECONCILED",
+      "2026-01-20-DAY": "SESSION_RECONCILED",
+      "2026-01-21-DAY": "SESSION_RECONCILED",
+      "2026-01-22-DAY": "SESSION_RECONCILED",
+      "2026-01-23-DAY": "SESSION_RECONCILED",
+      "2026-01-26-DAY": "SESSION_RECONCILED",
+      "2026-01-27-DAY": "SESSION_RECONCILED",
+      "2026-01-28-DAY": "SESSION_RECONCILED",
+      "2026-01-29-DAY": "SESSION_RECONCILED",
+      "2026-01-30-DAY": "SESSION_RECONCILED",
+      "2026-02-02-DAY": "SESSION_RECONCILED",
+      "2026-02-03-DAY": "SESSION_RECONCILED",
+      "2026-02-04-DAY": "SESSION_RECONCILED",
+      "2026-02-05-DAY": "SESSION_RECONCILED",
+      "2026-02-06-DAY": "SESSION_RECONCILED",
+      "2026-02-09-DAY": "SESSION_RECONCILED",
+      "2026-02-10-DAY": "SESSION_RECONCILED",
+      "2026-02-11-DAY": "SESSION_RECONCILED",
+      "2026-02-23-DAY": "SESSION_RECONCILED",
+      "2026-02-24-DAY": "SESSION_RECONCILED",
+      "2026-02-25-DAY": "SESSION_RECONCILED",
+      "2026-02-26-DAY": "SESSION_RECONCILED",
+      "2026-03-02-DAY": "SESSION_RECONCILED",
+      "2026-03-03-DAY": "SESSION_RECONCILED",
+      "2026-03-04-DAY": "SESSION_RECONCILED",
+      "2026-03-05-DAY": "SESSION_RECONCILED",
+      "2026-03-06-DAY": "SESSION_RECONCILED",
+      "2026-03-09-DAY": "SESSION_RECONCILED",
+      "2026-03-10-DAY": "SESSION_RECONCILED",
+      "2026-03-11-DAY": "SESSION_RECONCILED",
+      "2026-03-12-DAY": "SESSION_RECONCILED",
+      "2026-03-13-DAY": "SESSION_RECONCILED",
+      "2026-03-16-DAY": "SESSION_RECONCILED",
+      "2026-03-17-DAY": "SESSION_RECONCILED",
+      "2026-03-18-DAY": "SESSION_RECONCILED",
+      "2026-03-19-DAY": "SESSION_RECONCILED",
+      "2026-03-20-DAY": "SESSION_RECONCILED",
+      "2026-03-23-DAY": "SESSION_RECONCILED",
+      "2026-03-24-DAY": "SESSION_RECONCILED",
+      "2026-03-25-DAY": "SESSION_RECONCILED",
+      "2026-03-26-DAY": "SESSION_RECONCILED",
+      "2026-03-27-DAY": "SESSION_RECONCILED",
+      "2026-03-30-DAY": "SESSION_RECONCILED",
+      "2026-03-31-DAY": "SESSION_RECONCILED",
+      "2026-04-01-DAY": "SESSION_RECONCILED",
+      "2026-04-02-DAY": "SESSION_RECONCILED",
+      "2026-04-07-DAY": "SESSION_RECONCILED",
+      "2026-04-08-DAY": "SESSION_RECONCILED",
+      "2026-04-09-DAY": "SESSION_RECONCILED",
+      "2026-04-10-DAY": "SESSION_RECONCILED",
+      "2026-04-13-DAY": "SESSION_RECONCILED",
+      "2026-04-14-DAY": "SESSION_RECONCILED",
+      "2026-04-15-DAY": "SESSION_RECONCILED",
+      "2026-04-16-DAY": "SESSION_RECONCILED",
+      "2026-04-17-DAY": "SESSION_RECONCILED",
+      "2026-04-20-DAY": "SESSION_RECONCILED",
+      "2026-04-21-DAY": "SESSION_RECONCILED",
+      "2026-04-22-DAY": "SESSION_RECONCILED",
+      "2026-04-23-DAY": "SESSION_RECONCILED",
+      "2026-04-24-DAY": "SESSION_RECONCILED",
+      "2026-04-27-DAY": "SESSION_RECONCILED",
+      "2026-04-28-DAY": "SESSION_RECONCILED",
+      "2026-04-29-DAY": "SESSION_RECONCILED",
+      "2026-04-30-DAY": "SESSION_RECONCILED",
+      "2026-05-04-DAY": "SESSION_RECONCILED",
+      "2026-05-05-DAY": "SESSION_RECONCILED",
+      "2026-05-06-DAY": "SESSION_RECONCILED",
+      "2026-05-07-DAY": "SESSION_RECONCILED",
+      "2026-05-08-DAY": "SESSION_RECONCILED",
+      "2026-05-11-DAY": "SESSION_RECONCILED",
+      "2026-05-12-DAY": "SESSION_RECONCILED",
+      "2026-05-13-DAY": "SESSION_RECONCILED",
+      "2026-05-14-DAY": "SESSION_RECONCILED",
+      "2026-05-15-DAY": "SESSION_RECONCILED",
+      "2026-05-18-DAY": "SESSION_RECONCILED",
+      "2026-05-19-DAY": "SESSION_RECONCILED",
+      "2026-05-20-DAY": "SESSION_RECONCILED",
+      "2026-05-21-DAY": "SESSION_RECONCILED",
+      "2026-05-22-DAY": "SESSION_RECONCILED",
+      "2026-05-25-DAY": "SESSION_RECONCILED",
+      "2026-05-26-DAY": "SESSION_RECONCILED",
+      "2026-05-27-DAY": "SESSION_RECONCILED",
+      "2026-05-28-DAY": "SESSION_RECONCILED",
+      "2026-05-29-DAY": "SESSION_RECONCILED",
+      "2026-06-01-DAY": "SESSION_RECONCILED",
+      "2026-06-02-DAY": "SESSION_RECONCILED",
+      "2026-06-03-DAY": "SESSION_RECONCILED",
+      "2026-06-04-DAY": "SESSION_RECONCILED",
+      "2026-06-05-DAY": "SESSION_RECONCILED",
+      "2026-06-08-DAY": "SESSION_RECONCILED",
+      "2026-06-09-DAY": "SESSION_RECONCILED",
+      "2026-06-10-DAY": "SESSION_RECONCILED",
+      "2026-06-11-DAY": "SESSION_RECONCILED",
+      "2026-06-12-DAY": "SESSION_RECONCILED",
+      "2026-06-15-DAY": "SESSION_RECONCILED",
+      "2026-06-16-DAY": "SESSION_RECONCILED",
+      "2026-06-17-DAY": "SESSION_RECONCILED",
+      "2026-06-18-DAY": "SESSION_RECONCILED",
+      "2026-06-22-DAY": "SESSION_RECONCILED",
+      "2026-06-23-DAY": "SESSION_RECONCILED",
+      "2026-06-24-DAY": "SESSION_RECONCILED",
+      "2026-06-25-DAY": "SESSION_RECONCILED",
+      "2026-06-26-DAY": "SESSION_RECONCILED",
+      "2026-06-29-DAY": "SESSION_RECONCILED",
+      "2026-06-30-DAY": "SESSION_RECONCILED",
+      "2026-07-01-DAY": "SESSION_RECONCILED",
+      "2026-07-02-DAY": "SESSION_RECONCILED",
+      "2026-07-03-DAY": "SESSION_RECONCILED",
+      "2026-07-06-DAY": "SESSION_RECONCILED",
+      "2026-07-07-DAY": "SESSION_RECONCILED",
+      "2026-07-08-DAY": "SESSION_RECONCILED",
+      "2026-07-09-DAY": "SESSION_RECONCILED",
+      "2026-07-13-DAY": "SESSION_RECONCILED",
+      "2026-07-14-DAY": "SESSION_RECONCILED",
+      "2026-07-15-DAY": "SESSION_RECONCILED",
+      "2026-07-16-DAY": "SESSION_RECONCILED",
+      "2026-07-17-DAY": "SESSION_RECONCILED",
+      "2026-07-20-DAY": "SESSION_RECONCILED",
+      "2026-07-21-DAY": "SESSION_RECONCILED",
+      "2026-07-22-DAY": "SESSION_RECONCILED",
+      "2026-07-23-DAY": "SESSION_RECONCILED",
+      "2026-07-24-DAY": "SESSION_RECONCILED",
+      "2026-07-27-DAY": "SESSION_RECONCILED",
+      "2026-07-28-DAY": "SESSION_RECONCILED",
+      "2026-07-29-DAY": "SESSION_RECONCILED",
+      "2026-07-30-DAY": "SESSION_RECONCILED"
+    },
+    "errors": [],
+    "ledgerHash": "f64bfd57930b57ad8aac7dd72b20008f78953a40f48186fe4e36a09ad101c85f"
+  },
+  "reconstructedSessionCount": 137,
+  "enginePath": "raw market ticks -> frozen T0 detection -> paper state machine -> ledger -> comparator",
+  "comparatorTiming": "AFTER_PAPER_SESSION_COMPLETED",
+  "oracleInputsUsedByEngine": [],
+  "sourceAudit": [
+    {
+      "file": "src/p0-market-engine.mjs",
+      "forbiddenEngineImportFound": false
+    },
+    {
+      "file": "src/p0-paper-trading.mjs",
+      "forbiddenEngineImportFound": false
+    },
+    {
+      "file": "scripts/run-p0-forward-paper-observer.mjs",
+      "forbiddenEngineImportFound": false
+    }
+  ],
+  "frozenArtifactProtection": {
+    "pass": true,
+    "changed": [],
+    "addedOrRemoved": [],
+    "beforeCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2",
+    "afterCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2"
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "comparisons": [
+    {
+      "tradeDate": "2026-01-02",
+      "sessionId": "2026-01-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-05",
+      "sessionId": "2026-01-05-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-06",
+      "sessionId": "2026-01-06-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-07",
+      "sessionId": "2026-01-07-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-08",
+      "sessionId": "2026-01-08-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-09",
+      "sessionId": "2026-01-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-12",
+      "sessionId": "2026-01-12-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-13",
+      "sessionId": "2026-01-13-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-14",
+      "sessionId": "2026-01-14-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-15",
+      "sessionId": "2026-01-15-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-16",
+      "sessionId": "2026-01-16-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-19",
+      "sessionId": "2026-01-19-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-20",
+      "sessionId": "2026-01-20-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-21",
+      "sessionId": "2026-01-21-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-22",
+      "sessionId": "2026-01-22-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-23",
+      "sessionId": "2026-01-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-26",
+      "sessionId": "2026-01-26-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-27",
+      "sessionId": "2026-01-27-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-28",
+      "sessionId": "2026-01-28-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-29",
+      "sessionId": "2026-01-29-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-01-30",
+      "sessionId": "2026-01-30-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-02",
+      "sessionId": "2026-02-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-03",
+      "sessionId": "2026-02-03-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-04",
+      "sessionId": "2026-02-04-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-05",
+      "sessionId": "2026-02-05-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-06",
+      "sessionId": "2026-02-06-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-09",
+      "sessionId": "2026-02-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-10",
+      "sessionId": "2026-02-10-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-11",
+      "sessionId": "2026-02-11-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-23",
+      "sessionId": "2026-02-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-24",
+      "sessionId": "2026-02-24-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-25",
+      "sessionId": "2026-02-25-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-02-26",
+      "sessionId": "2026-02-26-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-02",
+      "sessionId": "2026-03-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-03",
+      "sessionId": "2026-03-03-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-04",
+      "sessionId": "2026-03-04-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-05",
+      "sessionId": "2026-03-05-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-06",
+      "sessionId": "2026-03-06-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-09",
+      "sessionId": "2026-03-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-10",
+      "sessionId": "2026-03-10-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-11",
+      "sessionId": "2026-03-11-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-12",
+      "sessionId": "2026-03-12-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-13",
+      "sessionId": "2026-03-13-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-16",
+      "sessionId": "2026-03-16-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-17",
+      "sessionId": "2026-03-17-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-18",
+      "sessionId": "2026-03-18-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-19",
+      "sessionId": "2026-03-19-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-20",
+      "sessionId": "2026-03-20-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-23",
+      "sessionId": "2026-03-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-24",
+      "sessionId": "2026-03-24-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-25",
+      "sessionId": "2026-03-25-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-26",
+      "sessionId": "2026-03-26-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-27",
+      "sessionId": "2026-03-27-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-30",
+      "sessionId": "2026-03-30-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-03-31",
+      "sessionId": "2026-03-31-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-01",
+      "sessionId": "2026-04-01-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-02",
+      "sessionId": "2026-04-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-07",
+      "sessionId": "2026-04-07-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-08",
+      "sessionId": "2026-04-08-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-09",
+      "sessionId": "2026-04-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-10",
+      "sessionId": "2026-04-10-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-13",
+      "sessionId": "2026-04-13-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-14",
+      "sessionId": "2026-04-14-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-15",
+      "sessionId": "2026-04-15-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-16",
+      "sessionId": "2026-04-16-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-17",
+      "sessionId": "2026-04-17-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-20",
+      "sessionId": "2026-04-20-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-21",
+      "sessionId": "2026-04-21-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-22",
+      "sessionId": "2026-04-22-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-23",
+      "sessionId": "2026-04-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-24",
+      "sessionId": "2026-04-24-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-27",
+      "sessionId": "2026-04-27-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-28",
+      "sessionId": "2026-04-28-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-29",
+      "sessionId": "2026-04-29-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-04-30",
+      "sessionId": "2026-04-30-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-04",
+      "sessionId": "2026-05-04-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-05",
+      "sessionId": "2026-05-05-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-06",
+      "sessionId": "2026-05-06-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-07",
+      "sessionId": "2026-05-07-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-08",
+      "sessionId": "2026-05-08-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-11",
+      "sessionId": "2026-05-11-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-12",
+      "sessionId": "2026-05-12-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-13",
+      "sessionId": "2026-05-13-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-14",
+      "sessionId": "2026-05-14-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-15",
+      "sessionId": "2026-05-15-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-18",
+      "sessionId": "2026-05-18-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-19",
+      "sessionId": "2026-05-19-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-20",
+      "sessionId": "2026-05-20-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-21",
+      "sessionId": "2026-05-21-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-22",
+      "sessionId": "2026-05-22-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-25",
+      "sessionId": "2026-05-25-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-26",
+      "sessionId": "2026-05-26-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-27",
+      "sessionId": "2026-05-27-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-28",
+      "sessionId": "2026-05-28-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-05-29",
+      "sessionId": "2026-05-29-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-01",
+      "sessionId": "2026-06-01-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-02",
+      "sessionId": "2026-06-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-03",
+      "sessionId": "2026-06-03-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-04",
+      "sessionId": "2026-06-04-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-05",
+      "sessionId": "2026-06-05-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-08",
+      "sessionId": "2026-06-08-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-09",
+      "sessionId": "2026-06-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-10",
+      "sessionId": "2026-06-10-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-11",
+      "sessionId": "2026-06-11-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-12",
+      "sessionId": "2026-06-12-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-15",
+      "sessionId": "2026-06-15-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-16",
+      "sessionId": "2026-06-16-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-17",
+      "sessionId": "2026-06-17-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-18",
+      "sessionId": "2026-06-18-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-22",
+      "sessionId": "2026-06-22-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-23",
+      "sessionId": "2026-06-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-24",
+      "sessionId": "2026-06-24-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-25",
+      "sessionId": "2026-06-25-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-26",
+      "sessionId": "2026-06-26-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-29",
+      "sessionId": "2026-06-29-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-06-30",
+      "sessionId": "2026-06-30-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-01",
+      "sessionId": "2026-07-01-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-02",
+      "sessionId": "2026-07-02-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-03",
+      "sessionId": "2026-07-03-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-06",
+      "sessionId": "2026-07-06-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-07",
+      "sessionId": "2026-07-07-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-08",
+      "sessionId": "2026-07-08-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-09",
+      "sessionId": "2026-07-09-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-13",
+      "sessionId": "2026-07-13-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-14",
+      "sessionId": "2026-07-14-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-15",
+      "sessionId": "2026-07-15-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-16",
+      "sessionId": "2026-07-16-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-17",
+      "sessionId": "2026-07-17-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-20",
+      "sessionId": "2026-07-20-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-21",
+      "sessionId": "2026-07-21-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-22",
+      "sessionId": "2026-07-22-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-23",
+      "sessionId": "2026-07-23-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-24",
+      "sessionId": "2026-07-24-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-27",
+      "sessionId": "2026-07-27-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-28",
+      "sessionId": "2026-07-28-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-29",
+      "sessionId": "2026-07-29-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    },
+    {
+      "tradeDate": "2026-07-30",
+      "sessionId": "2026-07-30-DAY",
+      "status": "PASS",
+      "mismatches": [],
+      "comparatorReadAfterPaperSessionCompleted": true
+    }
+  ]
+}

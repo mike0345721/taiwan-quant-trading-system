@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "f3c01-evaluation-registry-record-v1",
+  "candidateId": "F3C01",
+  "runId": "run-2026-08-03-v3",
+  "phaseBRole": "OPTIONS_VOLATILITY_REGIME",
+  "runStatus": "INSUFFICIENT_SAMPLE",
+  "engineeringStatus": "PASS",
+  "sampleGateStatus": "FAIL",
+  "performanceEvaluationStatus": "NOT_RUN",
+  "candidatePerformanceEvaluated": false,
+  "researchOutcome": "NOT_EVALUATED",
+  "evaluationStatus": "PAUSED",
+  "activeValidationStatus": "PAUSED_INSUFFICIENT_SAMPLE",
+  "workPackageStatus": "CLOSED_INSUFFICIENT_SAMPLE",
+  "promotionEligible": false,
+  "signalEligible": false,
+  "paperEligible": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

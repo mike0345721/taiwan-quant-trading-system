@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>台股決策雷達 V3.9.7</title>
+  <link rel="stylesheet" href="/styles.css?v=3.9.7">
+  <script src="/app.js?v=3.9.7" defer></script>
+</head>
+<body>
+  <main id="app" class="app-shell" aria-live="polite">
+    <section id="loading-view" class="center-card">
+      <div class="brand-mark">籌</div>
+      <h1>台股決策雷達 V3.9.7</h1>
+      <p class="muted">正在確認安全工作階段…</p>
+    </section>
+
+    <section id="login-view" class="center-card hidden" aria-labelledby="login-title">
+      <div class="brand-mark">籌</div>
+      <p class="eyebrow">PRIVATE READ-ONLY DASHBOARD</p>
+      <h1 id="login-title">台股決策雷達 V3.9.7</h1>
+      <p class="muted">此版本不連接券商、不提供下單，也不將任何憑證送到瀏覽器。</p>
+      <form id="login-form" autocomplete="on">
+        <label for="password">登入密碼</label>
+        <input id="password" name="password" type="password" minlength="12" autocomplete="current-password" required>
+        <label class="remember-option" for="remember-login">
+          <input id="remember-login" name="remember" type="checkbox">
+          <span>在這台裝置保持登入（30 天）</span>
+        </label>
+        <button type="submit">安全登入</button>
+        <p id="login-error" class="form-error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="dashboard-view" class="dashboard hidden">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">TW MARKET INTELLIGENCE</p>
+        <h1>台股決策雷達 <span>V3.9.7</span></h1>
+          <p id="as-of" class="muted"></p>
+        </div>
+        <div class="top-actions">
+          <div class="security-pill"><span></span> 私人・只讀・無券商憑證</div>
+          <button id="daily-update-button" class="secondary" type="button">每日資料更新</button>
+          <button id="refresh-button" class="secondary" type="button">更新畫面</button>
+          <button id="logout-button" class="ghost" type="button">登出</button>
+        </div>
+      </header>
+
+      <div class="workspace-layout">
+        <nav class="side-nav" aria-label="面板分頁">
+          <button class="side-nav-button is-selected" type="button" data-dashboard-page="today"><span>01</span>今日重點<small>結論與操作條件</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="market"><span>02</span>現貨與期貨<small>市場、法人與期貨籌碼</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="options"><span>03</span>選擇權攻防<small>牆位、OI與Max Pain</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="intraday"><span>04</span>盤中價格<small>5分K、VWAP與回放</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="research"><span>05</span>V2研究回測<small>海外背景與正式驗證</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="quality"><span>06</span>資料品質<small>來源、日期與安全</small></button>
+        </nav>
+        <div class="dashboard-pages">
+
+      <section id="alert-area" data-page="today" class="is-active-page"></section>
+
+      <section class="decision-cockpit is-active-page" data-page="today" aria-labelledby="cockpit-title">
+        <div class="cockpit-heading">
+          <div>
+            <p class="eyebrow">V3.9 DECISION COCKPIT</p>
+            <h2 id="cockpit-title">今日三秒決策</h2>
+            <p>先看結論與否決條件，再看多空證據；研究分數不等於勝率。</p>
+          </div>
+          <div class="cockpit-badges"><span id="cockpit-data-date" class="source-badge">資料日 —</span><span id="cockpit-quality" class="source-badge">品質 —</span></div>
+        </div>
+        <div class="cockpit-lead">
+          <article id="cockpit-posture" class="cockpit-posture is-wait">
+            <span>FINAL POSTURE</span>
+            <h3 id="cockpit-action">等待資料</h3>
+            <p id="cockpit-recommendation">正在整理市場、籌碼、波動與價格確認。</p>
+            <div class="cockpit-mini-row">
+              <div><small>正式方向</small><strong id="cockpit-direction">中性</strong></div>
+              <div><small>研究觀察</small><strong id="cockpit-research-bias">—</strong></div>
+              <div><small>禁止事項</small><strong id="cockpit-prohibition">禁止追價</strong></div>
+            </div>
+          </article>
+          <div class="cockpit-axis-grid" aria-label="六軸決策評分">
+            <article id="axis-direction" class="axis-card is-neutral"><span>方向</span><strong>—</strong><small>正式偏向</small></article>
+            <article id="axis-volatility" class="axis-card is-unknown"><span>波動風險</span><strong>—</strong><small>不是方向</small></article>
+            <article id="axis-options" class="axis-card is-unknown"><span>選擇權異常</span><strong>—</strong><small>等待雷達</small></article>
+            <article id="axis-price" class="axis-card is-blocked"><span>價格確認</span><strong>未確認</strong><small>VWAP／CVD</small></article>
+            <article id="axis-tradability" class="axis-card is-blocked"><span>可交易性</span><strong>—</strong><small>成本與條件</small></article>
+            <article id="axis-evidence" class="axis-card is-observe"><span>證據品質</span><strong>—</strong><small>樣本外等級</small></article>
+          </div>
+        </div>
+        <div class="evidence-board">
+          <article class="evidence-column bullish">
+            <div class="evidence-column-heading"><span>偏多觀察</span><strong id="bull-evidence-count">0</strong></div>
+            <div id="bull-evidence-list" class="evidence-items"><p>等待資料</p></div>
+          </article>
+          <article class="evidence-column conflict">
+            <div class="evidence-column-heading"><span>衝突／風險</span><strong id="conflict-evidence-count">0</strong></div>
+            <div id="conflict-evidence-list" class="evidence-items"><p>等待資料</p></div>
+          </article>
+          <article class="evidence-column bearish">
+            <div class="evidence-column-heading"><span>偏空觀察</span><strong id="bear-evidence-count">0</strong></div>
+            <div id="bear-evidence-list" class="evidence-items"><p>等待資料</p></div>
+          </article>
+        </div>
+        <div class="component-score-panel">
+          <div><h3>研究分項溫度</h3><p>只顯示目前規則的方向觀察；未通過樣本外驗證前，不進正式下單權重。</p></div>
+          <div id="cockpit-component-bars" class="component-bars"></div>
+        </div>
+        <details class="shadow-score-details">
+          <summary>
+            <span>六軸影子評分與構成紀錄</span>
+            <strong id="shadow-score-summary">等待資料</strong>
+          </summary>
+          <p id="shadow-score-note">影子分數不影響正式方向，正式權重固定為 0。</p>
+          <div id="shadow-six-axis-list" class="shadow-six-axis-list"></div>
+          <small id="shadow-score-audit">尚未產生構成雜湊</small>
+        </details>
+      </section>
+
+      <details class="today-deep-dive is-active-page" data-page="today">
+        <summary><span>展開完整研究雷達與四道閘門</span><small>VIX、IV、風險群組、AUC與研究細節</small></summary>
+        <div class="today-deep-dive-body">
+
+      <section class="v362-briefing is-active-page" data-page="today" aria-labelledby="v362-title">
+        <div class="v362-heading">
+          <div>
+            <p class="eyebrow">V3.6.2 DAILY RISK BRIEFING</p>
+            <h2 id="v362-title">今日風險作戰板</h2>
+            <p class="v362-subtitle">只顯示可用的風險資訊；方向候選不等於進場訊號。</p>
+          </div>
+          <div class="v362-heading-badges">
+            <span id="v362-data-date" class="source-badge">資料日期 --</span>
+            <span id="v362-evidence-badge" class="source-badge">證據等級 --</span>
+          </div>
+        </div>
+        <div class="v362-layout">
+          <article id="v362-posture" class="v362-posture risk-unknown">
+            <span class="v362-kicker">TODAY'S POSTURE</span>
+            <div class="v362-posture-row">
+              <div><small>方向偏向</small><strong id="v362-direction">中性</strong></div>
+              <div><small>今日波動風險</small><strong id="v362-volatility">--</strong></div>
+            </div>
+            <p id="v362-recommendation" class="v362-recommendation">等待資料更新</p>
+            <p id="v362-evidence-note" class="v362-caveat">研究證據：風險候選，非下單訊號</p>
+          </article>
+          <div class="v362-metric-grid">
+            <article class="v362-metric"><span>VIX 五日變化</span><strong id="v362-vix-change">--</strong><small id="v362-vix-note">等待資料</small></article>
+            <article class="v362-metric"><span>ATM IV／Skew</span><strong id="v362-option-vol">--</strong><small id="v362-option-note">等待資料</small></article>
+            <article class="v362-metric"><span>外資期貨 5 日</span><strong id="v362-foreign-5d">--</strong><small id="v362-foreign-note">等待資料</small></article>
+            <article class="v362-metric"><span>外資單日加空</span><strong id="v362-short-add">--</strong><small id="v362-short-note">等待資料</small></article>
+            <article class="v362-metric"><span>價格確認</span><strong id="v362-price">未確認</strong><small id="v362-price-note">5 分 K／VWAP 尚未完成確認</small></article>
+            <article class="v362-metric"><span>資料狀態</span><strong id="v362-cache">--</strong><small id="v362-pending">檢查待公布資料中</small></article>
+          </div>
+        </div>
+        <div class="v362-footer">
+          <span id="v362-quality">時間稽核 --</span>
+          <span>ATM IV／Skew 為官方收盤資料推算值，不是期交所公布的即時 IV。</span>
+        </div>
+      </section>
+
+      <section class="hero-grid legacy-hero-grid is-active-page" data-page="today" aria-label="舊版研究摘要">
+        <article class="hero-card"><div class="metric-heading"><p>市場狀態</p><button class="info-toggle" type="button" aria-label="查看市場狀態說明" aria-expanded="false" aria-controls="help-regime">?</button></div><strong id="regime">—</strong><small id="regime-note">等待資料</small><div id="help-regime" class="metric-help hidden">歷史不足時使用單日暫行模型：指數漲跌超過±0.8%，且市場廣度超過±10%，標示單日偏多或偏空。累積21個有效交易日後自動切換20日模型：20日報酬超過+3%且站上20日均價為多頭趨勢；低於-3%且跌破20日均價為空頭趨勢；20日年化實現波動率≥30%為高波動；其餘為震盪。門檻日後仍需回測驗證。</div></article>
+        <article class="hero-card"><div class="metric-heading"><p>籌碼偏向</p><button class="info-toggle" type="button" aria-label="查看籌碼偏向說明" aria-expanded="false" aria-controls="help-bias">?</button></div><strong id="bias">—</strong><small id="score">研究方向分數 —</small><div id="help-bias" class="metric-help hidden">目前權重為現貨法人30%、期貨30%、選擇權20%、市場寬度20%。這是尚待前推驗證的研究方向分數，不是勝率或預期報酬；缺少分項時會重新正規化有效權重。</div></article>
+        <article class="hero-card"><div class="metric-heading"><p>波動／跳空風險</p><button class="info-toggle" type="button" aria-label="查看波動風險說明" aria-expanded="false" aria-controls="help-risk-scores">?</button></div><strong id="risk-scores">—</strong><small id="risk-score-note">等待資料</small><div id="help-risk-scores" class="metric-help hidden">波動風險以臺指VIX為主；跳空風險暫以夜盤漲跌幅與美國VIX估算。兩者都是0至100的風險尺，不是發生機率，尚需歷史校準。</div></article>
+        <article class="hero-card"><div class="metric-heading"><p>訊號品質</p><button class="info-toggle" type="button" aria-label="查看訊號品質說明" aria-expanded="false" aria-controls="help-confidence">?</button></div><strong id="confidence">—</strong><small id="completeness">一致度 —｜資料完整度 —</small><div id="help-confidence" class="metric-help hidden">不再顯示容易誤認為勝率的「信心度」。方向強度是綜合分數的絕對值；一致度是有效分項中同方向的權重比例；資料完整度只表示來源是否齊全，三者都不是獲利機率。</div></article>
+        <article class="hero-card"><div class="metric-heading"><p>策略狀態</p><button class="info-toggle" type="button" aria-label="查看策略狀態說明" aria-expanded="false" aria-controls="help-trade-state">?</button></div><strong id="trade-state">—</strong><small id="tradability">交易就緒度 —</small><div id="help-trade-state" class="metric-help hidden">交易就緒度只衡量資料、衝突、波動與價格確認是否齊全，不代表策略會賺錢。目前尚無5分鐘價格確認，因此維持等待且不產生訂單。</div></article>
+        <article class="hero-card"><div class="metric-heading"><p>價格確認</p><button class="info-toggle" type="button" aria-label="查看價格確認說明" aria-expanded="false" aria-controls="help-price-confirmation">?</button></div><strong id="price-confirmation">未確認</strong><small id="price-confirmation-note">分鐘行情尚未接入</small><div id="help-price-confirmation" class="metric-help hidden">V3介面要求至少6根已完成且10分鐘內的5分鐘K棒；突破15分鐘開盤區間、位於VWAP同側且最新量比至少1.2才標示確認。即使確認也不授權下單。</div></article>
+      </section>
+
+      <section class="command-deck is-active-page" data-page="today" aria-label="V3風險決策中心">
+        <article class="radar-panel">
+          <div class="radar-heading">
+            <div><p class="eyebrow">V3 RISK RADAR</p><h2>今日風險溫度</h2></div>
+            <span id="v3-data-date" class="source-badge">等待研究資料</span>
+          </div>
+          <div class="radar-main">
+            <div id="v3-risk-ring" class="risk-ring" style="--risk-value:0">
+              <div><strong id="v3-risk-score">—</strong><small>/ 100</small></div>
+            </div>
+            <div class="radar-copy">
+              <span id="v3-risk-level" class="risk-level">尚未計算</span>
+              <h3 id="v3-risk-headline">等待歷史資料校準</h3>
+              <p id="v3-risk-note">分數代表極端風險因子的占比，不是上漲機率或勝率。</p>
+            </div>
+          </div>
+          <div id="v3-risk-groups" class="risk-group-grid"></div>
+        </article>
+
+        <article class="mission-panel">
+          <div class="mission-topline"><p class="eyebrow">DECISION GATE</p><span id="v3-mode" class="research-chip">研究前推中</span></div>
+          <h2 id="v3-action">沒有方向優勢</h2>
+          <p id="v3-headline" class="mission-headline">等待資料</p>
+          <div id="v3-reasons" class="reason-list"></div>
+          <div class="execution-gates" aria-label="執行閘門">
+            <div id="v3-gate-risk" class="gate"><span>01</span><b>風險環境</b><small>等待</small></div>
+            <div id="v3-gate-direction" class="gate"><span>02</span><b>方向候選</b><small>等待</small></div>
+            <div id="v3-gate-price" class="gate"><span>03</span><b>價格確認</b><small>未接入</small></div>
+            <div id="v3-gate-evidence" class="gate is-blocked"><span>04</span><b>研究證據</b><small>只限紙上觀察</small></div>
+          </div>
+          <p class="mission-disclaimer">四道閘門只用來形成紙上劇本；研究證據未達門檻時禁止實單。本面板永遠唯讀，不會下單。</p>
+        </article>
+      </section>
+
+      <section class="research-pulse is-active-page" data-page="today" aria-label="已驗證研究脈搏">
+        <article><span>大行情風險</span><strong id="v3-large-move">—</strong><small id="v3-large-evidence">Holdout AUC —</small></article>
+        <article><span>隔夜跳空風險</span><strong id="v3-gap-risk">—</strong><small id="v3-gap-evidence">Holdout AUC —</small></article>
+        <article><span>低權重方向候選</span><strong id="v3-direction">—</strong><small id="v3-direction-note">不是正式交易訊號</small></article>
+        <article><span>價格確認</span><strong id="v3-price-state">未確認</strong><small id="v3-price-note">等待5分鐘K與VWAP</small></article>
+      </section>
+        </div>
+      </details>
+
+      <section class="section-block daily-playbook is-active-page" data-page="today">
+        <div class="section-heading"><div><p class="eyebrow">TODAY'S PLAN</p><h2>今日盤面操作參考</h2></div><span id="advice-action" class="source-badge warn">等待價格確認</span></div>
+        <div class="decision-grid">
+          <article><span>結論</span><strong id="decision-conclusion">等待資料</strong></article>
+          <article><span>主要原因</span><strong id="decision-reason">等待資料</strong></article>
+          <article><span>觸發條件</span><strong id="decision-trigger">尚未建立</strong></article>
+          <article><span>失效條件</span><strong id="decision-invalidation">尚未建立</strong></article>
+        </div>
+        <div class="advice-grid">
+          <article><h3>台股現貨</h3><p id="advice-stocks">等待資料</p></article>
+          <article><h3>臺指期貨</h3><p id="advice-futures">等待資料</p></article>
+          <article><h3>臺指選擇權</h3><p id="advice-options">等待資料</p><p id="v2-maxpain-advice" class="advice-subnote">Max Pain 靠攏監測等待 V2 歷史資料。</p></article>
+          <article><h3>風險提醒</h3><p id="advice-risk">等待資料</p></article>
+        </div>
+        <p class="section-note">每次更新資料後，系統會重新比較現貨1／5／20日、外資期貨1／5日、價格與OI、基差，以及各選擇權契約與履約價OI變化。這是條件式研究參考，不是保證獲利或直接下單指令；5分鐘價格確認尚未接入時仍以等待確認為主。</p>
+      </section>
+
+      <section class="section-block prelive-panel" data-page="intraday" aria-label="V3.7.3盤中價格與歷史回放">
+        <div class="section-heading"><div><p class="eyebrow">V3.7.3 INTRADAY LAB</p><h2>5 分鐘 K 棒與價格確認</h2></div><span id="prelive-status" class="source-badge warn">只讀研究</span></div>
+        <p class="section-note">先用期交所官方歷史逐筆資料驗證 K 棒、K棒近似 VWAP、開盤區間、夜盤高低與量能；不含券商憑證，也不會送出委託。</p>
+        <div id="prelive-cost-grid" class="prelive-cost-grid"></div>
+        <div class="prelive-replay replay-toolbar">
+          <div><h3>歷史逐根回放</h3><p id="replay-status">正在檢查歷史 K 棒…</p></div>
+          <div class="replay-date-control"><label for="replay-date-select">交易日</label><select id="replay-date-select" aria-label="選擇盤中回放交易日"></select></div>
+          <div class="replay-controls"><button id="replay-reset" class="ghost" type="button">回到第 1 根</button><button id="replay-next" class="secondary" type="button">下一根 5 分 K</button><button id="replay-all" class="secondary" type="button">顯示完整日</button></div>
+        </div>
+        <div id="replay-metrics" class="replay-metrics" aria-live="polite"></div>
+        <div id="replay-chart" class="replay-chart" aria-label="台指期5分鐘K棒歷史回放圖"></div>
+        <div id="replay-hover" class="chart-hover-value" aria-live="polite">移到 K 棒查看 OHLCV、近似 VWAP 與同時段量比</div>
+        <p id="replay-quality" class="section-note">正在讀取盤中資料品質…</p>
+        <div id="prelive-phases" class="prelive-phases"></div>
+        <p class="section-note">歷史回放永遠不授權下單。RVOL 需累積過去 20 個完整交易日同時段資料；樣本不足時會顯示實際樣本數，不會假裝已完成。</p>
+      </section>
+
+      <section class="section-block" data-page="market">
+        <div class="section-heading"><div><p class="eyebrow">MARKET</p><h2>市場總覽</h2></div><span id="overview-date" class="source-badge">—</span></div>
+        <div id="market-cards" class="metric-grid"></div>
+        <div id="breadth-trend-panel" class="compact-trend-panel market-breadth-trend" aria-live="polite"></div>
+      </section>
+
+      <section class="two-column" data-page="market">
+        <div class="section-block">
+          <div class="section-heading"><div><p class="eyebrow">SPOT</p><h2>現貨法人</h2></div><div class="section-status-group"><span id="spot-summary" class="sentiment neutral">—</span><span id="spot-date" class="source-badge">—</span></div></div>
+          <div id="spot-trend-panel" class="compact-trend-panel" aria-live="polite"></div>
+          <details class="compact-data-details">
+            <summary>展開全部現貨欄位與說明</summary>
+            <div id="spot-cards" class="metric-grid compact"></div>
+          </details>
+        </div>
+        <div class="section-block">
+          <div class="section-heading"><div><p class="eyebrow">CREDIT</p><h2>融資融券</h2></div><span id="margin-date" class="source-badge">—</span></div>
+          <div id="margin-trend-panel" class="compact-trend-panel" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="section-block" data-page="market">
+        <div class="section-heading"><div><p class="eyebrow">FUTURES</p><h2>台指期籌碼</h2></div><div class="section-status-group"><span id="futures-summary" class="sentiment neutral">—</span><span id="futures-date" class="source-badge">—</span></div></div>
+        <div id="futures-trend-panel" class="compact-trend-panel" aria-live="polite"></div>
+        <details class="compact-data-details">
+          <summary>展開全部期貨欄位與評分</summary>
+          <div id="futures-cards" class="metric-grid"></div>
+          <div id="score-bars" class="score-bars"></div>
+          <p id="score-explanation" class="section-note">等待評分資料</p>
+        </details>
+      </section>
+
+      <section class="section-block" data-page="options">
+        <div class="section-heading"><div><p class="eyebrow">OPTIONS</p><h2>選擇權籌碼</h2></div><div class="section-status-group"><span id="options-summary" class="sentiment neutral">—</span><span id="options-date" class="source-badge">—</span></div></div>
+        <div id="options-trend-panel" class="compact-trend-panel" aria-live="polite"></div>
+        <section id="dealer-map-panel" class="dealer-map-panel" aria-labelledby="dealer-map-title">
+          <div class="dealer-map-heading">
+            <div><p class="eyebrow">TRANSPARENT DEALER MAP</p><h3 id="dealer-map-title">透明莊家地圖 Beta</h3></div>
+            <span id="dealer-map-status" class="source-badge warn">等待盤後結構</span>
+          </div>
+          <p id="dealer-map-note" class="section-note">使用公開 OI 描述市場結構；不代表真實莊家部位、成交成本或勝率。</p>
+          <div id="dealer-map-summary" class="dealer-map-summary" aria-live="polite"></div>
+          <details id="dealer-map-details" class="dealer-map-details">
+            <summary>展開 OI 結構區與同契約歷史</summary>
+            <div id="dealer-map-zones" class="dealer-map-zones"></div>
+            <div id="dealer-map-history" class="table-wrap dealer-map-history"></div>
+            <p id="dealer-map-safeguard" class="section-note">Delta Neutral 與 Gamma Center 尚未接入；Balance Zone v0 只使用公開 OI。</p>
+          </details>
+        </section>
+        <details class="compact-data-details">
+          <summary>展開全部選擇權欄位與說明</summary>
+          <div id="options-cards" class="metric-grid"></div>
+        </details>
+        <div class="option-chart-head">
+          <label for="option-contract-select">履約價OI契約</label>
+          <select id="option-contract-select" aria-label="選擇選擇權契約"></select>
+        </div>
+        <div id="option-defense-summary" class="option-defense-summary" aria-live="polite"></div>
+        <div id="option-oi-chart" class="option-oi-chart"></div>
+        <div id="option-oi-hover" class="option-oi-hover" aria-live="polite">滑鼠移到柱狀圖，可查看該履約價的 Call／Put 未平倉量。</div>
+        <div class="table-wrap option-contracts-wrap">
+          <table>
+            <thead><tr><th>契約</th><th>類型</th><th>到期日</th><th>剩餘天數</th><th>Call量</th><th>Put量</th><th>成交P/C</th><th>Call OI</th><th>Put OI</th><th>OI P/C</th></tr></thead>
+            <tbody id="options-contract-table"></tbody>
+          </table>
+        </div>
+        <p class="section-note">週選與月選分開計算；預設顯示資料日當時最近尚未到期契約，不將不同到期日混加。表格列出近端契約供交叉比較。</p>
+      </section>
+
+      <section class="section-block smart-radar" data-page="options" aria-labelledby="smart-radar-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">OPTIONS SMART RADAR</p><h2 id="smart-radar-title">選擇權異常雷達</h2></div>
+          <div class="section-status-group"><span id="smart-radar-mode" class="source-badge warn">盤後雷達</span><span id="smart-radar-date" class="source-badge">—</span></div>
+        </div>
+        <p class="section-note">先找出異常履約價，再等待期貨價格、VWAP、CVD與主動成交確認。雷達分數代表異常強度，不是勝率，也不是多空機率。</p>
+        <div class="smart-radar-summary">
+          <article class="radar-gauge call"><span>CALL SIDE HEAT</span><strong id="smart-radar-call-heat">--</strong><small>Call側前五大異常平均</small></article>
+          <article class="radar-core"><span>目前結論</span><strong id="smart-radar-focus">等待資料</strong><p id="smart-radar-decision">正在建立可解釋雷達…</p></article>
+          <article class="radar-gauge put"><span>PUT SIDE HEAT</span><strong id="smart-radar-put-heat">--</strong><small>Put側前五大異常平均</small></article>
+        </div>
+        <div class="smart-radar-grid">
+          <article class="radar-ranking call">
+            <div class="radar-ranking-head"><h3>Call異常排行</h3><span>Top 10</span></div>
+            <div id="smart-radar-call-list" class="radar-list"><p>等待資料</p></div>
+          </article>
+          <article class="radar-ranking put">
+            <div class="radar-ranking-head"><h3>Put異常排行</h3><span>Top 10</span></div>
+            <div id="smart-radar-put-list" class="radar-list"><p>等待資料</p></div>
+          </article>
+        </div>
+        <div class="radar-evidence-grid">
+          <article><h3>已納入</h3><p id="smart-radar-active-inputs">成交量相對20日、OI單日變化、權利金變化、ATM IV與到期敏感度。</p></article>
+          <article><h3>等待即時行情</h3><p id="smart-radar-pending-inputs">逐筆成交方向、Bid／Ask、即時Greeks、VWAP與CVD。</p></article>
+          <article><h3>安全邊界</h3><p>公開OI無法分辨買賣雙方；目前不宣稱Smart Money、真實Dealer GEX或Zero Gamma，也不包含下單端點。</p></article>
+        </div>
+        <details class="radar-method">
+          <summary>分數怎麼算？</summary>
+          <p>成交量相對20日30%、OI異動25%、權利金變化20%、ATM IV變化15%、到期與價位敏感度10%。缺少的項目不補0，會依實際可用權重重算並顯示資料覆蓋率。</p>
+        </details>
+      </section>
+
+      <section class="section-block v2-research" data-page="research">
+        <div class="section-heading v2-heading">
+          <div><p class="eyebrow">V2 RESEARCH LAB</p><h2>正式研究與回測</h2></div>
+          <span id="v2-data-status" class="source-badge">讀取中</span>
+        </div>
+        <div class="v2-control-row">
+          <fieldset><legend>歷史區間</legend><div class="segmented" id="v2-range-controls">
+            <button type="button" data-days="20">20日</button><button type="button" class="is-selected" data-days="60">60日</button><button type="button" data-days="120">120日</button><button type="button" data-days="250">250日</button>
+          </div></fieldset>
+        </div>
+        <div id="v2-status-cards" class="v2-status-grid"></div>
+
+        <article class="research-panel term-structure-panel">
+          <div class="research-title"><div><h3>期現貨基差與近遠月結構</h3><p>顯示近月、次月、價差變化與收盤基差代理；正負號不直接等於多空，結算前會標示換月風險。</p></div><span id="v2-term-status" class="source-badge">讀取中</span></div>
+          <div id="v2-term-summary" class="global-context-grid"></div>
+          <p id="v2-term-decision" class="section-note">正式樣本外研究讀取中。</p>
+        </article>
+
+        <article class="research-panel global-context-panel">
+          <div class="research-title"><div><h3>第一階段海外背景測試</h3><p>SOX、Nasdaq-100與USD/TWD只使用台股開盤前已知的最近海外收盤，檢驗台指日盤開盤到收盤。</p></div><span id="v2-global-status" class="source-badge">讀取中</span></div>
+          <div id="v2-global-latest" class="global-context-grid"></div>
+          <div id="v2-global-research" class="global-research-grid">正式相關性結果讀取中…</div>
+          <p class="section-note">海外指標目前只作背景研究，不加入首頁籌碼分數，也不直接產生交易建議。</p>
+        </article>
+
+        <article class="research-panel v2-backtest-panel">
+          <div class="research-title"><div><h3>V2.6 增量價值與風險過濾</h3><p>先用價格與市場OI建立基準，再檢查外資籌碼是否真的增加資訊；盤後訊號一律從下一個日盤開盤進場。</p></div><span id="v2-backtest-period" class="source-badge">讀取中</span></div>
+          <section class="delay-study" aria-labelledby="chip-incremental-title">
+            <div class="delay-study-heading">
+              <div><h4 id="chip-incremental-title">籌碼增量價值與風險過濾</h4><p>不是尋找更多多空訊號，而是逐層比較價格、OI與外資籌碼各自增加多少價值，以及高波動禁用能否降低風險。</p></div>
+              <span class="source-badge">基準／消融</span>
+            </div>
+            <div id="v2-chip-incremental-conclusion" class="delay-conclusion">研究結果讀取中…</div>
+            <div class="table-wrap"><table class="delay-study-table">
+              <thead><tr><th>持有／比較層</th><th>用途</th><th>滾動樣本</th><th>滾動PF</th><th>滾動淨點數</th><th>留出樣本</th><th>留出PF</th><th>留出淨點數</th><th>留出回撤</th><th>判讀</th></tr></thead>
+              <tbody id="v2-chip-incremental-table"></tbody>
+            </table></div>
+            <p class="section-note">基準與消融模型不是新候選。完整條件若顯著優於基準，才表示籌碼可能具有增量價值；風險過濾樣本不足時只列觀察，不提高首頁信心。</p>
+          </section>
+          <section class="delay-study" aria-labelledby="delay-study-title">
+            <div class="delay-study-heading">
+              <div><h4 id="delay-study-title">外資期貨部位延後反應</h4><p>比較「單日大幅加空」與「價格＋外資淨部位＋市場 OI 同步」；綠色只代表值得前推追蹤，不是下單訊號。</p></div>
+              <span class="source-badge">下一日開盤進場</span>
+            </div>
+            <div id="v2-delay-conclusion" class="delay-conclusion">研究結果讀取中…</div>
+            <div class="table-wrap"><table class="delay-study-table">
+              <thead><tr><th>測試條件</th><th>持有</th><th>留出樣本</th><th>留出 PF</th><th>多方 PF</th><th>空方 PF</th><th>較有效狀態</th><th>留出淨點數</th><th>跨區間</th><th>判定</th></tr></thead>
+              <tbody id="v2-delay-table"></tbody>
+            </table></div>
+            <p class="section-note">正式結果已禁止持倉期間重複開倉；不同持有天數仍共用部分行情，彼此不是獨立證據，績效不可相加。分市場狀態少於3筆時不列最佳狀態。</p>
+          </section>
+          <section class="delay-study" aria-labelledby="institutional-study-title">
+            <div class="delay-study-heading">
+              <div><h4 id="institutional-study-title">外資／投信／自營商期貨同向研究</h4><p>分開檢驗三者一致、外資與投信、外資與自營商，以及外資極端變化確認；這裡是期貨部位，不是現貨買賣超。</p></div>
+              <span class="source-badge">三年樣本</span>
+            </div>
+            <div id="v2-institutional-conclusion" class="delay-conclusion">研究結果讀取中…</div>
+            <div class="table-wrap"><table class="delay-study-table">
+              <thead><tr><th>同向定義</th><th>持有</th><th>滾動樣本</th><th>滾動 PF</th><th>留出樣本</th><th>留出 PF</th><th>留出淨點數</th><th>判定</th></tr></thead>
+              <tbody id="v2-institutional-table"></tbody>
+            </table></div>
+            <p class="section-note">三類法人是不同機構彙總，不應假設三者必須站在同一邊；同向出現也只代表公開部位統計一致，不代表具有共同交易計畫。</p>
+          </section>
+          <div class="table-wrap"><table class="v2-backtest-table">
+            <thead><tr><th>策略</th><th>結論</th><th>滾動交易</th><th>滾動PF</th><th>滾動淨點數</th><th>正向折數</th><th>留出交易</th><th>留出PF</th><th>留出淨點數</th><th>留出最大回撤</th></tr></thead>
+            <tbody id="v2-backtest-table"></tbody>
+          </table></div>
+          <p id="v2-backtest-note" class="section-note">正在讀取正式回測結果…</p>
+          <div id="v2-candidate-stress" class="candidate-stress-grid"></div>
+        </article>
+
+        <article class="research-panel">
+          <div class="research-title"><div><h3>台指 K 棒、外資部位與市場 OI</h3><p>上區只顯示台指日 K；下方兩區分別顯示外資淨部位與市場未平倉量。</p></div><span id="v2-futures-latest" class="source-badge">—</span></div>
+          <div id="v2-futures-chart" class="v2-chart"></div>
+          <div id="v2-futures-hover" class="chart-hover-value" aria-live="polite">移到圖表節點查看數值</div>
+        </article>
+        <p class="section-note">本頁集中顯示研究方法與績效，不影響「今日重點」的操作結論。所有策略通過第一關也只代表值得繼續研究。</p>
+      </section>
+
+      <section class="section-block v2-research" data-page="options">
+        <div class="section-heading v2-heading">
+          <div><p class="eyebrow">OPTION DEFENSE LAB</p><h2>選擇權歷史攻防</h2></div>
+          <span class="source-badge">V2只讀</span>
+        </div>
+        <div class="v2-control-row">
+          <label>選擇權契約<select id="v2-contract-select" aria-label="V2選擇權契約"></select></label>
+          <fieldset><legend>OI變化</legend><div class="segmented" id="v2-delta-controls">
+            <button type="button" class="is-selected" data-delta="1">1日</button><button type="button" data-delta="3">3日</button><button type="button" data-delta="5">5日</button>
+          </div></fieldset>
+        </div>
+
+        <article class="research-panel">
+          <div class="research-title"><div><h3>履約價 OI 增減攻防</h3><p>紅色為 Call OI 增減、綠色為 Put OI 增減；增加不等於買方方向。</p></div><span id="v2-option-date" class="source-badge">—</span></div>
+          <div id="v2-option-summary" class="option-defense-summary"></div>
+          <section id="v2-option-conclusion" class="option-defense-conclusion neutral" aria-live="polite">
+            <div><span>選擇權攻防結論</span><strong>正在分析牆位、價格位置與 OI 變化…</strong></div>
+          </section>
+          <details class="wall-research-details">
+            <summary>查看三年牆位研究摘要</summary>
+            <div id="v2-wall-research" class="wall-research-grid">正式研究結果讀取中…</div>
+          </details>
+          <div id="v2-option-delta-chart" class="v2-chart"></div>
+          <div id="v2-option-hover" class="chart-hover-value" aria-live="polite">移到柱狀圖查看履約價、OI與變化</div>
+          <div id="v2-option-rankings" class="v2-ranking-grid"></div>
+        </article>
+
+        <article class="research-panel">
+          <div class="research-title"><div><h3>Call／Put 牆與 Max Pain 時間軸攻防圖</h3><p>橫軸為日期、縱軸為價位；每日直線表示 Put 牆至 Call 牆的攻防範圍。</p></div></div>
+          <div id="v2-wall-chart" class="v2-chart"></div>
+          <div id="v2-wall-hover" class="chart-hover-value" aria-live="polite">移到節點查看當日牆位與台指</div>
+        </article>
+        <p class="section-note">此區讀取 V2 SQLite 官方歷史資料，只含日盤資料。請先執行 6_V2_UPDATE_HISTORY.bat 更新資料庫；右上角「更新最新資料」只更新當前盤面快照，不會重新下載三年歷史檔。</p>
+      </section>
+
+      <section class="section-block" data-page="research">
+        <div class="section-heading history-heading">
+          <div><p class="eyebrow">HISTORY</p><h2>近幾日籌碼趨勢</h2></div>
+          <div class="history-controls" aria-label="歷史區間">
+            <button class="history-range is-selected" type="button" data-days="20">20日</button>
+            <button class="history-range" type="button" data-days="60">60日</button>
+            <button class="history-range" type="button" data-days="90">90日</button>
+          </div>
+        </div>
+        <p id="history-status" class="section-note">正在讀取歷史資料…</p>
+        <div id="history-charts" class="history-grid"></div>
+      </section>
+
+      <section class="section-block" data-page="research">
+        <div class="section-heading"><div><p class="eyebrow">VALIDATION</p><h2>評分歷史檢驗</h2></div><span id="backtest-period" class="source-badge">—</span></div>
+        <div class="table-wrap"><table><thead><tr><th>分項</th><th>狀態</th><th>樣本</th><th>方向命中率</th><th>偏多後隔日平均</th><th>偏空後隔日平均</th></tr></thead><tbody id="backtest-table"></tbody></table></div>
+        <p id="backtest-note" class="section-note">正在檢驗歷史資料…</p>
+      </section>
+
+      <section class="section-block" data-page="quality">
+        <div class="section-heading"><div><p class="eyebrow">DATA QUALITY</p><h2>資料品質與安全狀態</h2></div><span id="quality-summary" class="source-badge">—</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>資料</th><th>來源</th><th>資料日期</th><th>抓取時間</th><th>狀態</th></tr></thead>
+            <tbody id="source-table"></tbody>
+          </table>
+        </div>
+      </section>
+        </div>
+      </div>
+
+      <footer>
+        <p>V3.9.7 新增透明莊家地圖 Beta，以公開 OI 顯示重心、結構區、牆位歷史與 Max Pain；不推定真實莊家部位或成本，不含下單端點。</p>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

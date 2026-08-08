@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "phase-b-b0-negative-control-family-v1",
+  "contractStatus": "PREREGISTRATION_DRAFT",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "primaryHolmFamily": [
+    {
+      "endpointId": "MAX_DRAWDOWN_IMPROVEMENT",
+      "statistic": "(abs(S0 max drawdown) - abs(S1 max drawdown)) / abs(S0 max drawdown)",
+      "nullBoundary": 0.1,
+      "nullHypothesis": "improvement < 0.10",
+      "testDirection": "ONE_SIDED_HIGHER_IS_BETTER"
+    },
+    {
+      "endpointId": "ES10_IMPROVEMENT",
+      "statistic": "(abs(S0 ES10) - abs(S1 ES10)) / abs(S0 ES10)",
+      "nullBoundary": 0.1,
+      "nullHypothesis": "tail-loss absolute improvement < 0.10",
+      "testDirection": "ONE_SIDED_HIGHER_IS_BETTER"
+    },
+    {
+      "endpointId": "EXPECTANCY_NON_INFERIORITY",
+      "statistic": "(S1 expectancy - S0 expectancy) / abs(S0 expectancy)",
+      "nullBoundary": -0.05,
+      "nullHypothesis": "relative expectancy change < -0.05",
+      "testDirection": "ONE_SIDED_HIGHER_IS_BETTER_NON_INFERIORITY"
+    }
+  ],
+  "bootstrap": {
+    "unit": "PAIRED_SESSION_INCREMENTAL_DAILY_PNL_WITH_TRADE_STATE",
+    "preserveChronologicalBlocks": true,
+    "blockLengths": [5, 10],
+    "iterationsPerBlockLength": 2000,
+    "seed": 20260730,
+    "confidenceLevel": 0.95,
+    "pValueMethod": "ONE_SIDED_NULL_CENTERED_MOVING_BLOCK_BOOTSTRAP",
+    "confidenceBound": "LOWER_5_PERCENT_QUANTILE",
+    "multipleComparison": "HOLM_ALPHA_0_05",
+    "combinedBlockDecision": "USE_LESS_FAVORABLE_RESULT_ACROSS_BLOCK_5_AND_10"
+  },
+  "passRule": {
+    "maxDrawdown": "lower confidence bound >= 0.10 AND Holm adjusted p < 0.05",
+    "es10": "lower confidence bound >= 0.10 AND Holm adjusted p < 0.05",
+    "expectancy": "lower confidence bound >= -0.05 AND Holm adjusted p < 0.05",
+    "allPrimaryFamilyMembersRequired": true
+  },
+  "excludedFromHolm": {
+    "tradeRetention": "DETERMINISTIC_GOVERNANCE_GATE",
+    "falseBreakout": "SECONDARY_DIAGNOSTIC"
+  },
+  "otherNegativeControls": [
+    "AVAILABLE_AT_LEAD_REJECTION",
+    "WITHIN_FOLD_SCORE_PLACEBO_PERMUTATION",
+    "RANDOM_FEATURE_CONTROL_FIXED_SEED"
+  ],
+  "singlePValueCannotPromote": true,
+  "thresholdOrTargetChangeOnFailureAllowed": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

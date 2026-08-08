@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{black76Price,impliedVolatility,realizedVolatility}from'../src/option-volatility.mjs';
+test('Black-76 implied volatility inverts its own price',()=>{const args={future:20000,strike:20200,time:20/365,volatility:0.22,rate:0.015,right:'call'};const price=black76Price(args);const iv=impliedVolatility({...args,price});assert.ok(Math.abs(iv-0.22)<1e-6);});
+test('realized volatility needs 20 returns and remains annualized',()=>{const closes=Array.from({length:21},(_,i)=>100*Math.exp(i*0.01));assert.ok(realizedVolatility(closes)<1e-8);assert.equal(realizedVolatility(closes.slice(1)),null);});

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "phase-b-b0-bootstrap-paired-record-v1",
+  "contractStatus": "EXECUTION_READY_PREREGISTRATION",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "bootstrapUnit": "COMPLETE_PAIRED_SESSION_RECORD",
+  "requiredFields": [
+    "tradeDate", "foldId", "s0TradeState", "s1TradeState", "s0TradePnl",
+    "s1TradePnl", "s0DailyPnl", "s1DailyPnl", "incrementalDailyPnl",
+    "riskState", "vetoApplied", "originalDirection", "settlementClass", "rollSession"
+  ],
+  "blockLengths": [5, 10],
+  "iterationsPerBlockLength": 2000,
+  "seedBase": 20260730,
+  "preserveWithinBlockDateOrder": true,
+  "resampleToOriginalPairedUniverseLength": true,
+  "lastOvershootPolicy": "TRUNCATE_TO_EXACT_LENGTH",
+  "endpointSpecificResamplingAllowed": false,
+  "replicateRecomputes": [
+    "S0_EQUITY_CURVE", "S1_EQUITY_CURVE", "S0_MAX_DRAWDOWN", "S1_MAX_DRAWDOWN",
+    "MAX_DRAWDOWN_IMPROVEMENT", "S0_ES10", "S1_ES10", "ES10_IMPROVEMENT",
+    "S0_TRADE_COUNT", "S1_TRADE_COUNT", "TRADE_RETENTION", "S0_EXPECTANCY",
+    "S1_EXPECTANCY", "EXPECTANCY_CHANGE"
+  ],
+  "incrementalDailyPnlAllowedUses": ["INCREMENTAL_TOTAL", "CONCENTRATION", "MONTH_FOLD_DIRECTION_DECOMPOSITION"],
+  "incrementalDailyPnlForbiddenUses": ["REBUILD_MAX_DRAWDOWN_ALONE", "REBUILD_ES10_ALONE", "REBUILD_EXPECTANCY_ALONE"],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

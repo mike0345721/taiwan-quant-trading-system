@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "t0-natural-tick-integration-closeout-v1",
+  "workPackage": "T0_NATURAL_TICK_INTEGRATION_AND_REPLAY_RESOLUTION_PREFLIGHT",
+  "status": "PASS",
+  "formalH0RunAuthorized": false,
+  "performanceSummaryProduced": false,
+  "resolutionCounts": {
+    "TICK_REPLAY_PASS": 137,
+    "FIVE_MINUTE_OHLC_FALLBACK": 0,
+    "NO_SAMPLE": 0
+  },
+  "naturalTickSessions": [
+    "2026-01-02-DAY",
+    "2026-01-21-DAY",
+    "2026-01-22-DAY"
+  ],
+  "frozenHashes": {
+    "t0SpecHash": "c2baf6a63cf69407ae9e686af46bb5832adcebf9d859b170fe9096c8f7389253",
+    "costPolicyHash": "ee9d6200150513164729d438998b609676f8dd373ec1c24b648e100814db0cfc",
+    "strictManifestHash": "87bbf9a01ccec29fcf29251f98ed71f55590ecab213693d6d3f95584b8d6f2ff",
+    "ownerBriefHash": "483ceb938af1d14345eeeec1843892fcb0d9a7a6e2f3ecb31b271bc059266946",
+    "protectedArtifactsCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2"
+  },
+  "runHashes": {
+    "preflightLogicalOutputHash": "b565ec7d5d4f69e2199abb8acc549a6d3160ac8a34a57a1298e1f5a3c16c3a77",
+    "integrationLogicalOutputHash": "14f520826d7b2301da50a6bef8da1df54adfa1a9e86519fd8268c830ccd89e6a",
+    "selectionInputHash": "424374ad27360d429830de042faddedf2ac36afeaf7663ec8db3f7d7ec027396"
+  },
+  "artifactHashes": {
+    "closeoutReport": "7b80b508c715be80fdc972437f40d73ea96eeb11c1a7dabecf7b77cc8ec6a907",
+    "preflightRunManifest": "2af3af5a333980a1520962a351d8bdeb9ae773febc94f8fd20c6716fe90d5cbc",
+    "replayResolutionManifest": "aeac74b7d989cf1205d966d8934541398d1a5132b2f110f044505de97ee3ae39",
+    "naturalTickSelection": "595e9f7f33f9819d54f47d6d4fa973e86e9cc4ae14d241970444dd2c9f6d687d",
+    "preflightResourceUsage": "acf59e18fa756d092447979a3bb68213dd71bb237278f408fd5b98242e76cb91",
+    "integrationRunManifest": "18e9c60d7fadcc8c021faf21f4e65ace0d06b4a108b40fa5af597818c1ee70b0",
+    "integrationResourceUsage": "de8eb3dac265d0da89adeb2d92a4415150a4c153989ce6f981b78c1b336a8d66",
+    "integrationModule": "ac62928d3fa3f59e8887ffc492832db63255e394eec0f04c7d4ef5f1fd3e95c7",
+    "runnerScript": "56e14a540c49c82978619849a2a894748bb1f985d6d2bdf93851dce8f86fc11a",
+    "testFile": "39809859d4136033c4f66b816b877c98840c334343c6ac7fd8072a2f9ff4b393"
+  },
+  "testEvidence": {
+    "passed": 245,
+    "failed": 0,
+    "resumeExercise": "PASS",
+    "idempotencyAllFileHashes": "PASS",
+    "frozenArtifactProtection": "PASS"
+  },
+  "sourceLimitation": "TAIFEX Daily trade files do not expose exchange event IDs or packet sequence numbers; deterministic order uses exchangeTimestamp then sourceRowNumber.",
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

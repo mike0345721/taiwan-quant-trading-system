@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "pp1-contract-reconciliation-run-status-v1",
+  "reconciliationRunId": "pp1-contract-reconciliation-v1-2026-08-01",
+  "status": "COMPLETED_PENDING_OWNER_CLOSEOUT",
+  "acceptance": "PASS",
+  "artifacts": [
+    {
+      "path": "D:\\Taiwan stock\\standalone-v1\\data\\research\\pp1-contract-reconciliation-v1\\run-2026-08-01\\PP1_CONTRACT_RECONCILIATION_EVIDENCE.json",
+      "sha256": "7914f7f538b2a8b01700ac46427426037b18d8a392fe830ed1c87269b2fa7549"
+    },
+    {
+      "path": "D:\\Taiwan stock\\standalone-v1\\data\\research\\pp1-contract-reconciliation-v1\\run-2026-08-01\\PHASE_A_RECONCILED_VIEW.json",
+      "sha256": "05ef91e7dbea70ae100e82e8da564e7d73d01c21cb40df2e567d2f610f9cb633"
+    },
+    {
+      "path": "D:\\Taiwan stock\\standalone-v1\\data\\research\\pp1-contract-reconciliation-v1\\run-2026-08-01\\PP1_CONTRACT_RECONCILIATION_REPORT.md",
+      "sha256": "216bd7e584acd3d148b23a4af361a7d349a2f4f91d43c0ad0ac168a4f6850c6d"
+    }
+  ],
+  "phaseAProtectionBefore": {
+    "runId": "full-historical-phase-a-v1-2026-07-30",
+    "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+    "researchSpecHash": "a131b8529cfc4f70196dc60d44b60a25fbb2ee1ec8c87d5d94748b20eae6e7a9",
+    "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+    "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+    "featureVersion": "phase-a-canonical-features-1.0.0",
+    "targetVersion": "phase-a-daily-targets-1.0.0",
+    "randomSeed": 20260730,
+    "completedJobs": 2020,
+    "completedOutputAggregateHash": "991b5d47ca31011fab6aeb78a430425b2aa70e62bc1b1807b3aa5b99594cdb17",
+    "phaseAEvidenceHash": "b5aff7474d2ef5acb93a9d06dd739242b2d01967fb422a227f5461244f2ecb14"
+  },
+  "phaseAProtectionAfter": {
+    "runId": "full-historical-phase-a-v1-2026-07-30",
+    "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+    "researchSpecHash": "a131b8529cfc4f70196dc60d44b60a25fbb2ee1ec8c87d5d94748b20eae6e7a9",
+    "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+    "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+    "featureVersion": "phase-a-canonical-features-1.0.0",
+    "targetVersion": "phase-a-daily-targets-1.0.0",
+    "randomSeed": 20260730,
+    "completedJobs": 2020,
+    "completedOutputAggregateHash": "991b5d47ca31011fab6aeb78a430425b2aa70e62bc1b1807b3aa5b99594cdb17",
+    "phaseAEvidenceHash": "b5aff7474d2ef5acb93a9d06dd739242b2d01967fb422a227f5461244f2ecb14"
+  },
+  "pp1PolicySpecHash": "055e2bd68d7e3505d15766b01ed3b5459d3f6dd56608284dc81b33be6caeefea",
+  "perFactorStatusCounts": {
+    "PASS_WITH_NON_MATERIAL_CHANGES": 11,
+    "MATERIAL_CHANGE_REQUIRES_DOWNGRADE": 1
+  },
+  "scope": [
+    "close_basis_bps",
+    "basis_change_1d_bps",
+    "basis_change_5d_bps",
+    "basis_level_z60",
+    "term_spread_bps",
+    "term_change_1d_bps",
+    "term_change_5d_bps",
+    "term_change_z60",
+    "days_to_near_expiry",
+    "rollover_risk",
+    "contract_changed",
+    "near_contract_oi"
+  ],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

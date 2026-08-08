@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "f3c01-regime-state-distribution-final-manifest-v1",
+  "runId": "f3c01-regime-state-distribution-audit-v1-2026-08-03",
+  "candidateId": "F3C01",
+  "auditStatus": "PASS_WITH_MAJOR_DRIFT",
+  "candidateState": "PAUSED_BOUNDARY_STABILITY_REVIEW_REQUIRED",
+  "artifacts": [
+    {"name":"AUDIT_DECISION.json","sha256":"12bbe608a434ba7f3ea23cac47cd12da11c63f6a9a29acaae36768cab4c58709"},
+    {"name":"DISTRIBUTION_DRIFT_REPORT.json","sha256":"4783404c5ececa9404455c9de260ae83985aca34bd79df4308e455b4253a4c68"},
+    {"name":"FOLD_SCORE_DISTRIBUTIONS.json","sha256":"6ac976d194a66e485ff77c2578a13017b92d975afe2cebb3755d00e0e3865671"},
+    {"name":"FOLD_THRESHOLD_MAPPING_AUDIT.json","sha256":"d88532dd68c505a3403127c739a45edba4ffbbc49f57188b61439fcb79377105"},
+    {"name":"FROZEN_ARTIFACT_PROTECTION.json","sha256":"f27466cc6f3c0759350c50f3342a4399d53490e76637f361773b63c1ce3688c9"},
+    {"name":"FULL_PROJECT_REGRESSION.json","sha256":"237e86cf31e487f3688cf8b4bd352bf40108315d20c791fa1e977ec6ae2837db"},
+    {"name":"MONTHLY_FOLD_STATE_COUNTS.json","sha256":"3f867b684892f89933f4573add7283ae9ab4eb4ed0ba3ddfafe09034e2e14ecc"},
+    {"name":"REGIME_STATE_DISTRIBUTION_AUDIT.json","sha256":"f1afc51a0eb23608f932fd5e91c8cabaf8f091240db48299548b321d4d25352c"},
+    {"name":"RESUME_IDEMPOTENCY.json","sha256":"efbd767a8a6d5cdb4d56c2e26679c8cf6b72f5ce60a81210a07bb1d1a2d14496"},
+    {"name":"SCOPE_DIFF.json","sha256":"db17dee9ff8feaedfb3296f28ce939718e6a0d49089944bce555bfafe1bd76b9"},
+    {"name":"SCORE_SEMANTIC_AUDIT.json","sha256":"ea39b280b3dc681d90b18ff3a966550d83c9bf1eee3af08fc6f1093c72a0f8df"},
+    {"name":"STATE_CHRONOLOGY_LEDGER.json","sha256":"20ce51e0318b9c589da19bb4750a6c7ca54c4d5722eb277a45f22a8405b7f9c3"},
+    {"name":"THRESHOLD_POPULATION_AUDIT.json","sha256":"c1f9e27e90fabd08153ad63081fbae2b13bca7cfd5f747a82ec4d72e74a9cf55"}
+  ],
+  "performanceEvaluated": false,
+  "boundaryChanged": false,
+  "forwardAccumulationAuthorized": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

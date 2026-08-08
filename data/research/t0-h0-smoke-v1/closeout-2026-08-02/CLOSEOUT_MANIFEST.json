@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "t0-h0-runner-smoke-closeout-manifest-v1",
+  "closeoutId": "t0-h0-runner-smoke-closeout-2026-08-02",
+  "status": "OWNER_REVIEW_PENDING",
+  "codexRecommendation": "PASS",
+  "artifacts": [
+    {
+      "path": "T0_H0_RUNNER_SMOKE_CLOSEOUT_REPORT.md",
+      "sha256": "7de9a2d282f424e5e71d172ecc028e7d3d3ff8535e3992a7942f680290d4e4b2",
+      "bytes": 9611
+    },
+    {
+      "path": "T0_H0_RUNNER_SMOKE_EVIDENCE.json",
+      "sha256": "7c6d519d557cf8e3d4e47f50d31c11aa605c4ef6347bd61cdbec39df863c9837",
+      "bytes": 6652
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/t0-h0-runner.mjs",
+      "sha256": "243fd3c52fd1c664633bedc4c38221fe6f24c1887b17ae59eb0ef31fcfe65bc3",
+      "bytes": 26049
+    },
+    {
+      "path": "scripts/run-t0-h0-smoke.mjs",
+      "sha256": "aec4ef394bd1aaeae97f5787dd69fcde9f186ca9981ffe00fc5b29e2c0fbb42d",
+      "bytes": 8558
+    },
+    {
+      "path": "tests/t0-h0-runner.test.mjs",
+      "sha256": "28fb5469d9b9652fb80a7474be00fa41c6db2f578c5fe34428c06e044cc86c91",
+      "bytes": 9845
+    },
+    {
+      "path": "package.json",
+      "sha256": "74be37d76e244f6c51b0e0d5777d8e097a293dd9f82b48b2c9f7315b4fcbd60c",
+      "bytes": 2781
+    }
+  ],
+  "acceptedRuns": {
+    "natural": "run-2026-08-02-natural-v2",
+    "fixture": "run-2026-08-02-fixtures-v3",
+    "resumeExercise": "run-2026-08-02-resume-exercise-v3"
+  },
+  "supersededOrRejectedRuns": [
+    "run-2026-08-02-natural",
+    "run-2026-08-02-fixtures",
+    "run-2026-08-02-fixtures-v2",
+    "run-2026-08-02-resume-exercise",
+    "run-2026-08-02-resume-exercise-v2"
+  ],
+  "frozenArtifactCombinedHash": "9612be137be6752f995c1f777238003645d5021427370b8f5906a269ed5a93a2",
+  "frozenArtifactCount": 2051,
+  "tests": {
+    "total": 238,
+    "passed": 238,
+    "failed": 0
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "formal137DayRunAuthorized": false,
+  "formal137DayRunExecuted": false,
+  "nextStop": "T0_H0_RUNNER_SMOKE_CLOSEOUT_REVIEW"
+}

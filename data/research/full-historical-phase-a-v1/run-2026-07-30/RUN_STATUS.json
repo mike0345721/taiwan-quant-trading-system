@@ -1,0 +1,794 @@
+{
+  "schemaVersion": "restartable-research-run-v1",
+  "runId": "full-historical-phase-a-v1-2026-07-30",
+  "state": "READY_TO_RESUME",
+  "createdAt": "2026-07-30T14:42:42.557Z",
+  "updatedAt": "2026-07-30T14:43:56.154Z",
+  "command": "node scripts/run-full-historical-phase-a.mjs --run-dir \"D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\" --resume",
+  "immutable": {
+    "sourceDbPath": "D:\\Taiwan stock\\standalone-v1\\v2\\data\\research-v2.sqlite",
+    "sourceDbHash": "fbb575b82c09a06e0e086e7b68022f5bb22d4f16fac8df14a2cd9dedc018f456",
+    "snapshotPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\snapshot\\research-v2-phase-a-2026-07-30.sqlite",
+    "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+    "specPath": "D:\\Taiwan stock\\standalone-v1\\docs\\research\\FULL_HISTORICAL_RESEARCH_PHASE_A_V1.md",
+    "specHash": "eb83b832be4647c8f5eee59fc7fed1600ed5efca9015cb0dd8ae566f6e22f7dd",
+    "targetSpecPath": "D:\\Taiwan stock\\standalone-v1\\research\\phase-a-v1\\target-spec.json",
+    "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+    "featureSpecPath": "D:\\Taiwan stock\\standalone-v1\\research\\phase-a-v1\\feature-spec.json",
+    "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+    "featureVersion": "phase-a-canonical-features-1.0.0",
+    "targetVersion": "phase-a-daily-targets-1.0.0",
+    "randomSeed": 20260730,
+    "codeManifestHash": "f22ef64425abccaaa074f053f656404aa135395bb738768ff004cd943e795e8b",
+    "codeManifest": [
+      {
+        "path": "broker/live_event_ledger.py",
+        "sha256": "962821e16abd203440959602af1f1649e9d8741174b10136cf61b439b98085d0"
+      },
+      {
+        "path": "broker/shioaji_readonly_bridge.py",
+        "sha256": "afc4c42d6b9b49e4683f60e4b9e6e6f45e8d9bdfe147207ca80d75bdf99522fb"
+      },
+      {
+        "path": "package.json",
+        "sha256": "38bd368ff1bc59f012f18594a5a3df90708b77d23524e5eb979f927c19521f5b"
+      },
+      {
+        "path": "research/phase-a-v1/feature-spec.json",
+        "sha256": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2"
+      },
+      {
+        "path": "research/phase-a-v1/target-spec.json",
+        "sha256": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c"
+      },
+      {
+        "path": "scripts/analyze-live-timestamp-offset.mjs",
+        "sha256": "8e6c60cf802d40b77faf342936afac9e7b6901fa266d7e70f745339463fa9b2f"
+      },
+      {
+        "path": "scripts/append-paper-event.mjs",
+        "sha256": "20e3bc5c1d5b9861cde1f55a296e1c9ac4952ff2f1d7e002faffe9639f2a12c8"
+      },
+      {
+        "path": "scripts/audit-current-readiness.mjs",
+        "sha256": "9a043381df55e53fc5565bda5316d1d54d57bfcf0e1f7cc33b82721bc41a64db"
+      },
+      {
+        "path": "scripts/audit-forward-ledger.mjs",
+        "sha256": "ba7b1bea464f0be771bf71c67a5c79ae9179a3bba935159a34b72d69310b9ef8"
+      },
+      {
+        "path": "scripts/audit-futures-live-event-ledger.mjs",
+        "sha256": "a1a3c070ce083854058479ec1de34a8244a078525fa752e969cc92ab07137de9"
+      },
+      {
+        "path": "scripts/audit-live-event-ledger.mjs",
+        "sha256": "855b961b1dc4a2d3023cef2d8cf39747aaeb95b3767f738acb8927cc1cd9b8ab"
+      },
+      {
+        "path": "scripts/audit-paper-event-ledger.mjs",
+        "sha256": "94a5315cd67f6f8bce45c82b105016e89089cdb69b4154a25a0c85d76a244b95"
+      },
+      {
+        "path": "scripts/audit-taifex-replay.mjs",
+        "sha256": "8f8d921ad05288bd7550b3419fc8f7fb540e9176d2085d44fe3a3454e1b7284b"
+      },
+      {
+        "path": "scripts/audit-v310-forward-operations.mjs",
+        "sha256": "1b7eaedacf51c85d8b68d9617c898141a425b3931371e56f872dc0e4dcb4428e"
+      },
+      {
+        "path": "scripts/backfill-history.mjs",
+        "sha256": "2f7d698be3859a8ba4ad15146f90f721602004ce7719e9daf94901da6ded05ad"
+      },
+      {
+        "path": "scripts/build-intraday-research-features.mjs",
+        "sha256": "3a9e49070d4627632f7c7b6b4b3721ed387a5d2b014882255d81ab2b93fb58ac"
+      },
+      {
+        "path": "scripts/build-live-futures-order-flow.mjs",
+        "sha256": "c75cbfbbdd1941df5d62537f3c44307e9ff6a1ee63298866127f0f14bc363700"
+      },
+      {
+        "path": "scripts/build-live-option-greeks-probe.mjs",
+        "sha256": "8091feedf79183250e3419c17098b7c47a7286ef55c9326ac9b4d16f69055975"
+      },
+      {
+        "path": "scripts/build-taifex-replay.mjs",
+        "sha256": "037b956f515511fd48715b9bbfe6598ccd2be5b2a49e2fb985f953462340542b"
+      },
+      {
+        "path": "scripts/check-password.mjs",
+        "sha256": "1d579b1d6b12bc6b7cf94128c807952b7bdf458fc146ce6ae37539d865b2d2f2"
+      },
+      {
+        "path": "scripts/check-shioaji-futures-access.py",
+        "sha256": "9a6552952dbfdb3a597bb1307d3a24dfd8434e484760c6c862cfd3af2349ac9c"
+      },
+      {
+        "path": "scripts/check-shioaji-readiness.mjs",
+        "sha256": "5dd631324fc5031b0ed2319c67504891539b55060a0453bae2edb5c7e3393415"
+      },
+      {
+        "path": "scripts/compare-shioaji-kbars-candidate.mjs",
+        "sha256": "06be535960afff498bba9f5692a8a50924fee500b1b982fabaf5db1abcde057b"
+      },
+      {
+        "path": "scripts/fetch-shioaji-kbars-candidate.py",
+        "sha256": "a03df7465072d5b6be1b426069323b9883b0be2b5c584291231631487a891a52"
+      },
+      {
+        "path": "scripts/freeze-v310-forward-models.mjs",
+        "sha256": "84d58314084871af360e9f52b99f9acd9451c474c4506bae2e7056ccde3cb321"
+      },
+      {
+        "path": "scripts/hash-password-stdin.mjs",
+        "sha256": "8bf4c644376a03af1874d686e05a61980d5f34355731464f426bb1cfb00b7632"
+      },
+      {
+        "path": "scripts/hash-password.mjs",
+        "sha256": "f8cc9285f6aa79cd84b3442b0345def173c08edd505f4afe90708d5c4a3ba5e7"
+      },
+      {
+        "path": "scripts/import-intraday-bars.mjs",
+        "sha256": "2cd9e8bdb6bbf60ad5c6bacabe23f6fbe9c776e1b0037d7a13fa0dd4893981d6"
+      },
+      {
+        "path": "scripts/import-paid-taifex-trade-summary.mjs",
+        "sha256": "254e62c069392ee26ba986f400cff55e312d5c78ef69dfeca5e99ff923a293bd"
+      },
+      {
+        "path": "scripts/promote-paid-taifex-candidates.mjs",
+        "sha256": "a409bd632119f8df982b432419fb53e59908a2dba029f8ea1e536dcd5eba5604"
+      },
+      {
+        "path": "scripts/run-full-historical-phase-a.mjs",
+        "sha256": "30ec3d5f0d22372a6ce5428676696aa0a57dfc09cb7d281d659f50e7378a5d15"
+      },
+      {
+        "path": "scripts/run-intraday-factor-impact.mjs",
+        "sha256": "2eae2805239163d7703ee3f2b69882b75b48d129f85c8d1b6a00295e51a7a59e"
+      },
+      {
+        "path": "scripts/run-intraday-factor-robustness.mjs",
+        "sha256": "3f72384a8090bdeae64f28e5accb306747e138181f615e0d989582b8c33fc03a"
+      },
+      {
+        "path": "scripts/run-intraday-strategy-engineering.mjs",
+        "sha256": "0527f34d0173cbd47afcd9c393d8886c8dfffc29dfb81fe9a3389aa8aec0d8d6"
+      },
+      {
+        "path": "scripts/run-v310-forward-operations.mjs",
+        "sha256": "865030b00e20ac1f64202d0ae7ff22171c1f5557910d23ada889ca547ea25faf"
+      },
+      {
+        "path": "scripts/run-v310-restricted-wave3.mjs",
+        "sha256": "97d32d88b0b3a3e56de285824a74c28880a0d0f068ae2e45681d20a0774c59c6"
+      },
+      {
+        "path": "scripts/scan-secrets.mjs",
+        "sha256": "c3855204e1a88da0c8f14f51a7b6bb89ee609ebc5668509a747f6be59570cbfe"
+      },
+      {
+        "path": "scripts/set-data-mode.mjs",
+        "sha256": "9ad8886c4d7e6bc8b0474fa1bad7afd01844780793dcabb3dab6796c7e1dc3a3"
+      },
+      {
+        "path": "scripts/validate-paper-event-offline.mjs",
+        "sha256": "e58fe7ee99239422407332fa73f673f4a590b943775756889513bf69623e0e8e"
+      },
+      {
+        "path": "scripts/validate-taifex-trade-summary.mjs",
+        "sha256": "3358132c9e38bfd3ca84f36391537bed88068309bc21d5580deacce2aae1578a"
+      },
+      {
+        "path": "scripts/windows-setup.mjs",
+        "sha256": "21ea860774f63e5ac1f1756a95f4f04c04ab5e578231758b011301b5294e04e9"
+      },
+      {
+        "path": "src/backtest.mjs",
+        "sha256": "337b1edca4280c3816f47209b60fcb9af1332c15c3a5c42890e23a06b47715dc"
+      },
+      {
+        "path": "src/cache-store.mjs",
+        "sha256": "c376cee85fc1b3c87cb5b3fe499e39cb3b3fe68e0af76855e1a059730a35fa5f"
+      },
+      {
+        "path": "src/config.mjs",
+        "sha256": "c5cb3dd07905f04278f9a7030763a0cd8d64b2e052293fbc4469c81aa46de392"
+      },
+      {
+        "path": "src/data-continuity.mjs",
+        "sha256": "e1945ef121ab1a0af061ed667d556e85d6f34d83f7f3dcf48d3fce0b5e8fabcc"
+      },
+      {
+        "path": "src/data-quality.mjs",
+        "sha256": "4f2b6f6df9e772f9e987183793b300b684e1b0c0c96805893a557345f00b8706"
+      },
+      {
+        "path": "src/dealer-map.mjs",
+        "sha256": "0f95d0aae239ae168f94ee0374d5a8b85456eb0af1df60ac067250015f826a7f"
+      },
+      {
+        "path": "src/derived-metrics.mjs",
+        "sha256": "e4dd2e266037546dbad9669affd811650ff1e9364f7181cb5746e98736be1f8f"
+      },
+      {
+        "path": "src/futures-order-flow.mjs",
+        "sha256": "1875877c6c11a373280d96fab931ecede225ff7031d1cad619a9645969d7d666"
+      },
+      {
+        "path": "src/http-utils.mjs",
+        "sha256": "37ba312a73e5481358400223488d94ff4ab9c80989d37e72179c07feba0deb57"
+      },
+      {
+        "path": "src/intraday-confirmation.mjs",
+        "sha256": "c48aab7c7ae29d6f8260e0ad452678dea3f91d030a9ae9412164fc0dd2971490"
+      },
+      {
+        "path": "src/intraday-factor-impact.mjs",
+        "sha256": "58f2fbb66697f74859602de0fe0566fdbe425fb5a67d72f2e950a8c39f216146"
+      },
+      {
+        "path": "src/intraday-factor-robustness.mjs",
+        "sha256": "7752d4b80c13445c19d52eec2b029ab3dfd9f2d70d7e9b12f5b2476ac22f218f"
+      },
+      {
+        "path": "src/intraday-import.mjs",
+        "sha256": "4c01e07b4fab40aa37aa4bb9451b535b88bf1a6e8593b855ee089c15008cb16f"
+      },
+      {
+        "path": "src/intraday-replay-catalog.mjs",
+        "sha256": "fbf88a0df2978589a80164ed6a8602ced969dcace456bfedf9d9ff93f90f993f"
+      },
+      {
+        "path": "src/intraday-research-features.mjs",
+        "sha256": "49611e71ce1a1d1ea6112b20f2afcff454e9ee1e6667cd170a93c7aaa95f6728"
+      },
+      {
+        "path": "src/intraday-strategy-engine.mjs",
+        "sha256": "1283d195e0d39b6d01803cc2e14312b532f758c96c2e9016533a08623fe2ea24"
+      },
+      {
+        "path": "src/live-acceptance-state.mjs",
+        "sha256": "bf0fe77d97c58a35a66ccc23046f6f69a7f9540303dddd6ab762cdaf8c18ec04"
+      },
+      {
+        "path": "src/live-event-ledger.mjs",
+        "sha256": "4de556e01732a77b2f5f0558650b2e7ca96bf3156ca951c3f0760e6f3b0637fa"
+      },
+      {
+        "path": "src/market-data.mjs",
+        "sha256": "c3dad1446812bfd990588ae9212788ee733fffa5ae6c17bb0e5ab8bf488fb110"
+      },
+      {
+        "path": "src/market-feed.mjs",
+        "sha256": "4b58a7aa8097d46ba0316d141cb751d943fafa112b40ed38a2fb307da8cf472d"
+      },
+      {
+        "path": "src/mock-data.mjs",
+        "sha256": "71f69c32a7ddff3337073d7b005835a17b734c4c010b19158ff49ed6129402d1"
+      },
+      {
+        "path": "src/option-greeks.mjs",
+        "sha256": "68e2e00bbd6236be92412b3052430d7e1d84984e219b0cba59100aa337718706"
+      },
+      {
+        "path": "src/options-live-contract.mjs",
+        "sha256": "bb97ca9b9bf7abf16f1cdf74942348585445b50b2bd7f3c144e482abfb50ac4b"
+      },
+      {
+        "path": "src/options-smart-radar.mjs",
+        "sha256": "591cd852ac52e0113d17e90843367c25a0d66ebce5f330305faf305030589558"
+      },
+      {
+        "path": "src/paid-taifex-import.mjs",
+        "sha256": "cf1d8d4a88b9955e105a30977e5ee4ab149319f454f2075b0d4dd7a736a3297a"
+      },
+      {
+        "path": "src/paper-event-ledger.mjs",
+        "sha256": "dc212b574daa90d51b91125865154f030c05293c9e9283af02516ddc7167b818"
+      },
+      {
+        "path": "src/restartable-research-runner.mjs",
+        "sha256": "4774f53584e0235fb14680ce11e3b7b79f4993072d1445d5b8dac8eaf3399665"
+      },
+      {
+        "path": "src/security.mjs",
+        "sha256": "0c5cb1e5c6cf655ee6f7513d51dc069134dd039570656865d4cf47871abcf7b7"
+      },
+      {
+        "path": "src/shioaji-bridge-client.mjs",
+        "sha256": "ff298926523233a9510171d31176a1a35c14ddaad8d299f55954132bdff47250"
+      },
+      {
+        "path": "src/shioaji-kbar-overlap.mjs",
+        "sha256": "a26bd69589a7d565e23f3fa9cb79b78004153d366d797509bff54bbff352b5e3"
+      },
+      {
+        "path": "src/shioaji-readiness.mjs",
+        "sha256": "ef83bba6b0cb0211174c6629eeb6a7240fb260828dbc07a2505480d37785ee04"
+      },
+      {
+        "path": "src/signal-engine.mjs",
+        "sha256": "796dfc1a2a09d4a43261a0fd5ed79f90c7725ea376755a036cd1dfeaf5c16b7a"
+      },
+      {
+        "path": "src/six-axis-shadow.mjs",
+        "sha256": "e376ab0c6c85ece59ea6df0dbd06146d5a556f77e36dc5d48cb070e2eed162e5"
+      },
+      {
+        "path": "src/taifex-intraday.mjs",
+        "sha256": "6f3ee2a0e16932f00ab5d8d6623969bb328e11f74eed6f70e11d9528662b37de"
+      },
+      {
+        "path": "src/taifex-official.mjs",
+        "sha256": "4ce9ed6ae1869e9a65abf4c1ffdc0c9939685fc028077ba7cd132574d0b5d45d"
+      },
+      {
+        "path": "src/v2-research.mjs",
+        "sha256": "be2b191fc5582880e3181be3c41b434ab3a3f3f1a205ad63c9d146a34c8cd29c"
+      },
+      {
+        "path": "src/v3-decision.mjs",
+        "sha256": "de7ef3ea0494f9dc95ab2ed58ce41d216453c3202490c163e2b2bdc598311048"
+      },
+      {
+        "path": "src/v310-forward-operations.mjs",
+        "sha256": "77d8a566c2ced82588b2808e9b3c4dbd34c27349de0545dfd1a5a3fbe993d0ac"
+      },
+      {
+        "path": "src/v310-restricted-wave3.mjs",
+        "sha256": "afbf046dec514756b0071f1741481a1601b5c65cb3592d438ba3961eb1d2853f"
+      },
+      {
+        "path": "src/v362-risk.mjs",
+        "sha256": "7e51b3fb75acab0311cc85d5c59d04eb5ffaf12829ad1a87f2997cfc2f0f34bf"
+      }
+    ],
+    "gitCommit": null,
+    "gitStatus": "unavailable_empty_or_invalid_git_metadata",
+    "cutoffDate": "2026-07-30"
+  },
+  "safeguards": {
+    "researchOnly": true,
+    "formalWeight": 0,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  },
+  "jobs": [
+    {
+      "jobId": "preflight",
+      "stage": "A00",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 1,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:42:44.566Z",
+      "completedAt": "2026-07-30T14:42:44.572Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A00-preflight.json",
+      "outputHash": "2c206882ab3e1c09b7853ad13f397172a895af28a40f7c76d04dadb791c3ae64",
+      "inputHash": "fbb575b82c09a06e0e086e7b68022f5bb22d4f16fac8df14a2cd9dedc018f456",
+      "key": "A00::_::_::_::_::preflight"
+    },
+    {
+      "jobId": "snapshot",
+      "stage": "A01",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 1,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:42:53.608Z",
+      "completedAt": "2026-07-30T14:43:10.515Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A01-snapshot.json",
+      "outputHash": "92ecdd65c710282955d10f4d065cdd5c38c80c04660c0d82368417559dac26f4",
+      "inputHash": "fbb575b82c09a06e0e086e7b68022f5bb22d4f16fac8df14a2cd9dedc018f456",
+      "key": "A01::_::_::_::_::snapshot"
+    },
+    {
+      "jobId": "inventory",
+      "stage": "A02",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 1,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:43:19.798Z",
+      "completedAt": "2026-07-30T14:43:22.279Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A02-inventory.csv",
+      "outputHash": "14c74d8a24ad74711714744e74f98b17ca65c95c3ac26eefd45c10b38b392723",
+      "inputHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+      "key": "A02::_::_::_::_::inventory"
+    },
+    {
+      "jobId": "lineage",
+      "stage": "A03",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 1,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:43:30.663Z",
+      "completedAt": "2026-07-30T14:43:30.674Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A03-lineage.json",
+      "outputHash": "6c0f4f0e63536bb47b743a70022a44f87fbab70a556180135d083f6af11813f6",
+      "inputHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+      "key": "A03::_::_::_::_::lineage"
+    },
+    {
+      "jobId": "smoke_atomic",
+      "stage": "A04",
+      "factorId": "SMOKE_FACTOR",
+      "targetId": "SMOKE_TARGET",
+      "foldId": "SMOKE_FOLD",
+      "modelId": "SMOKE_MODEL",
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 1,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:43:40.020Z",
+      "completedAt": "2026-07-30T14:43:40.027Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A04-smoke_atomic.json",
+      "outputHash": "9fd1ef4abec562bbe3ec9189b76c5a53e16d3224c6276b85858cb4c41617962a",
+      "inputHash": "dcb6fc39675456c83704dee62caefd2803ccfe5a051923c55af0bb4b793f8dbe",
+      "key": "A04::SMOKE_FACTOR::SMOKE_TARGET::SMOKE_FOLD::SMOKE_MODEL::smoke_atomic"
+    },
+    {
+      "jobId": "smoke_failed_resume",
+      "stage": "A04",
+      "factorId": "SMOKE_FACTOR",
+      "targetId": "SMOKE_TARGET",
+      "foldId": "SMOKE_FOLD",
+      "modelId": "SMOKE_MODEL",
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 2,
+      "recoveryCount": 0,
+      "startedAt": "2026-07-30T14:43:56.127Z",
+      "completedAt": "2026-07-30T14:43:56.136Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A04-smoke_failed_resume.json",
+      "outputHash": "8ca76c6287bfb51c501f6eeeb9333fde0e7ab6f01ad8526d1c9ea1f6deba34cd",
+      "inputHash": "c230d8e81994fadee57a22b89f1d826c17ba087ce60fe41ad507e5d8557e3874",
+      "key": "A04::SMOKE_FACTOR::SMOKE_TARGET::SMOKE_FOLD::SMOKE_MODEL::smoke_failed_resume"
+    },
+    {
+      "jobId": "smoke_crash_resume",
+      "stage": "A04",
+      "factorId": "SMOKE_FACTOR",
+      "targetId": "SMOKE_TARGET",
+      "foldId": "SMOKE_FOLD",
+      "modelId": "SMOKE_MODEL",
+      "round": "PREPARE",
+      "heavy": false,
+      "status": "COMPLETED",
+      "attempts": 2,
+      "recoveryCount": 1,
+      "startedAt": "2026-07-30T14:43:56.144Z",
+      "completedAt": "2026-07-30T14:43:56.154Z",
+      "failedAt": null,
+      "error": null,
+      "outputPath": "D:\\Taiwan stock\\standalone-v1\\data\\research\\full-historical-phase-a-v1\\run-2026-07-30\\jobs\\A04-smoke_crash_resume.json",
+      "outputHash": "08a66968224d0d3be0d0423047cd471b461a5422026ed80997a380b16096de96",
+      "inputHash": "2ad9c69f677f97c783cc1428ef61b7b8588370d87024dadcb40882e55db408ad",
+      "key": "A04::SMOKE_FACTOR::SMOKE_TARGET::SMOKE_FOLD::SMOKE_MODEL::smoke_crash_resume"
+    },
+    {
+      "jobId": "quality_available_at",
+      "stage": "A10",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_1",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A10::_::_::_::_::quality_available_at"
+    },
+    {
+      "jobId": "canonical_materialization",
+      "stage": "A11",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_1",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A11::_::_::_::_::canonical_materialization"
+    },
+    {
+      "jobId": "round1_univariate",
+      "stage": "A12",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_1",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A12::_::_::_::_::round1_univariate"
+    },
+    {
+      "jobId": "round1_low_cost_controls",
+      "stage": "A13",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_1",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A13::_::_::_::_::round1_low_cost_controls"
+    },
+    {
+      "jobId": "redundancy_cluster",
+      "stage": "A20",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_2",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A20::_::_::_::_::redundancy_cluster"
+    },
+    {
+      "jobId": "evidence_blocks",
+      "stage": "A21",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_2",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A21::_::_::_::_::evidence_blocks"
+    },
+    {
+      "jobId": "transparent_walk_forward",
+      "stage": "A22",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_2",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A22::_::_::_::_::transparent_walk_forward"
+    },
+    {
+      "jobId": "round2_strong_controls",
+      "stage": "A23",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_2",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A23::_::_::_::_::round2_strong_controls"
+    },
+    {
+      "jobId": "freeze_f3_candidates",
+      "stage": "A30",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_3",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A30::_::_::_::_::freeze_f3_candidates"
+    },
+    {
+      "jobId": "gam_challenger",
+      "stage": "A31",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_3",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A31::_::_::_::_::gam_challenger"
+    },
+    {
+      "jobId": "round3_2000_controls",
+      "stage": "A32",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_3",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A32::_::_::_::_::round3_2000_controls"
+    },
+    {
+      "jobId": "promotion_and_phase_b_queue",
+      "stage": "A33",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "ROUND_3",
+      "heavy": true,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A33::_::_::_::_::promotion_and_phase_b_queue"
+    },
+    {
+      "jobId": "aggregate_reports",
+      "stage": "A40",
+      "factorId": null,
+      "targetId": null,
+      "foldId": null,
+      "modelId": null,
+      "round": "AGGREGATE",
+      "heavy": false,
+      "status": "PENDING",
+      "attempts": 0,
+      "recoveryCount": 0,
+      "startedAt": null,
+      "completedAt": null,
+      "failedAt": null,
+      "error": null,
+      "outputPath": null,
+      "outputHash": null,
+      "inputHash": null,
+      "key": "A40::_::_::_::_::aggregate_reports"
+    }
+  ],
+  "events": [
+    {
+      "type": "job_recovered",
+      "jobKey": "A04::SMOKE_FACTOR::SMOKE_TARGET::SMOKE_FOLD::SMOKE_MODEL::smoke_crash_resume",
+      "at": "2026-07-30T14:43:56.111Z"
+    }
+  ],
+  "counts": {
+    "PENDING": 13,
+    "RUNNING": 0,
+    "COMPLETED": 7,
+    "FAILED": 0
+  }
+}

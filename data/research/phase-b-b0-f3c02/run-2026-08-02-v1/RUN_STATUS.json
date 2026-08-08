@@ -1,0 +1,16 @@
+{
+  "a22ReproductionStarted": false,
+  "bootstrapExecuted": false,
+  "contractGateHash": "f0b252ab3b4704ed40a5aab1329037a71a07e2eb1cbb673b8d50b73687a4d824",
+  "executionAuthorized": false,
+  "formalWeight": 0,
+  "freezeManifestHash": "d913c57df879a1780754e3e1915995848e61e8b9b49b7dd8d4b9aeab0524ae4f",
+  "performanceCalculated": false,
+  "researchOnly": true,
+  "runId": "phase-b-b0-f3c02-run-2026-08-02-v1",
+  "s0s1Created": false,
+  "schemaVersion": "phase-b-b0-run-status-v1",
+  "status": "HARD_FAIL",
+  "stoppedAtGate": "CONTRACT_COMPLETENESS_GATE",
+  "thresholdCreated": false
+}

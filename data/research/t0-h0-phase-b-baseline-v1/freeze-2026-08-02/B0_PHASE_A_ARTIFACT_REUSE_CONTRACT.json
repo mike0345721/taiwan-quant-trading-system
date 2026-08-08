@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "phase-b-b0-phase-a-artifact-reuse-v1",
+  "contractStatus": "PREREGISTRATION_DRAFT",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "phaseARunId": "full-historical-phase-a-v1-2026-07-30",
+  "immutableInputs": {
+    "snapshotHash": "b29abea925db6ea8958b4b98fcaee0acbfbbacc79a198325cd89e7b2c1245441",
+    "researchSpecHash": "a131b8529cfc4f70196dc60d44b60a25fbb2ee1ec8c87d5d94748b20eae6e7a9",
+    "targetSpecHash": "40923e78058f1e4891169bb04b64aab2eb817ad73d2d18de3f6172789aecc57c",
+    "featureSpecHash": "86b59240475076d707a6dd3621dd9731c10cd500c3d273be96e0000fe9f137e2",
+    "featureVersion": "phase-a-canonical-features-1.0.0",
+    "targetVersion": "phase-a-daily-targets-1.0.0",
+    "randomSeed": 20260730
+  },
+  "a22Artifact": {
+    "path": "data/research/full-historical-phase-a-v1/run-2026-07-30-a13-v2/jobs/A22-transparent_walk_forward.json",
+    "sha256": "15fe9ef86b14a057e8ba16d29910508a1e20050933c73d04925d4a03bb607cb3",
+    "schemaVersion": "phase-a-a22-v1"
+  },
+  "candidateFrozenDefinition": {
+    "evidenceBlock": "CASH__next_day_large_move",
+    "modelId": "RIDGE_LOGISTIC",
+    "ridgeLambda": 1,
+    "standardization": "TRAIN_ONLY",
+    "minimumTrainDays": 360,
+    "purgeDays": 1,
+    "testDays": 60,
+    "candidateEvidenceHash": "e5fe4583473045c9e6b5e9506ba868e486102f708697ae36de800c944a34cc7f"
+  },
+  "mustReuse": [
+    "FOLD_ASSIGNMENT",
+    "TRAIN_TEST_DATE_RANGES",
+    "FEATURE_STANDARDIZATION",
+    "MODEL_COEFFICIENTS",
+    "OOS_CANDIDATE_SCORES",
+    "RANDOM_SEED",
+    "AVAILABLE_AT_RESULTS"
+  ],
+  "currentArtifactAvailability": {
+    "oosScores": "PRESENT_IN_A22",
+    "foldAssignment": "PRESENT_IN_A22",
+    "trainFoldScoreDistributionAsIndependentArtifact": "NOT_PRESENT",
+    "implementationRequirement": "A22_EXACT_REPRODUCTION_GATE_BEFORE_THRESHOLD_GENERATION"
+  },
+  "reproductionGate": {
+    "required": true,
+    "steps": [
+      "REBUILD_A22_FROM_IMMUTABLE_INPUTS_WITHOUT_T0_PNL",
+      "COMPARE_FOLD_ASSIGNMENT",
+      "COMPARE_TRAIN_TEST_DATE_RANGES",
+      "COMPARE_OOS_SCORES_EXACTLY",
+      "COMPARE_A22_SEMANTIC_AND_OUTPUT_HASH",
+      "ONLY_THEN_GENERATE_TRAIN_FOLD_SCORE_DISTRIBUTION"
+    ],
+    "mismatchAction": "HARD_FAIL",
+    "newVersionOnMismatchAllowed": false
+  },
+  "t0RefitAllowed": false,
+  "t0FoldResplitAllowed": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

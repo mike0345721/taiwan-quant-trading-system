@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "f3c01-execution-contract-v1",
+  "candidateId": "F3C01",
+  "phaseBRole": "OPTIONS_VOLATILITY_REGIME",
+  "intervention": "NONE_DESCRIPTIVE_REGIME_ONLY",
+  "threshold": {"source":"TRAIN_FOLD_SCORE_DISTRIBUTION","quantile":0.8,"quantileMethod":"LINEAR_INTERPOLATION_N_MINUS_1","tieMethod":"GREATER_THAN_OR_EQUAL_HIGH_STATE","precision":"IEEE_754_BINARY64_NO_PRECLASSIFICATION_ROUNDING","nullHandling":"FILTER_NONFINITE_TRAIN_SCORES_AND_FAIL_IF_EMPTY"},
+  "model": {"type":"RIDGE_LOGISTIC","lambda":1,"standardization":"TRAIN_ONLY"},
+  "minimumSamples": {"pairedSessions":100,"highVolatilitySessions":20,"normalVolatilitySessions":60,"highVolatilityT0Trades":15,"normalVolatilityT0Trades":50},
+  "primaryEndpoints": [
+    {"endpointId":"LARGE_MOVE_EVENT_LIFT","minimum":1.25,"lowerBound":1.0},
+    {"endpointId":"DAY_SESSION_RANGE_LIFT","minimum":0.10,"lowerBound":0.0},
+    {"endpointId":"T0_60_MINUTE_PATH_RANGE_LIFT","minimum":0.10,"lowerBound":0.0}
+  ],
+  "bootstrap": {"engine":"XOSHIRO256_STAR_STAR","iterations":2000,"blockLengths":[5,10],"ci":"BASIC_ONE_SIDED_95","multipleTesting":"HOLM","alpha":0.05,"decision":"WORST_BLOCK_RESULT"},
+  "negativeControls": ["WITHIN_FOLD_SCORE_PERMUTATION","RANDOM_FEATURE_EMPIRICAL_TRAIN_FOLD_RESAMPLING","AVAILABLE_AT_LEAD_CHECK"],
+  "prohibitions": ["S1","VETO_LEDGER","TRADE_CANCELLATION","DIRECTION_REVERSAL","POSITION_SIZING","THRESHOLD_SEARCH","ROLE_RESCUE"],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

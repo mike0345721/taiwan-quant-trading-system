@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "f3c01-final-closeout-manifest-v1",
+  "runId": "run-2026-08-03-v3",
+  "candidateId": "F3C01",
+  "phaseBRole": "OPTIONS_VOLATILITY_REGIME",
+  "workPackageStatus": "CLOSED_INSUFFICIENT_SAMPLE",
+  "engineeringStatus": "PASS",
+  "researchOutcome": "NOT_EVALUATED",
+  "artifacts": [
+    {"name":"A22_REPRODUCTION.json","sha256":"b63ba064cdd4d1ba358864ce24d2dcd8677baed7ad4bfebb50f812156efdd2dc"},
+    {"name":"AVAILABLE_AT_AUDIT.json","sha256":"5e1875aade4e30675ae20d4fa339580b5780e2a74209b30a0163857cf9336bf5"},
+    {"name":"EVALUATION_REGISTRY_RECORD.json","sha256":"feabd4e1f92bb002b10b698adf069a6b9ac25bc5aa6ba0c87deec28fb4a1274b"},
+    {"name":"FOLD_P80_THRESHOLDS.json","sha256":"5603b67356259086f763d7363eea02eb642e7805f2d33a9897c3e6a38bd52e21"},
+    {"name":"FROZEN_ARTIFACT_PROTECTION.json","sha256":"a9181e2c76972020acf4480f71d77690a283e317fad3f455da51ed93ab256fc0"},
+    {"name":"PAIRED_UNIVERSE_PREFLIGHT.json","sha256":"7b752a195e428e8edb7df00d44a1d7df1d27b72cc0bdc14f50735baef81918cd"},
+    {"name":"PREFLIGHT_STATUS.json","sha256":"564afcf716c2a4563613c03a6869763f35060b3150af765eff9d00dc1f9966be"},
+    {"name":"SAMPLE_GATE.json","sha256":"b34e890d77eb61939c057137819e5bd1308cca3b773749c75dd83d05e5edc9a3"},
+    {"name":"SAMPLE_INSUFFICIENCY_RECORD.json","sha256":"118995f70add09e45d21ba65a8605549d73ca73a6013f2cc4efa9f5e48f0dfe2"},
+    {"name":"SCOPE_DIFF.json","sha256":"3ec116d294aa5b958997198684dd0ea2240cedecfc0e1f5b297c2b171563834f"}
+  ],
+  "performanceArtifactsCreated": false,
+  "negativeEvidenceRegistered": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

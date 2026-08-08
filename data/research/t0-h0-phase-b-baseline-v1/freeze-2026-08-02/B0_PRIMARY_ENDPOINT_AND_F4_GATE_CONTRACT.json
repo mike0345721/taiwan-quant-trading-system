@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "phase-b-b0-primary-endpoint-f4-gate-v1",
+  "contractStatus": "PREREGISTRATION_DRAFT",
+  "candidateId": "F3C02",
+  "baselineFreezeManifestHash": "9664ca8777cfdf827e6383b952ac006f7577f59c0abe86e7182d44e8dd2451cf",
+  "baselineHashMismatchAction": "HARD_FAIL",
+  "primaryCostView": "BASE_2_TICKS_PER_SIDE",
+  "primaryRiskEndpoints": [
+    "MAX_DRAWDOWN_IMPROVEMENT",
+    "ES10_IMPROVEMENT",
+    "TRADE_RETENTION",
+    "EXPECTANCY_NON_INFERIORITY"
+  ],
+  "secondaryMetrics": [
+    "PROFIT_FACTOR",
+    "ELIGIBLE_SESSION_AVERAGE_PNL",
+    "WIN_RATE",
+    "PAYOFF_RATIO",
+    "MAE_MFE",
+    "FALSE_BREAKOUT_RATE",
+    "WORST_5_PERCENT_STRESS",
+    "LONG_SHORT",
+    "SETTLEMENT_ROLL",
+    "COST_STRESS"
+  ],
+  "falseBreakout": {
+    "secondaryDiagnostic": true,
+    "hardPromotionGate": false,
+    "requiredDisclosure": true
+  },
+  "numericGates": {
+    "minimumLegalSessions": 100,
+    "minimumS0PairedTrades": 80,
+    "minimumTradeRetention": 0.6,
+    "minimumMaxDrawdownImprovement": 0.1,
+    "minimumES10Improvement": 0.1,
+    "maximumExpectancyDeterioration": 0.05,
+    "maximumProfitFactorDeterioration": 0.05
+  },
+  "incrementalConcentration": {
+    "baseSeries": "incrementalDailyPnl",
+    "requiredViews": [
+      "TOP_1_3_5_POSITIVE_INCREMENT_CONTRIBUTION",
+      "TOTAL_INCREMENT_AFTER_REMOVING_TOP_1_3_5",
+      "MONTHLY_INCREMENT",
+      "FOLD_INCREMENT",
+      "LONG_SHORT_INCREMENT",
+      "VETOED_WIN_LOSS_DISTRIBUTION",
+      "AVOIDED_LOSS",
+      "MISSED_PROFIT"
+    ],
+    "automaticHardFail": false,
+    "highConcentrationState": "CONCENTRATED",
+    "ownerReviewRequired": true
+  },
+  "maximumPromotion": {
+    "promotionStage": "F4_HISTORICAL_INCREMENTAL_CANDIDATE",
+    "evaluationStatus": "PENDING",
+    "promotionEligible": false,
+    "formalWeight": 0
+  },
+  "notSignalGate": true,
+  "notPaperGate": true,
+  "notUniversalMarketLaw": true,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

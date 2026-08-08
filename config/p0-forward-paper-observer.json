@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "p0-forward-paper-observer-config-v1",
+  "startLocalTime": "08:35:00",
+  "reconciliationAfterLocalTime": "13:47:00",
+  "sessionType": "DAY",
+  "inputContract": "SHIOAJI_APPEND_ONLY_LIVE_MARKET_LEDGER_PLUS_PP1_PROVIDER_MAPPING",
+  "commandTemplate": "node scripts/run-p0-forward-paper-observer.mjs",
+  "reconciliationLocalTime": "13:47:00",
+  "singleEnginePath": "raw market ticks -> frozen T0 detection -> paper state machine -> ledger",
+  "existingT0ResultUsage": "COMPARATOR_AFTER_SESSION_ONLY",
+  "missedDayBackfillAllowed": false,
+  "liveBrokerOrderRouteAllowed": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}

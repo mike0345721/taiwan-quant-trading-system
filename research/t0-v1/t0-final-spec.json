@@ -1,0 +1,244 @@
+{
+  "schemaVersion": "1.0.0",
+  "specId": "t0-day-session-technical-baseline-v1",
+  "status": "OWNER_FINAL_PATCH_APPLIED_HISTORICAL_RUN_NOT_AUTHORIZED",
+  "instrument": "TX",
+  "session": "DAY",
+  "purpose": "透明、可重播且不宣稱Edge的日盤H0技術基準",
+  "marketSemanticsPolicy": "PP1_MARKET_SEMANTICS_V1",
+  "contractPolicy": {
+    "selectedResearchContractRole": "SELECTED_RESEARCH",
+    "requiresTrueContractCode": true,
+    "sameContractWithinSession": true,
+    "continuousContractForbidden": true
+  },
+  "openingRange": {
+    "start": "08:45:00 Asia/Taipei",
+    "endExclusive": "09:00:00 Asia/Taipei",
+    "requiredFiveMinuteBars": 3,
+    "featureAvailableAt": "09:00:00 Asia/Taipei after all three bars are complete"
+  },
+  "baselineMechanics": {
+    "breakout": "09:00後第一根完整5分鐘K收盤嚴格站上OR High或跌破OR Low",
+    "entryWindow": {
+      "firstConfirmationBarStart": "09:00:00 Asia/Taipei",
+      "lastConfirmationBarStart": "09:55:00 Asia/Taipei",
+      "confirmationBarEndMustBeAtOrBefore": "10:00:00 Asia/Taipei",
+      "entryTimestampMustBeAtOrBefore": "10:00:00 Asia/Taipei",
+      "expiredState": "NO_TRADE",
+      "expiredReason": "ENTRY_WINDOW_EXPIRED"
+    },
+    "entry": "突破確認後下一根合法5分鐘K開盤",
+    "entryGapThroughStop": {
+      "longNoTradeWhen": "entryOpen <= stopPrice",
+      "shortNoTradeWhen": "entryOpen >= stopPrice",
+      "tradeState": "NO_TRADE",
+      "noTradeReason": "ENTRY_GAP_THROUGH_STOP",
+      "countsAsEligibleSession": true,
+      "countsAsTrade": false,
+      "entryPrice": null,
+      "exitPrice": null,
+      "grossPnl": null,
+      "netPnl": null,
+      "commission": 0,
+      "tax": 0,
+      "slippage": 0,
+      "delayedEntryForbidden": true,
+      "stopModificationForbidden": true
+    },
+    "maxTradesPerSession": 1,
+    "stop": "OR另一側；若Gap穿越Stop，先取第一個合法不利成交價，再疊加該成本情境滑價；不得以Stop價代替",
+    "normalExitPriority": ["STOP_EXIT", "TIME_EXIT"],
+    "timeExit": {
+      "durationMinutes": 60,
+      "timeExitAt": "entryTimestamp + 60 minutes",
+      "tickReplayFill": "timeExitAt當下或之後第一筆合法成交價，再加入不利方向滑價",
+      "fiveMinuteReplayFill": "barStart >= timeExitAt的第一根完整5分鐘K開盤價，再加入不利方向滑價",
+      "barCloseForbidden": true,
+      "missingPriceState": "NO_SAMPLE",
+      "missingPriceReason": "TIME_EXIT_PRICE_UNAVAILABLE",
+      "sessionCloseFallbackForbidden": true
+    },
+    "sessionSafetyBackstop": {
+      "name": "HARD_SESSION_FLAT_DEADLINE",
+      "systemSafetyInvariantOnly": true,
+      "normalT0ExitReason": false,
+      "timeExitFallbackForbidden": true,
+      "purpose": ["防止程式異常造成隔夜持倉", "防止任何日盤策略跨越Session"]
+    },
+    "overnightPositionAllowed": false
+  },
+  "dataMeasurements": {
+    "vwap": "精確成交量加權價格；先作量測，不加入T0進場條件",
+    "rvol": {
+      "rvolVersion": "RVOL20",
+      "lookbackSessions": 20,
+      "minimumValidSessions": 15,
+      "pastOnly": true,
+      "sameSessionTypeOnly": true,
+      "sameTimeBucketOnly": true,
+      "excludeCurrentSession": true,
+      "excludeSettlementSessions": true,
+      "excludeRollTransitionSessions": true,
+      "formula": "current day-session cumulative volume through current bucket / mean cumulative volume through same bucket across last 20 eligible day sessions",
+      "insufficientState": "UNAVAILABLE",
+      "t0Role": "MEASUREMENT_AND_DIAGNOSTIC_ONLY",
+      "entryEligible": false,
+      "stopEligible": false,
+      "exitEligible": false,
+      "noTradeEligible": false,
+      "parameterSelectionEligible": false
+    },
+    "pricePath": "同一真實契約的盤中路徑",
+    "maeMfe": "進場至離場期間的不利／有利最大偏移",
+    "falseBreakout": {
+      "role": "POST_TRADE_DIAGNOSTIC_ONLY",
+      "mayChangeEntryStopExitOrNoTrade": false,
+      "window": "breakoutConfirmedAt後前三根完整5分鐘K，包含Entry所在K及其後兩根K",
+      "rFormula": "abs(entryPrice - initialStopPrice)",
+      "requiresSameTrueContractAndOrderedPricePath": true,
+      "longReturnCondition": "barClose <= orHigh before favorable 1R",
+      "shortReturnCondition": "barClose >= orLow before favorable 1R",
+      "longReason": "RETURNED_BELOW_OR_HIGH_BEFORE_1R",
+      "shortReason": "RETURNED_ABOVE_OR_LOW_BEFORE_1R",
+      "stopWithinWindowReason": "STOPPED_WITHIN_FALSE_BREAKOUT_WINDOW",
+      "oneRBeforeReturnMeansFalse": true,
+      "insufficientPathValue": "UNAVAILABLE",
+      "insufficientPathQualityState": "UNAVAILABLE",
+      "insufficientPathDoesNotDeleteTrade": true
+    }
+  },
+  "settlementPolicy": "INCLUDE_AND_STRATIFY",
+  "settlementClasses": [
+    "NORMAL_SESSION",
+    "SETTLEMENT_FINAL_CONTRACT",
+    "SETTLEMENT_NON_FINAL_CONTRACT",
+    "SETTLEMENT_STATUS_UNAVAILABLE"
+  ],
+  "settlementNoSampleClass": "SETTLEMENT_STATUS_UNAVAILABLE",
+  "reportViews": [
+    "ALL_ELIGIBLE_SESSIONS",
+    "NON_SETTLEMENT_SESSIONS",
+    "SETTLEMENT_SESSIONS",
+    "SETTLEMENT_FINAL_CONTRACT",
+    "SETTLEMENT_NON_FINAL_CONTRACT"
+  ],
+  "settlementMetrics": [
+    "settlementSessionCount",
+    "settlementTradeCount",
+    "settlementGrossPnl",
+    "settlementNetPnl",
+    "settlementExpectancy",
+    "settlementPF",
+    "settlementWinRate",
+    "settlementFalseBreakoutRate",
+    "settlementMAE",
+    "settlementMFE",
+    "settlementContributionPct"
+  ],
+  "settlementSafeguards": {
+    "sameParametersAcrossViews": true,
+    "settlementDependencyHighWhenAllPositiveButNonSettlementTurnsNegativeOrMateriallyWorse": true,
+    "insufficientSampleMeansDescriptiveOnly": true,
+    "oneToThreeDayDominanceWarning": true,
+    "promotionCannotRelyOnlyOnSettlementSubset": true,
+    "noSettlementSpecificTuning": true
+  },
+  "rollPolicy": {
+    "crossSessionGapOnDifferentContracts": { "gapState": "ROLL_TRANSITION", "rawGap": null },
+    "rollTransitionDoesNotAutomaticallyRejectWholeSession": true,
+    "sessionCanRemainResearchEligibleWhenSameTrueContractUsedIntraday": true,
+    "outputFlag": "rollSession",
+    "requiresStratifiedSensitivity": true,
+    "t0MustNotSilentlyUseCrossContractGap": true
+  },
+  "costPolicyPath": "research/t0-v1/cost-policy.json",
+  "baseTicksPerSide": 2,
+  "slippageViews": [
+    "GROSS_0_TICK_PER_SIDE",
+    "OPTIMISTIC_1_TICK_PER_SIDE",
+    "BASE_2_TICKS_PER_SIDE",
+    "CONSERVATIVE_3_TICKS_PER_SIDE",
+    "SEVERE_STRESS_5_TICKS_PER_SIDE"
+  ],
+  "primaryH0CostView": "BASE_2_TICKS_PER_SIDE",
+  "gapThroughStopPolicy": {
+    "referenceFill": "FIRST_LEGAL_ADVERSE_FILL_PRICE",
+    "thenApplyScenarioSlippage": true,
+    "stopPriceAsFillForbidden": true
+  },
+  "costOutputFields": [
+    "grossPnl",
+    "entryCommission",
+    "exitCommission",
+    "entryTax",
+    "exitTax",
+    "entrySlippage",
+    "exitSlippage",
+    "totalCost",
+    "netPnl"
+  ],
+  "productReplayRule": {
+    "TX": { "principal": true, "requiresOwnReplay": true },
+    "MTX": { "principal": false, "requiresOwnReplay": true, "withoutOwnReplay": { "indicativeCostScenarioOnly": true, "executionValidated": false } },
+    "TMF": { "principal": false, "requiresOwnReplay": true, "withoutOwnReplay": { "indicativeCostScenarioOnly": true, "executionValidated": false } },
+    "TXO": { "globalRegistryOnly": true, "phaseBTradingCostEligible": false }
+  },
+  "contractRoleMapping": {
+    "actualReplayContractCode": "重播資料實際使用的真實月契約",
+    "selectedResearchContractCode": "PP-1 SELECTED_RESEARCH；STRICT T0對齊基準",
+    "sessionFrozenLiquidityLeadContractCode": "PP-1 SESSION_FROZEN_LIQUIDITY_LEAD；不得冒充SELECTED_RESEARCH",
+    "nearestEligibleMonthlyContractCode": "PP-1 NEAREST_ELIGIBLE_MONTH",
+    "liquidityObservationState": "PP-1 OBSERVED_LIQUIDITY_LEAD品質狀態",
+    "contractPolicyAlignment": "PASS或DEGRADED",
+    "selectionMode": "PP-1 selectionReason",
+    "fallbackReason": "PP-1 fallbackReason或T0研究Fallback原因"
+  },
+  "sampleEligibility": {
+    "STRICT_PP1_ALIGNED": "實際重播契約等於PP-1 selectedResearchContractCode",
+    "RESEARCH_FALLBACK": "合法真實月契約且盤中資料完整，但與PP-1 selectedResearchContractCode不一致；tradeEligible=false",
+    "NO_SAMPLE": "契約、時間或盤中資料不足"
+  },
+  "h0DataViews": {
+    "T0_STRICT_PP1_ALIGNED_H0": {
+      "includes": ["STRICT_PP1_ALIGNED"],
+      "primaryForPhaseBAndF4": true
+    },
+    "T0_EXTENDED_RESEARCH_H0": {
+      "includes": ["STRICT_PP1_ALIGNED", "RESEARCH_FALLBACK"],
+      "primaryForPhaseBAndF4": false,
+      "descriptiveResearchOnly": true
+    }
+  },
+  "eligibilityReportViews": [
+    "ALL_ELIGIBLE_RESEARCH_SESSIONS",
+    "STRICT_PP1_ALIGNED_SESSIONS",
+    "EXTENDED_RESEARCH_SESSIONS",
+    "NON_SETTLEMENT_SESSIONS",
+    "SETTLEMENT_SESSIONS",
+    "SETTLEMENT_FINAL_CONTRACT",
+    "SETTLEMENT_NON_FINAL_CONTRACT",
+    "ROLL_SESSIONS",
+    "RESEARCH_FALLBACK_SESSIONS",
+    "NO_SAMPLE_SESSIONS"
+  ],
+  "successDefinition": {
+    "engineeringAcceptanceIndependentOfProfitability": true,
+    "negativeNetPerformanceMayStillBecomeFixedPhaseBBaseline": true,
+    "engineeringChecks": ["SPEC_FIDELITY", "CONTRACT_CORRECTNESS", "AVAILABLE_AT", "REPLAY", "COST", "ENTRY_STOP_EXIT", "NO_TRADE_REASONS", "HASH_AND_IDEMPOTENCY"],
+    "edgeEvaluationDescriptiveOnly": ["EXPECTANCY", "PROFIT_FACTOR", "DRAWDOWN", "WIN_RATE", "PAYOFF_RATIO", "MAE_MFE", "FALSE_BREAKOUT", "COST_SENSITIVITY", "PNL_CONCENTRATION"],
+    "retuningAfterResultForbidden": true,
+    "addingFiltersToRescueResultForbidden": true
+  },
+  "authorization": {
+    "t0HistoricalH0Run": false,
+    "phaseB": false,
+    "f4Promotion": false,
+    "signal": false,
+    "strategy": false,
+    "paper": false,
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "version": "2.10.2",
+  "datasets": {
+    "securitiesLending": {
+      "status": "source_confirmed_history_pending",
+      "primarySources": ["TWSE OpenAPI /SBL/TWT96U", "TWSE securities lending historical reports"],
+      "availability": "post_close_or_official_publication",
+      "researchRole": "crowded_short_and_covering_risk",
+      "warning": "可借券量不等於已借券餘額；兩者必須分欄。"
+    },
+    "etfCreationRedemption": {
+      "status": "schema_ready_history_pending",
+      "primarySources": ["TWSE ETF申贖資訊", "ETF issuer PCF and issued units"],
+      "availability": "announcement_day_with_cross_timezone_rules",
+      "researchRole": "cash_futures_arbitrage_and_passive_flow",
+      "warning": "發行單位數變化只是申贖代理，不能直接當主力買賣。"
+    },
+    "optionVolatility": {
+      "status": "schema_ready_short_free_history_only",
+      "primarySources": ["TAIFEX option daily prices", "TAIFEX daily Delta files"],
+      "availability": "daily_delta_files_have_limited_free_history",
+      "researchRole": "skew_term_structure_iv_rv_and_tail_risk",
+      "warning": "IV需同時點權利金、標的、利率、股息與到期時間；不可只靠OI。"
+    },
+    "dealerOptionHedge": {
+      "status": "model_specification_pending",
+      "primarySources": ["TAIFEX institutional option positions", "TAIFEX strike OI", "option Greeks"],
+      "availability": "post_close_estimate",
+      "researchRole": "estimated_hedging_pressure",
+      "warning": "公開資料無法辨識造市商真實買賣方向，只能標示估算區間。"
+    },
+    "fxReserves": {
+      "status": "release_schema_ready_history_pending",
+      "primarySources": ["Central Bank of the Republic of China (Taiwan)"],
+      "availability": "actual_monthly_release_time",
+      "researchRole": "long_term_liquidity_context",
+      "warning": "存量受評價變動影響，不直接視為央行買賣美元金額。"
+    },
+    "policyEvents": {
+      "status": "schema_ready_event_backfill_pending",
+      "primarySources": ["Federal Reserve", "Bank of Japan", "Central Bank of Taiwan"],
+      "availability": "decision_timestamp",
+      "researchRole": "gap_volatility_and_regime_change",
+      "warning": "意外程度需要公告前市場預期來源；只有實際升降息不足以定義surprise。"
+    },
+    "gold": {
+      "status": "research_proxy_imported",
+      "primarySources": ["Gold futures research proxy; replace with broker futures feed in V3"],
+      "availability": "latest_completed_overseas_session",
+      "researchRole": "safe_haven_real_yield_and_dollar_interaction",
+      "warning": "目前僅研究代理，不作實單行情來源。"
+    },
+    "copper": {
+      "status": "monthly_official_and_daily_proxy_imported",
+      "primarySources": ["FRED/IMF monthly global copper price", "Copper futures research proxy"],
+      "availability": "official monthly series conservatively lagged 45 days",
+      "researchRole": "global_manufacturing_cycle",
+      "warning": "月資料不可按觀測月份首日提前使用。"
+    }
+  }
+}
