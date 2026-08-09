@@ -100,6 +100,13 @@ test('futures OI direction uses near-contract OI and the previous distinct usabl
   assert.ok(context);
   assert.equal(context.direction, 'BULLISH');
   assert.equal(context.oiDelta.delta, 25);
+  assert.equal(context.sameContractOiDelta, 25);
+  assert.equal(context.oiTrace.currentSourceTradeDate, second);
+  assert.equal(context.oiTrace.currentSourceContract, '202608');
+  assert.equal(context.oiTrace.currentOi, 125);
+  assert.equal(context.oiTrace.previousSourceTradeDate, first);
+  assert.equal(context.oiTrace.previousSourceContract, '202608');
+  assert.equal(context.oiTrace.previousOi, 100);
   assert.equal(context.currentContract, '202608');
   assert.equal(context.previousContract, '202608');
   assert.equal(context.productScope, 'TX_MTX_TMF_EQUIVALENT');
@@ -115,7 +122,7 @@ test('contract mismatch, rollover and missing previous OI never produce a direct
     row('2026-08-11', 'rollover_risk', 0, { sourceContract: '202609' }),
   ]).at(-1);
   assert.equal(mismatch.evidence.some((item) => item.key === 'priceOiJointContext'), false);
-  assert.equal(mismatch.unavailable.find((item) => item.key === 'priceOiJointContext').reason, 'CONTRACT_MISMATCH');
+  assert.equal(mismatch.unavailable.find((item) => item.key === 'priceOiJointContext').reason, 'OI_CONTRACT_MISMATCH');
 
   const rollover = buildHistoricalMarketStateRecords([
     row('2026-08-10', 'near_contract_oi', 100, { sourceContract: '202608' }),
@@ -135,7 +142,7 @@ test('contract mismatch, rollover and missing previous OI never produce a direct
     row('2026-08-11', 'rollover_risk', 0, { sourceContract: '202608' }),
   ])[0];
   assert.equal(noPrevious.evidence.some((item) => item.key === 'priceOiJointContext'), false);
-  assert.equal(noPrevious.unavailable.find((item) => item.key === 'priceOiJointContext').reason, 'NO_VALID_PREVIOUS');
+  assert.equal(noPrevious.unavailable.find((item) => item.key === 'priceOiJointContext').reason, 'NO_PREVIOUS_OI');
 });
 
 test('future evidence is rejected by evaluator and counted as a future-data violation', () => {

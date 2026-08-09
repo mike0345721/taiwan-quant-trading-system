@@ -102,12 +102,12 @@ function previousDistinctUsableRow(history, currentRow) {
 
 function sameContractOiDelta(history, currentRow) {
   if (!isUsable(currentRow)) return { state: 'CURRENT_UNAVAILABLE', previous: null, delta: null };
-  if (!currentRow.sourceContract) return { state: 'CURRENT_CONTRACT_UNAVAILABLE', previous: null, delta: null };
+  if (!currentRow.sourceContract) return { state: 'SOURCE_CONTRACT_MISSING', previous: null, delta: null };
   const previous = previousDistinctUsableRow(history, currentRow);
-  if (!previous) return { state: 'NO_VALID_PREVIOUS', previous: null, delta: null };
-  if (!previous.sourceContract) return { state: 'PREVIOUS_CONTRACT_UNAVAILABLE', previous, delta: null };
+  if (!previous) return { state: 'NO_PREVIOUS_OI', previous: null, delta: null };
+  if (!previous.sourceContract) return { state: 'SOURCE_CONTRACT_MISSING', previous, delta: null };
   if (previous.sourceContract !== currentRow.sourceContract) {
-    return { state: 'CONTRACT_MISMATCH', previous, delta: null };
+    return { state: 'OI_CONTRACT_MISMATCH', previous, delta: null };
   }
   return { state: 'PASS', previous, delta: Number(currentRow.value) - Number(previous.value) };
 }
@@ -207,6 +207,19 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
   const rollover = (isUsable(contractChanged) && Number(contractChanged.value) !== 0)
     || (isUsable(rolloverRisk) && Number(rolloverRisk.value) !== 0);
   const oiDelta = sameContractOiDelta(history, nearContractOi);
+  const oiTrace = {
+    factorId: nearContractOi?.factorId || 'near_contract_oi',
+    sourceTable: nearContractOi?.sourceTable || 'futures_oi_daily',
+    productScope: 'TX_MTX_TMF_EQUIVALENT',
+    currentSourceTradeDate: nearContractOi?.sourceTradeDate || null,
+    currentSourceContract: nearContractOi?.sourceContract || null,
+    currentOi: isUsable(nearContractOi) ? Number(nearContractOi.value) : null,
+    previousSourceTradeDate: oiDelta.previous?.sourceTradeDate || null,
+    previousSourceContract: oiDelta.previous?.sourceContract || null,
+    previousOi: isUsable(oiDelta.previous) ? Number(oiDelta.previous.value) : null,
+    sameContractOiDelta: oiDelta.state === 'PASS' ? oiDelta.delta : null,
+    deltaState: oiDelta.state,
+  };
 
   if (rollover) {
     evidence.push({
@@ -225,6 +238,7 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
       productScope: 'TX_MTX_TMF_EQUIVALENT',
       currentContract: nearContractOi?.sourceContract || null,
       previousContract: oiDelta.previous?.sourceContract || null,
+      oiTrace,
     });
   } else if (isUsable(txReturn) && oiDelta.state === 'PASS') {
     const price = Number(txReturn.value);
@@ -253,6 +267,8 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
       currentContract: nearContractOi.sourceContract,
       previousContract: oiDelta.previous.sourceContract,
       oiDelta,
+      sameContractOiDelta: oiDelta.delta,
+      oiTrace,
       positioning,
       interpretation: 'price/OI quadrant is descriptive and does not prove participant identity',
       inputs: [trace(txReturn), trace(nearContractOi), trace(oiDelta.previous)],
@@ -264,6 +280,7 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
       productScope: 'TX_MTX_TMF_EQUIVALENT',
       currentContract: nearContractOi?.sourceContract || null,
       previousContract: oiDelta.previous?.sourceContract || null,
+      oiTrace,
     });
   }
 
