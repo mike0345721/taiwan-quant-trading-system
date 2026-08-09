@@ -46,7 +46,7 @@ test('future, stale and invalid-timestamp evidence is excluded instead of leakin
   assert.deepEqual(result.unavailable.map((row) => row.reason).sort(), ['AVAILABLE_AT_INVALID', 'FUTURE_EVIDENCE', 'QUALITY_STALE']);
 });
 
-test('direction and risk remain independent so bullish direction can coexist with elevated risk', () => {
+test('direction and canonical risk remain independent while elevated stays research context only', () => {
   const result = evaluatePremarketMarketState(input({
     evidence: [
       evidence({ key: 'local', direction: 'BULLISH', trend: 'TREND_UP', volatility: 'NORMAL' }),
@@ -57,7 +57,8 @@ test('direction and risk remain independent so bullish direction can coexist wit
     ],
   }));
   assert.equal(result.state.direction, 'BULLISH');
-  assert.equal(result.state.risk, 'ELEVATED');
+  assert.equal(result.state.risk, 'NORMAL');
+  assert.equal(result.riskResearchContext, 'ELEVATED');
   assert.equal(result.state.volatility, 'HIGH');
   assert.equal(result.state.globalAlignment, 'HEADWIND');
 });
@@ -111,6 +112,7 @@ test('hard event or data risk can set HIGH_RISK without fabricating bearish dire
   }));
   assert.equal(result.state.direction, 'BULLISH');
   assert.equal(result.state.risk, 'HIGH_RISK');
+  assert.equal(result.riskResearchContext, 'HIGH_RISK');
 });
 
 test('past-only percentile requires minimum history and never includes current value implicitly', () => {

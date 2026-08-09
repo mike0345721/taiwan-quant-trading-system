@@ -4,7 +4,8 @@ const AXES = Object.freeze({
   trend: ['TREND_UP', 'TREND_DOWN', 'RANGE', 'UNCLEAR'],
   direction: ['BULLISH', 'BEARISH', 'NEUTRAL', 'CONFLICT', 'UNAVAILABLE'],
   volatility: ['LOW', 'NORMAL', 'HIGH', 'UNAVAILABLE'],
-  risk: ['NORMAL', 'ELEVATED', 'HIGH_RISK', 'UNAVAILABLE'],
+  risk: ['NORMAL', 'HIGH_RISK', 'UNAVAILABLE'],
+  riskResearchContext: ['NORMAL', 'ELEVATED', 'HIGH_RISK', 'UNAVAILABLE'],
   globalAlignment: ['TAILWIND', 'HEADWIND', 'MIXED', 'UNAVAILABLE'],
 });
 
@@ -31,7 +32,7 @@ function round(value, digits = 6) {
 function stateCounts(records, axis, allowed) {
   const counts = Object.fromEntries(allowed.map((state) => [state, 0]));
   for (const record of records) {
-    const state = record?.state?.[axis];
+    const state = axis === 'riskResearchContext' ? record?.riskResearchContext : record?.state?.[axis];
     if (typeof state === 'string') increment(counts, state);
   }
   return counts;
@@ -50,8 +51,8 @@ function transitionReport(records, axis, sourcePositions = null) {
   let change = 0;
   for (let index = 1; index < records.length; index += 1) {
     if (!isAdjacent(index, sourcePositions)) continue;
-    const from = records[index - 1]?.state?.[axis];
-    const to = records[index]?.state?.[axis];
+    const from = axis === 'riskResearchContext' ? records[index - 1]?.riskResearchContext : records[index - 1]?.state?.[axis];
+    const to = axis === 'riskResearchContext' ? records[index]?.riskResearchContext : records[index]?.state?.[axis];
     if (typeof from !== 'string' || typeof to !== 'string') continue;
     if (!matrix[from]) matrix[from] = {};
     increment(matrix[from], to);
@@ -74,7 +75,7 @@ function runLengthReport(records, axis, sourcePositions = null) {
   let current = null;
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
-    const state = record?.state?.[axis];
+    const state = axis === 'riskResearchContext' ? record?.riskResearchContext : record?.state?.[axis];
     if (typeof state !== 'string') continue;
     const adjacent = index > 0 && isAdjacent(index, sourcePositions);
     if (current && current.state === state && adjacent) {

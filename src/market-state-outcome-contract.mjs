@@ -16,7 +16,7 @@ export const MARKET_STATE_OUTCOME_CONTRACT_V1 = deepFreeze({
   executionAuthorized: false,
   frozenMarketStateAxes: ['trend', 'direction', 'volatility', 'globalAlignment'],
   riskHandling: {
-    sourceField: 'state.risk',
+    sourceField: 'riskResearchContext',
     linkageField: 'riskResearchContext',
     canonicalProductRiskState: false,
     elevatedCanonicalized: false,

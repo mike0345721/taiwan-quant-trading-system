@@ -14,6 +14,6 @@ After the continuity fix, the prior core transition/run metrics and prior health
 
 ## Governance
 
-`ELEVATED` remains a research-draft Risk-axis value, not a canonical product `riskState`, unless explicitly approved by the Product Owner.
+Canonical `state.risk` is limited to `NORMAL | HIGH_RISK | UNAVAILABLE`. `ELEVATED` is tracked only by the separate `riskResearchContext` health axis.
 
 `outcomeFieldsConsumed=[]`, `thresholdOptimizationPerformed=false`, `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false`.

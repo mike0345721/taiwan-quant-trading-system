@@ -85,6 +85,33 @@ function percentileContext(history, row) {
   });
 }
 
+function previousDistinctUsableRow(history, currentRow) {
+  if (!currentRow) return null;
+  const rows = history.get(currentRow.factorId) || [];
+  const seenSources = new Set();
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row.decisionTradeDate >= currentRow.decisionTradeDate || !isUsable(row)) continue;
+    const sourceKey = row.sourceTradeDate || row.decisionTradeDate;
+    if (seenSources.has(sourceKey)) continue;
+    seenSources.add(sourceKey);
+    return row;
+  }
+  return null;
+}
+
+function sameContractOiDelta(history, currentRow) {
+  if (!isUsable(currentRow)) return { state: 'CURRENT_UNAVAILABLE', previous: null, delta: null };
+  if (!currentRow.sourceContract) return { state: 'CURRENT_CONTRACT_UNAVAILABLE', previous: null, delta: null };
+  const previous = previousDistinctUsableRow(history, currentRow);
+  if (!previous) return { state: 'NO_VALID_PREVIOUS', previous: null, delta: null };
+  if (!previous.sourceContract) return { state: 'PREVIOUS_CONTRACT_UNAVAILABLE', previous, delta: null };
+  if (previous.sourceContract !== currentRow.sourceContract) {
+    return { state: 'CONTRACT_MISMATCH', previous, delta: null };
+  }
+  return { state: 'PASS', previous, delta: Number(currentRow.value) - Number(previous.value) };
+}
+
 function directionFromPercentile(context) {
   if (['EXTREME_POSITIVE', 'POSITIVE'].includes(context.bucket)) return 'BULLISH';
   if (['EXTREME_NEGATIVE', 'NEGATIVE'].includes(context.bucket)) return 'BEARISH';
@@ -173,12 +200,13 @@ function buildInstitutional(map, history, evidence, unavailableRows) {
 
 function buildFuturesPositioning(map, history, evidence, unavailableRows) {
   const txReturn = map.get('price_tx_return');
-  const oiDelta = map.get('price_tx_open_interest__delta_1d');
+  const nearContractOi = map.get('near_contract_oi');
   const contractChanged = map.get('contract_changed');
   const rolloverRisk = map.get('rollover_risk');
   const basis = map.get('close_basis_bps');
   const rollover = (isUsable(contractChanged) && Number(contractChanged.value) !== 0)
     || (isUsable(rolloverRisk) && Number(rolloverRisk.value) !== 0);
+  const oiDelta = sameContractOiDelta(history, nearContractOi);
 
   if (rollover) {
     evidence.push({
@@ -191,9 +219,16 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
       interpretation: 'rollover/contract-change rows do not receive a directional OI vote',
       inputs: [trace(contractChanged), trace(rolloverRisk)].filter(Boolean),
     });
-  } else if (isUsable(txReturn) && isUsable(oiDelta)) {
+    unavailableRows.push({
+      ...unavailable('priceOiJointContext', [txReturn, nearContractOi]),
+      reason: 'ROLLOVER_OR_CONTRACT_CHANGED',
+      productScope: 'TX_MTX_TMF_EQUIVALENT',
+      currentContract: nearContractOi?.sourceContract || null,
+      previousContract: oiDelta.previous?.sourceContract || null,
+    });
+  } else if (isUsable(txReturn) && oiDelta.state === 'PASS') {
     const price = Number(txReturn.value);
-    const oi = Number(oiDelta.value);
+    const oi = Number(oiDelta.delta);
     let direction = 'NEUTRAL';
     let positioning = 'NO_DIRECTIONAL_BUILD';
     if (price > 0 && oi > 0) {
@@ -212,14 +247,24 @@ function buildFuturesPositioning(map, history, evidence, unavailableRows) {
       block: 'futuresPositioning',
       direction,
       qualityStatus: 'VALID',
-      availableAt: maxIso(txReturn.availableAt, oiDelta.availableAt),
-      source: 'phase-a-canonical:market_daily',
+      availableAt: maxIso(txReturn.availableAt, nearContractOi.availableAt, oiDelta.previous.availableAt),
+      source: 'phase-a-canonical:futures_oi_daily:near_contract_oi:TX_MTX_TMF_EQUIVALENT',
+      productScope: 'TX_MTX_TMF_EQUIVALENT',
+      currentContract: nearContractOi.sourceContract,
+      previousContract: oiDelta.previous.sourceContract,
+      oiDelta,
       positioning,
       interpretation: 'price/OI quadrant is descriptive and does not prove participant identity',
-      inputs: [trace(txReturn), trace(oiDelta)],
+      inputs: [trace(txReturn), trace(nearContractOi), trace(oiDelta.previous)],
     });
   } else {
-    unavailableRows.push(unavailable('priceOiJointContext', [txReturn, oiDelta]));
+    unavailableRows.push({
+      ...unavailable('priceOiJointContext', [txReturn, nearContractOi]),
+      reason: rollover ? 'ROLLOVER_OR_CONTRACT_CHANGED' : oiDelta.state,
+      productScope: 'TX_MTX_TMF_EQUIVALENT',
+      currentContract: nearContractOi?.sourceContract || null,
+      previousContract: oiDelta.previous?.sourceContract || null,
+    });
   }
 
   if (isUsable(basis)) {
@@ -419,13 +464,16 @@ export function summarizeHistoricalMarketState(records = []) {
     direction: {},
     volatility: {},
     risk: {},
+    riskResearchContext: {},
     globalAlignment: {},
   };
   const evidenceCoverage = {};
   let futureDataViolations = 0;
   for (const record of records) {
     for (const axis of Object.keys(stateCounts)) {
-      const value = record.state?.[axis] ?? 'UNAVAILABLE';
+      const value = axis === 'riskResearchContext'
+        ? record.riskResearchContext ?? 'UNAVAILABLE'
+        : record.state?.[axis] ?? 'UNAVAILABLE';
       stateCounts[axis][value] = (stateCounts[axis][value] || 0) + 1;
     }
     for (const item of record.evidence || []) {

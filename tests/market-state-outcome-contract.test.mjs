@@ -23,6 +23,7 @@ test('owner-approved contract is continuous-first, single-axis and non-executabl
 });
 
 test('risk ELEVATED is research context only and is not canonicalized', () => {
+  assert.equal(MARKET_STATE_OUTCOME_CONTRACT_V1.riskHandling.sourceField, 'riskResearchContext');
   assert.equal(MARKET_STATE_OUTCOME_CONTRACT_V1.riskHandling.linkageField, 'riskResearchContext');
   assert.equal(MARKET_STATE_OUTCOME_CONTRACT_V1.riskHandling.canonicalProductRiskState, false);
   assert.equal(MARKET_STATE_OUTCOME_CONTRACT_V1.riskHandling.elevatedCanonicalized, false);
