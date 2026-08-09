@@ -188,7 +188,11 @@ def main() -> None:
         credentials = load_credentials(CREDENTIAL_PATH)
         simulation = not bool(credentials.get("production", False))
         api = sj.Shioaji(simulation=simulation)
-        api.login(api_key=str(credentials["apiKey"]), secret_key=str(credentials["secretKey"]))
+        api.login(
+            api_key=str(credentials["apiKey"]),
+            secret_key=str(credentials["secretKey"]),
+            subscribe_trade=False,
+        )
 
         enqueue("market_state_collector_started", {
             "code": "market-state-collector",
