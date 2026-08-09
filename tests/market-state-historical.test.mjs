@@ -57,6 +57,16 @@ test('bullish local price and bearish breadth remain a first-class Direction con
   assert.ok(record.conflicts.some((item) => item.type === 'DIRECTION_BLOCK_CONFLICT'));
 });
 
+test('local persistence disagreement with neutral breadth produces descriptive RANGE state', () => {
+  const date = '2026-08-11';
+  const [record] = buildHistoricalMarketStateRecords([
+    row(date, 'price_twii_return__sum_or_change_5d', 0.7),
+    row(date, 'price_tx_return__sum_or_change_5d', -0.4),
+    row(date, 'breadth_listed_advance_decline', 0.05),
+  ]);
+  assert.equal(record.state.trend, 'RANGE');
+});
+
 test('ATM IV uses distinct past-only history and can elevate volatility/risk without creating direction', () => {
   const rows = [];
   for (let index = 0; index < 61; index += 1) {
