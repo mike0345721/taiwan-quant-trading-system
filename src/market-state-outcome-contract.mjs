@@ -112,7 +112,7 @@ export function sessionExcursions({ sessionOpen, sessionHigh, sessionLow, sessio
     downExcursionBps,
     maxExcursionBps: Math.max(upExcursionBps, downExcursionBps),
     sessionReturnBps: 10000 * (close - open) / open,
-    downsideExcursionBps,
+    downsideExcursionBps: downExcursionBps,
     closeRecoveryFromLowBps: 10000 * (close - low) / open,
   };
 }
