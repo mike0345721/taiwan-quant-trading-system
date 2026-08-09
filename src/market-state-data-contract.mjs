@@ -20,8 +20,9 @@ export function validateMarketStateCollectionRecord(record = {}) {
   if (record.eventTime && eventMs == null) errors.push('EVENT_TIME_INVALID');
   if (record.receivedAt && receivedMs == null) errors.push('RECEIVED_AT_INVALID');
   if (record.availableAt && availableMs == null) errors.push('AVAILABLE_AT_INVALID');
+  if (eventMs != null && receivedMs != null && receivedMs < eventMs) errors.push('RECEIVED_AT_BEFORE_EVENT');
   if (eventMs != null && availableMs != null && availableMs < eventMs) errors.push('AVAILABLE_AT_BEFORE_EVENT');
-  if (availableMs != null && receivedMs != null && availableMs > receivedMs) errors.push('AVAILABLE_AT_AFTER_RECEIVED');
+  if (availableMs != null && receivedMs != null && availableMs < receivedMs) errors.push('AVAILABLE_AT_BEFORE_RECEIVED');
   if (typeof record.rawPayloadHash === 'string' && !/^[a-f0-9]{64}$/i.test(record.rawPayloadHash)) errors.push('RAW_PAYLOAD_HASH_INVALID');
   if (typeof record.qualityStatus === 'string' && !QUALITY.has(record.qualityStatus)) errors.push('QUALITY_STATUS_INVALID');
   if (record.orderRoutesEnabled === true) errors.push('ORDER_ROUTES_MUST_NOT_BE_ENABLED');
