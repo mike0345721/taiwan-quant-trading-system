@@ -8,6 +8,7 @@ test('Market State collector contains market-data operations only', () => {
   const collector = read('broker/market_state_readonly_collector.py');
   assert.match(collector, /api\.subscribe\(/);
   assert.match(collector, /api\.contracts\.options/);
+  assert.match(collector, /subscribe_trade\s*=\s*False/);
   assert.match(collector, /executionAuthorized[^\n]*False/);
   assert.match(collector, /orderRoutesEnabled[^\n]*False/);
   assert.doesNotMatch(collector, /api\.(place_order|update_order|cancel_order|list_positions|list_profit_loss|account_balance|margin|settlements?)\s*\(/i);
