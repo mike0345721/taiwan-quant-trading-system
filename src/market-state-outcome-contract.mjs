@@ -63,6 +63,8 @@ export const MARKET_STATE_OUTCOME_CONTRACT_V1 = deepFreeze({
       binaryThresholdAuthorized: false,
       observation: 'DAY_SESSION_0845_1345',
       reuseGovernedFiveMinutePath: true,
+      pathMustStartAtSessionOpen: true,
+      pathMustEndAtSessionClose: true,
     },
     first60mContinuation: {
       status: 'AVAILABLE_137_STRICT_SESSIONS',
@@ -120,8 +122,12 @@ export function trendRangeStructure({ sessionOpen, sessionHigh, sessionLow, sess
   const high = finitePositive(sessionHigh, 'sessionHigh');
   const low = finitePositive(sessionLow, 'sessionLow');
   const close = finitePositive(sessionClose, 'sessionClose');
+  if (high < Math.max(open, low, close) || low > Math.min(open, high, close)) {
+    throw new Error('OUTCOME_SESSION_OHLC_INCONSISTENT');
+  }
   if (!Array.isArray(path) || path.length < 2) throw new Error('OUTCOME_PATH_INCOMPLETE');
   const nodes = path.map((value, index) => finitePositive(value, `path[${index}]`));
+  if (nodes[0] !== open || nodes.at(-1) !== close) throw new Error('OUTCOME_PATH_BOUNDARY_MISMATCH');
   let travelled = 0;
   for (let index = 1; index < nodes.length; index += 1) travelled += Math.abs(nodes[index] - nodes[index - 1]);
   return {
