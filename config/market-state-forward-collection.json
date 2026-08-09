@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "market-state-forward-collection-v1",
+  "enabled": true,
+  "leadership": {
+    "enabled": true,
+    "basketName": "TWSE_2025_YEAR_END_MARKET_CAP_TOP20_SEED",
+    "asOf": "2025-12-31",
+    "source": "TWSE Fact Book 2026 market-cap ranking; raw price collection only, not official TAIEX weight",
+    "codes": [
+      "2330",
+      "2317",
+      "2308",
+      "2454",
+      "2881",
+      "2882",
+      "3711",
+      "2382",
+      "2412",
+      "2891",
+      "6669",
+      "2345",
+      "2303",
+      "7769",
+      "2408",
+      "2886",
+      "2383",
+      "3017",
+      "2884",
+      "2885"
+    ]
+  },
+  "options": {
+    "enabled": true,
+    "root": "TXO",
+    "expiryCount": 2,
+    "strikesPerSide": 8,
+    "quoteType": "BidAsk",
+    "purpose": "forward raw surface collection for future IV/skew research; no trading signal"
+  },
+  "limits": {
+    "collectorSubscriptionSafetyCap": 160,
+    "shioajiPublishedSubscriptionLimit": 200
+  },
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false
+}
