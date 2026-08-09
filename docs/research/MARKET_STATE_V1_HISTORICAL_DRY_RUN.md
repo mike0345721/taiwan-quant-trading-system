@@ -15,6 +15,6 @@ Validated code head: `201fc060075434f20bbe9addaf1ab0312126857b`.
 
 Only documentation changed after the validated code head.
 
-`ELEVATED` remains a research-draft Risk-axis value. It is not a canonical product `riskState` without explicit Product Owner approval.
+Canonical `state.risk` is limited to `NORMAL | HIGH_RISK | UNAVAILABLE`; research-draft `ELEVATED` observations are emitted separately as `riskResearchContext`.
 
 Merge requires explicit Product Owner approval.

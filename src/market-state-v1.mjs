@@ -107,7 +107,7 @@ function deriveVolatility(blocks) {
   return 'NORMAL';
 }
 
-function deriveRisk(blocks) {
+function deriveRiskStates(blocks) {
   const stress = [];
   let hardRisk = false;
   for (const [block, items] of blocks.entries()) {
@@ -117,10 +117,15 @@ function deriveRisk(blocks) {
       if (['ELEVATED', 'HIGH_RISK'].includes(item?.risk)) stress.push(item.risk);
     }
   }
-  if (hardRisk || stress.includes('HIGH_RISK')) return 'HIGH_RISK';
-  if (stress.length) return 'ELEVATED';
+  if (hardRisk || stress.includes('HIGH_RISK')) {
+    return { risk: 'HIGH_RISK', riskResearchContext: 'HIGH_RISK' };
+  }
   const criticalPresent = [...RISK_BLOCKS].some((block) => (blocks.get(block) || []).length > 0);
-  return criticalPresent ? 'NORMAL' : 'UNAVAILABLE';
+  if (!criticalPresent) return { risk: 'UNAVAILABLE', riskResearchContext: 'UNAVAILABLE' };
+  return {
+    risk: 'NORMAL',
+    riskResearchContext: stress.length ? 'ELEVATED' : 'NORMAL',
+  };
 }
 
 function deriveGlobalAlignment(blocks) {
@@ -153,11 +158,12 @@ export function evaluatePremarketMarketState(input = {}) {
   const { accepted, unavailable } = eligibleEvidence(input.evidence, input.decisionAt);
   const blocks = groupByBlock(accepted);
   const direction = deriveDirection(blocks);
+  const riskStates = deriveRiskStates(blocks);
   const state = {
     trend: deriveTrend(blocks),
     direction: direction.state,
     volatility: deriveVolatility(blocks),
-    risk: deriveRisk(blocks),
+    risk: riskStates.risk,
     globalAlignment: deriveGlobalAlignment(blocks),
   };
   const conflicts = [];
@@ -168,6 +174,7 @@ export function evaluatePremarketMarketState(input = {}) {
     tradeDate: input.tradeDate || null,
     decisionAt: input.decisionAt,
     state,
+    riskResearchContext: riskStates.riskResearchContext,
     blocks: Object.fromEntries([...blocks.entries()]),
     evidence: accepted,
     conflicts,

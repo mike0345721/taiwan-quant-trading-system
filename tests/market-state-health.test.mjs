@@ -13,6 +13,7 @@ function record(tradeDate, state, overrides = {}) {
       globalAlignment: 'UNAVAILABLE',
       ...state,
     },
+    riskResearchContext: overrides.riskResearchContext || 'UNAVAILABLE',
     evidence: [],
     conflicts: [],
     unavailable: [],
@@ -50,10 +51,12 @@ test('health check reports transitions and run lengths without outcome data', ()
 test('unobserved states are reported, not fabricated', () => {
   const report = analyzeMarketStateHealth([
     record('2026-01-01', { risk: 'NORMAL' }),
-    record('2026-01-02', { risk: 'ELEVATED' }),
+    record('2026-01-02', { risk: 'NORMAL' }, { riskResearchContext: 'ELEVATED' }),
   ]);
   assert.ok(report.axes.risk.unobservedStates.includes('HIGH_RISK'));
   assert.equal(report.axes.risk.counts.HIGH_RISK, 0);
+  assert.equal(report.axes.risk.counts.ELEVATED, undefined);
+  assert.equal(report.axes.riskResearchContext.counts.ELEVATED, 1);
 });
 
 test('direction conflicts retain evidence-block vote patterns', () => {

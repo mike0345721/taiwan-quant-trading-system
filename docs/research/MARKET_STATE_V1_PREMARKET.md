@@ -120,7 +120,6 @@ Purpose: describe realized / implied volatility environment.
 
 ```text
 NORMAL
-ELEVATED
 HIGH_RISK
 UNAVAILABLE
 ```
@@ -131,7 +130,8 @@ Examples that must be representable:
 
 ```text
 Direction=BULLISH
-Risk=ELEVATED
+Risk=NORMAL
+RiskResearchContext=ELEVATED
 ```
 
 and
@@ -325,7 +325,9 @@ Basis is contract-sensitive and may be invalidated by rollover / contract-qualit
 
 ### 7.6 OI change
 
-OI is not directional by itself.
+OI is not directional by itself. The canonical source is `futures_oi_daily.near_contract_oi`, whose governed product scope is explicitly `TX_MTX_TMF_EQUIVALENT`.
+
+The delta uses only the immediately previous distinct usable source date when its `sourceContract` equals the current `sourceContract`. Contract mismatch, rollover / contract-change, or no valid previous observation produces no directional OI vote. Continuous contracts must not substitute for the actual contract.
 
 Use the joint price / OI quadrant as descriptive evidence:
 
@@ -558,15 +560,14 @@ HIGH_RISK:
   multiple independent severe stress conditions
   OR one explicit hard data/contract/event veto condition
 
-ELEVATED:
-  one material stress condition or several moderate warnings
-
 NORMAL:
-  no material stress condition
+  no canonical hard-risk condition
 
 UNAVAILABLE:
   risk-critical evidence unavailable
 ```
+
+`ELEVATED` remains available only in the separate research-only `riskResearchContext`; it is not a canonical `state.risk` value.
 
 ### 9.5 Global Alignment
 
@@ -602,9 +603,10 @@ UNAVAILABLE:
     "trend": "UNCLEAR",
     "direction": "CONFLICT",
     "volatility": "NORMAL",
-    "risk": "ELEVATED",
+    "risk": "NORMAL",
     "globalAlignment": "MIXED"
   },
+  "riskResearchContext": "ELEVATED",
   "blocks": {
     "localPrice": {},
     "breadth": {},

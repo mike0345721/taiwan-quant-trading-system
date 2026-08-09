@@ -16,7 +16,7 @@ This contract defines how the historical market outcome is measured. It does **n
 For the first linkage pass:
 
 - Market State `trend`, `direction`, `volatility`, and `globalAlignment` semantics are frozen and must not be changed because of linkage results.
-- Current historical `state.risk` values may only be consumed as **`riskResearchContext`**. `ELEVATED` is not a canonical product `riskState`.
+- Outcome linkage may consume only the separate **`riskResearchContext`** field. Canonical `state.risk` never emits `ELEVATED`.
 - Primary outcome analysis is **continuous-first**. No Large-Move, Downside-Tail, Trend-Day, Range-Day, Gap, or First-60m binary threshold is authorized in V1 primary analysis.
 - First pass is **single-axis only**. No Cartesian search across Market State axes.
 - No PnL / PF / Sharpe / trade-entry optimization.
