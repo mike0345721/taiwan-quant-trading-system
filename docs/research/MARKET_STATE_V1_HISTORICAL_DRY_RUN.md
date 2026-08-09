@@ -6,48 +6,31 @@
 
 ## Purpose
 
-Produce deterministic historical Premarket Market State records from the existing governed research database without changing T0, P0, Frozen Artifacts, broker routes, or live collection.
-
-This work package tests whether the Market State semantics can be materialized consistently across the existing historical coverage. It does not certify predictive edge and does not authorize strategy filtering.
-
-## Source-of-truth reuse
-
-CRU-14 reuses the existing Phase A canonical feature layer instead of inventing a second historical-data interpretation.
+Produce deterministic historical Premarket Market State records from the governed research database without changing T0, P0, Frozen Artifacts, broker routes, or live collection.
 
 ## Direction aggregation
-
-Direction uses block-level votes from Local Price, Breadth, Futures Positioning, and Institutional evidence.
 
 - at least two bullish blocks and no bearish block → `BULLISH`
 - at least two bearish blocks and no bullish block → `BEARISH`
 - at least one bullish and at least one bearish block → `CONFLICT`
-- otherwise, with at least two usable blocks but insufficient directional conviction → `NEUTRAL`
+- otherwise, with at least two usable blocks but insufficient conviction → `NEUTRAL`
 - fewer than two usable directional blocks → `UNAVAILABLE`
 
-`CONFLICT` is reserved for genuine opposing bullish + bearish evidence. A lone directional block surrounded by neutral evidence is not conflict.
+`CONFLICT` is reserved for genuine opposing bullish + bearish evidence.
 
 ## Final corrected validation
 
 Code-validated head: `201fc060075434f20bbe9addaf1ab0312126857b`
 
-- targeted tests: 15/15 PASS
-- records: 753 (2023-07-04..2026-08-07)
+- tests 15/15 PASS
+- 753 records
 - `futureDataViolations=0`
-- repeated record digest: `70ce30a7ab0fc055f0daddf4a3639e25af97418cbadd19facc7b758ad8a98836`
-- deterministic replay: PASS
-- Direction: BULLISH 231 / BEARISH 189 / NEUTRAL 116 / CONFLICT 216 / UNAVAILABLE 1
+- deterministic record digest `70ce30a7ab0fc055f0daddf4a3639e25af97418cbadd19facc7b758ad8a98836`
+- Direction BULLISH 231 / BEARISH 189 / NEUTRAL 116 / CONFLICT 216 / UNAVAILABLE 1
 - `falseConflictCount=0`
 - T0/P0/Frozen zero change
 - `executionAuthorized=false`
 
-The branch head may be newer because of documentation-only commits; those do not supersede code validation unless evaluator/historical code changes.
+## Governance
 
-## Explicitly deferred
-
-- true NQ futures intraday
-- intraday USD/TWD
-- official TAIEX constituent weights and true TSMC/Top-10 contribution
-- forward TXO IV/Skew collector deployment
-- true aggressor CVD promotion
-- Strategy Permission / Risk Veto integration
-- live or automated execution
+`ELEVATED` remains a research-draft Risk-axis value, not a canonical product `riskState`, unless explicitly approved by the Product Owner.
