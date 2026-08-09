@@ -85,6 +85,18 @@ Flatten unavailable evidence by:
 
 This separates semantic uncertainty from data availability problems.
 
+### 7. Core coverage comparable subset
+
+Report a secondary coverage-only subset where all of these evidence items are accepted:
+
+- `localPricePersistence`;
+- `twseBreadth`;
+- `foreignCashFlow`.
+
+This subset is diagnostic only. It is not a trading filter, strategy permission, or outcome-selected sample.
+
+Important continuity rule: excluded source records create a break. Transition counts and run lengths must **not** connect two comparable records across an excluded trading record. The report therefore includes `contiguousSegments` and `adjacentComparablePairs`. State counts may use all comparable records, but persistence/transition statistics only use truly adjacent source records.
+
 ## Determinism
 
 The same `records.json` must produce the same `healthDigest`.
@@ -104,7 +116,6 @@ Files:
 
 CRU-15 does not:
 
-- modify PR #6 state thresholds;
 - use outcomes to tune Market State;
 - modify T0/P0/Frozen Artifacts;
 - install collectors or Windows tasks;
