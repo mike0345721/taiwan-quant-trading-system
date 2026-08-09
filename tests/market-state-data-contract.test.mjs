@@ -40,11 +40,15 @@ test('collection contract rejects missing provenance and invalid hashes', () => 
 });
 
 test('collection contract rejects impossible or ambiguous time semantics', () => {
-  const beforeEvent = validateMarketStateCollectionRecord(record({ availableAt: '2026-08-09T23:59:59.000Z' }));
-  assert.ok(beforeEvent.errors.includes('AVAILABLE_AT_BEFORE_EVENT'));
+  const receivedBeforeEvent = validateMarketStateCollectionRecord(record({ receivedAt: '2026-08-09T23:59:59.900Z', availableAt: '2026-08-10T00:00:00.200Z' }));
+  assert.ok(receivedBeforeEvent.errors.includes('RECEIVED_AT_BEFORE_EVENT'));
 
-  const afterReceive = validateMarketStateCollectionRecord(record({ availableAt: '2026-08-10T00:00:00.300Z' }));
-  assert.ok(afterReceive.errors.includes('AVAILABLE_AT_AFTER_RECEIVED'));
+  const availableBeforeEvent = validateMarketStateCollectionRecord(record({ availableAt: '2026-08-09T23:59:59.000Z' }));
+  assert.ok(availableBeforeEvent.errors.includes('AVAILABLE_AT_BEFORE_EVENT'));
+  assert.ok(availableBeforeEvent.errors.includes('AVAILABLE_AT_BEFORE_RECEIVED'));
+
+  const embargoed = validateMarketStateCollectionRecord(record({ availableAt: '2026-08-10T00:00:00.300Z' }));
+  assert.equal(embargoed.ok, true);
 
   const invalid = validateMarketStateCollectionRecord(record({ eventTime: 'bad-time' }));
   assert.ok(invalid.errors.includes('EVENT_TIME_INVALID'));
