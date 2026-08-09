@@ -81,6 +81,21 @@ USD/TWD is a separate FX-context item.
 
 VIX remains `UNAVAILABLE` in historical V0 while `macro_observations` lacks a governed publication/retrieval timestamp. Observation date alone is insufficient for legal premarket use.
 
+## Direction aggregation semantic
+
+`CONFLICT` is reserved for genuine opposing directional evidence: at least one eligible bullish block and at least one eligible bearish block.
+
+If there are at least two eligible directional blocks but only one directional side is present and it does not reach the two-block conviction requirement, the top-level Direction state is `NEUTRAL`, not `CONFLICT`.
+
+Examples:
+
+- `BULLISH + BULLISH + NEUTRAL` → `BULLISH`
+- `BEARISH + BEARISH + NEUTRAL` → `BEARISH`
+- `BULLISH + BEARISH + NEUTRAL` → `CONFLICT`
+- `BEARISH + NEUTRAL + NEUTRAL` → `NEUTRAL`
+
+This clarification is semantic and outcome-blind. It was identified by the CRU-15 state-health review before any future-outcome linkage.
+
 ## Output
 
 Each daily record contains:
@@ -121,6 +136,8 @@ Before Owner Review:
 6. no T0/P0/Frozen changes;
 7. no broker/order route or live collector changes;
 8. no PnL tuning or state-threshold optimization.
+
+After the Direction semantic clarification above, the full real-data dry run must be repeated before Owner Review because the previous Direction distribution and digest are superseded.
 
 ## Explicitly deferred
 
