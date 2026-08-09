@@ -37,12 +37,19 @@ function stateCounts(records, axis, allowed) {
   return counts;
 }
 
-function transitionReport(records, axis) {
+function isAdjacent(index, sourcePositions) {
+  if (!Array.isArray(sourcePositions)) return true;
+  if (index <= 0) return false;
+  return sourcePositions[index] === sourcePositions[index - 1] + 1;
+}
+
+function transitionReport(records, axis, sourcePositions = null) {
   const matrix = {};
   let total = 0;
   let stay = 0;
   let change = 0;
   for (let index = 1; index < records.length; index += 1) {
+    if (!isAdjacent(index, sourcePositions)) continue;
     const from = records[index - 1]?.state?.[axis];
     const to = records[index]?.state?.[axis];
     if (typeof from !== 'string' || typeof to !== 'string') continue;
@@ -62,13 +69,15 @@ function transitionReport(records, axis) {
   };
 }
 
-function runLengthReport(records, axis) {
+function runLengthReport(records, axis, sourcePositions = null) {
   const runs = [];
   let current = null;
-  for (const record of records) {
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
     const state = record?.state?.[axis];
     if (typeof state !== 'string') continue;
-    if (current && current.state === state) {
+    const adjacent = index > 0 && isAdjacent(index, sourcePositions);
+    if (current && current.state === state && adjacent) {
       current.length += 1;
       current.endTradeDate = record.tradeDate || null;
       continue;
@@ -163,20 +172,20 @@ function trendUnclearDecomposition(records) {
   return contexts;
 }
 
-function axisHealth(records, axis, allowed) {
+function axisHealth(records, axis, allowed, sourcePositions = null) {
   const counts = stateCounts(records, axis, allowed);
   return {
     counts,
     observedStates: allowed.filter((state) => (counts[state] || 0) > 0),
     unobservedStates: allowed.filter((state) => (counts[state] || 0) === 0),
-    transitions: transitionReport(records, axis),
-    runs: runLengthReport(records, axis),
+    transitions: transitionReport(records, axis, sourcePositions),
+    runs: runLengthReport(records, axis, sourcePositions),
   };
 }
 
-function axisSet(records) {
+function axisSet(records, sourcePositions = null) {
   const result = {};
-  for (const [axis, allowed] of Object.entries(AXES)) result[axis] = axisHealth(records, axis, allowed);
+  for (const [axis, allowed] of Object.entries(AXES)) result[axis] = axisHealth(records, axis, allowed, sourcePositions);
   return result;
 }
 
@@ -185,14 +194,27 @@ function hasAcceptedEvidence(record, key) {
 }
 
 function coreCoverageWindow(records) {
-  const comparable = records.filter((record) => CORE_DIRECTION_COVERAGE.every((key) => hasAcceptedEvidence(record, key)));
+  const comparableEntries = records
+    .map((record, sourceIndex) => ({ record, sourceIndex }))
+    .filter(({ record }) => CORE_DIRECTION_COVERAGE.every((key) => hasAcceptedEvidence(record, key)));
+  const comparable = comparableEntries.map(({ record }) => record);
+  const sourcePositions = comparableEntries.map(({ sourceIndex }) => sourceIndex);
+  let contiguousSegments = 0;
+  let adjacentComparablePairs = 0;
+  for (let index = 0; index < sourcePositions.length; index += 1) {
+    if (index === 0 || sourcePositions[index] !== sourcePositions[index - 1] + 1) contiguousSegments += 1;
+    else adjacentComparablePairs += 1;
+  }
   return {
     requiredEvidence: [...CORE_DIRECTION_COVERAGE],
+    selectionMode: 'coverage-only subset; transitions and runs break across excluded source records',
     records: comparable.length,
     excludedRecords: records.length - comparable.length,
     firstTradeDate: comparable[0]?.tradeDate || null,
     lastTradeDate: comparable.at(-1)?.tradeDate || null,
-    axes: axisSet(comparable),
+    contiguousSegments,
+    adjacentComparablePairs,
+    axes: axisSet(comparable, sourcePositions),
   };
 }
 
@@ -200,7 +222,7 @@ export function analyzeMarketStateHealth(inputRecords = []) {
   const records = sortedRecords(inputRecords);
 
   const report = {
-    schemaVersion: 'market-state-v1-health-check-v1',
+    schemaVersion: 'market-state-v1-health-check-v2',
     records: records.length,
     firstTradeDate: records[0]?.tradeDate || null,
     lastTradeDate: records.at(-1)?.tradeDate || null,
