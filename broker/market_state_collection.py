@@ -89,8 +89,10 @@ def select_txo_contracts(
     """Select a bounded pair-complete TXO surface around the underlying.
 
     Selection is deterministic and research-only. For each of the nearest eligible
-    expiry dates, choose the closest (2*strikes_per_side+1) strikes and retain both
-    Call and Put when present. No delta estimate is used at collection time.
+    expiry dates, choose the closest (2*strikes_per_side+1) strikes for which both
+    Call and Put contracts are present. Incomplete strikes are excluded rather than
+    silently creating a one-sided IV/skew surface. No delta estimate is used at
+    collection time.
     """
     if not isinstance(underlying_price, (int, float)) or underlying_price <= 0:
         return []
@@ -124,8 +126,15 @@ def select_txo_contracts(
     strike_count = 2 * max(1, strikes_per_side) + 1
     for expiry in expiries:
         expiry_rows = [row for row in rows if row["deliveryDate"] == expiry]
+        rights_by_strike: dict[float, set[str]] = {}
+        for row in expiry_rows:
+            rights_by_strike.setdefault(row["strikePrice"], set()).add(row["optionRight"])
+        pair_complete_strikes = [
+            strike for strike, rights in rights_by_strike.items()
+            if {"C", "P"}.issubset(rights)
+        ]
         strikes = sorted(
-            {row["strikePrice"] for row in expiry_rows},
+            pair_complete_strikes,
             key=lambda strike: (abs(strike - underlying_price), strike),
         )[:strike_count]
         strike_set = set(strikes)
