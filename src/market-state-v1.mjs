@@ -70,12 +70,10 @@ function deriveDirection(blocks) {
   if (usable.length < 2) return { state: 'UNAVAILABLE', votes };
   const bullish = usable.filter((vote) => vote.state === 'BULLISH').length;
   const bearish = usable.filter((vote) => vote.state === 'BEARISH').length;
-  const neutral = usable.filter((vote) => vote.state === 'NEUTRAL').length;
   if (bullish >= 2 && bearish === 0) return { state: 'BULLISH', votes };
   if (bearish >= 2 && bullish === 0) return { state: 'BEARISH', votes };
   if (bullish > 0 && bearish > 0) return { state: 'CONFLICT', votes };
-  if (neutral >= 2 && bullish === 0 && bearish === 0) return { state: 'NEUTRAL', votes };
-  return { state: 'CONFLICT', votes };
+  return { state: 'NEUTRAL', votes };
 }
 
 function deriveTrend(blocks) {
@@ -86,10 +84,6 @@ function deriveTrend(blocks) {
   if (localTrend === 'TREND_UP' && breadthDirection !== 'BEARISH') return 'TREND_UP';
   if (localTrend === 'TREND_DOWN' && breadthDirection !== 'BULLISH') return 'TREND_DOWN';
   if (localTrend === 'RANGE' && ['NEUTRAL', 'UNAVAILABLE'].includes(breadthDirection)) return 'RANGE';
-  // Historical V1 local-price evidence intentionally labels sign disagreement as UNCLEAR.
-  // When that lack of local persistence is accompanied by neutral breadth, classify the
-  // top-level descriptive state as RANGE. This is a pre-specified semantic rule, not a
-  // performance-tuned threshold.
   if (localTrend === 'UNCLEAR' && breadthDirection === 'NEUTRAL') return 'RANGE';
   return 'UNCLEAR';
 }
