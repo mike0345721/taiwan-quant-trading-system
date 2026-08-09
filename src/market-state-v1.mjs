@@ -86,6 +86,11 @@ function deriveTrend(blocks) {
   if (localTrend === 'TREND_UP' && breadthDirection !== 'BEARISH') return 'TREND_UP';
   if (localTrend === 'TREND_DOWN' && breadthDirection !== 'BULLISH') return 'TREND_DOWN';
   if (localTrend === 'RANGE' && ['NEUTRAL', 'UNAVAILABLE'].includes(breadthDirection)) return 'RANGE';
+  // Historical V1 local-price evidence intentionally labels sign disagreement as UNCLEAR.
+  // When that lack of local persistence is accompanied by neutral breadth, classify the
+  // top-level descriptive state as RANGE. This is a pre-specified semantic rule, not a
+  // performance-tuned threshold.
+  if (localTrend === 'UNCLEAR' && breadthDirection === 'NEUTRAL') return 'RANGE';
   return 'UNCLEAR';
 }
 
