@@ -8,6 +8,12 @@ const AXES = Object.freeze({
   globalAlignment: ['TAILWIND', 'HEADWIND', 'MIXED', 'UNAVAILABLE'],
 });
 
+const CORE_DIRECTION_COVERAGE = Object.freeze([
+  'localPricePersistence',
+  'twseBreadth',
+  'foreignCashFlow',
+]);
+
 function sortedRecords(records) {
   return [...records].sort((a, b) => String(a?.tradeDate || '').localeCompare(String(b?.tradeDate || '')));
 }
@@ -168,17 +174,38 @@ function axisHealth(records, axis, allowed) {
   };
 }
 
+function axisSet(records) {
+  const result = {};
+  for (const [axis, allowed] of Object.entries(AXES)) result[axis] = axisHealth(records, axis, allowed);
+  return result;
+}
+
+function hasAcceptedEvidence(record, key) {
+  return (record?.evidence || []).some((item) => item?.key === key);
+}
+
+function coreCoverageWindow(records) {
+  const comparable = records.filter((record) => CORE_DIRECTION_COVERAGE.every((key) => hasAcceptedEvidence(record, key)));
+  return {
+    requiredEvidence: [...CORE_DIRECTION_COVERAGE],
+    records: comparable.length,
+    excludedRecords: records.length - comparable.length,
+    firstTradeDate: comparable[0]?.tradeDate || null,
+    lastTradeDate: comparable.at(-1)?.tradeDate || null,
+    axes: axisSet(comparable),
+  };
+}
+
 export function analyzeMarketStateHealth(inputRecords = []) {
   const records = sortedRecords(inputRecords);
-  const axes = {};
-  for (const [axis, allowed] of Object.entries(AXES)) axes[axis] = axisHealth(records, axis, allowed);
 
   const report = {
-    schemaVersion: 'market-state-v1-health-check-v0',
+    schemaVersion: 'market-state-v1-health-check-v1',
     records: records.length,
     firstTradeDate: records[0]?.tradeDate || null,
     lastTradeDate: records.at(-1)?.tradeDate || null,
-    axes,
+    axes: axisSet(records),
+    coreCoverageWindow: coreCoverageWindow(records),
     evidenceCoverage: evidenceCoverage(records),
     unavailableReasons: unavailableReasonDecomposition(records),
     conflicts: conflictDecomposition(records),
