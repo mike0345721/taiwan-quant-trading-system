@@ -13,6 +13,8 @@ Validated code head: `201fc060075434f20bbe9addaf1ab0312126857b`.
 - T0/P0/Frozen zero change
 - `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false`
 
+Only documentation changed after the validated code head.
+
 `ELEVATED` remains a research-draft Risk-axis value. It is not a canonical product `riskState` without explicit Product Owner approval.
 
 Merge requires explicit Product Owner approval.
