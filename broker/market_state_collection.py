@@ -22,6 +22,7 @@ DEFAULT_CONFIG = {
         "strikesPerSide": 8,
     },
 }
+COLLECTOR_SUBSCRIPTION_SAFETY_CAP = 160
 
 
 def load_market_state_collection_config(path: Path) -> dict[str, Any]:
@@ -47,6 +48,18 @@ def load_market_state_collection_config(path: Path) -> dict[str, Any]:
     }
     if len(config["leadership"]["codes"]) > 30:
         raise ValueError("market_state_leadership_codes_exceed_30")
+    planned = 0
+    if config["leadership"]["enabled"]:
+        planned += len(config["leadership"]["codes"])
+    if config["options"]["enabled"]:
+        planned += (
+            config["options"]["expiryCount"]
+            * (2 * config["options"]["strikesPerSide"] + 1)
+            * 2
+        )
+    if planned > COLLECTOR_SUBSCRIPTION_SAFETY_CAP:
+        raise ValueError(f"market_state_planned_subscriptions_exceed_{COLLECTOR_SUBSCRIPTION_SAFETY_CAP}:{planned}")
+    config["plannedSubscriptionUpperBound"] = planned
     return config
 
 
