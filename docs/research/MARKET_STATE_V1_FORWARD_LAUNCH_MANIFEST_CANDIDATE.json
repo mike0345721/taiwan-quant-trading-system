@@ -1,0 +1,34 @@
+{
+  "baselineMainCommit": "83666f12daaedc771d49058ce04f8612e948e8cd",
+  "candidateStartTradeDate": null,
+  "collectorMode": "NOT_ACTIVE",
+  "evaluator": {
+    "sha256": "a7285f53006f49ae0cd1613e2798eaca730d83d03eb980d9f5d1e095d6b512b7",
+    "version": "market-state-v1-premarket-evaluator-v0"
+  },
+  "executionAuthorized": false,
+  "finalMainCommit": null,
+  "formalSchedulerEnabled": false,
+  "formalWeight": 0,
+  "frozenForwardGate": {
+    "sha256": "85061366fe0a010b38ed1adcf9946ce78438c750974a4af56db4c28818808419",
+    "version": "cru19-owner-frozen-forward-shadow-gate-v1"
+  },
+  "launchStatus": "NOT_ACTIVE",
+  "linkageContract": {
+    "sha256": "884afd174e6d86d9c525629138c12ae5d67316b3f904013d69e2d813ea66a081",
+    "version": "cru18-single-axis-linkage-v1"
+  },
+  "manifestHash": "a65d91e7b559bba38c90de323d8cabfc59543d4969a876defad12de80c7c2eed",
+  "outcomeContract": {
+    "sha256": "b5cf8434636aec5a54fdfeaa63754213495aa563f315d09e39bd1dca34580f96",
+    "version": "market-state-outcome-contract-v1"
+  },
+  "researchOnly": true,
+  "schedulerMode": "NOT_ACTIVE",
+  "schemaVersion": "market-state-forward-shadow-launch-candidate-v1",
+  "selectedAxes": [
+    "direction",
+    "globalAlignment"
+  ]
+}

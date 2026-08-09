@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "market-state-forward-shadow-launch-prep-config-v1",
+  "collectorMode": "NOT_ACTIVE",
+  "allowedCollectorModes": [
+    "DRY_RUN",
+    "NOT_ACTIVE",
+    "MANUAL_TEST"
+  ],
+  "schedulerMode": "NOT_ACTIVE",
+  "formalSchedulerEnabled": false,
+  "schedulerInstallAuthorized": false,
+  "commandTemplate": "node scripts/prepare-market-state-forward-shadow-launch.mjs --mode MANUAL_TEST --output-dir <LOCAL_GIT_IGNORED_OUTPUT>",
+  "ledgerPathTemplate": "data/market-state/forward-shadow/<runId>/ledger.ndjson",
+  "candidateStartTradeDate": null,
+  "launchStatus": "NOT_ACTIVE",
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false
+}
