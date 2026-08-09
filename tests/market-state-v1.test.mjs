@@ -75,6 +75,18 @@ test('material bullish and bearish directional blocks produce CONFLICT rather th
   assert.equal(result.conflicts.some((row) => row.type === 'DIRECTION_BLOCK_CONFLICT'), true);
 });
 
+test('one directional block plus neutral blocks is NEUTRAL rather than false CONFLICT', () => {
+  const result = evaluatePremarketMarketState(input({
+    evidence: [
+      evidence({ key: 'breadth', block: 'breadth', direction: 'NEUTRAL' }),
+      evidence({ key: 'futures', block: 'futuresPositioning', direction: 'NEUTRAL' }),
+      evidence({ key: 'foreign', block: 'institutional', direction: 'BEARISH' }),
+    ],
+  }));
+  assert.equal(result.state.direction, 'NEUTRAL');
+  assert.equal(result.conflicts.some((row) => row.type === 'DIRECTION_BLOCK_CONFLICT'), false);
+});
+
 test('global alignment keeps correlated global evidence inside one block and can report MIXED', () => {
   const result = evaluatePremarketMarketState(input({
     evidence: [
