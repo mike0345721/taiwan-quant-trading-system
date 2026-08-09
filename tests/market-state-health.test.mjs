@@ -84,7 +84,7 @@ test('UNCLEAR trend context is decomposed from local and breadth evidence', () =
   assert.equal(report.trendUnclearContexts['TREND_UP|BEARISH'], 1);
 });
 
-test('core coverage window excludes records missing local price, breadth or foreign flow without using outcomes', () => {
+test('core coverage subset excludes records missing local price, breadth or foreign flow without using outcomes', () => {
   const report = analyzeMarketStateHealth([
     record('2026-01-01', { trend: 'UNCLEAR' }, { evidence: [{ key: 'twseBreadth' }, { key: 'foreignCashFlow' }] }),
     record('2026-01-02', { trend: 'TREND_UP', direction: 'BULLISH' }, { evidence: coreEvidence() }),
@@ -93,9 +93,28 @@ test('core coverage window excludes records missing local price, breadth or fore
   assert.equal(report.coreCoverageWindow.records, 2);
   assert.equal(report.coreCoverageWindow.excludedRecords, 1);
   assert.equal(report.coreCoverageWindow.firstTradeDate, '2026-01-02');
+  assert.equal(report.coreCoverageWindow.contiguousSegments, 1);
+  assert.equal(report.coreCoverageWindow.adjacentComparablePairs, 1);
   assert.equal(report.coreCoverageWindow.axes.trend.counts.TREND_UP, 1);
   assert.equal(report.coreCoverageWindow.axes.trend.counts.TREND_DOWN, 1);
   assert.deepEqual(report.outcomeFieldsConsumed, []);
+});
+
+test('core coverage transitions and runs do not bridge excluded source records', () => {
+  const report = analyzeMarketStateHealth([
+    record('2026-01-01', { direction: 'BULLISH' }, { evidence: coreEvidence() }),
+    record('2026-01-02', { direction: 'BEARISH' }, { evidence: [{ key: 'twseBreadth' }, { key: 'foreignCashFlow' }] }),
+    record('2026-01-03', { direction: 'BULLISH' }, { evidence: coreEvidence() }),
+    record('2026-01-04', { direction: 'BULLISH' }, { evidence: coreEvidence() }),
+  ]);
+  const core = report.coreCoverageWindow;
+  assert.equal(core.records, 3);
+  assert.equal(core.contiguousSegments, 2);
+  assert.equal(core.adjacentComparablePairs, 1);
+  assert.equal(core.axes.direction.transitions.total, 1);
+  assert.equal(core.axes.direction.transitions.stay, 1);
+  assert.equal(core.axes.direction.runs.totalRuns, 2);
+  assert.equal(core.axes.direction.runs.longestRun, 2);
 });
 
 test('health digest is deterministic for the same records regardless of input order', () => {
