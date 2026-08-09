@@ -15,12 +15,33 @@ test('outcome replay uses actual contract day ticks and leaves ungoverned openin
 });
 
 test('alignment is single-axis and all state groups remain present', () => {
-  const states = Array.from({ length: 60 }, (_, index) => ({ tradeDate: `2026-01-${String(index + 1).padStart(2, '0')}`, schemaVersion: 'v1', availableAt: '2026-01-01T00:00:00Z', state: { trend: index < 30 ? 'TREND_UP' : 'TREND_DOWN', direction: index < 30 ? 'BULLISH' : 'BEARISH', volatility: index < 30 ? 'HIGH' : 'LOW' }, globalAlignment: index < 30 ? 'TAILWIND' : 'HEADWIND', riskResearchContext: index < 30 ? 'ELEVATED' : 'NORMAL' }));
-  const outcomes = states.map((state, index) => ({ tradeDate: state.tradeDate, sessionId: `${state.tradeDate}-DAY`, session: 'DAY', actualContractCode: '202601', outcomeFamily: 'LARGE_MOVE_CONTINUOUS', outcomeState: 'AVAILABLE', unavailableReason: null, values: { upExcursionBps: index, downExcursionBps: index, maxExcursionBps: index, sessionReturnBps: index }, availableAt: '2026-01-01T06:00:00Z', sourceLineage: { sourceHash: 'x' } }));
+  const states = Array.from({ length: 60 }, (_, index) => ({ tradeDate: `2026-01-${String(index + 1).padStart(2, '0')}`, schemaVersion: 'v1', decisionAt: '2026-01-01T00:00:00Z', state: { trend: index < 30 ? 'TREND_UP' : 'TREND_DOWN', direction: index < 30 ? 'BULLISH' : 'BEARISH', volatility: index < 30 ? 'HIGH' : 'LOW' }, globalAlignment: index < 30 ? 'TAILWIND' : 'HEADWIND', riskResearchContext: index < 30 ? 'ELEVATED' : 'NORMAL' }));
+  const outcomes = states.map((state, index) => ({ tradeDate: state.tradeDate, sessionId: `${state.tradeDate}-DAY`, session: 'DAY', actualContractCode: '202601', outcomeFamily: 'LARGE_MOVE_CONTINUOUS', outcomeState: 'AVAILABLE', unavailableReason: null, observationStartAt: '2026-01-01T01:00:00Z', values: { upExcursionBps: index, downExcursionBps: index, maxExcursionBps: index, sessionReturnBps: index }, availableAt: '2026-01-01T06:00:00Z', sourceLineage: { sourceHash: 'x' } }));
   const alignment = buildAlignmentManifest({ marketStateRecords: states, outcomeRows: outcomes, marketStateDigest: 'm', outcomeDigest: 'o' });
   const analysis = analyzeSingleAxisLinkage(alignment);
   assert.deepEqual(analysis.sampleTables.direction, { BEARISH: 30, BULLISH: 30 });
   assert.equal(analysis.primaryContrasts.direction.find((row) => row.family === 'LARGE_MOVE_CONTINUOUS').confidenceInterval95.iterations, 2000);
   assert.equal(analysis.multiAxisSearchPerformed, false);
   assert.equal(analysis.pnlAnalysisPerformed, false);
+});
+
+test('temporal alignment accepts premarket state and rejects decision at or after outcome observation', () => {
+  const market = (decisionAt) => [{ tradeDate: '2026-01-02', schemaVersion: 'v1', decisionAt, state: { trend: 'UNCLEAR', direction: 'NEUTRAL', volatility: 'NORMAL', globalAlignment: 'MIXED' }, riskResearchContext: 'NORMAL' }];
+  const outcomeRows = [{ tradeDate: '2026-01-02', sessionId: '2026-01-02-DAY', session: 'DAY', actualContractCode: '202601', outcomeFamily: 'LARGE_MOVE_CONTINUOUS', outcomeState: 'AVAILABLE', observationStartAt: '2026-01-02T00:45:00.000Z', availableAt: '2026-01-02T05:45:00.000Z', values: { upExcursionBps: 1 }, sourceLineage: { sourceHash: 'x' } }];
+  const legal = buildAlignmentManifest({ marketStateRecords: market('2026-01-02T00:30:00.000Z'), outcomeRows, marketStateDigest: 'm', outcomeDigest: 'o' });
+  assert.equal(legal.rows[0].alignmentState, 'ALIGNED');
+  const rejected = buildAlignmentManifest({ marketStateRecords: market('2026-01-02T00:46:00.000Z'), outcomeRows, marketStateDigest: 'm', outcomeDigest: 'o' });
+  assert.equal(rejected.rows[0].alignmentState, 'UNAVAILABLE');
+  assert.equal(rejected.rows[0].unavailableReason, 'TEMPORAL_ALIGNMENT_VIOLATION');
+});
+
+test('legal primary contrasts whose intervals include zero conclude NO_INFORMATION_SIGNAL', () => {
+  const rows = [];
+  for (let index = 0; index < 60; index += 1) {
+    const bullish = index < 30;
+    rows.push({ alignmentState: 'ALIGNED', tradeDate: `D${index}`, outcomeFamily: 'LARGE_MOVE_CONTINUOUS', axes: { direction: bullish ? 'BULLISH' : 'BEARISH', trend: 'UNCLEAR', volatility: 'NORMAL', globalAlignment: 'MIXED', riskResearchContext: 'NORMAL' }, values: { upExcursionBps: index % 2 + (bullish ? 0.01 : 0), downExcursionBps: index % 2, maxExcursionBps: index % 2, sessionReturnBps: index % 2 } });
+  }
+  const analysis = analyzeSingleAxisLinkage({ rows });
+  assert.equal(analysis.axisConclusions.direction, 'NO_INFORMATION_SIGNAL');
+  assert.equal(analysis.multiplePredeclaredOutcomeFieldComparisonsPerformed, true);
 });

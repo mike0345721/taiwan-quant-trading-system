@@ -31,6 +31,7 @@ const FIELDS = Object.freeze({
 });
 
 function finite(value) { return Number.isFinite(Number(value)); }
+function validTimestamp(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function mean(values) { return values.reduce((sum, value) => sum + value, 0) / values.length; }
 function quantile(sorted, probability) {
   if (!sorted.length) return null;
@@ -86,21 +87,22 @@ export async function buildOutcomeRows({ sessions, readTicks }) {
       continue;
     }
     const ticks = tickRead.ticks;
+    const observationStartAt = ticks[0].exchangeTimestamp;
     const open = ticks[0].price; const close = ticks.at(-1).price;
     const high = Math.max(...ticks.map((tick) => tick.price)); const low = Math.min(...ticks.map((tick) => tick.price));
     const sessionAvailableAt = ticks.at(-1).exchangeTimestamp;
     const path = [open, ...tickRead.bars.map((bar) => bar.close)];
     if (path.at(-1) !== close) path.push(close);
     const excursion = sessionExcursions({ sessionOpen: open, sessionHigh: high, sessionLow: low, sessionClose: close });
-    rows.push({ ...base, outcomeFamily: 'LARGE_MOVE_CONTINUOUS', outcomeState: 'AVAILABLE', unavailableReason: null, values: Object.fromEntries(FIELDS.LARGE_MOVE_CONTINUOUS.map((field) => [field, excursion[field]])), availableAt: sessionAvailableAt });
-    rows.push({ ...base, outcomeFamily: 'DOWNSIDE_EXCURSION', outcomeState: 'AVAILABLE', unavailableReason: null, values: Object.fromEntries(FIELDS.DOWNSIDE_EXCURSION.map((field) => [field, excursion[field]])), availableAt: sessionAvailableAt });
+    rows.push({ ...base, outcomeFamily: 'LARGE_MOVE_CONTINUOUS', outcomeState: 'AVAILABLE', unavailableReason: null, observationStartAt, values: Object.fromEntries(FIELDS.LARGE_MOVE_CONTINUOUS.map((field) => [field, excursion[field]])), availableAt: sessionAvailableAt });
+    rows.push({ ...base, outcomeFamily: 'DOWNSIDE_EXCURSION', outcomeState: 'AVAILABLE', unavailableReason: null, observationStartAt, values: Object.fromEntries(FIELDS.DOWNSIDE_EXCURSION.map((field) => [field, excursion[field]])), availableAt: sessionAvailableAt });
     const structure = trendRangeStructure({ sessionOpen: open, sessionHigh: high, sessionLow: low, sessionClose: close, path });
-    rows.push({ ...base, outcomeFamily: 'TREND_RANGE_STRUCTURE', outcomeState: finite(structure.closeLocation) && finite(structure.pathEfficiency) ? 'AVAILABLE' : 'UNAVAILABLE', unavailableReason: finite(structure.closeLocation) && finite(structure.pathEfficiency) ? null : 'DEGENERATE_SESSION_PATH', values: structure, availableAt: sessionAvailableAt });
+    rows.push({ ...base, outcomeFamily: 'TREND_RANGE_STRUCTURE', outcomeState: finite(structure.closeLocation) && finite(structure.pathEfficiency) ? 'AVAILABLE' : 'UNAVAILABLE', unavailableReason: finite(structure.closeLocation) && finite(structure.pathEfficiency) ? null : 'DEGENERATE_SESSION_PATH', observationStartAt, values: structure, availableAt: sessionAvailableAt });
     const p0900 = priceAtOrAfter(ticks, `${session.tradeDate}T01:00:00.000Z`);
     const p0945 = priceAtOrAfter(ticks, `${session.tradeDate}T01:45:00.000Z`);
     if (finite(p0900) && finite(p0945)) {
       const continuation = first60mContinuation({ p0845: open, p0900, p0945 });
-      rows.push({ ...base, outcomeFamily: 'FIRST60M_CONTINUATION', outcomeState: 'AVAILABLE', unavailableReason: continuation.unavailableReason, values: continuation, availableAt: ticks.find((tick) => tick.exchangeTimestamp >= `${session.tradeDate}T01:45:00.000Z`)?.exchangeTimestamp || null });
+      rows.push({ ...base, outcomeFamily: 'FIRST60M_CONTINUATION', outcomeState: 'AVAILABLE', unavailableReason: continuation.unavailableReason, observationStartAt, values: continuation, availableAt: ticks.find((tick) => tick.exchangeTimestamp >= `${session.tradeDate}T01:45:00.000Z`)?.exchangeTimestamp || null });
     } else rows.push({ ...base, outcomeFamily: 'FIRST60M_CONTINUATION', outcomeState: 'UNAVAILABLE', unavailableReason: 'FIRST60M_BOUNDARY_PRICE_UNAVAILABLE', values: null, availableAt: null });
     rows.push({ ...base, outcomeFamily: 'OPENING_GAP', outcomeState: 'UNAVAILABLE', unavailableReason: 'PRIOR_NIGHT_CLOSE_SAME_CONTRACT_NOT_GOVERNED', values: null, availableAt: null });
   }
@@ -111,13 +113,19 @@ export function buildAlignmentManifest({ marketStateRecords, outcomeRows, market
   const stateByDate = new Map(marketStateRecords.map((row) => [row.tradeDate, row]));
   const aligned = outcomeRows.map((outcome) => {
     const state = stateByDate.get(outcome.tradeDate) || null;
-    const reason = !state ? 'MARKET_STATE_UNAVAILABLE' : outcome.outcomeState !== 'AVAILABLE' ? outcome.unavailableReason : null;
+    let reason = !state ? 'MARKET_STATE_UNAVAILABLE' : outcome.outcomeState !== 'AVAILABLE' ? outcome.unavailableReason : null;
+    if (!reason && (!validTimestamp(state.decisionAt)
+      || !validTimestamp(outcome.observationStartAt)
+      || Date.parse(state.decisionAt) >= Date.parse(outcome.observationStartAt))) {
+      reason = 'TEMPORAL_ALIGNMENT_VIOLATION';
+    }
     return {
       tradeDate: outcome.tradeDate, sessionId: outcome.sessionId, session: outcome.session,
       actualContractCode: outcome.actualContractCode, outcomeFamily: outcome.outcomeFamily,
       alignmentState: reason ? 'UNAVAILABLE' : 'ALIGNED', unavailableReason: reason,
       marketStateDigest, marketStateVersion: state?.schemaVersion || null,
       outcomeSourceLineage: outcome.sourceLineage, outcomeDigest, marketStateAvailableAt: state?.decisionAt || null,
+      outcomeObservationStartAt: outcome.observationStartAt || null,
       outcomeAvailableAt: outcome.availableAt, values: reason ? null : outcome.values,
       axes: state ? { trend: state.state.trend, direction: state.state.direction, volatility: state.state.volatility, globalAlignment: state.state.globalAlignment, riskResearchContext: state.riskResearchContext } : null,
     };
@@ -156,17 +164,19 @@ export function analyzeSingleAxisLinkage(alignment) {
     const legal = contrasts.filter((row) => row.confidenceInterval95);
     axisConclusions[axis] = !legal.length ? 'INSUFFICIENT_SAMPLE'
       : legal.some((row) => row.confidenceInterval95.lower95 > 0 || row.confidenceInterval95.upper95 < 0) ? 'DESCRIPTIVE_DIFFERENCE_PRESENT'
-        : legal.some((row) => row.effectSizeMeanDifference !== 0) ? 'WEAK_DESCRIPTIVE_DIFFERENCE' : 'NO_INFORMATION_SIGNAL';
+        : 'NO_INFORMATION_SIGNAL';
   }
-  return { schemaVersion: 'cru18-single-axis-linkage-v1', sampleTables, outcomeTables, primaryContrasts, axisConclusions, multiAxisSearchPerformed: false, binaryThresholdOptimizationPerformed: false, pnlAnalysisPerformed: false, pfAnalysisPerformed: false, sharpeAnalysisPerformed: false, marketStateRetuningPerformed: false, formalWeight: 0, researchOnly: true, executionAuthorized: false };
+  return { schemaVersion: 'cru18-single-axis-linkage-v1', sampleTables, outcomeTables, primaryContrasts, axisConclusions, multiAxisSearchPerformed: false, multiplePredeclaredOutcomeFieldComparisonsPerformed: true, binaryThresholdOptimizationPerformed: false, pnlAnalysisPerformed: false, pfAnalysisPerformed: false, sharpeAnalysisPerformed: false, marketStateRetuningPerformed: false, formalWeight: 0, researchOnly: true, executionAuthorized: false };
 }
 
 export function buildCru18Bundle({ marketStateRecords, outcomeRows }) {
   const marketStateDigest = stableDigest(marketStateRecords); const outcomeDigest = stableDigest(outcomeRows);
   const alignment = buildAlignmentManifest({ marketStateRecords, outcomeRows, marketStateDigest, outcomeDigest });
   const linkage = analyzeSingleAxisLinkage(alignment);
-  const futureDataViolations = marketStateRecords.reduce((total, row) => total
+  const marketStateFutureDataViolations = marketStateRecords.reduce((total, row) => total
     + (row.unavailable || []).filter((item) => ['FUTURE_EVIDENCE', 'AVAILABLE_AT_VIOLATION'].includes(item.reason)).length, 0);
-  const bundle = { contract: MARKET_STATE_OUTCOME_CONTRACT_V1.schemaVersion, marketStateDigest, outcomeDigest, alignment, linkage, futureDataViolations, formalWeight: 0, researchOnly: true, executionAuthorized: false };
+  const temporalAlignmentViolations = alignment.rows.filter((row) => row.unavailableReason === 'TEMPORAL_ALIGNMENT_VIOLATION').length;
+  const futureDataViolations = marketStateFutureDataViolations + temporalAlignmentViolations;
+  const bundle = { contract: MARKET_STATE_OUTCOME_CONTRACT_V1.schemaVersion, marketStateDigest, outcomeDigest, alignment, linkage, marketStateFutureDataViolations, temporalAlignmentViolations, futureDataViolations, formalWeight: 0, researchOnly: true, executionAuthorized: false };
   return { ...bundle, linkageDigest: stableDigest(bundle) };
 }
