@@ -48,6 +48,27 @@ class MarketStateCollectionTests(unittest.TestCase):
             for strike in strikes:
                 self.assertEqual({row['optionRight'] for row in rows if row['strikePrice'] == strike}, {'C', 'P'})
 
+    def test_incomplete_strike_is_excluded_and_next_pair_complete_strike_is_used(self):
+        expiry = date(2026, 8, 12)
+        infos = []
+        for strike in (33200, 33300, 33400, 33500, 33600, 33700):
+            infos.append(Info(f'C-{strike}', strike, 'C', expiry))
+            if strike != 33500:
+                infos.append(Info(f'P-{strike}', strike, 'P', expiry))
+        selected = select_txo_contracts(
+            infos,
+            underlying_price=33500,
+            today=date(2026, 8, 9),
+            expiry_count=1,
+            strikes_per_side=2,
+        )
+        selected_strikes = {row['strikePrice'] for row in selected}
+        self.assertNotIn(33500.0, selected_strikes)
+        self.assertEqual(len(selected_strikes), 5)
+        self.assertEqual(len(selected), 10)
+        for strike in selected_strikes:
+            self.assertEqual({row['optionRight'] for row in selected if row['strikePrice'] == strike}, {'C', 'P'})
+
     def test_invalid_underlying_produces_no_option_subscriptions(self):
         self.assertEqual(select_txo_contracts([], underlying_price=0, today=date.today()), [])
 
