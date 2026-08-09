@@ -72,7 +72,10 @@ function deriveDirection(blocks) {
   const bearish = usable.filter((vote) => vote.state === 'BEARISH').length;
   if (bullish >= 2 && bearish === 0) return { state: 'BULLISH', votes };
   if (bearish >= 2 && bullish === 0) return { state: 'BEARISH', votes };
+  // CONFLICT is reserved for genuine opposing directional evidence.
   if (bullish > 0 && bearish > 0) return { state: 'CONFLICT', votes };
+  // A lone directional block surrounded by neutral evidence is insufficient conviction,
+  // not directional conflict. This matches the V1 semantic contract and is outcome-blind.
   return { state: 'NEUTRAL', votes };
 }
 
@@ -84,6 +87,10 @@ function deriveTrend(blocks) {
   if (localTrend === 'TREND_UP' && breadthDirection !== 'BEARISH') return 'TREND_UP';
   if (localTrend === 'TREND_DOWN' && breadthDirection !== 'BULLISH') return 'TREND_DOWN';
   if (localTrend === 'RANGE' && ['NEUTRAL', 'UNAVAILABLE'].includes(breadthDirection)) return 'RANGE';
+  // Historical V1 local-price evidence intentionally labels sign disagreement as UNCLEAR.
+  // When that lack of local persistence is accompanied by neutral breadth, classify the
+  // top-level descriptive state as RANGE. This is a pre-specified semantic rule, not a
+  // performance-tuned threshold.
   if (localTrend === 'UNCLEAR' && breadthDirection === 'NEUTRAL') return 'RANGE';
   return 'UNCLEAR';
 }
