@@ -64,15 +64,13 @@ ATM IV and 25D Skew use past-only percentiles. ATM IV contributes to Volatility/
 
 Each daily record contains trade date, decision timestamp, five Market State axes, block evidence, raw input trace, source table/contract, source trade date, `availableAt`, unavailable reasons, conflicts, and research/execution boundary fields.
 
-Default local output:
-
-`data/research/market-state-v1-historical-dry-run/v0/`
+Default local output: `data/research/market-state-v1-historical-dry-run/v0/`.
 
 Files: `records.json`, `summary.json`, `manifest.json`. The manifest exposes a deterministic `recordDigest`.
 
 ## Final corrected validation
 
-Latest validated head: `201fc060075434f20bbe9addaf1ab0312126857b`
+Code-validated head: `201fc060075434f20bbe9addaf1ab0312126857b`
 
 - targeted tests: 15/15 PASS
 - records: 753 (2023-07-04..2026-08-07)
@@ -83,6 +81,8 @@ Latest validated head: `201fc060075434f20bbe9addaf1ab0312126857b`
 - `falseConflictCount=0`
 - T0/P0/Frozen zero change
 - `executionAuthorized=false`
+
+The branch head may be newer because of documentation-only commits; those do not supersede the code validation unless evaluator/historical code changes.
 
 ## Explicitly deferred
 
