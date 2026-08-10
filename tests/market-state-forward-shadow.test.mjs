@@ -66,12 +66,15 @@ test('final launch builder is deterministic and can only produce READY_FOR_LAUNC
     finalMainCommit: '1e8211a5a5ea2dcfdda77b57342226700c204345',
     officialStartTradeDate: '2026-08-12',
     schedulerTime: '08:25 Asia/Taipei',
+    outcomeSchedulerTime: '14:00 Asia/Taipei',
     runtimeRoot: 'D:\\Taiwan stock\\standalone-v1\\data\\market-state\\forward-shadow\\run-20260812',
     runId: 'run-20260812',
     evaluator: { version: 'evaluator-v1', sha256: HASH },
     outcomeContract: { version: 'outcome-v1', sha256: HASH },
     linkageContract: { version: 'linkage-v1', sha256: HASH },
     frozenForwardGate: { version: 'gate-v1', sha256: HASH },
+    tradingCalendar: { version: 'calendar-v1', sha256: HASH },
+    secondaryBackupRoot: 'D:\\Taiwan stock\\forward-shadow-backup',
     selectedAxes: ['direction', 'globalAlignment'],
     ...authorization,
   };
@@ -91,6 +94,7 @@ test('final launch builder is deterministic and can only produce READY_FOR_LAUNC
     finalMainCommit: first.finalMainCommit,
     officialStartTradeDate: first.officialStartTradeDate,
     schedulerTime: first.schedulerTime,
+    outcomeSchedulerTime: first.outcomeSchedulerTime,
     ...authorization,
   });
   assert.equal(validateOwnerLaunchApprovalArtifact(approval, first).valid, true);

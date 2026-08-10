@@ -33,16 +33,21 @@ const writeImmutable = (payload) => {
 let artifact;
 if (kind === 'READY_MANIFEST') {
   const hashFile = (relativePath) => digest(fs.readFileSync(path.join(root, relativePath)));
+  const calendarPath = value('--trading-calendar', 'config/taifex-official-calendar-2026.json');
+  const calendar = JSON.parse(fs.readFileSync(path.join(root, calendarPath), 'utf8'));
   artifact = createReadyForLaunchManifest({
     finalMainCommit: value('--final-main-commit'),
     officialStartTradeDate: value('--official-start-trade-date'),
     schedulerTime: value('--scheduler-time', '08:25 Asia/Taipei'),
+    outcomeSchedulerTime: value('--outcome-scheduler-time', '14:00 Asia/Taipei'),
     runtimeRoot: value('--runtime-root'),
     runId: value('--run-id'),
     evaluator: { version: 'market-state-v1-premarket-evaluator-v0', sha256: hashFile('src/market-state-v1.mjs') },
     outcomeContract: { version: 'market-state-outcome-contract-v1', sha256: hashFile('src/market-state-outcome-contract.mjs') },
     linkageContract: { version: 'cru18-single-axis-linkage-v1', sha256: hashFile('src/market-state-outcome-linkage.mjs') },
     frozenForwardGate: { version: 'cru19-owner-frozen-forward-shadow-gate-v1', sha256: hashFile('docs/research/MARKET_STATE_V1_FORWARD_SHADOW_GATE.md') },
+    tradingCalendar: { version: calendar.schemaVersion, sha256: calendar.fileHash },
+    secondaryBackupRoot: value('--secondary-backup-root', 'D:\\Taiwan stock\\forward-shadow-backup'),
     selectedAxes: ['direction', 'globalAlignment'],
     formalWeight: 0,
     researchOnly: true,
@@ -57,6 +62,7 @@ if (kind === 'READY_MANIFEST') {
     finalMainCommit: manifest.finalMainCommit,
     officialStartTradeDate: manifest.officialStartTradeDate,
     schedulerTime: manifest.schedulerTime,
+    outcomeSchedulerTime: manifest.outcomeSchedulerTime,
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,

@@ -102,17 +102,23 @@ export function createReadyForLaunchManifest(input) {
   if (/^[cC]:[\\/]/.test(runtimeRoot)) throw new Error('FORWARD_SHADOW_C_DRIVE_RUNTIME_FORBIDDEN');
   const runId = requireText(input.runId, 'FORWARD_SHADOW_RUN_ID_REQUIRED');
   if (!/^[a-z0-9][a-z0-9._-]{2,79}$/i.test(runId)) throw new Error('FORWARD_SHADOW_RUN_ID_INVALID');
+  const secondaryBackupRoot = requireText(input.secondaryBackupRoot, 'FORWARD_SHADOW_SECONDARY_BACKUP_ROOT_REQUIRED');
+  if (!/^[dD]:[\\/]/.test(secondaryBackupRoot)) throw new Error('FORWARD_SHADOW_SECONDARY_BACKUP_MUST_BE_D_DRIVE');
   const manifest = {
     schemaVersion: 'market-state-forward-shadow-launch-ready-v1',
     finalMainCommit,
     officialStartTradeDate: input.officialStartTradeDate,
     schedulerTime: requireText(input.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED'),
+    outcomeSchedulerTime: requireText(input.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED'),
     runtimeRoot,
     runId,
     evaluator: input.evaluator,
     outcomeContract: input.outcomeContract,
     linkageContract: input.linkageContract,
     frozenForwardGate: input.frozenForwardGate,
+    tradingCalendar: input.tradingCalendar,
+    secondaryBackupRoot,
+    secondaryBackupClass: 'OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT',
     selectedAxes: [...input.selectedAxes],
     launchStatus: 'READY_FOR_LAUNCH',
     ownerLaunchApprovalRequired: true,
@@ -123,7 +129,7 @@ export function createReadyForLaunchManifest(input) {
     researchOnly: true,
     executionAuthorized: false,
   };
-  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate']) {
+  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate', 'tradingCalendar']) {
     requireText(manifest[reference]?.version, `FORWARD_SHADOW_${reference.toUpperCase()}_VERSION_REQUIRED`);
     requireHash(manifest[reference]?.sha256, `FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
   }
@@ -146,9 +152,12 @@ export function validateReadyForLaunchManifest(manifest) {
   if (!/^[a-f0-9]{40}$/.test(manifest.finalMainCommit || '')) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_INVALID');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(manifest.officialStartTradeDate || '')) throw new Error('FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID');
   requireText(manifest.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED');
+  requireText(manifest.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED');
   requireText(manifest.runtimeRoot, 'FORWARD_SHADOW_RUNTIME_ROOT_REQUIRED');
   requireText(manifest.runId, 'FORWARD_SHADOW_RUN_ID_REQUIRED');
-  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate']) {
+  requireText(manifest.secondaryBackupRoot, 'FORWARD_SHADOW_SECONDARY_BACKUP_ROOT_REQUIRED');
+  if (manifest.secondaryBackupClass !== 'OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT') throw new Error('FORWARD_SHADOW_SECONDARY_BACKUP_CLASS_INVALID');
+  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate', 'tradingCalendar']) {
     requireText(manifest[reference]?.version, `FORWARD_SHADOW_${reference.toUpperCase()}_VERSION_REQUIRED`);
     requireHash(manifest[reference]?.sha256, `FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
   }
@@ -168,6 +177,7 @@ export function createOwnerLaunchApprovalArtifact(input) {
     finalMainCommit: requireText(input.finalMainCommit, 'FORWARD_SHADOW_FINAL_MAIN_COMMIT_REQUIRED'),
     officialStartTradeDate: requireText(input.officialStartTradeDate, 'FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID'),
     schedulerTime: requireText(input.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED'),
+    outcomeSchedulerTime: requireText(input.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED'),
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
@@ -194,6 +204,7 @@ export function validateOwnerLaunchApprovalArtifact(approval, manifest) {
   if (approval.finalMainCommit !== manifest.finalMainCommit) throw new Error('FORWARD_SHADOW_APPROVAL_FINAL_MAIN_COMMIT_MISMATCH');
   if (approval.officialStartTradeDate !== manifest.officialStartTradeDate) throw new Error('FORWARD_SHADOW_APPROVAL_START_DATE_MISMATCH');
   if (approval.schedulerTime !== manifest.schedulerTime) throw new Error('FORWARD_SHADOW_APPROVAL_SCHEDULER_TIME_MISMATCH');
+  if (approval.outcomeSchedulerTime !== manifest.outcomeSchedulerTime) throw new Error('FORWARD_SHADOW_APPROVAL_OUTCOME_SCHEDULER_TIME_MISMATCH');
   return Object.freeze({ valid: true, approvalArtifactHash: approval.approvalArtifactHash, executionAuthorized: false });
 }
 

@@ -15,10 +15,12 @@ import {
 
 const HASH = 'b'.repeat(64);
 const root = path.resolve('data/market-state/forward-shadow/cru22-test-fixtures');
+const backupRoot = path.resolve('data/market-state/forward-shadow/cru22-backup-fixtures');
 const auth = { formalWeight: 0, researchOnly: true, executionAuthorized: false };
 
 function remove(runId) {
   fs.rmSync(path.join(root, runId), { recursive: true, force: true });
+  fs.rmSync(path.join(backupRoot, runId), { recursive: true, force: true });
 }
 
 function stateInput(runId, overrides = {}) {
@@ -59,12 +61,15 @@ function officialInput(runId, overrides = {}) {
     finalMainCommit: '1e8211a5a5ea2dcfdda77b57342226700c204345',
     officialStartTradeDate: '2026-08-11',
     schedulerTime: '08:25 Asia/Taipei',
+    outcomeSchedulerTime: '14:00 Asia/Taipei',
     runtimeRoot: runtimePath,
     runId,
     evaluator: { version: 'evaluator-v1', sha256: HASH },
     outcomeContract: { version: 'outcome-v1', sha256: HASH },
     linkageContract: { version: 'linkage-v1', sha256: HASH },
     frozenForwardGate: { version: 'gate-v1', sha256: HASH },
+    tradingCalendar: { version: 'calendar-v1', sha256: HASH },
+    secondaryBackupRoot: backupRoot,
     selectedAxes: ['direction', 'globalAlignment'],
     ...auth,
   });
@@ -75,6 +80,7 @@ function officialInput(runId, overrides = {}) {
     finalMainCommit: launchManifest.finalMainCommit,
     officialStartTradeDate: launchManifest.officialStartTradeDate,
     schedulerTime: launchManifest.schedulerTime,
+    outcomeSchedulerTime: launchManifest.outcomeSchedulerTime,
     ...auth,
   });
   return stateInput(runId, {
@@ -87,6 +93,7 @@ function officialInput(runId, overrides = {}) {
       outcomeContract: HASH,
       linkageContract: HASH,
       frozenForwardGate: HASH,
+      tradingCalendar: HASH,
     },
     ...overrides,
   });
@@ -244,12 +251,14 @@ test('candidate and official storage are isolated and only approved official wri
   const official = runDailyStatePhase(officialInput(runId));
   assert.equal(candidate.officialEvidenceWritten, false);
   assert.equal(official.officialEvidenceWritten, true);
+  assert.equal(official.backup.status, 'PASS');
   assert.equal(fs.existsSync(candidate.paths.candidateLedger), true);
   assert.equal(fs.existsSync(official.paths.officialLedger), true);
   assert.notEqual(candidate.paths.candidateLedger, official.paths.officialLedger);
   assert.equal(readForwardShadowLedger(candidate.paths.candidateLedger).length, 1);
   assert.equal(readForwardShadowLedger(official.paths.officialLedger).length, 1);
   assert.equal(fs.readdirSync(official.paths.officialRecords).length, 1);
+  assert.equal(fs.existsSync(path.join(backupRoot, runId, 'official-ledger.ndjson')), true);
   assert.equal(official.executionAuthorized, false);
   const replay = runDailyStatePhase(officialInput(runId));
   assert.equal(replay.status, 'UNCHANGED');
@@ -272,6 +281,7 @@ test('candidate and official storage are isolated and only approved official wri
     },
   });
   assert.equal(outcome.officialEvidenceWritten, true);
+  assert.equal(outcome.backup.status, 'PASS');
   assert.equal(outcome.dailyLifecycleStatus, 'DAILY_COMPLETE');
   assert.equal(outcome.record.stateRecordHash, official.record.recordHash);
   assert.equal(verifyRuntimeEvidence(root, runId, { official: true }).outcomeRecordCount, 1);

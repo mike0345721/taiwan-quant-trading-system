@@ -14,6 +14,7 @@ import {
   validateCollectorMode,
 } from './market-state-forward-shadow.mjs';
 import { evaluatePremarketMarketState } from './market-state-v1.mjs';
+import { replicateOperationalSecondCopy, writeImmutableLaunchManifest } from './market-state-forward-shadow-backup.mjs';
 
 const AUTHORIZATION = Object.freeze({ formalWeight: 0, researchOnly: true, executionAuthorized: false });
 const REQUIRED_LAYOUT = Object.freeze(['official-records', 'outcomes', 'checksums', 'daily-status', 'logs']);
@@ -47,6 +48,7 @@ export function runtimePaths(runtimeRoot, runId) {
     candidateManifest: path.join(root, 'launch-manifest-candidate.json'),
     candidateLedger: path.join(root, 'candidate-ledger.ndjson'),
     officialLedger: path.join(root, 'official-ledger.ndjson'),
+    launchManifest: path.join(root, 'launch-manifest.json'),
     lock: path.join(root, '.observer.lock'),
     officialRecords: path.join(root, 'official-records'),
     outcomes: path.join(root, 'outcomes'),
@@ -187,6 +189,9 @@ export function validateOfficialLaunchContext(input, paths = runtimePaths(input.
   if (input.runId !== input.launchManifest.runId || !samePath(paths.root, input.launchManifest.runtimeRoot)) {
     throw new Error('FORWARD_SHADOW_RUNTIME_IDENTITY_MISMATCH');
   }
+  if (input.secondaryBackupRoot && !samePath(input.secondaryBackupRoot, input.launchManifest.secondaryBackupRoot)) {
+    throw new Error('FORWARD_SHADOW_SECONDARY_BACKUP_ROOT_MISMATCH');
+  }
   if ((input.tradeDate || '').localeCompare(input.launchManifest.officialStartTradeDate) < 0) {
     throw new Error('FORWARD_SHADOW_BEFORE_OFFICIAL_START_DATE');
   }
@@ -195,6 +200,7 @@ export function validateOfficialLaunchContext(input, paths = runtimePaths(input.
     ['outcomeContract', 'outcomeContract'],
     ['linkageContract', 'linkageContract'],
     ['frozenForwardGate', 'frozenForwardGate'],
+    ['tradingCalendar', 'tradingCalendar'],
   ]) {
     if (input.actualArtifactHashes?.[key] !== input.launchManifest[manifestKey].sha256) {
       throw new Error(`FORWARD_SHADOW_${key.toUpperCase()}_HASH_MISMATCH`);
@@ -213,6 +219,7 @@ export function validateOfficialLaunchContext(input, paths = runtimePaths(input.
 function resolveRunContext(input, paths) {
   if (input.mode === 'FORWARD_SHADOW') {
     const official = validateOfficialLaunchContext(input, paths);
+    writeImmutableLaunchManifest(paths.root, input.launchManifest);
     validateCollectorMode(input.mode, { ownerApprovalValidated: true });
     return official;
   }
@@ -225,6 +232,18 @@ function resolveRunContext(input, paths) {
     officialEvidenceWritten: false,
     executionAuthorized: false,
   });
+}
+
+function backupOfficialEvidence(input, paths, runContext, phase) {
+  if (runContext.evidenceClass !== 'OFFICIAL_FORWARD') return Object.freeze({ status: 'NOT_APPLICABLE_CANDIDATE' });
+  try {
+    return replicateOperationalSecondCopy({ primaryRunRoot: paths.root, backupRoot: input.secondaryBackupRoot || input.launchManifest.secondaryBackupRoot, runId: input.runId });
+  } catch (error) {
+    const failurePath = path.join(paths.logs, `backup-failure-${input.tradeDate}-${phase.toLowerCase()}.json`);
+    const payload = stableJson({ schemaVersion: 'market-state-forward-shadow-backup-failure-v1', tradeDate: input.tradeDate, phase, error: error.message, primaryEvidencePreserved: true, executionAuthorized: false });
+    if (!fs.existsSync(failurePath)) fs.writeFileSync(failurePath, payload, { encoding: 'utf8', flag: 'wx' });
+    throw new Error(`FORWARD_SHADOW_BACKUP_FAILED:${error.message}`);
+  }
 }
 
 export function runDailyStatePhase(input) {
@@ -241,11 +260,13 @@ export function runDailyStatePhase(input) {
       && record.tradeDate === input.tradeDate);
     if (priorOfficial) {
       assertPriorStateCompatible(input, priorOfficial);
+      const backup = backupOfficialEvidence(input, paths, runContext, 'STATE');
       return {
         status: 'UNCHANGED',
         record: priorOfficial,
         ledgerHash: auditForwardShadowLedger(records).ledgerHash,
         officialEvidenceWritten: runContext.officialEvidenceWritten,
+        backup,
         executionAuthorized: false,
       };
     }
@@ -307,7 +328,8 @@ export function runDailyStatePhase(input) {
       executionAuthorized: false,
     };
     writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'STATE', status);
-    return { status: 'STATE_PHASE_COMPLETE', paths, record, dailyStatus: status, ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    const backup = backupOfficialEvidence(input, paths, runContext, 'STATE');
+    return { status: 'STATE_PHASE_COMPLETE', paths, record, dailyStatus: status, ...appended, backup, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
 
@@ -322,7 +344,10 @@ export function runDailyOutcomePhase(input) {
     const state = records.find((record) => record.recordType === 'STATE' && record.tradeDate === input.tradeDate);
     if (!state) throw new Error('FORWARD_SHADOW_STATE_RECORD_NOT_FOUND');
     const prior = records.find((record) => record.recordType === 'OUTCOME' && record.stateRecordHash === state.recordHash);
-    if (prior) return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, dailyLifecycleStatus: 'DAILY_COMPLETE', officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    if (prior) {
+      const backup = backupOfficialEvidence(input, paths, runContext, 'OUTCOME');
+      return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, dailyLifecycleStatus: 'DAILY_COMPLETE', backup, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    }
     if (input.outcomeCollection?.state === 'UNAVAILABLE') {
       const status = {
         schemaVersion: 'market-state-forward-shadow-daily-status-v1',
@@ -341,7 +366,8 @@ export function runDailyOutcomePhase(input) {
         executionAuthorized: false,
       };
       const writeStatusResult = writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'OUTCOME', status);
-      return { status: 'OUTCOME_UNAVAILABLE', dailyStatus: status, writeStatus: writeStatusResult, dailyLifecycleStatus: 'INCOMPLETE_OUTCOME_UNAVAILABLE', officialEvidenceWritten: false, executionAuthorized: false };
+      const backup = backupOfficialEvidence(input, paths, runContext, 'OUTCOME');
+      return { status: 'OUTCOME_UNAVAILABLE', dailyStatus: status, writeStatus: writeStatusResult, dailyLifecycleStatus: 'INCOMPLETE_OUTCOME_UNAVAILABLE', backup, officialEvidenceWritten: false, executionAuthorized: false };
     }
     const outcome = createOutcomeRecord({ ...input.outcome, stateRecordHash: state.recordHash, ...AUTHORIZATION }, records);
     const appended = appendRuntimeRecord(paths, runContext.ledgerPath, outcome, records, runContext.evidenceClass, runContext);
@@ -367,7 +393,8 @@ export function runDailyOutcomePhase(input) {
       executionAuthorized: false,
     };
     writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'OUTCOME', status);
-    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, dailyStatus: status, dailyLifecycleStatus: 'DAILY_COMPLETE', ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    const backup = backupOfficialEvidence(input, paths, runContext, 'OUTCOME');
+    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, dailyStatus: status, dailyLifecycleStatus: 'DAILY_COMPLETE', ...appended, backup, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
 

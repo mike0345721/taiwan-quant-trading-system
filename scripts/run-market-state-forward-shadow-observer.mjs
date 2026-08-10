@@ -48,6 +48,7 @@ if (mode === 'FORWARD_SHADOW') {
   input = {
     runtimeRoot: path.dirname(launchManifest.runtimeRoot),
     runId: launchManifest.runId,
+    secondaryBackupRoot: launchManifest.secondaryBackupRoot,
     tradeDate,
     sessionId: `${tradeDate}-DAY`,
     scheduledAt: `${tradeDate}T08:25:00+08:00`,
@@ -73,6 +74,7 @@ if (mode === 'FORWARD_SHADOW') {
       outcomeContract: hashFile(path.join(root, 'src/market-state-outcome-contract.mjs')),
       linkageContract: hashFile(path.join(root, 'src/market-state-outcome-linkage.mjs')),
       frozenForwardGate: hashFile(path.join(root, 'docs/research/MARKET_STATE_V1_FORWARD_SHADOW_GATE.md')),
+      tradingCalendar: governedCalendar.fileHash,
     },
     formalWeight: 0,
     researchOnly: true,

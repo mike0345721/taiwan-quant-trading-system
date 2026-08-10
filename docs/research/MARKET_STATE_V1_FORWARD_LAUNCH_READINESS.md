@@ -119,3 +119,21 @@ Two governance inputs are not safely inferable from existing frozen artifacts an
 The proposed backup remains `D:\Taiwan stock\forward-shadow-backup\<runId>`, class `OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT`, status `NOT_CONFIGURED`. `BACKUP_OWNER_DECISION_REQUIRED=true`; no backup was created.
 
 Accordingly, `LAUNCH_READINESS_STATUS=BLOCKED`, `LAUNCH_STATUS=NOT_ACTIVE`, `FORMAL_SCHEDULER_ENABLED=false`, `OFFICIAL_START_TRADE_DATE=null`, and `OFFICIAL_FORWARD_EVIDENCE_WRITTEN=false` until the Product Owner provides or approves the two governance inputs and decides whether to accept the unconfigured same-volume backup.
+
+## CRU-22 Owner-approved launch settings closeout
+
+This section supersedes only the unresolved settings in the prior review; it does not launch Forward Shadow or rewrite the frozen Outcome Contract.
+
+- STATE operational schedule: `08:25 Asia/Taipei`.
+- OUTCOME operational collection schedule: `14:00 Asia/Taipei`.
+- Frozen outcome remains `LARGE_MOVE_CONTINUOUS.sessionReturnBps` over `DAY_SESSION_0845_1345`; 14:00 is collection timing, not a new observation window.
+- Governed trading-day source: TAIFEX official `民國115年期貨集中交易市場行事曆`, source URL `https://www.taifex.com.tw/file/taifex/CHINESE/4/2026Calendar.pdf`.
+- Official PDF SHA-256: `8619b50dd46e4c2b817010cfa0774de3a2301181babf0117b1d28755df09d475`.
+- Immutable snapshot: `config/taifex-official-calendar-2026.json`, coverage `2026-01-01` through `2026-12-31`, 243 trading dates and 122 non-trading dates, snapshot logical file hash `cb53fd3579308a6ff9b0e79051df92849c837d54d2942e8a4d58a0790ee0cbfe`.
+- Dates outside snapshot coverage fail closed. A temporary closure cannot silently mutate the snapshot; it requires a separate Owner-approved, TAIFEX-official, hashed exception-evidence artifact.
+- Operational second copy: `D:\Taiwan stock\forward-shadow-backup\<runId>`, class `OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT`. The Owner accepts that this does not protect against whole-D-drive or hardware loss.
+- Backup copies only the launch manifest, official ledger, official record envelopes, official checksums, official daily status and audit logs. The ledger can only extend by exact prefix append; every other artifact is immutable. Existing different bytes hard-fail, checksum mismatch hard-fails, and primary evidence is never rewritten to conceal a backup failure.
+
+The scheduler installer remains unexecuted and disabled. It is prepared with separate STATE and OUTCOME tasks, `IgnoreNew`, `WakeToRun`, restart/idempotency protection, exact launch-manifest and Owner-approval validation, and calendar fail-closed behavior. Installation still requires a future launch manifest with a non-null official start trade date plus a matching Product Owner launch-approval artifact.
+
+Current state after this settings closeout remains: `FORMAL_SCHEDULER_ENABLED=false`, `OFFICIAL_START_TRADE_DATE=null`, `LAUNCH_STATUS=NOT_ACTIVE`, `OFFICIAL_FORWARD_EVIDENCE_WRITTEN=false`, `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false`. Engineering readiness may be `READY_FOR_OWNER_LAUNCH_APPROVAL`; Day 1 is not started.

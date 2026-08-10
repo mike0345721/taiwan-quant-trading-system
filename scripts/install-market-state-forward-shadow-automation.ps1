@@ -3,7 +3,7 @@ param(
   [string]$ReadyManifestPath = '',
   [string]$OwnerApprovalPath = '',
   [string]$TradingCalendarPath = '',
-  [string]$OutcomeTime = ''
+  [string]$OutcomeTime = '14:00'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,8 +30,8 @@ $definition = [ordered]@{
   outcomeTask = [ordered]@{
     taskName = $outcomeTaskName
     phase = 'OUTCOME'
-    schedule = $null
-    scheduleStatus = 'BLOCKED_AVAILABLE_TIME_NOT_UNIQUELY_FROZEN'
+    schedule = '14:00 Asia/Taipei'
+    scheduleStatus = 'OWNER_APPROVED_OPERATIONAL_COLLECTION_TIME'
     frozenObservationWindowEnd = '13:45 Asia/Taipei'
     executable = $powershell
     nodeExecutable = $node
@@ -40,12 +40,9 @@ $definition = [ordered]@{
     multipleInstances = 'IgnoreNew'
     wakeToRun = $true
   }
-  tradingDaySourceStatus = 'NOT_CONFIGURED'
-  installBlocked = $true
-  installBlockers = @(
-    'OUTCOME_SCHEDULER_TIME_NOT_UNIQUELY_FROZEN',
-    'GOVERNED_TRADING_CALENDAR_NOT_CONFIGURED'
-  )
+  tradingDaySourceStatus = 'OWNER_APPROVED_IMMUTABLE_SNAPSHOT'
+  installBlocked = $false
+  installBlockers = @()
   executable = $powershell
   nodeExecutable = $node
   wrapper = $runner
@@ -61,6 +58,10 @@ if (-not $Install) {
   exit 0
 }
 
+if ([string]::IsNullOrWhiteSpace($TradingCalendarPath)) {
+  $TradingCalendarPath = Join-Path $projectRoot 'config\taifex-official-calendar-2026.json'
+}
+
 if ([string]::IsNullOrWhiteSpace($ReadyManifestPath)) { throw 'FORWARD_SHADOW_READY_MANIFEST_REQUIRED' }
 if ([string]::IsNullOrWhiteSpace($OwnerApprovalPath)) { throw 'FORWARD_SHADOW_OWNER_APPROVAL_ARTIFACT_REQUIRED' }
 if ([string]::IsNullOrWhiteSpace($TradingCalendarPath)) { throw 'FORWARD_SHADOW_TRADING_CALENDAR_REQUIRED' }
@@ -74,6 +75,9 @@ $resolvedApproval = (Resolve-Path -LiteralPath $OwnerApprovalPath).Path
 $resolvedCalendar = (Resolve-Path -LiteralPath $TradingCalendarPath).Path
 & $node $validator --launch-manifest $resolvedManifest --owner-approval $resolvedApproval | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'FORWARD_SHADOW_LAUNCH_VALIDATION_FAILED' }
+$manifest = Get-Content -Raw -LiteralPath $resolvedManifest | ConvertFrom-Json
+if ($manifest.schedulerTime -ne '08:25 Asia/Taipei') { throw 'FORWARD_SHADOW_STATE_SCHEDULER_TIME_MISMATCH' }
+if ($manifest.outcomeSchedulerTime -ne "$OutcomeTime Asia/Taipei") { throw 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_MISMATCH' }
 
 $common = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runner`" -Mode FORWARD_SHADOW -LaunchManifestPath `"$resolvedManifest`" -OwnerApprovalPath `"$resolvedApproval`" -TradingCalendarPath `"$resolvedCalendar`""
 $stateAction = New-ScheduledTaskAction -Execute $powershell -Argument "$common -Phase STATE" -WorkingDirectory $projectRoot
