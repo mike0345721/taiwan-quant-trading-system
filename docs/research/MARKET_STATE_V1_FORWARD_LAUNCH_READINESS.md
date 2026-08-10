@@ -39,17 +39,18 @@ The byte-stable candidate artifact is `MARKET_STATE_V1_FORWARD_LAUNCH_MANIFEST_C
 | Deterministic replay | PASS | Same frozen inputs and timestamps produce identical JSON and hashes. |
 | Temporal guard | PASS | `decisionAt < outcomeObservationStartAt` is mandatory. |
 | Future-data guard | PASS | State and all evidence `availableAt` values must be no later than `decisionAt`. |
-| Missing / stale / missed | PASS | Vocabulary is `CLEAN`, `UNAVAILABLE`, `STALE`, `MISSED`, `REJECTED`; non-clean days cannot count as clean evidence. |
+| Missing / stale / missed | PASS | `MISSED` uses an administrative `SESSION_STATUS` record without fabricated Market State or decision timestamps. `STALE` / `UNAVAILABLE` may use `STATE` only when a legal pre-outcome snapshot exists. Non-clean days cannot count as clean evidence. |
 | Unauthorized execution | PASS | Any `executionAuthorized!=false`, `researchOnly!=true`, or `formalWeight!=0` is rejected. |
 | T0 / P0 / Frozen isolation | PASS | New module, config, script, test, and this document only; no existing artifact is modified. |
 
 ## Record lifecycle
 
 1. Before the outcome observation starts, append one immutable `STATE` record for the scheduled trade date.
-2. Missing, stale, missed, or rejected days still receive an explicit state/status record and never receive zero, neutral, prior-filled, guessed, or retroactively backfilled evidence.
-3. Once the governed outcome becomes legally available, append one `OUTCOME` record referencing `stateRecordHash`.
-4. Never rewrite the state. Corrections require a separately governed append-only correction design; CRU-20 does not authorize one.
-5. Audit sequence, hash chain, immutable hashes, temporal alignment, future evidence, duplicate records, and authorization boundaries on every replay.
+2. A truly missed session receives one administrative `SESSION_STATUS` record containing schedule/record time and reason, with no fabricated `decisionAt`, `availableAt`, axis snapshot, evidence lineage, or outcome observation time. `STALE` / `UNAVAILABLE` retain the `STATE` path only if a legal pre-outcome snapshot existed.
+3. A `MISSED` session can never accept an outcome, become `CLEAN`, or receive a later same-trade-date state backfill.
+4. Once the governed outcome becomes legally available, append one `OUTCOME` record referencing `stateRecordHash`.
+5. Never rewrite the state. Corrections require a separately governed append-only correction design; CRU-20 does not authorize one.
+6. Audit sequence, hash chain, immutable hashes, temporal alignment, future evidence, duplicate records, and authorization boundaries on every replay.
 
 ## Collector and scheduler preparation
 
@@ -70,3 +71,11 @@ The byte-stable candidate artifact is `MARKET_STATE_V1_FORWARD_LAUNCH_MANIFEST_C
 5. Confirm the first manual preflight evidence and explicitly authorize launch.
 
 Until all five decisions are complete, launch status remains `NOT_ACTIVE`. This package is ready only for Product Owner launch review.
+
+## Pre-existing full-suite P0 test failure
+
+- Failing test: `forward observer records a missed start once and never accepts a frozen T0 result as input` in `tests/p0-paper-trading.test.mjs`.
+- Baseline main `83666f12daaedc771d49058ce04f8612e948e8cd`, using the same Node / Windows environment and valid frozen artifact bytes: `6 PASS / 1 FAIL`; expected two missed-start ledger records but observed one.
+- CRU-20 branch result: the same test fails with the same expected-two / actual-one assertion.
+- `PRE_EXISTING_BASELINE_FAILURE_CONFIRMED=true`.
+- CRU-20 does not modify P0 source, tests, frozen inputs, runtime ledger, or observer behavior. This out-of-scope pre-existing failure is recorded but is not repaired by CRU-20.

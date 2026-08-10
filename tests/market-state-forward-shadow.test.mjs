@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   auditForwardShadowLedger,
   createLaunchManifestCandidate,
+  createMissedSessionRecord,
   createOutcomeRecord,
   createStateRecord,
   digest,
@@ -134,8 +135,40 @@ test('outcome and evidence lineage require auditable SHA-256 hashes', () => {
   }, [state]), /OUTCOME_CONTRACT_HASH_REQUIRED/);
 });
 
-test('missed or rejected day cannot receive a retroactive outcome', () => {
-  const missed = createStateRecord(stateInput({ qualityStatus: 'MISSED', unavailableReason: 'OBSERVER_NOT_STARTED' }));
+test('real missed day is an administrative record without fabricated state snapshot or timestamps', () => {
+  const input = {
+    tradeDate: '2026-08-11',
+    sessionId: '2026-08-11-DAY',
+    scheduledAt: '2026-08-11T08:35:00+08:00',
+    recordedAt: '2026-08-11T13:47:00+08:00',
+    missedReason: 'OBSERVER_NOT_STARTED',
+    ...authorization,
+  };
+  const first = createMissedSessionRecord(input);
+  const second = createMissedSessionRecord(input);
+  assert.equal(first.recordType, 'SESSION_STATUS');
+  assert.equal(first.qualityStatus, 'MISSED');
+  assert.equal(first.axisStateSnapshot, undefined);
+  assert.equal(first.decisionAt, undefined);
+  assert.equal(first.availableAt, undefined);
+  assert.equal(first.evidenceLineage, undefined);
+  assert.equal(first.outcomeObservationStartAt, undefined);
+  assert.equal(first.recordHash, second.recordHash);
+  const audit = auditForwardShadowLedger([first]);
+  assert.equal(audit.ok, true);
+  assert.equal(audit.missedSessionRecordCount, 1);
+  assert.equal(audit.cleanStateRecordCount, 0);
+});
+
+test('missed day cannot receive outcome or later same-date clean backfill', () => {
+  const missed = createMissedSessionRecord({
+    tradeDate: '2026-08-11',
+    sessionId: '2026-08-11-DAY',
+    scheduledAt: '2026-08-11T08:35:00+08:00',
+    recordedAt: '2026-08-11T13:47:00+08:00',
+    missedReason: 'PC_OFFLINE',
+    ...authorization,
+  });
   assert.throws(() => createOutcomeRecord({
     stateRecordHash: missed.recordHash,
     outcomeContract: { version: 'outcome-v1', sha256: HASH },
@@ -146,6 +179,8 @@ test('missed or rejected day cannot receive a retroactive outcome', () => {
     outcomeSourceHash: HASH,
     ...authorization,
   }, [missed]), /RETROACTIVE_BACKFILL_FORBIDDEN/);
+  assert.throws(() => createStateRecord(stateInput(), [missed]), /DUPLICATE_OFFICIAL_TRADE_DATE/);
+  assert.throws(() => createStateRecord(stateInput({ qualityStatus: 'MISSED', unavailableReason: 'OBSERVER_NOT_STARTED' })), /MISSED_REQUIRES_SESSION_STATUS/);
 });
 
 test('collector accepts preparation modes only and never activates', () => {

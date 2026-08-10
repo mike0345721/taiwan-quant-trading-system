@@ -109,11 +109,12 @@ export function createStateRecord(input, existingRecords = []) {
   const existingAudit = auditForwardShadowLedger(existingRecords);
   if (!existingAudit.ok) throw new Error(`FORWARD_SHADOW_EXISTING_LEDGER_INVALID:${existingAudit.errors.join(',')}`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.tradeDate || '')) throw new Error('FORWARD_SHADOW_TRADE_DATE_INVALID');
-  if (existingRecords.some((record) => record.recordType === 'STATE' && record.tradeDate === input.tradeDate)) {
+  if (existingRecords.some((record) => ['STATE', 'SESSION_STATUS'].includes(record.recordType) && record.tradeDate === input.tradeDate)) {
     throw new Error('FORWARD_SHADOW_DUPLICATE_OFFICIAL_TRADE_DATE');
   }
   validateAxes(input.selectedShadowAxes);
   if (!FORWARD_SHADOW_RECORD_STATES.includes(input.qualityStatus)) throw new Error('FORWARD_SHADOW_QUALITY_STATUS_INVALID');
+  if (input.qualityStatus === 'MISSED') throw new Error('FORWARD_SHADOW_MISSED_REQUIRES_SESSION_STATUS');
   const decisionAt = parseTimestamp(input.decisionAt, 'FORWARD_SHADOW_DECISION_AT_INVALID');
   const availableAt = parseTimestamp(input.availableAt, 'FORWARD_SHADOW_AVAILABLE_AT_INVALID');
   const recordedAt = parseTimestamp(input.recordedAt, 'FORWARD_SHADOW_RECORDED_AT_INVALID');
@@ -156,11 +157,39 @@ export function createStateRecord(input, existingRecords = []) {
   return Object.freeze(record);
 }
 
+export function createMissedSessionRecord(input, existingRecords = []) {
+  const existingAudit = auditForwardShadowLedger(existingRecords);
+  if (!existingAudit.ok) throw new Error(`FORWARD_SHADOW_EXISTING_LEDGER_INVALID:${existingAudit.errors.join(',')}`);
+  validateAuthorization(input);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.tradeDate || '')) throw new Error('FORWARD_SHADOW_TRADE_DATE_INVALID');
+  if (existingRecords.some((record) => ['STATE', 'SESSION_STATUS'].includes(record.recordType) && record.tradeDate === input.tradeDate)) {
+    throw new Error('FORWARD_SHADOW_DUPLICATE_OFFICIAL_TRADE_DATE');
+  }
+  parseTimestamp(input.scheduledAt, 'FORWARD_SHADOW_SCHEDULED_AT_INVALID');
+  parseTimestamp(input.recordedAt, 'FORWARD_SHADOW_RECORDED_AT_INVALID');
+  if (input.retroactiveBackfill === true) throw new Error('FORWARD_SHADOW_RETROACTIVE_BACKFILL_FORBIDDEN');
+  const base = baseRecord(existingRecords, input, 'SESSION_STATUS');
+  const record = {
+    ...base,
+    tradeDate: input.tradeDate,
+    sessionId: requireText(input.sessionId, 'FORWARD_SHADOW_SESSION_ID_REQUIRED'),
+    scheduledAt: input.scheduledAt,
+    recordedAt: input.recordedAt,
+    qualityStatus: 'MISSED',
+    missedReason: requireText(input.missedReason, 'FORWARD_SHADOW_MISSED_REASON_REQUIRED'),
+    idempotencyKey: `MARKET_STATE_MISSED:${input.tradeDate}:${input.sessionId}`,
+  };
+  record.recordHash = digest(recordBody(record));
+  return Object.freeze(record);
+}
+
 export function createOutcomeRecord(input, existingRecords = []) {
   const existingAudit = auditForwardShadowLedger(existingRecords);
   if (!existingAudit.ok) throw new Error(`FORWARD_SHADOW_EXISTING_LEDGER_INVALID:${existingAudit.errors.join(',')}`);
   validateAuthorization(input);
-  const stateRecord = existingRecords.find((record) => record.recordType === 'STATE' && record.recordHash === input.stateRecordHash);
+  const referencedRecord = existingRecords.find((record) => record.recordHash === input.stateRecordHash);
+  if (referencedRecord?.recordType === 'SESSION_STATUS') throw new Error('FORWARD_SHADOW_RETROACTIVE_BACKFILL_FORBIDDEN');
+  const stateRecord = referencedRecord?.recordType === 'STATE' ? referencedRecord : null;
   if (!stateRecord) throw new Error('FORWARD_SHADOW_STATE_RECORD_NOT_FOUND');
   if (existingRecords.some((record) => record.recordType === 'OUTCOME' && record.stateRecordHash === input.stateRecordHash)) {
     throw new Error('FORWARD_SHADOW_DUPLICATE_OUTCOME');
@@ -197,14 +226,18 @@ export function createOutcomeRecord(input, existingRecords = []) {
 export function appendForwardShadowRecord(records, record) {
   const expected = record.recordType === 'STATE'
     ? createStateRecord(record, records)
-    : createOutcomeRecord(record, records);
+    : record.recordType === 'SESSION_STATUS'
+      ? createMissedSessionRecord(record, records)
+      : createOutcomeRecord(record, records);
   if (expected.recordHash !== record.recordHash) throw new Error('FORWARD_SHADOW_RECORD_HASH_MISMATCH');
   return [...records, record];
 }
 
 export function auditForwardShadowLedger(records = []) {
   const errors = [];
+  const officialDates = new Set();
   const stateDates = new Set();
+  const missedDates = new Set();
   const stateHashes = new Set();
   const outcomeStateHashes = new Set();
   let previousHash = null;
@@ -216,9 +249,15 @@ export function auditForwardShadowLedger(records = []) {
       errors.push(`AUTHORIZATION_BOUNDARY:${index + 1}`);
     }
     if (record.recordType === 'STATE') {
-      if (stateDates.has(record.tradeDate)) errors.push(`DUPLICATE_OFFICIAL_TRADE_DATE:${record.tradeDate}`);
+      if (officialDates.has(record.tradeDate)) errors.push(`DUPLICATE_OFFICIAL_TRADE_DATE:${record.tradeDate}`);
+      officialDates.add(record.tradeDate);
       stateDates.add(record.tradeDate);
       stateHashes.add(record.recordHash);
+    } else if (record.recordType === 'SESSION_STATUS') {
+      if (officialDates.has(record.tradeDate)) errors.push(`DUPLICATE_OFFICIAL_TRADE_DATE:${record.tradeDate}`);
+      officialDates.add(record.tradeDate);
+      missedDates.add(record.tradeDate);
+      if (record.qualityStatus !== 'MISSED') errors.push(`SESSION_STATUS_NOT_MISSED:${index + 1}`);
     } else if (record.recordType === 'OUTCOME') {
       if (!stateHashes.has(record.stateRecordHash)) errors.push(`OUTCOME_STATE_REFERENCE_INVALID:${index + 1}`);
       if (outcomeStateHashes.has(record.stateRecordHash)) errors.push(`DUPLICATE_OUTCOME:${record.stateRecordHash}`);
@@ -230,7 +269,9 @@ export function auditForwardShadowLedger(records = []) {
     ok: errors.length === 0,
     errors,
     recordCount: records.length,
+    officialRecordCount: officialDates.size,
     stateRecordCount: stateDates.size,
+    missedSessionRecordCount: missedDates.size,
     outcomeRecordCount: outcomeStateHashes.size,
     cleanStateRecordCount: records.filter((record) => record.recordType === 'STATE' && record.qualityStatus === 'CLEAN').length,
     ledgerHash: digest(records),
