@@ -4,7 +4,8 @@
   "allowedCollectorModes": [
     "DRY_RUN",
     "NOT_ACTIVE",
-    "MANUAL_TEST"
+    "MANUAL_TEST",
+    "TEST_FIXTURE"
   ],
   "schedulerMode": "NOT_ACTIVE",
   "formalSchedulerEnabled": false,

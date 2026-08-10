@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 export const FORWARD_SHADOW_SCHEMA_VERSION = 'market-state-forward-shadow-v1';
 export const FORWARD_SHADOW_SELECTED_AXES = Object.freeze(['direction', 'globalAlignment']);
 export const FORWARD_SHADOW_RECORD_STATES = Object.freeze(['CLEAN', 'UNAVAILABLE', 'STALE', 'MISSED', 'REJECTED']);
-export const FORWARD_SHADOW_COLLECTOR_MODES = Object.freeze(['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST']);
+export const FORWARD_SHADOW_COLLECTOR_MODES = Object.freeze(['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST', 'TEST_FIXTURE', 'FORWARD_SHADOW']);
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -15,6 +15,10 @@ function canonical(value) {
 
 export function stableJson(value) {
   return `${JSON.stringify(canonical(value), null, 2)}\n`;
+}
+
+export function stableJsonLine(value) {
+  return `${JSON.stringify(canonical(value))}\n`;
 }
 
 export function digest(value) {
@@ -84,6 +88,124 @@ export function createLaunchManifestCandidate(input) {
     }
   }
   return Object.freeze({ ...manifest, manifestHash: digest(manifest) });
+}
+
+export function createReadyForLaunchManifest(input) {
+  validateAuthorization(input);
+  validateAxes(input.selectedAxes);
+  const finalMainCommit = requireText(input.finalMainCommit, 'FORWARD_SHADOW_FINAL_MAIN_COMMIT_REQUIRED');
+  if (!/^[a-f0-9]{40}$/.test(finalMainCommit)) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_INVALID');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.officialStartTradeDate || '')) {
+    throw new Error('FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID');
+  }
+  const runtimeRoot = requireText(input.runtimeRoot, 'FORWARD_SHADOW_RUNTIME_ROOT_REQUIRED');
+  if (/^[cC]:[\\/]/.test(runtimeRoot)) throw new Error('FORWARD_SHADOW_C_DRIVE_RUNTIME_FORBIDDEN');
+  const runId = requireText(input.runId, 'FORWARD_SHADOW_RUN_ID_REQUIRED');
+  if (!/^[a-z0-9][a-z0-9._-]{2,79}$/i.test(runId)) throw new Error('FORWARD_SHADOW_RUN_ID_INVALID');
+  const secondaryBackupRoot = requireText(input.secondaryBackupRoot, 'FORWARD_SHADOW_SECONDARY_BACKUP_ROOT_REQUIRED');
+  if (!/^[dD]:[\\/]/.test(secondaryBackupRoot)) throw new Error('FORWARD_SHADOW_SECONDARY_BACKUP_MUST_BE_D_DRIVE');
+  const manifest = {
+    schemaVersion: 'market-state-forward-shadow-launch-ready-v1',
+    finalMainCommit,
+    officialStartTradeDate: input.officialStartTradeDate,
+    schedulerTime: requireText(input.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED'),
+    outcomeSchedulerTime: requireText(input.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED'),
+    runtimeRoot,
+    runId,
+    evaluator: input.evaluator,
+    outcomeContract: input.outcomeContract,
+    linkageContract: input.linkageContract,
+    frozenForwardGate: input.frozenForwardGate,
+    tradingCalendar: input.tradingCalendar,
+    secondaryBackupRoot,
+    secondaryBackupClass: 'OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT',
+    selectedAxes: [...input.selectedAxes],
+    launchStatus: 'READY_FOR_LAUNCH',
+    ownerLaunchApprovalRequired: true,
+    collectorActive: false,
+    formalSchedulerEnabled: false,
+    officialEvidenceWritten: false,
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+  };
+  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate', 'tradingCalendar']) {
+    requireText(manifest[reference]?.version, `FORWARD_SHADOW_${reference.toUpperCase()}_VERSION_REQUIRED`);
+    requireHash(manifest[reference]?.sha256, `FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
+  }
+  return Object.freeze({ ...manifest, manifestHash: digest(manifest) });
+}
+
+function withoutHash(value, hashField) {
+  const { [hashField]: _hash, ...body } = value || {};
+  return body;
+}
+
+export function validateReadyForLaunchManifest(manifest) {
+  validateAuthorization(manifest);
+  validateAxes(manifest.selectedAxes);
+  if (manifest.schemaVersion !== 'market-state-forward-shadow-launch-ready-v1') throw new Error('FORWARD_SHADOW_READY_MANIFEST_SCHEMA_INVALID');
+  if (manifest.launchStatus !== 'READY_FOR_LAUNCH') throw new Error('FORWARD_SHADOW_READY_MANIFEST_STATUS_INVALID');
+  if (manifest.collectorActive !== false || manifest.formalSchedulerEnabled !== false || manifest.officialEvidenceWritten !== false) {
+    throw new Error('FORWARD_SHADOW_READY_MANIFEST_ALREADY_ACTIVE');
+  }
+  if (!/^[a-f0-9]{40}$/.test(manifest.finalMainCommit || '')) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_INVALID');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(manifest.officialStartTradeDate || '')) throw new Error('FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID');
+  requireText(manifest.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED');
+  requireText(manifest.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED');
+  requireText(manifest.runtimeRoot, 'FORWARD_SHADOW_RUNTIME_ROOT_REQUIRED');
+  requireText(manifest.runId, 'FORWARD_SHADOW_RUN_ID_REQUIRED');
+  requireText(manifest.secondaryBackupRoot, 'FORWARD_SHADOW_SECONDARY_BACKUP_ROOT_REQUIRED');
+  if (manifest.secondaryBackupClass !== 'OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT') throw new Error('FORWARD_SHADOW_SECONDARY_BACKUP_CLASS_INVALID');
+  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate', 'tradingCalendar']) {
+    requireText(manifest[reference]?.version, `FORWARD_SHADOW_${reference.toUpperCase()}_VERSION_REQUIRED`);
+    requireHash(manifest[reference]?.sha256, `FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
+  }
+  requireHash(manifest.manifestHash, 'FORWARD_SHADOW_READY_MANIFEST_HASH_REQUIRED');
+  if (digest(withoutHash(manifest, 'manifestHash')) !== manifest.manifestHash) throw new Error('FORWARD_SHADOW_READY_MANIFEST_HASH_MISMATCH');
+  return Object.freeze({ valid: true, manifestHash: manifest.manifestHash, executionAuthorized: false });
+}
+
+export function createOwnerLaunchApprovalArtifact(input) {
+  validateAuthorization(input);
+  const artifact = {
+    schemaVersion: 'market-state-forward-shadow-owner-launch-approval-v1',
+    approvalStatus: 'APPROVED',
+    ownerDecisionReference: requireText(input.ownerDecisionReference, 'FORWARD_SHADOW_OWNER_DECISION_REFERENCE_REQUIRED'),
+    approvedAt: requireText(input.approvedAt, 'FORWARD_SHADOW_OWNER_APPROVED_AT_REQUIRED'),
+    manifestHash: requireHash(input.manifestHash, 'FORWARD_SHADOW_OWNER_MANIFEST_HASH_REQUIRED'),
+    finalMainCommit: requireText(input.finalMainCommit, 'FORWARD_SHADOW_FINAL_MAIN_COMMIT_REQUIRED'),
+    officialStartTradeDate: requireText(input.officialStartTradeDate, 'FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID'),
+    schedulerTime: requireText(input.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED'),
+    outcomeSchedulerTime: requireText(input.outcomeSchedulerTime, 'FORWARD_SHADOW_OUTCOME_SCHEDULER_TIME_REQUIRED'),
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+  };
+  parseTimestamp(artifact.approvedAt, 'FORWARD_SHADOW_OWNER_APPROVED_AT_INVALID');
+  if (!/^[a-f0-9]{40}$/.test(artifact.finalMainCommit)) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_INVALID');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(artifact.officialStartTradeDate)) throw new Error('FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID');
+  return Object.freeze({ ...artifact, approvalArtifactHash: digest(artifact) });
+}
+
+export function validateOwnerLaunchApprovalArtifact(approval, manifest) {
+  validateReadyForLaunchManifest(manifest);
+  validateAuthorization(approval);
+  if (approval.schemaVersion !== 'market-state-forward-shadow-owner-launch-approval-v1' || approval.approvalStatus !== 'APPROVED') {
+    throw new Error('FORWARD_SHADOW_OWNER_APPROVAL_INVALID');
+  }
+  requireText(approval.ownerDecisionReference, 'FORWARD_SHADOW_OWNER_DECISION_REFERENCE_REQUIRED');
+  parseTimestamp(approval.approvedAt, 'FORWARD_SHADOW_OWNER_APPROVED_AT_INVALID');
+  requireHash(approval.approvalArtifactHash, 'FORWARD_SHADOW_OWNER_APPROVAL_HASH_REQUIRED');
+  if (digest(withoutHash(approval, 'approvalArtifactHash')) !== approval.approvalArtifactHash) {
+    throw new Error('FORWARD_SHADOW_OWNER_APPROVAL_HASH_MISMATCH');
+  }
+  if (approval.manifestHash !== manifest.manifestHash) throw new Error('FORWARD_SHADOW_APPROVAL_MANIFEST_HASH_MISMATCH');
+  if (approval.finalMainCommit !== manifest.finalMainCommit) throw new Error('FORWARD_SHADOW_APPROVAL_FINAL_MAIN_COMMIT_MISMATCH');
+  if (approval.officialStartTradeDate !== manifest.officialStartTradeDate) throw new Error('FORWARD_SHADOW_APPROVAL_START_DATE_MISMATCH');
+  if (approval.schedulerTime !== manifest.schedulerTime) throw new Error('FORWARD_SHADOW_APPROVAL_SCHEDULER_TIME_MISMATCH');
+  if (approval.outcomeSchedulerTime !== manifest.outcomeSchedulerTime) throw new Error('FORWARD_SHADOW_APPROVAL_OUTCOME_SCHEDULER_TIME_MISMATCH');
+  return Object.freeze({ valid: true, approvalArtifactHash: approval.approvalArtifactHash, executionAuthorized: false });
 }
 
 function recordBody(record) {
@@ -279,7 +401,13 @@ export function auditForwardShadowLedger(records = []) {
   };
 }
 
-export function validateCollectorMode(mode) {
+export function validateCollectorMode(mode, { ownerApprovalValidated = false } = {}) {
   if (!FORWARD_SHADOW_COLLECTOR_MODES.includes(mode)) throw new Error('FORWARD_SHADOW_COLLECTOR_MODE_FORBIDDEN');
-  return { mode, active: false, officialEvidenceWritten: false, executionAuthorized: false };
+  if (mode === 'FORWARD_SHADOW' && ownerApprovalValidated !== true) throw new Error('FORWARD_SHADOW_OWNER_APPROVAL_REQUIRED');
+  return {
+    mode,
+    active: mode === 'FORWARD_SHADOW',
+    officialEvidenceWritten: false,
+    executionAuthorized: false,
+  };
 }
