@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createOwnerLaunchApprovalArtifact, createReadyForLaunchManifest } from '../src/market-state-forward-shadow.mjs';
 import {
   ensureRuntimeLayout,
+  buildObserverReport,
   readForwardShadowLedger,
   runDailyOutcomePhase,
   runDailyStatePhase,
@@ -168,6 +169,8 @@ test('outcome is append-later only and deterministic on restart', () => {
   assert.equal(first.writeStatus, 'APPENDED');
   assert.equal(second.status, 'UNCHANGED');
   assert.equal(first.record.stateRecordHash, state.record.recordHash);
+  assert.equal(first.dailyLifecycleStatus, 'DAILY_COMPLETE');
+  assert.equal(first.dailyStatus.lifecycle.at(-1), 'DAILY_COMPLETE');
   const audit = verifyRuntimeEvidence(root, runId);
   assert.equal(audit.ok, true);
   assert.equal(audit.recordCount, 2);
@@ -203,6 +206,14 @@ test('NOT_ACTIVE mode does not create runtime evidence', () => {
   assert.equal(result.status, 'NOT_ACTIVE');
   assert.equal(result.officialEvidenceWritten, false);
   assert.equal(fs.existsSync(path.join(root, runId)), false);
+});
+
+test('observer report reflects actual official write instead of hardcoded false', () => {
+  assert.equal(buildObserverReport({ status: 'CANDIDATE', officialEvidenceWritten: false }).officialEvidenceWritten, false);
+  assert.equal(buildObserverReport({ status: 'OFFICIAL_STATE', officialEvidenceWritten: true }).officialEvidenceWritten, true);
+  assert.equal(buildObserverReport({ status: 'OFFICIAL_MISSED', officialEvidenceWritten: true }).officialEvidenceWritten, true);
+  assert.equal(buildObserverReport({ status: 'NOT_ACTIVE' }).officialEvidenceWritten, false);
+  assert.equal(buildObserverReport({ officialEvidenceWritten: true }).executionAuthorized, false);
 });
 
 test('official mode hard fails without a bound Owner approval artifact', () => {
@@ -261,7 +272,39 @@ test('candidate and official storage are isolated and only approved official wri
     },
   });
   assert.equal(outcome.officialEvidenceWritten, true);
+  assert.equal(outcome.dailyLifecycleStatus, 'DAILY_COMPLETE');
+  assert.equal(outcome.record.stateRecordHash, official.record.recordHash);
   assert.equal(verifyRuntimeEvidence(root, runId, { official: true }).outcomeRecordCount, 1);
+  remove(runId);
+});
+
+test('missing outcome is explicit, remains incomplete, and does not fabricate official outcome evidence', () => {
+  const runId = 'outcome-unavailable';
+  remove(runId);
+  const state = runDailyStatePhase(stateInput(runId));
+  const result = runDailyOutcomePhase({
+    mode: 'TEST_FIXTURE', runtimeRoot: root, runId, tradeDate: '2026-08-11',
+    officialTradingDay: true,
+    outcomeCollection: { state: 'UNAVAILABLE', unavailableReason: 'OUTCOME_SOURCE_UNAVAILABLE' },
+    ...auth,
+  });
+  assert.equal(result.status, 'OUTCOME_UNAVAILABLE');
+  assert.equal(result.dailyLifecycleStatus, 'INCOMPLETE_OUTCOME_UNAVAILABLE');
+  assert.equal(result.dailyStatus.stateRecordHash, state.record.recordHash);
+  assert.equal(result.officialEvidenceWritten, false);
+  assert.equal(readForwardShadowLedger(state.paths.candidateLedger).length, 1);
+  remove(runId);
+});
+
+test('governed non-trading day never creates MISSED or OUTCOME evidence', () => {
+  const runId = 'holiday';
+  remove(runId);
+  const state = runDailyStatePhase(stateInput(runId, { officialTradingDay: false }));
+  const outcome = runDailyOutcomePhase({ mode: 'TEST_FIXTURE', runtimeRoot: root, runId, tradeDate: '2026-08-11', officialTradingDay: false, ...auth });
+  assert.equal(state.status, 'NON_TRADING_DAY');
+  assert.equal(outcome.status, 'NON_TRADING_DAY');
+  assert.equal(fs.existsSync(path.join(root, runId)), true);
+  assert.equal(readForwardShadowLedger(runtimePaths(root, runId).candidateLedger).length, 0);
   remove(runId);
 });
 

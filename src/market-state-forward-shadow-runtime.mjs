@@ -128,8 +128,8 @@ function appendRuntimeRecord(paths, ledgerPath, record, existingRecords, evidenc
   return { record, writeStatus: 'APPENDED', ledgerHash: audit.ledgerHash, ledgerChecksum, records: next };
 }
 
-function writeStatus(paths, tradeDate, evidenceClass, payload) {
-  const target = path.join(paths.dailyStatus, `${evidenceClass.toLowerCase()}-${tradeDate}.json`);
+function writeStatus(paths, tradeDate, evidenceClass, phase, payload) {
+  const target = path.join(paths.dailyStatus, `${evidenceClass.toLowerCase()}-${tradeDate}-${phase.toLowerCase()}.json`);
   const content = stableJson(payload);
   if (fs.existsSync(target)) {
     const existing = fs.readFileSync(target, 'utf8');
@@ -306,7 +306,7 @@ export function runDailyStatePhase(input) {
       researchOnly: true,
       executionAuthorized: false,
     };
-    writeStatus(paths, input.tradeDate, runContext.evidenceClass, status);
+    writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'STATE', status);
     return { status: 'STATE_PHASE_COMPLETE', paths, record, dailyStatus: status, ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
@@ -314,6 +314,7 @@ export function runDailyStatePhase(input) {
 export function runDailyOutcomePhase(input) {
   authorization(input);
   if (input.mode === 'NOT_ACTIVE') return { status: 'NOT_ACTIVE', officialEvidenceWritten: false, executionAuthorized: false };
+  if (input.officialTradingDay === false) return { status: 'NON_TRADING_DAY', officialEvidenceWritten: false, executionAuthorized: false };
   const paths = ensureRuntimeLayout(input.runtimeRoot, input.runId);
   const runContext = resolveRunContext(input, paths);
   return withObserverLock(paths, () => {
@@ -321,14 +322,52 @@ export function runDailyOutcomePhase(input) {
     const state = records.find((record) => record.recordType === 'STATE' && record.tradeDate === input.tradeDate);
     if (!state) throw new Error('FORWARD_SHADOW_STATE_RECORD_NOT_FOUND');
     const prior = records.find((record) => record.recordType === 'OUTCOME' && record.stateRecordHash === state.recordHash);
-    if (prior) return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    if (prior) return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, dailyLifecycleStatus: 'DAILY_COMPLETE', officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    if (input.outcomeCollection?.state === 'UNAVAILABLE') {
+      const status = {
+        schemaVersion: 'market-state-forward-shadow-daily-status-v1',
+        tradeDate: input.tradeDate,
+        mode: input.mode,
+        lifecycle: ['WAIT_OUTCOME_AVAILABILITY', 'OUTCOME_UNAVAILABLE', 'AUDIT_RECONCILIATION'],
+        recordType: 'OUTCOME_STATUS',
+        qualityStatus: 'UNAVAILABLE',
+        unavailableReason: input.outcomeCollection.unavailableReason,
+        stateRecordHash: state.recordHash,
+        evidenceClass: runContext.evidenceClass,
+        officialEvidenceWritten: false,
+        dailyLifecycleStatus: 'INCOMPLETE_OUTCOME_UNAVAILABLE',
+        formalWeight: 0,
+        researchOnly: true,
+        executionAuthorized: false,
+      };
+      const writeStatusResult = writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'OUTCOME', status);
+      return { status: 'OUTCOME_UNAVAILABLE', dailyStatus: status, writeStatus: writeStatusResult, dailyLifecycleStatus: 'INCOMPLETE_OUTCOME_UNAVAILABLE', officialEvidenceWritten: false, executionAuthorized: false };
+    }
     const outcome = createOutcomeRecord({ ...input.outcome, stateRecordHash: state.recordHash, ...AUTHORIZATION }, records);
     const appended = appendRuntimeRecord(paths, runContext.ledgerPath, outcome, records, runContext.evidenceClass, runContext);
     const outcomePath = path.join(paths.outcomes, `${input.tradeDate}.json`);
     const body = stableJson(outcome);
     if (fs.existsSync(outcomePath) && fs.readFileSync(outcomePath, 'utf8') !== body) throw new Error('FORWARD_SHADOW_OUTCOME_FILE_CONFLICT');
     if (!fs.existsSync(outcomePath)) fs.writeFileSync(outcomePath, body, { encoding: 'utf8', flag: 'wx' });
-    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
+    const status = {
+      schemaVersion: 'market-state-forward-shadow-daily-status-v1',
+      tradeDate: input.tradeDate,
+      mode: input.mode,
+      lifecycle: ['WAIT_OUTCOME_AVAILABILITY', 'APPEND_OUTCOME', 'AUDIT_RECONCILIATION', 'DAILY_COMPLETE'],
+      recordType: 'OUTCOME',
+      qualityStatus: 'COMPLETE',
+      stateRecordHash: state.recordHash,
+      outcomeRecordHash: outcome.recordHash,
+      ledgerHash: appended.ledgerHash,
+      evidenceClass: runContext.evidenceClass,
+      officialEvidenceWritten: runContext.officialEvidenceWritten,
+      dailyLifecycleStatus: 'DAILY_COMPLETE',
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+    };
+    writeStatus(paths, input.tradeDate, runContext.evidenceClass, 'OUTCOME', status);
+    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, dailyStatus: status, dailyLifecycleStatus: 'DAILY_COMPLETE', ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
 
@@ -345,4 +384,14 @@ export function verifyRuntimeEvidence(runtimeRoot, runId, { official = false } =
     officialEvidenceWritten: official && records.length > 0,
     executionAuthorized: false,
   };
+}
+
+export function buildObserverReport(result, extras = {}) {
+  return Object.freeze({
+    ...result,
+    ...extras,
+    collectorActive: false,
+    officialEvidenceWritten: result?.officialEvidenceWritten === true,
+    executionAuthorized: false,
+  });
 }

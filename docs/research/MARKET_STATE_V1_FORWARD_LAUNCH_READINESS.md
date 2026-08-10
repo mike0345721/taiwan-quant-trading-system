@@ -104,3 +104,18 @@ Any mismatch is a hard failure and produces no official evidence. Candidate and 
 The scheduler installer remains unexecuted in CRU-22. Without a valid launch manifest and Owner approval artifact it cannot install anything. After a later explicit Owner Launch Approval, its governed action is prepared to run `FORWARD_SHADOW` at 08:25 Asia/Taipei with `WakeToRun` and `IgnoreNew`. The current formal scheduler state remains disabled/not installed, the official start date remains unset, and no official Forward evidence has been written.
 
 Primary evidence storage remains on D:. A same-volume operational second-copy candidate is `D:\Taiwan stock\forward-shadow-backup\<runId>`. It is explicitly `NOT_CONFIGURED` and `NOT_DISASTER_RESILIENT`; CRU-22 does not create or populate it.
+
+## CRU-22 second Owner review — daily closure and unresolved governance
+
+The daily runtime now has one append-only lifecycle: `STATE -> OUTCOME -> DAILY_COMPLETE`. The Outcome collector reuses the frozen `LARGE_MOVE_CONTINUOUS.sessionReturnBps` formula, reads the existing append-only live TX ledger, requires the actual contract, preserves received/exchange timestamp lineage and a source hash, and appends an `OUTCOME` that references the immutable `stateRecordHash`. Missing Outcome evidence is recorded as an explicit incomplete daily status and is never fabricated as an Outcome.
+
+The observer stdout now reports the runtime result: candidate/test and `NOT_ACTIVE` remain `officialEvidenceWritten=false`; a successfully appended official `STATE`, official `SESSION_STATUS` (including a genuine `MISSED`), or official `OUTCOME` reports `true`. This does not mean the current project has written official evidence: launch remains inactive and no official run was executed.
+
+Two governance inputs are not safely inferable from existing frozen artifacts and therefore remain launch blockers:
+
+1. The frozen Outcome Contract states that the full 08:45–13:45 observation window must be complete, but does not freeze one unique Windows Task execution minute after 13:45. The scheduler candidate exposes an `OUTCOME` task with no time and refuses installation until Product Owner supplies the governed time. No 13:47/13:50 guess is embedded.
+2. The repository has PP-1 historical session evidence but no Owner-approved TAIFEX official trading-calendar snapshot covering future Forward dates. Weekday-only logic has been removed. Official mode now requires a versioned, hashed, Owner-approved calendar snapshot and fails closed for an uncovered date. A known holiday produces `NON_TRADING_DAY`, never `MISSED`.
+
+The proposed backup remains `D:\Taiwan stock\forward-shadow-backup\<runId>`, class `OPERATIONAL_SECOND_COPY_NOT_DISASTER_RESILIENT`, status `NOT_CONFIGURED`. `BACKUP_OWNER_DECISION_REQUIRED=true`; no backup was created.
+
+Accordingly, `LAUNCH_READINESS_STATUS=BLOCKED`, `LAUNCH_STATUS=NOT_ACTIVE`, `FORMAL_SCHEDULER_ENABLED=false`, `OFFICIAL_START_TRADE_DATE=null`, and `OFFICIAL_FORWARD_EVIDENCE_WRITTEN=false` until the Product Owner provides or approves the two governance inputs and decides whether to accept the unconfigured same-volume backup.

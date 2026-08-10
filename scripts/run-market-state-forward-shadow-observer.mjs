@@ -5,8 +5,10 @@ import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { digest, stableJson } from '../src/market-state-forward-shadow.mjs';
-import { runDailyOutcomePhase, runDailyStatePhase, verifyRuntimeEvidence } from '../src/market-state-forward-shadow-runtime.mjs';
+import { buildObserverReport, runDailyOutcomePhase, runDailyStatePhase, verifyRuntimeEvidence } from '../src/market-state-forward-shadow-runtime.mjs';
 import { collectForwardMarketStateSnapshot } from '../src/market-state-forward-shadow-collector.mjs';
+import { collectForwardLargeMoveOutcome } from '../src/market-state-forward-shadow-outcome-collector.mjs';
+import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
 
 const value = (name, fallback = null) => {
   const index = process.argv.indexOf(name);
@@ -19,6 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const launchManifestPath = value('--launch-manifest');
 const ownerApprovalPath = value('--owner-approval');
 const observerConfigPath = value('--observer-config', path.join(root, 'config/market-state-forward-shadow-observer.json'));
+const tradingCalendarOverride = value('--trading-calendar');
 if (!['NOT_ACTIVE', 'FORWARD_SHADOW'].includes(mode) && !inputPath) throw new Error('FORWARD_SHADOW_INPUT_REQUIRED');
 if (mode === 'NOT_ACTIVE') {
   process.stdout.write(stableJson({ status: 'NOT_ACTIVE', collectorActive: false, officialEvidenceWritten: false, executionAuthorized: false }));
@@ -28,11 +31,6 @@ const hashFile = (filePath) => digest(fs.readFileSync(filePath));
 const taipeiTradeDate = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(date);
-const isWeekday = (tradeDate) => {
-  const day = new Date(`${tradeDate}T12:00:00+08:00`).getUTCDay();
-  return day >= 1 && day <= 5;
-};
-
 let input;
 if (mode === 'FORWARD_SHADOW') {
   if (!launchManifestPath || !ownerApprovalPath) throw new Error('FORWARD_SHADOW_GOVERNANCE_ARTIFACTS_REQUIRED');
@@ -40,6 +38,13 @@ if (mode === 'FORWARD_SHADOW') {
   const ownerApprovalArtifact = JSON.parse(fs.readFileSync(ownerApprovalPath, 'utf8'));
   const config = JSON.parse(fs.readFileSync(observerConfigPath, 'utf8'));
   const tradeDate = taipeiTradeDate();
+  const tradingCalendarPath = tradingCalendarOverride || config.tradingCalendarPath;
+  if (!tradingCalendarPath) throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_NOT_CONFIGURED');
+  const governedCalendar = loadGovernedTradingCalendar(path.resolve(root, tradingCalendarPath));
+  const tradingDay = resolveGovernedTradingDay(governedCalendar, tradeDate);
+  const readinessPath = path.resolve(root, config.contractReadinessPath || 'data/readiness/shioaji-futures-access.json');
+  const readiness = fs.existsSync(readinessPath) ? JSON.parse(fs.readFileSync(readinessPath, 'utf8')) : null;
+  const actualContract = readiness?.contracts?.TX?.targetCode || null;
   input = {
     runtimeRoot: path.dirname(launchManifest.runtimeRoot),
     runId: launchManifest.runId,
@@ -48,12 +53,17 @@ if (mode === 'FORWARD_SHADOW') {
     scheduledAt: `${tradeDate}T08:25:00+08:00`,
     now: new Date().toISOString(),
     outcomeObservationStartAt: `${tradeDate}T08:45:00+08:00`,
-    officialTradingDay: isWeekday(tradeDate),
+    officialTradingDay: tradingDay.officialTradingDay,
+    tradingDayEvidence: tradingDay,
     evaluator: launchManifest.evaluator,
     qualityStatus: 'CLEAN',
     collectorSource: {
       databasePath: path.resolve(root, config.databasePath),
       featureSpecPath: path.resolve(root, config.featureSpecPath),
+    },
+    outcomeCollectorSource: {
+      ledgerFile: path.resolve(root, String(config.liveLedgerTemplate || 'data/live-events/<tradeDate>.ndjson').replace('<tradeDate>', tradeDate)),
+      actualContract,
     },
     launchManifest,
     ownerApprovalArtifact,
@@ -87,6 +97,16 @@ if (phase === 'STATE' && input.collectorSource && !input.marketStateInput && !in
     };
   }
 }
+if (phase === 'OUTCOME' && input.outcomeCollectorSource && !input.outcome && input.officialTradingDay === true) {
+  if (!input.outcomeCollectorSource.actualContract) throw new Error('FORWARD_SHADOW_OUTCOME_ACTUAL_CONTRACT_REQUIRED');
+  const outcomeCollection = await collectForwardLargeMoveOutcome({
+    ...input.outcomeCollectorSource,
+    tradeDate: input.tradeDate,
+    outcomeContract: input.launchManifest.outcomeContract,
+    collectedAt: input.now,
+  });
+  input = { ...input, outcomeCollection, outcome: outcomeCollection.outcome };
+}
 const started = performance.now();
 const result = phase === 'STATE'
   ? runDailyStatePhase({ ...input, mode })
@@ -95,4 +115,4 @@ const result = phase === 'STATE'
     : (() => { throw new Error('FORWARD_SHADOW_PHASE_INVALID'); })();
 const durationMs = performance.now() - started;
 const audit = verifyRuntimeEvidence(input.runtimeRoot, input.runId, { official: mode === 'FORWARD_SHADOW' });
-process.stdout.write(stableJson({ ...result, audit, collectionDurationMs, durationMs, collectorActive: false, officialEvidenceWritten: false, executionAuthorized: false }));
+process.stdout.write(stableJson(buildObserverReport(result, { audit, collectionDurationMs, durationMs })));
