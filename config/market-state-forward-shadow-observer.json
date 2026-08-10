@@ -8,6 +8,7 @@
   "candidateStartTradeDate": "2026-08-11",
   "officialStartTradeDate": null,
   "tradingCalendarPath": "config/taifex-official-calendar-2026.json",
+  "tradingCalendarExceptionPath": "data/market-state/forward-shadow/governance/taifex-official-calendar-exception.json",
   "tradingCalendarStatus": "OWNER_APPROVED_IMMUTABLE_SNAPSHOT",
   "contractReadinessPath": "data/readiness/shioaji-futures-access.json",
   "liveLedgerTemplate": "data/live-events/<tradeDate>.ndjson",

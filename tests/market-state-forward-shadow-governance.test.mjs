@@ -45,6 +45,58 @@ test('owner-approved TAIFEX 2026 snapshot covers known trading/non-trading dates
   assert.throws(() => resolveGovernedTradingDay(calendar, '2027-01-04'), /TRADING_DAY_NOT_COVERED/);
 });
 
+test('optional official exception evidence overrides a base date without changing the base calendar hash', () => {
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.mkdirSync(root, { recursive: true });
+  const basePath = path.resolve('config/taifex-official-calendar-2026.json');
+  const base = loadGovernedTradingCalendar(basePath);
+  const baseHash = base.fileHash;
+  const exceptionPath = path.join(root, 'official-exception.json');
+  const exceptionBody = {
+    schemaVersion: 'taifex-official-calendar-exception-v1',
+    sourceType: 'TAIFEX_OFFICIAL_EXCEPTION_EVIDENCE',
+    ownerApproved: true,
+    sourceHash: HASH,
+    exceptions: [{
+      tradeDate: '2026-08-11',
+      officialTradingDay: false,
+      reason: 'OFFICIAL_EMERGENCY_CLOSURE_TEST_FIXTURE',
+    }],
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+  };
+  fs.writeFileSync(exceptionPath, JSON.stringify({ ...exceptionBody, fileHash: digest(exceptionBody) }));
+  const governed = loadGovernedTradingCalendar(basePath, exceptionPath);
+  const resolved = resolveGovernedTradingDay(governed, '2026-08-11');
+  assert.equal(resolved.officialTradingDay, false);
+  assert.equal(resolved.state, 'NON_TRADING_DAY_EXCEPTION');
+  assert.equal(resolved.exceptionEvidence.evidenceFileHash, digest(exceptionBody));
+  assert.equal(governed.fileHash, baseHash);
+  assert.equal(loadGovernedTradingCalendar(basePath).fileHash, baseHash);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('official exception evidence fails closed on invalid hash or missing Owner approval', () => {
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.mkdirSync(root, { recursive: true });
+  const basePath = path.resolve('config/taifex-official-calendar-2026.json');
+  const exceptionPath = path.join(root, 'official-exception.json');
+  const body = {
+    schemaVersion: 'taifex-official-calendar-exception-v1',
+    sourceType: 'TAIFEX_OFFICIAL_EXCEPTION_EVIDENCE',
+    ownerApproved: true,
+    sourceHash: HASH,
+    exceptions: [{ tradeDate: '2026-08-11', officialTradingDay: false }],
+  };
+  fs.writeFileSync(exceptionPath, JSON.stringify({ ...body, fileHash: 'b'.repeat(64) }));
+  assert.throws(() => loadGovernedTradingCalendar(basePath, exceptionPath), /EXCEPTION_HASH_INVALID/);
+  const unapproved = { ...body, ownerApproved: false };
+  fs.writeFileSync(exceptionPath, JSON.stringify({ ...unapproved, fileHash: digest(unapproved) }));
+  assert.throws(() => loadGovernedTradingCalendar(basePath, exceptionPath), /EXCEPTION_GOVERNANCE_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('forward outcome collector reuses frozen LARGE_MOVE sessionReturnBps and actual contract lineage', async () => {
   fs.mkdirSync(root, { recursive: true });
   const ledger = path.join(root, 'live.ndjson');

@@ -40,7 +40,16 @@ if (mode === 'FORWARD_SHADOW') {
   const tradeDate = taipeiTradeDate();
   const tradingCalendarPath = tradingCalendarOverride || config.tradingCalendarPath;
   if (!tradingCalendarPath) throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_NOT_CONFIGURED');
-  const governedCalendar = loadGovernedTradingCalendar(path.resolve(root, tradingCalendarPath));
+  const configuredExceptionPath = config.tradingCalendarExceptionPath
+    ? path.resolve(root, config.tradingCalendarExceptionPath)
+    : null;
+  const exceptionEvidencePath = configuredExceptionPath && fs.existsSync(configuredExceptionPath)
+    ? configuredExceptionPath
+    : null;
+  const governedCalendar = loadGovernedTradingCalendar(
+    path.resolve(root, tradingCalendarPath),
+    exceptionEvidencePath,
+  );
   const tradingDay = resolveGovernedTradingDay(governedCalendar, tradeDate);
   const readinessPath = path.resolve(root, config.contractReadinessPath || 'data/readiness/shioaji-futures-access.json');
   const readiness = fs.existsSync(readinessPath) ? JSON.parse(fs.readFileSync(readinessPath, 'utf8')) : null;

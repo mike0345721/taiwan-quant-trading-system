@@ -72,6 +72,16 @@ test('observer runtime is D-only and project runtime directory is git ignored', 
   assert.equal(observerConfig.outcomeSchedulerTime, '14:00 Asia/Taipei');
   assert.equal(observerConfig.outcomeSchedulerStatus, 'OWNER_APPROVED_OPERATIONAL_COLLECTION_TIME');
   assert.equal(observerConfig.tradingCalendarPath, 'config/taifex-official-calendar-2026.json');
+  assert.equal(observerConfig.tradingCalendarExceptionPath, 'data/market-state/forward-shadow/governance/taifex-official-calendar-exception.json');
+  const ignoredExceptionPath = execFileSync('git', ['check-ignore', observerConfig.tradingCalendarExceptionPath], { cwd: root, encoding: 'utf8' }).trim();
+  assert.equal(ignoredExceptionPath.replaceAll('\\', '/'), observerConfig.tradingCalendarExceptionPath);
   assert.equal(observerConfig.formalSchedulerEnabled, false);
   assert.equal(observerConfig.executionAuthorized, false);
+});
+
+test('observer passes the configured exception evidence only when the runtime file exists', () => {
+  const source = fs.readFileSync(path.join(root, 'scripts/run-market-state-forward-shadow-observer.mjs'), 'utf8');
+  assert.match(source, /config\.tradingCalendarExceptionPath/);
+  assert.match(source, /fs\.existsSync\(configuredExceptionPath\)/);
+  assert.match(source, /loadGovernedTradingCalendar\([\s\S]*exceptionEvidencePath[\s\S]*\)/);
 });
