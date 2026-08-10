@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   auditForwardShadowLedger,
   createLaunchManifestCandidate,
+  createOwnerLaunchApprovalArtifact,
   createReadyForLaunchManifest,
   createMissedSessionRecord,
   createOutcomeRecord,
@@ -13,6 +14,8 @@ import {
   digest,
   stableJson,
   validateCollectorMode,
+  validateOwnerLaunchApprovalArtifact,
+  validateReadyForLaunchManifest,
 } from '../src/market-state-forward-shadow.mjs';
 
 const HASH = 'a'.repeat(64);
@@ -64,6 +67,7 @@ test('final launch builder is deterministic and can only produce READY_FOR_LAUNC
     officialStartTradeDate: '2026-08-12',
     schedulerTime: '08:25 Asia/Taipei',
     runtimeRoot: 'D:\\Taiwan stock\\standalone-v1\\data\\market-state\\forward-shadow\\run-20260812',
+    runId: 'run-20260812',
     evaluator: { version: 'evaluator-v1', sha256: HASH },
     outcomeContract: { version: 'outcome-v1', sha256: HASH },
     linkageContract: { version: 'linkage-v1', sha256: HASH },
@@ -79,6 +83,28 @@ test('final launch builder is deterministic and can only produce READY_FOR_LAUNC
   assert.equal(first.formalSchedulerEnabled, false);
   assert.equal(first.officialEvidenceWritten, false);
   assert.throws(() => createReadyForLaunchManifest({ ...input, runtimeRoot: 'C:\\runtime' }), /C_DRIVE_RUNTIME_FORBIDDEN/);
+  assert.equal(validateReadyForLaunchManifest(first).valid, true);
+  const approval = createOwnerLaunchApprovalArtifact({
+    ownerDecisionReference: 'OWNER-LAUNCH-TEST',
+    approvedAt: '2026-08-10T20:00:00+08:00',
+    manifestHash: first.manifestHash,
+    finalMainCommit: first.finalMainCommit,
+    officialStartTradeDate: first.officialStartTradeDate,
+    schedulerTime: first.schedulerTime,
+    ...authorization,
+  });
+  assert.equal(validateOwnerLaunchApprovalArtifact(approval, first).valid, true);
+  assert.throws(() => validateOwnerLaunchApprovalArtifact({ ...approval, manifestHash: HASH }, first), /APPROVAL_HASH_MISMATCH|APPROVAL_MANIFEST_HASH_MISMATCH/);
+  const wrongManifestApproval = createOwnerLaunchApprovalArtifact({
+    ...approval,
+    manifestHash: HASH,
+  });
+  assert.throws(() => validateOwnerLaunchApprovalArtifact(wrongManifestApproval, first), /APPROVAL_MANIFEST_HASH_MISMATCH/);
+  const wrongStartApproval = createOwnerLaunchApprovalArtifact({
+    ...approval,
+    officialStartTradeDate: '2026-08-13',
+  });
+  assert.throws(() => validateOwnerLaunchApprovalArtifact(wrongStartApproval, first), /APPROVAL_START_DATE_MISMATCH/);
 });
 
 test('tracked launch manifest candidate matches the deterministic generator', () => {
@@ -212,5 +238,9 @@ test('collector accepts preparation modes only and never activates', () => {
   for (const mode of ['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST', 'TEST_FIXTURE']) {
     assert.deepEqual(validateCollectorMode(mode), { mode, active: false, officialEvidenceWritten: false, executionAuthorized: false });
   }
+  assert.throws(() => validateCollectorMode('FORWARD_SHADOW'), /OWNER_APPROVAL_REQUIRED/);
+  assert.deepEqual(validateCollectorMode('FORWARD_SHADOW', { ownerApprovalValidated: true }), {
+    mode: 'FORWARD_SHADOW', active: true, officialEvidenceWritten: false, executionAuthorized: false,
+  });
   assert.throws(() => validateCollectorMode('ACTIVE'), /MODE_FORBIDDEN/);
 });

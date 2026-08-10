@@ -9,6 +9,8 @@ import {
   digest,
   stableJson,
   stableJsonLine,
+  validateOwnerLaunchApprovalArtifact,
+  validateReadyForLaunchManifest,
   validateCollectorMode,
 } from './market-state-forward-shadow.mjs';
 import { evaluatePremarketMarketState } from './market-state-v1.mjs';
@@ -44,6 +46,7 @@ export function runtimePaths(runtimeRoot, runId) {
     root,
     candidateManifest: path.join(root, 'launch-manifest-candidate.json'),
     candidateLedger: path.join(root, 'candidate-ledger.ndjson'),
+    officialLedger: path.join(root, 'official-ledger.ndjson'),
     lock: path.join(root, '.observer.lock'),
     officialRecords: path.join(root, 'official-records'),
     outcomes: path.join(root, 'outcomes'),
@@ -86,32 +89,47 @@ function withObserverLock(paths, operation) {
   }
 }
 
-function appendCandidateRecord(paths, record, existingRecords) {
+function appendRuntimeRecord(paths, ledgerPath, record, existingRecords, evidenceClass, governance = {}) {
   const duplicate = existingRecords.find((item) => item.idempotencyKey === record.idempotencyKey);
   if (duplicate) {
     if (duplicate.recordHash !== record.recordHash) throw new Error('FORWARD_SHADOW_IDEMPOTENCY_CONFLICT');
     return { record: duplicate, writeStatus: 'UNCHANGED', ledgerHash: auditForwardShadowLedger(existingRecords).ledgerHash };
   }
   const next = appendForwardShadowRecord(existingRecords, record);
-  fs.appendFileSync(paths.candidateLedger, stableJsonLine(record), { encoding: 'utf8' });
-  const audit = auditForwardShadowLedger(readForwardShadowLedger(paths.candidateLedger));
+  fs.appendFileSync(ledgerPath, stableJsonLine(record), { encoding: 'utf8' });
+  const audit = auditForwardShadowLedger(readForwardShadowLedger(ledgerPath));
   if (!audit.ok) throw new Error('FORWARD_SHADOW_POST_APPEND_AUDIT_FAILED');
-  const ledgerChecksum = digest(fs.readFileSync(paths.candidateLedger));
-  const checksumPath = path.join(paths.checksums, `${String(record.sequence).padStart(6, '0')}-${record.recordHash}.json`);
+  const ledgerChecksum = digest(fs.readFileSync(ledgerPath));
+  const checksumPath = path.join(paths.checksums, `${evidenceClass.toLowerCase()}-${String(record.sequence).padStart(6, '0')}-${record.recordHash}.json`);
   fs.writeFileSync(checksumPath, stableJson({
     schemaVersion: 'market-state-forward-shadow-checksum-v1',
     sequence: record.sequence,
     recordHash: record.recordHash,
     ledgerHash: audit.ledgerHash,
     ledgerChecksum,
-    officialEvidenceWritten: false,
+    evidenceClass,
+    officialEvidenceWritten: evidenceClass === 'OFFICIAL_FORWARD',
     executionAuthorized: false,
   }), { encoding: 'utf8', flag: 'wx' });
+  if (evidenceClass === 'OFFICIAL_FORWARD') {
+    const officialPath = path.join(paths.officialRecords, `${String(record.sequence).padStart(6, '0')}-${record.tradeDate}-${record.recordType.toLowerCase()}.json`);
+    fs.writeFileSync(officialPath, stableJson({
+      schemaVersion: 'market-state-forward-shadow-official-record-envelope-v1',
+      evidenceClass,
+      manifestHash: governance.manifestHash,
+      approvalArtifactHash: governance.approvalArtifactHash,
+      record,
+      officialEvidenceWritten: true,
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+    }), { encoding: 'utf8', flag: 'wx' });
+  }
   return { record, writeStatus: 'APPENDED', ledgerHash: audit.ledgerHash, ledgerChecksum, records: next };
 }
 
-function writeStatus(paths, tradeDate, payload) {
-  const target = path.join(paths.dailyStatus, `${tradeDate}.json`);
+function writeStatus(paths, tradeDate, evidenceClass, payload) {
+  const target = path.join(paths.dailyStatus, `${evidenceClass.toLowerCase()}-${tradeDate}.json`);
   const content = stableJson(payload);
   if (fs.existsSync(target)) {
     const existing = fs.readFileSync(target, 'utf8');
@@ -139,23 +157,95 @@ function stateSnapshot(evaluation) {
   };
 }
 
+function assertPriorStateCompatible(input, prior) {
+  if (prior.recordType !== 'STATE' || (!input.marketStateInput && !input.marketStateEvaluation)) return;
+  const evaluation = input.marketStateEvaluation || evaluatePremarketMarketState(input.marketStateInput);
+  const proposed = {
+    decisionAt: input.marketStateEvaluation?.decisionAt || input.marketStateInput.decisionAt,
+    availableAt: input.availableAt,
+    outcomeObservationStartAt: input.outcomeObservationStartAt,
+    evaluator: input.evaluator,
+    axisStateSnapshot: stateSnapshot(evaluation),
+    evidenceLineage: input.evidenceLineage || [],
+    sourceHashes: input.sourceHashes || {},
+    qualityStatus: input.qualityStatus || 'CLEAN',
+    unavailableReason: (input.qualityStatus || 'CLEAN') === 'CLEAN' ? null : input.unavailableReason,
+  };
+  const existing = Object.fromEntries(Object.keys(proposed).map((key) => [key, prior[key]]));
+  if (digest(proposed) !== digest(existing)) throw new Error('FORWARD_SHADOW_DUPLICATE_OFFICIAL_TRADE_DATE_CONFLICT');
+}
+
+function samePath(left, right) {
+  return path.resolve(left).replaceAll('/', '\\').toLowerCase() === path.resolve(right).replaceAll('/', '\\').toLowerCase();
+}
+
+export function validateOfficialLaunchContext(input, paths = runtimePaths(input.runtimeRoot, input.runId)) {
+  if (!input.launchManifest || !input.ownerApprovalArtifact) throw new Error('FORWARD_SHADOW_OWNER_APPROVAL_REQUIRED');
+  validateReadyForLaunchManifest(input.launchManifest);
+  validateOwnerLaunchApprovalArtifact(input.ownerApprovalArtifact, input.launchManifest);
+  if (input.currentMainCommit !== input.launchManifest.finalMainCommit) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_MISMATCH');
+  if (input.runId !== input.launchManifest.runId || !samePath(paths.root, input.launchManifest.runtimeRoot)) {
+    throw new Error('FORWARD_SHADOW_RUNTIME_IDENTITY_MISMATCH');
+  }
+  if ((input.tradeDate || '').localeCompare(input.launchManifest.officialStartTradeDate) < 0) {
+    throw new Error('FORWARD_SHADOW_BEFORE_OFFICIAL_START_DATE');
+  }
+  for (const [key, manifestKey] of [
+    ['evaluator', 'evaluator'],
+    ['outcomeContract', 'outcomeContract'],
+    ['linkageContract', 'linkageContract'],
+    ['frozenForwardGate', 'frozenForwardGate'],
+  ]) {
+    if (input.actualArtifactHashes?.[key] !== input.launchManifest[manifestKey].sha256) {
+      throw new Error(`FORWARD_SHADOW_${key.toUpperCase()}_HASH_MISMATCH`);
+    }
+  }
+  return Object.freeze({
+    evidenceClass: 'OFFICIAL_FORWARD',
+    ledgerPath: paths.officialLedger,
+    manifestHash: input.launchManifest.manifestHash,
+    approvalArtifactHash: input.ownerApprovalArtifact.approvalArtifactHash,
+    officialEvidenceWritten: true,
+    executionAuthorized: false,
+  });
+}
+
+function resolveRunContext(input, paths) {
+  if (input.mode === 'FORWARD_SHADOW') {
+    const official = validateOfficialLaunchContext(input, paths);
+    validateCollectorMode(input.mode, { ownerApprovalValidated: true });
+    return official;
+  }
+  validateCollectorMode(input.mode);
+  return Object.freeze({
+    evidenceClass: 'CANDIDATE_TEST',
+    ledgerPath: paths.candidateLedger,
+    manifestHash: null,
+    approvalArtifactHash: null,
+    officialEvidenceWritten: false,
+    executionAuthorized: false,
+  });
+}
+
 export function runDailyStatePhase(input) {
-  const collector = validateCollectorMode(input.mode);
   authorization(input);
   if (input.mode === 'NOT_ACTIVE') {
+    const collector = validateCollectorMode(input.mode);
     return { status: 'NOT_ACTIVE', collector, officialEvidenceWritten: false, executionAuthorized: false };
   }
   const paths = ensureRuntimeLayout(input.runtimeRoot, input.runId);
+  const runContext = resolveRunContext(input, paths);
   return withObserverLock(paths, () => {
-    const records = readForwardShadowLedger(paths.candidateLedger);
+    const records = readForwardShadowLedger(runContext.ledgerPath);
     const priorOfficial = records.find((record) => ['STATE', 'SESSION_STATUS'].includes(record.recordType)
       && record.tradeDate === input.tradeDate);
     if (priorOfficial) {
+      assertPriorStateCompatible(input, priorOfficial);
       return {
         status: 'UNCHANGED',
         record: priorOfficial,
         ledgerHash: auditForwardShadowLedger(records).ledgerHash,
-        officialEvidenceWritten: false,
+        officialEvidenceWritten: runContext.officialEvidenceWritten,
         executionAuthorized: false,
       };
     }
@@ -199,7 +289,7 @@ export function runDailyStatePhase(input) {
       }, records);
       lifecycle = ['PRECHECK', 'TRADING_DAY_CHECK', 'INPUT_AVAILABILITY_CHECK', 'MARKET_STATE_EVALUATION', 'LEGAL_FREEZE', 'APPEND_STATE'];
     }
-    const appended = appendCandidateRecord(paths, record, records);
+    const appended = appendRuntimeRecord(paths, runContext.ledgerPath, record, records, runContext.evidenceClass, runContext);
     const status = {
       schemaVersion: 'market-state-forward-shadow-daily-status-v1',
       tradeDate: input.tradeDate,
@@ -210,47 +300,49 @@ export function runDailyStatePhase(input) {
       writeStatus: appended.writeStatus,
       ledgerHash: appended.ledgerHash,
       collectorActive: false,
-      officialEvidenceWritten: false,
+      evidenceClass: runContext.evidenceClass,
+      officialEvidenceWritten: runContext.officialEvidenceWritten,
       formalWeight: 0,
       researchOnly: true,
       executionAuthorized: false,
     };
-    writeStatus(paths, input.tradeDate, status);
-    return { status: 'STATE_PHASE_COMPLETE', paths, record, dailyStatus: status, ...appended, officialEvidenceWritten: false, executionAuthorized: false };
+    writeStatus(paths, input.tradeDate, runContext.evidenceClass, status);
+    return { status: 'STATE_PHASE_COMPLETE', paths, record, dailyStatus: status, ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
 
 export function runDailyOutcomePhase(input) {
-  validateCollectorMode(input.mode);
   authorization(input);
   if (input.mode === 'NOT_ACTIVE') return { status: 'NOT_ACTIVE', officialEvidenceWritten: false, executionAuthorized: false };
   const paths = ensureRuntimeLayout(input.runtimeRoot, input.runId);
+  const runContext = resolveRunContext(input, paths);
   return withObserverLock(paths, () => {
-    const records = readForwardShadowLedger(paths.candidateLedger);
+    const records = readForwardShadowLedger(runContext.ledgerPath);
     const state = records.find((record) => record.recordType === 'STATE' && record.tradeDate === input.tradeDate);
     if (!state) throw new Error('FORWARD_SHADOW_STATE_RECORD_NOT_FOUND');
     const prior = records.find((record) => record.recordType === 'OUTCOME' && record.stateRecordHash === state.recordHash);
-    if (prior) return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, officialEvidenceWritten: false, executionAuthorized: false };
+    if (prior) return { status: 'UNCHANGED', record: prior, ledgerHash: auditForwardShadowLedger(records).ledgerHash, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
     const outcome = createOutcomeRecord({ ...input.outcome, stateRecordHash: state.recordHash, ...AUTHORIZATION }, records);
-    const appended = appendCandidateRecord(paths, outcome, records);
+    const appended = appendRuntimeRecord(paths, runContext.ledgerPath, outcome, records, runContext.evidenceClass, runContext);
     const outcomePath = path.join(paths.outcomes, `${input.tradeDate}.json`);
     const body = stableJson(outcome);
     if (fs.existsSync(outcomePath) && fs.readFileSync(outcomePath, 'utf8') !== body) throw new Error('FORWARD_SHADOW_OUTCOME_FILE_CONFLICT');
     if (!fs.existsSync(outcomePath)) fs.writeFileSync(outcomePath, body, { encoding: 'utf8', flag: 'wx' });
-    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, ...appended, officialEvidenceWritten: false, executionAuthorized: false };
+    return { status: 'OUTCOME_PHASE_COMPLETE', paths, record: outcome, ...appended, officialEvidenceWritten: runContext.officialEvidenceWritten, executionAuthorized: false };
   });
 }
 
-export function verifyRuntimeEvidence(runtimeRoot, runId) {
+export function verifyRuntimeEvidence(runtimeRoot, runId, { official = false } = {}) {
   const paths = runtimePaths(runtimeRoot, runId);
-  const records = readForwardShadowLedger(paths.candidateLedger);
+  const ledgerPath = official ? paths.officialLedger : paths.candidateLedger;
+  const records = readForwardShadowLedger(ledgerPath);
   const audit = auditForwardShadowLedger(records);
   return {
     ...audit,
     runId,
     runtimeRoot: paths.root,
-    ledgerChecksum: fs.existsSync(paths.candidateLedger) ? digest(fs.readFileSync(paths.candidateLedger)) : null,
-    officialEvidenceWritten: false,
+    ledgerChecksum: fs.existsSync(ledgerPath) ? digest(fs.readFileSync(ledgerPath)) : null,
+    officialEvidenceWritten: official && records.length > 0,
     executionAuthorized: false,
   };
 }

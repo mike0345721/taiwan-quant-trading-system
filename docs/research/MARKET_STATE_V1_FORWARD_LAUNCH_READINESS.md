@@ -79,3 +79,28 @@ Until all five decisions are complete, launch status remains `NOT_ACTIVE`. This 
 - CRU-20 branch result: the same test fails with the same expected-two / actual-one assertion.
 - `PRE_EXISTING_BASELINE_FAILURE_CONFIRMED=true`.
 - CRU-20 does not modify P0 source, tests, frozen inputs, runtime ledger, or observer behavior. This out-of-scope pre-existing failure is recorded but is not repaired by CRU-20.
+
+## CRU-22 final launch capability revision
+
+CRU-22 preserves the CRU-20 history above and does not rewrite it. The current checkout now passes the full project suite, including the previously failing P0 observer test. This is recorded as `CURRENT_FULL_SUITE_STATUS=PASS`; it is not represented as a P0 repair because CRU-22 changes no P0 source, tests, runtime, or frozen artifact. The difference is treated as environment/runtime-state sensitive unless a separate P0 investigation proves a code cause.
+
+- `PREVIOUS_BASELINE_FAILURE_HISTORY=PRESERVED`
+- `CURRENT_FULL_SUITE_STATUS=PASS`
+
+The dormant official research collection mode is named `FORWARD_SHADOW`. It is not broker execution, live trading, Strategy Router, Paper Trading, or order routing. Its permanent safety boundary remains `formalWeight=0`, `researchOnly=true`, and `executionAuthorized=false`.
+
+`FORWARD_SHADOW` cannot start from a boolean flag. It requires all of the following to match exactly:
+
+- a byte-stable `READY_FOR_LAUNCH` manifest and its `manifestHash`;
+- the current repository commit and the approved `finalMainCommit`;
+- the approved `officialStartTradeDate`;
+- the frozen selected axes;
+- evaluator, Outcome Contract, linkage, and Frozen Gate hashes;
+- an Owner approval artifact whose own hash binds the manifest hash, final commit, start date, scheduler time, decision reference, and approval timestamp;
+- `executionAuthorized=false`.
+
+Any mismatch is a hard failure and produces no official evidence. Candidate and manual modes write only `candidate-ledger.ndjson`. The governed official mode writes only `official-ledger.ndjson` plus immutable envelopes under `official-records/`; it never promotes or renames candidate evidence.
+
+The scheduler installer remains unexecuted in CRU-22. Without a valid launch manifest and Owner approval artifact it cannot install anything. After a later explicit Owner Launch Approval, its governed action is prepared to run `FORWARD_SHADOW` at 08:25 Asia/Taipei with `WakeToRun` and `IgnoreNew`. The current formal scheduler state remains disabled/not installed, the official start date remains unset, and no official Forward evidence has been written.
+
+Primary evidence storage remains on D:. A same-volume operational second-copy candidate is `D:\Taiwan stock\forward-shadow-backup\<runId>`. It is explicitly `NOT_CONFIGURED` and `NOT_DISASTER_RESILIENT`; CRU-22 does not create or populate it.
