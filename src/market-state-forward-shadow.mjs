@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 export const FORWARD_SHADOW_SCHEMA_VERSION = 'market-state-forward-shadow-v1';
 export const FORWARD_SHADOW_SELECTED_AXES = Object.freeze(['direction', 'globalAlignment']);
 export const FORWARD_SHADOW_RECORD_STATES = Object.freeze(['CLEAN', 'UNAVAILABLE', 'STALE', 'MISSED', 'REJECTED']);
-export const FORWARD_SHADOW_COLLECTOR_MODES = Object.freeze(['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST']);
+export const FORWARD_SHADOW_COLLECTOR_MODES = Object.freeze(['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST', 'TEST_FIXTURE']);
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -15,6 +15,10 @@ function canonical(value) {
 
 export function stableJson(value) {
   return `${JSON.stringify(canonical(value), null, 2)}\n`;
+}
+
+export function stableJsonLine(value) {
+  return `${JSON.stringify(canonical(value))}\n`;
 }
 
 export function digest(value) {
@@ -82,6 +86,43 @@ export function createLaunchManifestCandidate(input) {
     if (!/^[a-f0-9]{64}$/.test(manifest[reference]?.sha256 || '')) {
       throw new Error(`FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
     }
+  }
+  return Object.freeze({ ...manifest, manifestHash: digest(manifest) });
+}
+
+export function createReadyForLaunchManifest(input) {
+  validateAuthorization(input);
+  validateAxes(input.selectedAxes);
+  const finalMainCommit = requireText(input.finalMainCommit, 'FORWARD_SHADOW_FINAL_MAIN_COMMIT_REQUIRED');
+  if (!/^[a-f0-9]{40}$/.test(finalMainCommit)) throw new Error('FORWARD_SHADOW_FINAL_MAIN_COMMIT_INVALID');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.officialStartTradeDate || '')) {
+    throw new Error('FORWARD_SHADOW_OFFICIAL_START_TRADE_DATE_INVALID');
+  }
+  const runtimeRoot = requireText(input.runtimeRoot, 'FORWARD_SHADOW_RUNTIME_ROOT_REQUIRED');
+  if (/^[cC]:[\\/]/.test(runtimeRoot)) throw new Error('FORWARD_SHADOW_C_DRIVE_RUNTIME_FORBIDDEN');
+  const manifest = {
+    schemaVersion: 'market-state-forward-shadow-launch-ready-v1',
+    finalMainCommit,
+    officialStartTradeDate: input.officialStartTradeDate,
+    schedulerTime: requireText(input.schedulerTime, 'FORWARD_SHADOW_SCHEDULER_TIME_REQUIRED'),
+    runtimeRoot,
+    evaluator: input.evaluator,
+    outcomeContract: input.outcomeContract,
+    linkageContract: input.linkageContract,
+    frozenForwardGate: input.frozenForwardGate,
+    selectedAxes: [...input.selectedAxes],
+    launchStatus: 'READY_FOR_LAUNCH',
+    ownerLaunchApprovalRequired: true,
+    collectorActive: false,
+    formalSchedulerEnabled: false,
+    officialEvidenceWritten: false,
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+  };
+  for (const reference of ['evaluator', 'outcomeContract', 'linkageContract', 'frozenForwardGate']) {
+    requireText(manifest[reference]?.version, `FORWARD_SHADOW_${reference.toUpperCase()}_VERSION_REQUIRED`);
+    requireHash(manifest[reference]?.sha256, `FORWARD_SHADOW_${reference.toUpperCase()}_HASH_REQUIRED`);
   }
   return Object.freeze({ ...manifest, manifestHash: digest(manifest) });
 }

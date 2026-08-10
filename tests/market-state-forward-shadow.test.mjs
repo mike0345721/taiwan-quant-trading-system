@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   auditForwardShadowLedger,
   createLaunchManifestCandidate,
+  createReadyForLaunchManifest,
   createMissedSessionRecord,
   createOutcomeRecord,
   createStateRecord,
@@ -57,6 +58,29 @@ test('launch manifest candidate is byte deterministic and cannot activate', () =
   assert.throws(() => createLaunchManifestCandidate({ ...launchInput, launchStatus: 'ACTIVE' }), /MUST_BE_NOT_ACTIVE/);
 });
 
+test('final launch builder is deterministic and can only produce READY_FOR_LAUNCH', () => {
+  const input = {
+    finalMainCommit: '1e8211a5a5ea2dcfdda77b57342226700c204345',
+    officialStartTradeDate: '2026-08-12',
+    schedulerTime: '08:25 Asia/Taipei',
+    runtimeRoot: 'D:\\Taiwan stock\\standalone-v1\\data\\market-state\\forward-shadow\\run-20260812',
+    evaluator: { version: 'evaluator-v1', sha256: HASH },
+    outcomeContract: { version: 'outcome-v1', sha256: HASH },
+    linkageContract: { version: 'linkage-v1', sha256: HASH },
+    frozenForwardGate: { version: 'gate-v1', sha256: HASH },
+    selectedAxes: ['direction', 'globalAlignment'],
+    ...authorization,
+  };
+  const first = createReadyForLaunchManifest(input);
+  const second = createReadyForLaunchManifest(input);
+  assert.equal(stableJson(first), stableJson(second));
+  assert.equal(first.launchStatus, 'READY_FOR_LAUNCH');
+  assert.equal(first.collectorActive, false);
+  assert.equal(first.formalSchedulerEnabled, false);
+  assert.equal(first.officialEvidenceWritten, false);
+  assert.throws(() => createReadyForLaunchManifest({ ...input, runtimeRoot: 'C:\\runtime' }), /C_DRIVE_RUNTIME_FORBIDDEN/);
+});
+
 test('tracked launch manifest candidate matches the deterministic generator', () => {
   const expected = stableJson(createLaunchManifestCandidate({
     ...launchInput,
@@ -67,6 +91,7 @@ test('tracked launch manifest candidate matches the deterministic generator', ()
   }));
   const actual = fs.readFileSync(path.resolve('docs/research/MARKET_STATE_V1_FORWARD_LAUNCH_MANIFEST_CANDIDATE.json'), 'utf8');
   assert.equal(actual, expected);
+  assert.equal(Buffer.from(actual).includes(13), false);
 });
 
 test('file bytes are hashed as bytes rather than JSON Buffer metadata', () => {
@@ -184,7 +209,7 @@ test('missed day cannot receive outcome or later same-date clean backfill', () =
 });
 
 test('collector accepts preparation modes only and never activates', () => {
-  for (const mode of ['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST']) {
+  for (const mode of ['DRY_RUN', 'NOT_ACTIVE', 'MANUAL_TEST', 'TEST_FIXTURE']) {
     assert.deepEqual(validateCollectorMode(mode), { mode, active: false, officialEvidenceWritten: false, executionAuthorized: false });
   }
   assert.throws(() => validateCollectorMode('ACTIVE'), /MODE_FORBIDDEN/);
