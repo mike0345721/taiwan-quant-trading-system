@@ -59,6 +59,15 @@ test('official wrapper cannot start with a boolean or without governed artifacts
   assert.doesNotMatch(source, /owner-approved/i);
 });
 
+test('wrapper scopes Git ownership trust to the current repository and process', () => {
+  const source = fs.readFileSync(wrapper, 'utf8');
+  assert.match(source, /GIT_CONFIG_COUNT\s*=\s*'1'/);
+  assert.match(source, /GIT_CONFIG_KEY_0\s*=\s*'safe\.directory'/);
+  assert.match(source, /GIT_CONFIG_VALUE_0\s*=\s*\(\$projectRoot\s+-replace/);
+  assert.doesNotMatch(source, /git\s+config\s+--global/i);
+  assert.doesNotMatch(source, /safe\.directory[^\r\n]*['\"]\*['\"]/i);
+});
+
 test('observer runtime is D-only and project runtime directory is git ignored', () => {
   const ignoredPath = 'data/market-state/forward-shadow/cru22-ignore-proof/probe.json';
   const result = execFileSync('git', ['check-ignore', ignoredPath], { cwd: root, encoding: 'utf8' }).trim();

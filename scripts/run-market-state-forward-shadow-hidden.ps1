@@ -14,6 +14,15 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $node = (Get-Command node -ErrorAction Stop).Source
 $runner = Join-Path $PSScriptRoot 'run-market-state-forward-shadow-observer.mjs'
 
+# Git rejects repositories owned by a different Windows identity. Scheduled
+# tasks run as the interactive Owner account while Codex may prepare the local
+# checkout under its isolated identity. Scope the trust exception to this
+# child process and this exact repository; never mutate the user's global Git
+# configuration and never trust a wildcard path.
+$env:GIT_CONFIG_COUNT = '1'
+$env:GIT_CONFIG_KEY_0 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_0 = ($projectRoot -replace '\\', '/')
+
 if ($Mode -notin @('NOT_ACTIVE','FORWARD_SHADOW') -and [string]::IsNullOrWhiteSpace($InputFile)) {
   throw 'FORWARD_SHADOW_INPUT_REQUIRED'
 }
