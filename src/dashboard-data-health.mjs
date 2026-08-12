@@ -11,6 +11,7 @@ const SOURCE_STATES = Object.freeze(['SOURCE_AVAILABLE', 'PARTIAL', 'SOURCE_MISS
 const READINESS_STATES = Object.freeze([
   'READY',
   'DERIVATION_NOT_IMPLEMENTED',
+  'DERIVATION_FAILURE',
   'QUALITY_INSUFFICIENT',
   'CONTRACT_NOT_FROZEN',
 ]);
@@ -187,7 +188,48 @@ function runtimeRecord(runtimeTruth) {
   });
 }
 
-export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTruth = null, futuresAudit = null, now = new Date() } = {}) {
+function chartDerivedRecord(sourceId, sourceType, chart, {
+  ready = false,
+  reason = null,
+  now = new Date(),
+} = {}) {
+  const hasSource = chart?.sourceEventCount > 0;
+  const availableAt = iso(chart?.availableAt);
+  const ageMs = availableAt ? now.getTime() - Date.parse(availableAt) : Infinity;
+  const qualityReady = ready && chart?.qualityStatus === 'PASS';
+  const readinessState = qualityReady
+    ? 'READY'
+    : chart?.status === 'OWNER_DECISION_REQUIRED'
+      ? 'CONTRACT_NOT_FROZEN'
+      : ready
+        ? 'QUALITY_INSUFFICIENT'
+        : 'DERIVATION_FAILURE';
+  const freshnessState = ready
+    ? ageMs <= 60_000 ? 'LIVE' : ageMs <= 5 * 60_000 ? 'DELAYED' : 'STALE'
+    : 'UNAVAILABLE';
+  return record({
+    sourceId,
+    sourceType,
+    instrument: 'TX',
+    actualContract: chart?.actualContract || null,
+    session: chart?.session || null,
+    sessionState: chart?.sessionId || 'UNAVAILABLE',
+    exchangeTimestamp: chart?.lastEventTime,
+    receivedAt: availableAt,
+    availableAt,
+    freshnessState,
+    reason: qualityReady ? null : ready ? 'CHART_QUALITY_INSUFFICIENT' : (reason || chart?.reason || 'DERIVATION_FAILURE'),
+    quality: ready ? chart?.qualityStatus || 'PASS' : 'UNAVAILABLE',
+    coverage: chart?.bars ? `${chart.bars.length} ${chart.timeframe || ''} bars` : null,
+    startup: 'ON_DEMAND',
+    reconnect: 'USES_EXISTING_TX_TICK_LEDGER',
+    lineage: chart?.source || 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK',
+    sourceAvailability: hasSource ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
+    readinessState,
+  });
+}
+
+export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTruth = null, futuresAudit = null, chart = null, now = new Date() } = {}) {
   const actualContract = snapshot?.futuresMarket?.data?.txDay?.contract || null;
   const txCode = futuresAudit?.productFamilies?.TX?.targetCode || null;
   const mtxCode = futuresAudit?.productFamilies?.MTX?.targetCode || null;
@@ -210,10 +252,12 @@ export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTr
     batchRecord('futuresPositioning', 'TAIFEX_INSTITUTIONAL_BATCH', sources.futuresInstitutional, now, { instrument: 'TX' }),
     batchRecord('optionsEod', 'TAIFEX_OPTIONS_BATCH', sources.options, now, { instrument: 'TXO', actualContract: snapshot?.options?.data?.contract }),
     batchRecord('taiwanVix', 'TAIFEX_VOLATILITY_BATCH', sources.taiwanVix, now),
+    chartDerivedRecord('chartBar', 'GOVERNED_TX_CHART_BAR', chart, { ready: chart?.status === 'READY' && chart?.bars?.length > 0, now }),
+    chartDerivedRecord('chartHistory', 'GOVERNED_TX_CHART_HISTORY', chart, { ready: chart?.status === 'READY' && chart?.bars?.length > 0, now }),
     derivedRecord('estimatedCvd', 'ESTIMATED_TRADE_DIRECTION', ['txTick']),
     derivedRecord('orderBookPressure', 'ORDER_BOOK_PRESSURE', ['txBidAsk'], 'DERIVATION_NOT_IMPLEMENTED'),
-    derivedRecord('liveVwap', 'LIVE_VWAP', ['txTick']),
-    derivedRecord('openingRange', 'OPENING_RANGE', ['txTick']),
+    chartDerivedRecord('liveVwap', 'LIVE_VWAP', chart, { ready: chart?.levels?.vwap?.availability === 'AVAILABLE', reason: chart?.levels?.vwap?.reason, now }),
+    chartDerivedRecord('openingRange', 'OPENING_RANGE', chart, { ready: chart?.openingRange?.status === 'READY', reason: chart?.openingRange?.reason, now }),
     derivedRecord('rvol', 'RELATIVE_VOLUME', ['txTick']),
   ];
 

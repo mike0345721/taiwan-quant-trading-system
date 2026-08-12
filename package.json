@@ -47,5 +47,8 @@
     "research:phase-b:b0:v4": "node scripts/run-phase-b-b0-f3c02-v4.mjs",
     "shioaji:check": "node scripts/check-shioaji-readiness.mjs",
     "current:audit": "node scripts/audit-current-readiness.mjs"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.2.0"
   }
 }

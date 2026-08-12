@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>台股決策雷達 V3.9.7</title>
   <link rel="stylesheet" href="/styles.css?v=3.9.7">
+  <script src="/vendor/lightweight-charts.js" defer></script>
   <script src="/app.js?v=3.9.7" defer></script>
 </head>
 <body>
@@ -114,21 +115,30 @@
             <section class="dw-price-region" aria-labelledby="dw-price-title">
               <div class="dw-section-heading">
                 <div><p class="eyebrow">價格結構</p><h3 id="dw-price-title">決策價格圖</h3></div>
-                <span id="dw-chart-status" class="dw-status-pill is-unavailable">NOT_IMPLEMENTED</span>
+                <div class="dw-chart-heading-status"><span id="dw-chart-session" class="dw-chart-context">—</span><span id="dw-chart-contract" class="dw-chart-context">TX —</span><span id="dw-chart-status" class="dw-status-pill is-unavailable">UNAVAILABLE</span></div>
               </div>
-              <div class="dw-chart-placeholder">
-                <div class="dw-chart-price"><small>參考價格</small><strong id="dw-reference-price">—</strong></div>
-                <div class="dw-chart-message">
-                  <span>DW-2</span>
-                  <strong>Chart engine 尚未安裝</strong>
-                  <p>此區已保留 OR、VWAP、Key Levels 與事件標記位置；本工作包不生成假 K 線。</p>
+              <div class="dw-chart-toolbar">
+                <div id="dw-chart-timeframes" class="dw-timeframe-switch" role="group" aria-label="TX 圖表週期">
+                  <button type="button" data-chart-timeframe="1m">1m</button><button type="button" class="is-selected" data-chart-timeframe="5m">5m</button><button type="button" data-chart-timeframe="15m">15m</button><button type="button" data-chart-timeframe="30m">30m</button><button type="button" data-chart-timeframe="1h">1h</button><button type="button" data-chart-timeframe="4h">4h</button><button type="button" data-chart-timeframe="1D">1D</button>
                 </div>
-                <div class="dw-level-grid">
-                  <article><span>開盤區間</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
-                  <article><span>VWAP</span><strong id="dw-vwap-state">UNAVAILABLE</strong></article>
-                  <article><span>RVOL</span><strong id="dw-rvol-state">UNAVAILABLE</strong></article>
-                  <article><span>追價風險</span><strong>UNAVAILABLE</strong></article>
-                </div>
+                <span id="dw-chart-mode" class="dw-chart-mode">LIVE · READ ONLY</span>
+              </div>
+              <div class="dw-chart-stage">
+                <div class="dw-chart-price"><small>最新成交</small><strong id="dw-reference-price">—</strong></div>
+                <div id="dw-chart-canvas" class="dw-chart-canvas" aria-label="台指期 governed multi-timeframe K 線圖"></div>
+                <div id="dw-chart-empty" class="dw-chart-empty hidden"><strong>圖表目前無法顯示</strong><p id="dw-chart-empty-reason">等待合法 TX Tick。</p></div>
+                <div id="dw-chart-crosshair" class="dw-chart-crosshair" aria-live="polite">移到 K 棒查看 Time / OHLCV / VWAP / OR</div>
+                <div class="dw-chart-attribution">Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a> · Lightweight Charts™</div>
+              </div>
+              <div class="dw-level-grid">
+                <article><span>開盤區間</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
+                <article><span>VWAP</span><strong id="dw-vwap-state">UNAVAILABLE</strong></article>
+                <article><span>前日 H / L / C</span><strong id="dw-prior-levels">UNAVAILABLE</strong></article>
+                <article><span>本時段 H / L</span><strong id="dw-session-levels">UNAVAILABLE</strong></article>
+                <article><span>RVOL</span><strong id="dw-rvol-state">UNAVAILABLE</strong></article>
+                <article><span>追價風險</span><strong>UNAVAILABLE</strong></article>
+                <article><span>資料時間</span><strong id="dw-chart-available-at">UNAVAILABLE</strong></article>
+                <article><span>品質</span><strong id="dw-chart-quality">UNAVAILABLE</strong></article>
               </div>
             </section>
 

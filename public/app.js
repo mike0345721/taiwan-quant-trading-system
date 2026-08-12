@@ -6,6 +6,8 @@ const state = {
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
+  txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
+  txChartLevelLines: [], txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -2461,6 +2463,14 @@ const DW_REASON_LABELS = Object.freeze({
   CONTRACT_NOT_FROZEN: '契約語意尚未凍結',
   NOT_IMPLEMENTED: '尚未實作',
   UNAVAILABLE: '目前無法取得',
+  BAR_SEMANTICS_OWNER_DECISION_REQUIRED: '1D 語意等待 Product Owner 決策',
+  TX_TICK_SOURCE_UNAVAILABLE: '目前沒有合法 TX Tick 可顯示',
+  NIGHT_OPENING_RANGE_NOT_FROZEN: '夜盤 Opening Range 尚未凍結，不適用',
+  OPENING_RANGE_NOT_COMPLETE: '08:45–09:00 Opening Range 尚未完成',
+  OPENING_RANGE_TICKS_UNAVAILABLE: 'Opening Range 逐筆資料不足',
+  ACTUAL_CONTRACT_MISMATCH: '真實契約不一致，禁止混用',
+  DERIVATION_FAILURE: '衍生計算失敗',
+  QUALITY_INSUFFICIENT: '資料品質不足',
 });
 
 function dwHumanize(value, fallback = '目前無法取得') {
@@ -2489,6 +2499,174 @@ function renderPlainList(id, items, fallback) {
 
 function healthTone(value) {
   return value === 'LIVE' || value === 'FRESH' ? 'is-ready' : 'is-unavailable';
+}
+
+function chartTimeLabel(timestampSeconds) {
+  if (timestampSeconds == null) return '—';
+  return new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(Number(timestampSeconds) * 1000));
+}
+
+function chartEpoch(value) {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null;
+}
+
+function ensureTxChart() {
+  if (state.txChartApi) return state.txChartApi;
+  const target = $('dw-chart-canvas');
+  if (!target || !window.LightweightCharts) return null;
+  const L = window.LightweightCharts;
+  const chart = L.createChart(target, {
+    autoSize: true,
+    layout: { background: { type: L.ColorType.Solid, color: '#090f18' }, textColor: '#8290a4', attributionLogo: true },
+    grid: { vertLines: { color: 'rgba(138,167,255,.055)' }, horzLines: { color: 'rgba(138,167,255,.055)' } },
+    crosshair: { mode: L.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: 'rgba(138,167,255,.16)', scaleMargins: { top: .08, bottom: .25 } },
+    timeScale: {
+      borderColor: 'rgba(138,167,255,.16)', timeVisible: true, secondsVisible: false,
+      rightOffset: 3, barSpacing: 8,
+      tickMarkFormatter: (time) => chartTimeLabel(time),
+    },
+    localization: { timeFormatter: (time) => chartTimeLabel(time) },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+  });
+  const candle = chart.addSeries(L.CandlestickSeries, {
+    upColor: '#55d6be', downColor: '#ef8293', borderVisible: false,
+    wickUpColor: '#55d6be', wickDownColor: '#ef8293', priceLineVisible: true,
+  });
+  const volume = chart.addSeries(L.HistogramSeries, {
+    priceScaleId: 'volume', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false,
+  });
+  chart.priceScale('volume').applyOptions({ scaleMargins: { top: .8, bottom: 0 } });
+  const vwap = chart.addSeries(L.LineSeries, {
+    color: '#f5c86b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'VWAP',
+  });
+  chart.subscribeCrosshairMove((parameter) => {
+    const bar = parameter.seriesData?.get(candle);
+    if (!bar || parameter.time == null) {
+      dwText('dw-chart-crosshair', '移到 K 棒查看 Time / OHLCV / VWAP / OR');
+      return;
+    }
+    const volumePoint = parameter.seriesData?.get(volume);
+    const vwapPoint = parameter.seriesData?.get(vwap);
+    const selectedTimeMs = Number(parameter.time) * 1000;
+    const openingRange = state.txChartPayload?.openingRange;
+    const openingRangeKnown = openingRange?.status === 'READY'
+      && Number.isFinite(selectedTimeMs)
+      && Date.parse(openingRange.availableAt) <= selectedTimeMs;
+    const openingRangeText = openingRangeKnown
+      ? `OR H ${fmt(openingRange.high)} L ${fmt(openingRange.low)}`
+      : 'OR UNAVAILABLE_AT_SELECTED_TIME';
+    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · O ${fmt(bar.open)} H ${fmt(bar.high)} L ${fmt(bar.low)} C ${fmt(bar.close)} · V ${fmt(volumePoint?.value)} · VWAP ${fmt(vwapPoint?.value, 2)} · ${openingRangeText}`);
+  });
+  state.txChartApi = chart;
+  state.txChartSeries = { candle, volume, vwap };
+  return chart;
+}
+
+function levelValue(level) {
+  return level?.availability === 'AVAILABLE' && Number.isFinite(Number(level.value)) ? Number(level.value) : null;
+}
+
+function clearTxChartLevels() {
+  if (!state.txChartSeries?.candle) return;
+  for (const line of state.txChartLevelLines) state.txChartSeries.candle.removePriceLine(line);
+  state.txChartLevelLines = [];
+}
+
+function addTxChartLevel(level, title, color, style = null) {
+  const price = levelValue(level);
+  if (price == null || !state.txChartSeries?.candle) return;
+  const L = window.LightweightCharts;
+  const line = state.txChartSeries.candle.createPriceLine({
+    price, title, color, lineWidth: 1,
+    lineStyle: style ?? L.LineStyle.Dashed,
+    axisLabelVisible: true,
+  });
+  state.txChartLevelLines.push(line);
+}
+
+function renderTxChartLevels(chart) {
+  const levels = chart?.levels || {};
+  const prior = [levelValue(levels.previousDayHigh), levelValue(levels.previousDayLow), levelValue(levels.previousClose)];
+  dwText('dw-prior-levels', prior.every((value) => value != null) ? prior.map((value) => fmt(value)).join(' / ') : dwHumanize(levels.previousClose?.reason || 'UNAVAILABLE'));
+  const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
+  const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
+  dwText('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
+  const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : dwHumanize(chart?.openingRange?.reason || 'UNAVAILABLE');
+  dwText('dw-or-state', orText);
+  dwText('dw-vwap-state', levelValue(levels.vwap) == null ? dwHumanize(levels.vwap?.reason || 'UNAVAILABLE') : fmt(levels.vwap.value, 2));
+  dwText('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : 'UNAVAILABLE');
+  dwText('dw-chart-quality', chart?.qualityStatus || 'UNAVAILABLE');
+
+  clearTxChartLevels();
+  addTxChartLevel(levels.openingRangeHigh, 'OR H', '#8aa7ff');
+  addTxChartLevel(levels.openingRangeLow, 'OR L', '#8aa7ff');
+  addTxChartLevel(levels.previousDayHigh, 'PDH', '#77869c');
+  addTxChartLevel(levels.previousDayLow, 'PDL', '#77869c');
+  addTxChartLevel(levels.previousClose, 'PDC', '#a1aec0');
+  addTxChartLevel(levels.currentDayHigh, 'DAY H', '#55d6be');
+  addTxChartLevel(levels.currentDayLow, 'DAY L', '#ef8293');
+  addTxChartLevel(levels.nightHigh, 'NIGHT H', '#55d6be');
+  addTxChartLevel(levels.nightLow, 'NIGHT L', '#ef8293');
+}
+
+function chartSeriesData(payload) {
+  const candles = (payload.bars || []).map((bar) => ({
+    time: chartEpoch(bar.time), open: Number(bar.open), high: Number(bar.high), low: Number(bar.low), close: Number(bar.close),
+  })).filter((bar) => bar.time != null);
+  const volumes = (payload.bars || []).map((bar) => ({
+    time: chartEpoch(bar.time), value: Number(bar.volume),
+    color: Number(bar.close) >= Number(bar.open) ? 'rgba(85,214,190,.34)' : 'rgba(239,130,147,.34)',
+  })).filter((bar) => bar.time != null && Number.isFinite(bar.value));
+  const vwap = (payload.vwap || []).map((point) => ({ time: chartEpoch(point.time), value: Number(point.value) }))
+    .filter((point) => point.time != null && Number.isFinite(point.value));
+  return { candles, volumes, vwap };
+}
+
+function renderTxDecisionChart(payload, { fit = false } = {}) {
+  state.txChartPayload = payload;
+  dwText('dw-chart-status', payload?.status || 'UNAVAILABLE');
+  $('dw-chart-status').className = `dw-status-pill ${payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
+  dwText('dw-chart-session', payload?.session || '—');
+  dwText('dw-chart-contract', payload?.actualContract ? `TX ${payload.actualContract}` : 'TX —');
+  dwText('dw-chart-mode', `${payload?.mode || 'LIVE'} · ${payload?.timeframe || state.txChartTimeframe} · READ ONLY`);
+  dwText('dw-reference-price', Number.isFinite(Number(payload?.lastPrice)) ? fmt(payload.lastPrice) : '—', '—');
+  const chart = ensureTxChart();
+  renderTxChartLevels(payload);
+
+  const visualizable = ['READY', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
+  $('dw-chart-empty').classList.toggle('hidden', visualizable);
+  dwText('dw-chart-empty-reason', dwHumanize(payload?.reason || 'TX_TICK_SOURCE_UNAVAILABLE'));
+  if (!chart || !state.txChartSeries) return;
+  const data = chartSeriesData(payload || {});
+  const identity = `${payload?.timeframe}|${payload?.tradeDate}|${payload?.sessionId}|${payload?.actualContract}`;
+  const mustReset = !visualizable || state.txChartIdentity !== identity || data.candles.length < state.txChartBarCount;
+  if (mustReset) {
+    state.txChartSeries.candle.setData(visualizable ? data.candles : []);
+    state.txChartSeries.volume.setData(visualizable ? data.volumes : []);
+    state.txChartSeries.vwap.setData(visualizable ? data.vwap : []);
+  } else if (data.candles.length) {
+    state.txChartSeries.candle.update(data.candles.at(-1));
+    if (data.volumes.length) state.txChartSeries.volume.update(data.volumes.at(-1));
+    if (data.vwap.length) state.txChartSeries.vwap.update(data.vwap.at(-1));
+  }
+  state.txChartIdentity = identity;
+  state.txChartBarCount = data.candles.length;
+  if ((mustReset || fit) && visualizable) chart.timeScale().fitContent();
+}
+
+async function loadTxDecisionChart({ fit = false } = {}) {
+  if (state.txChartLoading) return;
+  state.txChartLoading = true;
+  const params = new URLSearchParams({ timeframe: state.txChartTimeframe, mode: 'LIVE' });
+  try {
+    const payload = await api(`/api/v1/tx-chart?${params}`);
+    renderTxDecisionChart(payload.data, { fit });
+  } finally { state.txChartLoading = false; }
 }
 
 function renderDecisionWorkspace(workspace) {
@@ -2587,6 +2765,7 @@ async function loadDashboard() {
   })]);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
+  await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
   await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
   if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
@@ -2604,6 +2783,11 @@ document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventL
   document.querySelectorAll('[data-dw-mode]').forEach((item) => item.classList.toggle('is-selected', item === button));
   $('dw-focus-mode').classList.toggle('hidden', mode !== 'FOCUS');
   $('dw-review-mode').classList.toggle('hidden', mode !== 'REVIEW');
+}));
+document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
+  state.txChartTimeframe = button.dataset.chartTimeframe;
+  document.querySelectorAll('[data-chart-timeframe]').forEach((item) => item.classList.toggle('is-selected', item === button));
+  loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
 }));
 document.querySelectorAll('[data-review-intent]').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('[data-review-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));
@@ -2849,3 +3033,9 @@ $('logout-button').addEventListener('click', async () => {
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) loadDashboard().catch(() => {});
 }, 300_000);
+
+// Only the current candle/last point is updated when identity is unchanged.
+// This consumes the existing read-only ledger; it never starts a collector.
+setInterval(() => {
+  if (!$('dashboard-view').classList.contains('hidden')) loadTxDecisionChart().catch(() => {});
+}, 5_000);

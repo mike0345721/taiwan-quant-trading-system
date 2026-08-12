@@ -21,6 +21,8 @@ import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
+import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
+import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -57,6 +59,12 @@ const replayArchiveDir = path.join(config.dataDir, 'intraday', 'archive');
 const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
 const forwardShadowBaseRoot = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow');
 const futuresAuditPath = path.join(config.appRoot, 'data', 'live-events', 'futures-audits', 'latest.json');
+const chartCalendarPath = path.join(config.appRoot, 'config', 'taifex-official-calendar-2026.json');
+const chartCalendarExceptionPath = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
+const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
+const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
+const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
+const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
 let lastRefreshError = null;
 
 function readLocalJson(filePath) {
@@ -68,13 +76,15 @@ async function decisionWorkspacePayload(snapshot, service) {
     baseRoot: forwardShadowBaseRoot,
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
+  const chart = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot, calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
   const dataHealth = buildDataHealthContract({
     snapshot,
     service,
     runtimeTruth,
     futuresAudit: readLocalJson(futuresAuditPath),
+    chart,
   });
-  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth });
+  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth, chart });
 }
 
 function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
@@ -251,6 +261,29 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/api/v1/tx-chart') {
+        const timeframe = url.searchParams.get('timeframe') || '5m';
+        const mode = url.searchParams.get('mode') === 'REPLAY' ? 'REPLAY' : 'LIVE';
+        const tradeDate = url.searchParams.get('tradeDate') || null;
+        const sessionType = url.searchParams.get('session');
+        const selectedSession = ['DAY', 'NIGHT'].includes(sessionType) ? sessionType : null;
+        const actualContract = url.searchParams.get('actualContract') || null;
+        const asOf = url.searchParams.get('asOf') || null;
+        const chart = loadTxDecisionChart({
+          dataRoot: txChartDataRoot,
+          cacheRoot: txChartCacheRoot,
+          calendar: chartCalendar,
+          timeframe,
+          mode,
+          tradeDate,
+          session: selectedSession,
+          actualContract,
+          asOf,
+        });
+        sendJson(res, 200, { ok: true, data: chart });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/api/v1/decision-journal') {
         if (!requireCsrf(req, res, session)) return;
         const body = await readJson(req, { maxBytes: 512 * 1024 });
@@ -348,6 +381,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET') {
+      if (pathname === '/vendor/lightweight-charts.js') {
+        const served = await serveStatic(res, lightweightChartsDir, '/lightweight-charts.standalone.production.js');
+        if (served) return;
+      }
       const served = await serveStatic(res, config.publicDir, pathname);
       if (served) return;
       // SPA fallback only for paths without a file extension.
