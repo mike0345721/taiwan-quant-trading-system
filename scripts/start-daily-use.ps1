@@ -60,13 +60,13 @@ function Get-BridgeStatus {
   }
 }
 
-function Get-MarketSessionLabel {
-  $taipei = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTimeOffset]::UtcNow, 'Taipei Standard Time')
+function Get-MarketSessionLabel([DateTimeOffset]$Now = [DateTimeOffset]::UtcNow) {
+  $taipei = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($Now, 'Taipei Standard Time')
   if ($taipei.DayOfWeek -in @([DayOfWeek]::Saturday, [DayOfWeek]::Sunday)) { return 'Weekend or non-trading day (informational only)' }
   $time = $taipei.TimeOfDay
-  if ($time -ge [TimeSpan]::FromHours(8.5) -and $time -lt [TimeSpan]::FromHours(13.75)) { return 'Day session' }
+  if ($time -ge [TimeSpan]::FromHours(8.75) -and $time -lt [TimeSpan]::FromHours(13.75)) { return 'Day session' }
   if ($time -ge [TimeSpan]::FromHours(15) -or $time -lt [TimeSpan]::FromHours(5)) { return 'Night session' }
-  if ($time -lt [TimeSpan]::FromHours(8.5)) { return 'Pre-market' }
+  if ($time -lt [TimeSpan]::FromHours(8.75)) { return 'Pre-market' }
   return 'After market'
 }
 

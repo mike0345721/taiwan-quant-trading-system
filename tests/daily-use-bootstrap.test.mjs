@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import test from 'node:test';
 
@@ -27,6 +28,37 @@ test('daily-use launcher guards unknown occupied ports and repeated clicks', () 
   assert.match(source, /A normal startup is already running/);
   assert.match(source, /Port 8787 is occupied by a service that does not pass its health check/);
   assert.doesNotMatch(source, /taskkill|Stop-Process|kill all/i);
+});
+
+test('daily-use informational session labels use the canonical 08:45 TX day boundary', () => {
+  const probe = `
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/start-daily-use.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw $errors[0].Message }
+$functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-MarketSessionLabel' }, $true)
+if ($null -eq $functionAst) { throw 'Get-MarketSessionLabel not found' }
+Invoke-Expression $functionAst.Extent.Text
+$cases = @('08:29','08:30','08:44','08:45','13:44','13:45','14:59','15:00') | ForEach-Object {
+  $instant = [DateTimeOffset]::Parse("2026-08-12T$($_):00+08:00")
+  [pscustomobject]@{ time = $_; label = Get-MarketSessionLabel -Now $instant }
+}
+$cases | ConvertTo-Json -Compress
+`;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', probe], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout), [
+    { time: '08:29', label: 'Pre-market' },
+    { time: '08:30', label: 'Pre-market' },
+    { time: '08:44', label: 'Pre-market' },
+    { time: '08:45', label: 'Day session' },
+    { time: '13:44', label: 'Day session' },
+    { time: '13:45', label: 'After market' },
+    { time: '14:59', label: 'After market' },
+    { time: '15:00', label: 'Night session' },
+  ]);
 });
 
 test('desktop shortcut installer uses the Desktop known folder and a small local wrapper', () => {
