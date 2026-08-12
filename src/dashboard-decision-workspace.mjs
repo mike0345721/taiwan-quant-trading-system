@@ -204,7 +204,7 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
       session: chart?.session || null,
       actualContract: chart?.actualContract || null,
       qualityStatus: chart?.qualityStatus || 'UNAVAILABLE',
-      barSemanticsOwnerDecisionRequired: true,
+      barSemanticsOwnerDecisionRequired: chart?.barSemanticsOwnerDecisionRequired === true,
     },
     againstMyTrade: {
       status: 'NOT_IMPLEMENTED',

@@ -24,7 +24,7 @@ test('timeframe switching updates chart only and preserves Decision Summary/Data
   const switchBlock = app.slice(app.indexOf("document.querySelectorAll('[data-chart-timeframe]')"), app.indexOf("document.querySelectorAll('[data-review-intent]')"));
   assert.doesNotMatch(switchBlock, /loadDashboard|renderDecisionWorkspace|location\.reload/);
   assert.match(app, /state\.txChartSeries\.candle\.update/);
-  assert.match(app, /\['READY', 'QUALITY_INSUFFICIENT'\]\.includes/);
+  assert.match(app, /\['READY', 'FORMING', 'QUALITY_INSUFFICIENT'\]\.includes/);
   assert.match(app, /setInterval[\s\S]*loadTxDecisionChart/);
   assert.match(app, /subscribeCrosshairMove/);
   assert.match(app, /UNAVAILABLE_AT_SELECTED_TIME/);

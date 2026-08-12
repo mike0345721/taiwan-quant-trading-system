@@ -60,3 +60,30 @@ test('ledger reader incrementally consumes only actual TX ticks and source loade
     assert.equal(metadata.executionAuthorized, false);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('1D source reads governed previous NIGHT plus current DAY ledgers without changing lower timeframe anchors', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dw2-source-1d-'));
+  try {
+    const ledgerDir = path.join(root, 'live-events');
+    fs.mkdirSync(ledgerDir, { recursive: true });
+    fs.writeFileSync(path.join(ledgerDir, '2026-08-11.ndjson'), `${JSON.stringify(record('2026-08-11T15:00:01.000', 100, 2))}\n`);
+    fs.writeFileSync(path.join(ledgerDir, '2026-08-12.ndjson'), [
+      record('2026-08-12T04:59:59.000', 101, 3),
+      record('2026-08-12T08:45:01.000', 102, 4),
+      record('2026-08-12T13:44:59.000', 103, 5),
+    ].map(JSON.stringify).join('\n') + '\n');
+    const daily = loadTxDecisionChart({
+      dataRoot: root, calendar, timeframe: '1D', mode: 'REPLAY', tradeDate: '2026-08-12', asOf: '2026-08-12T13:45:00+08:00',
+    });
+    assert.deepEqual(daily.sourceLedgerDates, ['2026-08-11', '2026-08-12']);
+    assert.equal(daily.status, 'READY');
+    assert.equal(daily.sessionCoverage.night.eventCount, 2);
+    assert.equal(daily.sessionCoverage.day.eventCount, 2);
+    assert.equal(daily.bars[0].volume, 14);
+    const five = loadTxDecisionChart({
+      dataRoot: root, calendar, timeframe: '5m', mode: 'REPLAY', tradeDate: '2026-08-12', session: 'DAY', asOf: '2026-08-12T13:45:00+08:00',
+    });
+    assert.deepEqual(five.sourceLedgerDates, ['2026-08-12']);
+    assert.equal(five.bars[0].time, '2026-08-12T00:45:00.000Z');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

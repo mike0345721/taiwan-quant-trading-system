@@ -2598,6 +2598,7 @@ function renderTxChartLevels(chart) {
   dwText('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
   const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : dwHumanize(chart?.openingRange?.reason || 'UNAVAILABLE');
   dwText('dw-or-state', orText);
+  dwText('dw-vwap-label', chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP');
   dwText('dw-vwap-state', levelValue(levels.vwap) == null ? dwHumanize(levels.vwap?.reason || 'UNAVAILABLE') : fmt(levels.vwap.value, 2));
   dwText('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : 'UNAVAILABLE');
   dwText('dw-chart-quality', chart?.qualityStatus || 'UNAVAILABLE');
@@ -2605,9 +2606,9 @@ function renderTxChartLevels(chart) {
   clearTxChartLevels();
   addTxChartLevel(levels.openingRangeHigh, 'OR H', '#8aa7ff');
   addTxChartLevel(levels.openingRangeLow, 'OR L', '#8aa7ff');
-  addTxChartLevel(levels.previousDayHigh, 'PDH', '#77869c');
-  addTxChartLevel(levels.previousDayLow, 'PDL', '#77869c');
-  addTxChartLevel(levels.previousClose, 'PDC', '#a1aec0');
+  addTxChartLevel(levels.previousDayHigh, '前一日盤高', '#77869c');
+  addTxChartLevel(levels.previousDayLow, '前一日盤低', '#77869c');
+  addTxChartLevel(levels.previousClose, '前一日盤收', '#a1aec0');
   addTxChartLevel(levels.currentDayHigh, 'DAY H', '#55d6be');
   addTxChartLevel(levels.currentDayLow, 'DAY L', '#ef8293');
   addTxChartLevel(levels.nightHigh, 'NIGHT H', '#55d6be');
@@ -2638,7 +2639,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   const chart = ensureTxChart();
   renderTxChartLevels(payload);
 
-  const visualizable = ['READY', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
+  const visualizable = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
   $('dw-chart-empty').classList.toggle('hidden', visualizable);
   dwText('dw-chart-empty-reason', dwHumanize(payload?.reason || 'TX_TICK_SOURCE_UNAVAILABLE'));
   if (!chart || !state.txChartSeries) return;

@@ -35,10 +35,10 @@ const dayTicks = [
   tick('2026-08-12T12:45:00.000', 106, 2),
 ];
 
-test('CHART_BAR_CONTRACT_V1 freezes 1m base and leaves only 1D for Owner decision', () => {
+test('CHART_BAR_CONTRACT_V2 freezes 1m base and Owner-approved NIGHT_PLUS_DAY 1D semantics', () => {
   assert.equal(CHART_BAR_CONTRACT.baseTimeframe, '1m');
-  assert.deepEqual(CHART_BAR_CONTRACT.supportedTimeframes, ['1m', '5m', '15m', '30m', '1h', '4h']);
-  assert.deepEqual(CHART_BAR_CONTRACT.ownerDecisionRequiredTimeframes, ['1D']);
+  assert.deepEqual(CHART_BAR_CONTRACT.supportedTimeframes, ['1m', '5m', '15m', '30m', '1h', '4h', '1D']);
+  assert.equal(CHART_BAR_CONTRACT.dailySemantics, 'NIGHT_PLUS_DAY_TRADE_DATE');
   assert.equal(CHART_BAR_CONTRACT.executionAuthorized, false);
 });
 
@@ -123,6 +123,9 @@ test('invalid availableAt lineage is excluded and degrades quality without leaki
   assert.equal(result.sourceEventCount, 1);
   assert.equal(result.timeLineageViolationCount, 1);
   assert.equal(result.qualityStatus, 'QUALITY_INSUFFICIENT');
+  assert.deepEqual(result.qualityReasons, ['TIMESTAMP_LINEAGE_INSUFFICIENT']);
+  assert.equal(result.sequenceGapEventCount, 0);
+  assert.equal(result.sequenceGapSize, 0);
   assert.equal(result.futureDataViolations, 0);
 });
 
@@ -141,20 +144,111 @@ test('contract rollover is explicit and different actual contracts never mix int
   assert.equal(result.bars.every((bar) => bar.actualContract === 'TXFI6'), true);
 });
 
-test('NIGHT OR remains not applicable and 1D fails closed without guessed semantics', () => {
-  const night = [
-    tick('2026-08-12T15:00:01.000', 100, 1),
-    tick('2026-08-13T00:30:00.000', 101, 2),
-  ];
+test('NIGHT OR remains not applicable', () => {
+  const night = [tick('2026-08-12T15:00:01.000', 100, 1), tick('2026-08-13T00:30:00.000', 101, 2)];
   const result = buildTxDecisionChart(night, {
     calendar, timeframe: '1h', asOf: '2026-08-13T01:00:00+08:00', tradeDate: '2026-08-13', session: 'NIGHT', mode: 'REPLAY',
   });
   assert.equal(result.session, 'NIGHT');
   assert.equal(result.openingRange.status, 'NOT_APPLICABLE');
-  const daily = buildTxDecisionChart(night, {
-    calendar, timeframe: '1D', asOf: '2026-08-13T01:00:00+08:00', tradeDate: '2026-08-13', session: 'NIGHT', mode: 'REPLAY',
+});
+
+const tradeDateTicks = [
+  tick('2026-08-11T15:00:01.000', 100, 2),
+  tick('2026-08-12T04:59:59.000', 103, 3),
+  ...dayTicks,
+];
+
+test('1D combines governed cross-midnight NIGHT and DAY of one sessionTradeDate with stable identity', () => {
+  const result = buildTxDecisionChart(tradeDateTicks, {
+    calendar, timeframe: '1D', asOf: '2026-08-12T13:45:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
   });
-  assert.equal(daily.status, 'OWNER_DECISION_REQUIRED');
-  assert.equal(daily.barSemanticsOwnerDecisionRequired, true);
-  assert.deepEqual(daily.bars, []);
+  assert.equal(result.status, 'READY');
+  assert.equal(result.windowState, 'CLOSED');
+  assert.equal(result.coverageState, 'COMPLETE');
+  assert.equal(result.session, 'NIGHT_PLUS_DAY');
+  assert.equal(result.sessionId, '2026-08-12-TRADE_DATE');
+  assert.equal(result.bars[0].time, '2026-08-11T16:00:00.000Z');
+  assert.equal(result.bars[0].firstEventTime, '2026-08-11T07:00:01.000Z');
+  assert.equal(result.bars[0].lastEventTime, '2026-08-12T04:45:00.000Z');
+  assert.equal(result.bars[0].open, 100);
+  assert.equal(result.bars[0].high, 110);
+  assert.equal(result.bars[0].low, 98);
+  assert.equal(result.bars[0].close, 106);
+  assert.equal(result.bars[0].volume, tradeDateTicks.reduce((sum, row) => sum + row.payload.volume, 0));
+  assert.equal(result.sessionCoverage.night.eventCount, 2);
+  assert.equal(result.sessionCoverage.day.eventCount, dayTicks.length);
+  assert.equal(result.futureDataViolations, 0);
+  assert.deepEqual(result, buildTxDecisionChart(tradeDateTicks, {
+    calendar, timeframe: '1D', asOf: '2026-08-12T13:45:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  }));
+});
+
+test('1D remains FORMING before DAY close and excludes future exchange/available ticks', () => {
+  const delayed = tick('2026-08-12T09:05:00.000', 150, 5, { receivedAt: '2026-08-12T10:05:00.000+08:00' });
+  const result = buildTxDecisionChart([...tradeDateTicks, delayed], {
+    calendar, timeframe: '1D', asOf: '2026-08-12T09:30:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  });
+  assert.equal(result.status, 'FORMING');
+  assert.equal(result.windowState, 'FORMING');
+  assert.equal(result.lastPrice, 110);
+  assert.ok(result.futureExcluded > 0);
+  assert.equal(result.futureDataViolations, 0);
+});
+
+test('1D missing NIGHT preserves a partial DAY bar and cannot become READY', () => {
+  const result = buildTxDecisionChart(dayTicks, {
+    calendar, timeframe: '1D', asOf: '2026-08-12T13:45:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  });
+  assert.equal(result.status, 'QUALITY_INSUFFICIENT');
+  assert.equal(result.coverageState, 'PARTIAL');
+  assert.equal(result.qualityStatus, 'QUALITY_INSUFFICIENT');
+  assert.ok(result.qualityReasons.includes('NIGHT_SESSION_MISSING'));
+  assert.equal(result.bars.length, 1);
+  assert.equal(result.sessionCoverage.night.eventCount, 0);
+});
+
+test('1D contract mismatch fails closed and never mixes NIGHT with DAY', () => {
+  const changedDay = dayTicks.map((row) => ({
+    ...row,
+    product: 'TXFI6',
+    code: 'TXFI6',
+    payload: { ...row.payload, code: 'TXFI6', _target_code: 'TXFI6' },
+  }));
+  const result = buildTxDecisionChart([...tradeDateTicks.slice(0, 2), ...changedDay], {
+    calendar, timeframe: '1D', asOf: '2026-08-12T13:45:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  });
+  assert.equal(result.status, 'UNAVAILABLE');
+  assert.equal(result.contractConsistencyState, 'MISMATCH');
+  assert.deepEqual(result.bars, []);
+  assert.equal(result.sessionCoverage.night.actualContract, 'TXFH6');
+  assert.equal(result.sessionCoverage.day.actualContract, 'TXFI6');
+});
+
+test('1D VWAP remains session-only and switches from NIGHT to DAY without creating combined VWAP', () => {
+  const nightOnly = buildTxDecisionChart(tradeDateTicks.slice(0, 2), {
+    calendar, timeframe: '1D', asOf: '2026-08-12T05:00:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  });
+  assert.equal(nightOnly.vwapSession, 'NIGHT');
+  assert.equal(nightOnly.levels.vwap.vwapSession, 'NIGHT');
+  const withDay = buildTxDecisionChart(tradeDateTicks, {
+    calendar, timeframe: '1D', asOf: '2026-08-12T13:45:00+08:00', tradeDate: '2026-08-12', mode: 'REPLAY',
+  });
+  assert.equal(withDay.vwapSession, 'DAY');
+  assert.equal(withDay.levels.vwap.vwapSession, 'DAY');
+  assert.equal(withDay.levels.vwap.source, 'SESSION_EXACT_TX_TICK_VWAP');
+  assert.notEqual(withDay.vwap[0].value, (100 * 2 + 103 * 3 + dayTicks.reduce((sum, row) => sum + Number(row.payload.close) * row.payload.volume, 0))
+    / tradeDateTicks.reduce((sum, row) => sum + row.payload.volume, 0));
+});
+
+test('null native sequence never fabricates a gap and timestamp violations use the correct quality reason', () => {
+  const valid = tick('2026-08-12T09:02:00.000', 102, 1, { sequence: null, sequenceGap: 0 });
+  const invalid = tick('2026-08-12T09:01:00.000', 101, 1, { receivedAt: '2026-08-12T09:00:59.000+08:00', sequence: null, sequenceGap: 0 });
+  const result = buildTxDecisionChart([invalid, valid], {
+    calendar, timeframe: '1m', tradeDate: '2026-08-12', session: 'DAY', asOf: '2026-08-12T10:00:00+08:00',
+  });
+  assert.equal(result.sequenceGapEventCount, 0);
+  assert.equal(result.sequenceGapSize, 0);
+  assert.deepEqual(result.qualityReasons, ['TIMESTAMP_LINEAGE_INSUFFICIENT']);
+  assert.equal(result.qualityReasons.includes('TX_TICK_GAP'), false);
 });

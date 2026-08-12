@@ -154,7 +154,13 @@ export function resolveDefaultChartSelection(calendar, now = new Date()) {
   return Object.freeze({ tradeDate: null, session: 'DAY', reason: 'DAY_SESSION_NOT_GOVERNED' });
 }
 
-function relevantLedgerDates(calendar, tradeDate, session) {
+function relevantLedgerDates(calendar, tradeDate, session, timeframe = '5m') {
+  if (timeframe === '1D') {
+    const nightStartDate = previousOfficial(calendar, tradeDate);
+    return nightStartDate
+      ? [...new Set([nightStartDate, dateShift(nightStartDate, 1), tradeDate])]
+      : [tradeDate];
+  }
   if (session === 'DAY') return [tradeDate];
   const startDate = previousOfficial(calendar, tradeDate);
   if (!startDate) return [];
@@ -275,13 +281,15 @@ export function loadTxDecisionChart({
   if (!dataRoot || !calendar) throw new Error('TX_CHART_SOURCE_CONFIG_REQUIRED');
   const defaults = resolveDefaultChartSelection(calendar, now);
   const selectedTradeDate = tradeDate || defaults.tradeDate;
-  const selectedSession = session || defaults.session;
+  const selectedSession = timeframe === '1D' ? 'NIGHT_PLUS_DAY' : (session || defaults.session);
   const cutoff = asOf || now.toISOString();
   if (!selectedTradeDate) return buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
-  const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession);
+  const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
   const records = ledgerDates.flatMap((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`), { cacheRoot }));
   const initial = buildTxDecisionChart(records, {
-    calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate, session: selectedSession, actualContract, mode,
+    calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate,
+    session: timeframe === '1D' ? null : selectedSession,
+    actualContract, mode,
   });
   const priorDay = initial.actualContract && initial.contractMonth
     ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, initial.actualContract, initial.contractMonth)
