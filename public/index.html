@@ -71,25 +71,25 @@
           <span id="dw-global-time">TIME —</span>
           <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
           <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
-          <button id="dw-health-toggle" class="dw-link-button" type="button">Data Health</button>
+          <button id="dw-health-toggle" class="dw-link-button" type="button">資料健康度</button>
         </div>
 
         <header class="dw-page-heading">
           <div>
-            <p class="eyebrow">MANUAL TRADING DECISION WORKSPACE</p>
+            <p class="eyebrow">手動交易決策工作台</p>
             <h2 id="dw-title">先判斷，再決定是否交易</h2>
-            <p>Direction 與 Entry Quality 分開；資料不足時，NO_TRADE 是正式答案。</p>
+            <p>方向與進場品質分開；資料不足時，NO_TRADE 是正式答案。</p>
           </div>
           <div class="dw-mode-switch" role="group" aria-label="工作台模式">
-            <button type="button" class="is-selected" data-dw-mode="FOCUS">FOCUS</button>
-            <button type="button" data-dw-mode="REVIEW">REVIEW</button>
+            <button type="button" class="is-selected" data-dw-mode="FOCUS">盤中</button>
+            <button type="button" data-dw-mode="REVIEW">回顧</button>
           </div>
         </header>
 
         <div id="dw-focus-mode" class="dw-mode-panel">
           <section class="dw-decision-bar" aria-labelledby="dw-decision-title">
             <div class="dw-decision-primary">
-              <p class="eyebrow">DECISION READINESS</p>
+              <p class="eyebrow">交易準備度</p>
               <div class="dw-posture-line">
                 <h3 id="dw-posture">NO_TRADE</h3>
                 <span id="dw-readiness" class="dw-status-pill is-blocked">NOT_READY</span>
@@ -98,36 +98,36 @@
               <p id="dw-decision-explanation">等待合法 Market State 與進場品質資料。</p>
             </div>
             <div class="dw-axis-grid" id="dw-decision-title">
-              <article><span>Direction</span><strong id="dw-direction">UNAVAILABLE</strong></article>
-              <article><span>Global</span><strong id="dw-global-alignment">UNAVAILABLE</strong></article>
-              <article><span>Risk</span><strong id="dw-risk">UNAVAILABLE</strong></article>
-              <article><span>Entry Quality</span><strong id="dw-entry-quality">UNAVAILABLE</strong></article>
+              <article><span>方向</span><strong id="dw-direction">UNAVAILABLE</strong></article>
+              <article><span>全球一致性</span><strong id="dw-global-alignment">UNAVAILABLE</strong></article>
+              <article><span>風險</span><strong id="dw-risk">UNAVAILABLE</strong></article>
+              <article><span>進場品質</span><strong id="dw-entry-quality">UNAVAILABLE</strong></article>
             </div>
             <div class="dw-contrary">
-              <span>STRONGEST CONTRARY EVIDENCE</span>
+              <span>最大反向證據</span>
               <strong id="dw-contrary-evidence">UNAVAILABLE</strong>
-              <small id="dw-contrary-reason">CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED</small>
+              <small id="dw-contrary-reason">反向證據目前無法計算</small>
             </div>
           </section>
 
           <div class="dw-main-grid">
             <section class="dw-price-region" aria-labelledby="dw-price-title">
               <div class="dw-section-heading">
-                <div><p class="eyebrow">PRICE STRUCTURE</p><h3 id="dw-price-title">Decision-aware Price Chart</h3></div>
+                <div><p class="eyebrow">價格結構</p><h3 id="dw-price-title">決策價格圖</h3></div>
                 <span id="dw-chart-status" class="dw-status-pill is-unavailable">NOT_IMPLEMENTED</span>
               </div>
               <div class="dw-chart-placeholder">
-                <div class="dw-chart-price"><small>REFERENCE PRICE</small><strong id="dw-reference-price">—</strong></div>
+                <div class="dw-chart-price"><small>參考價格</small><strong id="dw-reference-price">—</strong></div>
                 <div class="dw-chart-message">
                   <span>DW-2</span>
                   <strong>Chart engine 尚未安裝</strong>
                   <p>此區已保留 OR、VWAP、Key Levels 與事件標記位置；本工作包不生成假 K 線。</p>
                 </div>
                 <div class="dw-level-grid">
-                  <article><span>Opening Range</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
+                  <article><span>開盤區間</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
                   <article><span>VWAP</span><strong id="dw-vwap-state">UNAVAILABLE</strong></article>
                   <article><span>RVOL</span><strong id="dw-rvol-state">UNAVAILABLE</strong></article>
-                  <article><span>Chase Risk</span><strong>UNAVAILABLE</strong></article>
+                  <article><span>追價風險</span><strong>UNAVAILABLE</strong></article>
                 </div>
               </div>
             </section>
@@ -135,14 +135,14 @@
             <aside class="dw-side-stack">
               <section class="dw-card" aria-labelledby="dw-against-title">
                 <div class="dw-section-heading compact">
-                  <div><p class="eyebrow">BIAS CHECK</p><h3 id="dw-against-title">Against My Trade</h3></div>
+                  <div><p class="eyebrow">反向檢查</p><h3 id="dw-against-title">反向證據</h3></div>
                   <div class="dw-intent-switch"><button type="button" class="is-selected" data-review-intent="LONG">LONG</button><button type="button" data-review-intent="SHORT">SHORT</button></div>
                 </div>
                 <div class="dw-evidence-columns">
-                  <div><span class="dw-list-label is-support">SUPPORT</span><ul id="dw-support-list"><li>NOT_IMPLEMENTED</li></ul></div>
-                  <div><span class="dw-list-label is-against">AGAINST</span><ul id="dw-against-list"><li>NOT_IMPLEMENTED</li></ul></div>
+                  <div><span class="dw-list-label is-support">支持證據</span><ul id="dw-support-list"><li>尚未實作</li></ul></div>
+                  <div><span class="dw-list-label is-against">反向證據</span><ul id="dw-against-list"><li>尚未實作</li></ul></div>
                 </div>
-                <div class="dw-missing-box"><span>MISSING EVIDENCE</span><ul id="dw-missing-list"><li>等待 Data Health</li></ul></div>
+                <div class="dw-missing-box"><span>缺失證據</span><ul id="dw-missing-list"><li>等待資料健康度</li></ul></div>
               </section>
 
               <details id="dw-ask-gpt" class="dw-card dw-gpt-panel">
@@ -163,23 +163,23 @@
           </div>
 
           <section class="dw-change-strip" aria-labelledby="dw-changed-title">
-            <div><p class="eyebrow">5–15 MINUTE DELTA</p><h3 id="dw-changed-title">What Changed?</h3></div>
+            <div><p class="eyebrow">最近 5–15 分鐘</p><h3 id="dw-changed-title">最近發生什麼變化？</h3></div>
             <div class="dw-change-items">
-              <span>Price <b>NOT_IMPLEMENTED</b></span><span>Breadth <b>NOT_IMPLEMENTED</b></span>
-              <span>Estimated Flow <b>NOT_IMPLEMENTED</b></span><span>RVOL <b>NOT_IMPLEMENTED</b></span>
-              <span>Basis <b>NOT_IMPLEMENTED</b></span><span>Options <b>NOT_IMPLEMENTED</b></span>
+              <span>價格 <b>尚未實作</b></span><span>市場廣度 <b>尚未實作</b></span>
+              <span>預估資金流 <b>尚未實作</b></span><span>RVOL <b>尚未實作</b></span>
+              <span>基差 <b>尚未實作</b></span><span>選擇權 <b>尚未實作</b></span>
             </div>
           </section>
 
           <section id="dw-data-health-panel" class="dw-data-health hidden" aria-labelledby="dw-health-title">
-            <div class="dw-section-heading"><div><p class="eyebrow">SOURCE OF TRUTH</p><h3 id="dw-health-title">Data Health</h3></div><button id="dw-health-close" class="ghost" type="button">Close</button></div>
+            <div class="dw-section-heading"><div><p class="eyebrow">資料來源與技術詳情</p><h3 id="dw-health-title">資料健康度</h3></div><button id="dw-health-close" class="ghost" type="button">關閉</button></div>
             <div id="dw-health-list" class="dw-health-list"></div>
           </section>
 
           <section class="dw-journal-bar" aria-labelledby="dw-journal-title">
             <div class="dw-journal-heading">
-              <div><p class="eyebrow">HUMAN DECISION DATASET</p><h3 id="dw-journal-title">Manual Decision Journal</h3></div>
-              <div class="dw-journal-actions"><button id="dw-lock-snapshot" class="secondary" type="button">Lock Snapshot</button><button id="dw-copy-chatgpt" class="secondary" type="button">Copy for ChatGPT</button></div>
+              <div><p class="eyebrow">人工決策紀錄</p><h3 id="dw-journal-title">手動決策日誌</h3></div>
+              <div class="dw-journal-actions"><button id="dw-lock-snapshot" class="secondary" type="button">鎖定快照</button><button id="dw-copy-chatgpt" class="secondary" type="button">複製給 ChatGPT</button></div>
             </div>
             <p id="dw-snapshot-status" class="dw-snapshot-status">Snapshot 尚未鎖定</p>
             <form id="dw-journal-form">
@@ -188,17 +188,17 @@
                 <button type="button" data-journal-intent="SHORT_INTENT">SHORT INTENT</button>
                 <button type="button" data-journal-intent="NO_TRADE" class="is-selected">NO TRADE</button>
               </div>
-              <label>Setup<input id="dw-journal-setup" maxlength="500" placeholder="例如：等待回測，不是下單指令"></label>
-              <label>Reason<input id="dw-journal-reason" maxlength="1000" placeholder="為什麼做這個人工決策"></label>
-              <label>Invalidation<input id="dw-journal-invalidation" maxlength="500" placeholder="什麼情況代表判斷失效"></label>
-              <button id="dw-journal-submit" type="submit">Save journal entry</button>
+              <label>交易條件<input id="dw-journal-setup" maxlength="500" placeholder="例如：等待回測，不是下單指令"></label>
+              <label>決策理由<input id="dw-journal-reason" maxlength="1000" placeholder="為什麼做這個人工決策"></label>
+              <label>失效條件<input id="dw-journal-invalidation" maxlength="500" placeholder="什麼情況代表判斷失效"></label>
+              <button id="dw-journal-submit" type="submit">儲存決策紀錄</button>
             </form>
             <p id="dw-journal-feedback" role="status"></p>
           </section>
         </div>
 
         <section id="dw-review-mode" class="dw-mode-panel hidden" aria-labelledby="dw-review-title">
-          <div class="dw-review-heading"><div><p class="eyebrow">REVIEW MODE</p><h3 id="dw-review-title">Locked decisions</h3></div><span class="dw-status-pill is-unavailable">OUTCOME REVIEW NOT_IMPLEMENTED</span></div>
+          <div class="dw-review-heading"><div><p class="eyebrow">決策回顧</p><h3 id="dw-review-title">已鎖定的決策</h3></div><span class="dw-status-pill is-unavailable">結果回顧尚未實作</span></div>
           <p>DW-1 只提供日誌與 snapshot 導覽，不計算 MAE/MFE、PnL 或新的研究連結。</p>
           <div id="dw-journal-history" class="dw-journal-history"><p>尚無人工決策紀錄。</p></div>
         </section>
@@ -209,7 +209,7 @@
       <section class="decision-cockpit is-active-page" data-page="today" aria-labelledby="cockpit-title">
         <div class="cockpit-heading">
           <div>
-            <p class="eyebrow">V3.9 DECISION COCKPIT</p>
+            <p class="eyebrow">V3.9 決策總覽</p>
             <h2 id="cockpit-title">今日三秒決策</h2>
             <p>先看結論與否決條件，再看多空證據；研究分數不等於勝率。</p>
           </div>
@@ -217,7 +217,7 @@
         </div>
         <div class="cockpit-lead">
           <article id="cockpit-posture" class="cockpit-posture is-wait">
-            <span>FINAL POSTURE</span>
+            <span>最終判斷</span>
             <h3 id="cockpit-action">等待資料</h3>
             <p id="cockpit-recommendation">正在整理市場、籌碼、波動與價格確認。</p>
             <div class="cockpit-mini-row">
@@ -271,7 +271,7 @@
       <section class="v362-briefing is-active-page" data-page="today" aria-labelledby="v362-title">
         <div class="v362-heading">
           <div>
-            <p class="eyebrow">V3.6.2 DAILY RISK BRIEFING</p>
+            <p class="eyebrow">V3.6.2 每日風險摘要</p>
             <h2 id="v362-title">今日風險作戰板</h2>
             <p class="v362-subtitle">只顯示可用的風險資訊；方向候選不等於進場訊號。</p>
           </div>
@@ -282,7 +282,7 @@
         </div>
         <div class="v362-layout">
           <article id="v362-posture" class="v362-posture risk-unknown">
-            <span class="v362-kicker">TODAY'S POSTURE</span>
+            <span class="v362-kicker">今日判斷</span>
             <div class="v362-posture-row">
               <div><small>方向偏向</small><strong id="v362-direction">中性</strong></div>
               <div><small>今日波動風險</small><strong id="v362-volatility">--</strong></div>

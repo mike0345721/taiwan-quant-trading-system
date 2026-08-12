@@ -29,7 +29,7 @@ h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 8px; letter-spacing: -.035em; }
 h1 span { color: var(--accent); font-size: .55em; vertical-align: super; }
 h2 { font-size: 21px; margin-bottom: 0; }
-.eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .16em; margin-bottom: 7px; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .06em; margin-bottom: 7px; }
 .muted { color: var(--muted); line-height: 1.65; }
 label { display: block; margin: 28px 0 8px; font-size: 13px; font-weight: 700; color: #c4cddd; }
 input { width: 100%; border: 1px solid var(--line); background: #0b111a; color: var(--text); border-radius: 12px; padding: 13px 14px; outline: none; }
@@ -453,7 +453,7 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-decision-primary > p:last-child { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .dw-axis-grid { display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); gap: 7px; }
 .dw-axis-grid article { display: grid; gap: 8px; align-content: center; padding: 11px; border: 1px solid var(--dw-line); border-radius: 11px; background: rgba(6,10,16,.44); }
-.dw-axis-grid span, .dw-contrary span { color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.dw-axis-grid span, .dw-contrary span { color: var(--muted); font-size: 10px; letter-spacing: .02em; text-transform: none; }
 .dw-axis-grid strong { font-size: 12px; overflow-wrap: anywhere; }
 .dw-contrary { display: grid; align-content: center; gap: 7px; border-left: 1px solid var(--dw-line); }
 .dw-contrary strong { color: #f4d38e; font-size: 12px; }
@@ -469,7 +469,7 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-chart-price small { color: var(--muted); font-size: 9px; }
 .dw-chart-price strong { font: 700 24px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .dw-chart-message { position: relative; z-index: 1; max-width: 430px; text-align: center; padding: 18px; border: 1px solid var(--dw-line); border-radius: 13px; background: rgba(7,12,20,.86); }
-.dw-chart-message span { color: var(--accent-2); font-size: 10px; font-weight: 900; }
+.dw-chart-message span { color: var(--accent-2); font-size: 10px; font-weight: 900; letter-spacing: .02em; }
 .dw-chart-message strong { display: block; margin: 7px 0; }
 .dw-chart-message p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .dw-level-grid { position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
@@ -479,11 +479,11 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-card { padding: 14px; }
 .dw-evidence-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
 .dw-evidence-columns > div { border: 1px solid var(--dw-line); border-radius: 10px; padding: 10px; min-height: 118px; }
-.dw-list-label { font-size: 9px; font-weight: 900; letter-spacing: .08em; }
+.dw-list-label { font-size: 10px; font-weight: 900; letter-spacing: .02em; }
 .dw-list-label.is-support { color: var(--accent); }
 .dw-list-label.is-against { color: var(--warning); }
 .dw-card ul, .dw-missing-box ul { padding-left: 17px; margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
-.dw-missing-box { margin-top: 8px; padding: 9px 10px; border-radius: 9px; background: rgba(245,200,107,.055); color: #d9bc7b; font-size: 9px; }
+.dw-missing-box { margin-top: 8px; padding: 9px 10px; border-radius: 9px; background: rgba(245,200,107,.04); color: #b8a578; font-size: 10px; }
 .dw-gpt-panel summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; list-style: none; }
 .dw-gpt-panel summary::-webkit-details-marker { display: none; }
 .dw-gpt-panel summary span { display: grid; gap: 2px; }
@@ -496,13 +496,13 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-change-strip { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 12px; padding: 12px 14px; }
 .dw-change-items { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .dw-change-items span { padding: 8px; border-left: 1px solid var(--dw-line); color: #b8c4d4; font-size: 9px; }
-.dw-change-items b { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
+.dw-change-items b { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-weight: 600; }
 .dw-data-health { padding: 14px; }
 .dw-health-list { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .dw-health-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 9px; border: 1px solid var(--dw-line); border-radius: 9px; }
 .dw-health-row strong { font-size: 10px; }
 .dw-health-row span { font-size: 9px; color: var(--muted); }
-.dw-health-row small { grid-column: 1 / -1; color: #7f8da1; overflow-wrap: anywhere; }
+.dw-health-row small { grid-column: 1 / -1; color: #7f8da1; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 8px; }
 .dw-journal-bar { padding: 13px 14px; }
 .dw-journal-actions { display: flex; gap: 7px; }
 .dw-snapshot-status { margin: 6px 0 9px; color: var(--muted); font-size: 9px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }

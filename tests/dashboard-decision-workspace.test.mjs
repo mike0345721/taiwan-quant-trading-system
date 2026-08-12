@@ -99,3 +99,17 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
   assert.match(html, /NO_TRADE/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });
+
+test('DW-1 presents Chinese-first decision copy while retaining engineering codes in technical detail', () => {
+  const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  for (const copy of [
+    '交易準備度', '價格結構', '決策價格圖', '反向檢查', '反向證據', '支持證據',
+    '缺失證據', '最近發生什麼變化？', '人工決策紀錄', '手動決策日誌', '鎖定快照',
+    '複製給 ChatGPT', '儲存決策紀錄', '盤中', '回顧',
+  ]) assert.match(html, new RegExp(copy));
+  assert.match(app, /DERIVATION_NOT_IMPLEMENTED: '尚未實作'/);
+  assert.match(app, /CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED: '反向證據目前無法計算'/);
+  assert.match(app, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD: 'Runtime 狀態目前無法取得'/);
+  assert.match(app, /技術詳情：\$\{item\.sourceAvailability\}/);
+});

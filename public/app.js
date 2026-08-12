@@ -2448,8 +2448,28 @@ function dwText(id, value, fallback = 'UNAVAILABLE') {
   if (node) node.textContent = value == null || value === '' ? fallback : String(value);
 }
 
+const DW_REASON_LABELS = Object.freeze({
+  DERIVATION_NOT_IMPLEMENTED: '尚未實作',
+  CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED: '反向證據目前無法計算',
+  MOCK_NOT_DECISION_ELIGIBLE: '測試資料，不可進入決策狀態',
+  RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD: 'Runtime 狀態目前無法取得',
+  RUNTIME_UNAVAILABLE: 'Runtime 狀態目前無法取得',
+  DATA_INSUFFICIENT: '資料不足',
+  ENTRY_QUALITY_NOT_IMPLEMENTED: '進場條件尚未實作',
+  INVALIDATION_CONTRACT_NOT_IMPLEMENTED: '失效條件尚未實作',
+  CHANGE_DERIVATION_NOT_IMPLEMENTED: '近期變化目前無法計算',
+  CONTRACT_NOT_FROZEN: '契約語意尚未凍結',
+  NOT_IMPLEMENTED: '尚未實作',
+  UNAVAILABLE: '目前無法取得',
+});
+
+function dwHumanize(value, fallback = '目前無法取得') {
+  if (value == null || value === '') return fallback;
+  return DW_REASON_LABELS[value] || value;
+}
+
 function availabilityLabel(field) {
-  return field?.availability === 'AVAILABLE' ? (field.value ?? 'AVAILABLE') : (field?.reason || 'UNAVAILABLE');
+  return field?.availability === 'AVAILABLE' ? (field.value ?? 'AVAILABLE') : dwHumanize(field?.reason || 'UNAVAILABLE');
 }
 
 function renderPlainList(id, items, fallback) {
@@ -2458,9 +2478,10 @@ function renderPlainList(id, items, fallback) {
   const values = Array.isArray(items) ? items : [];
   const nodes = (values.length ? values : [fallback]).map((item) => {
     const li = document.createElement('li');
-    li.textContent = typeof item === 'string'
+    const rawValue = typeof item === 'string'
       ? item
       : item?.title || item?.sourceId || item?.reason || item?.availability || fallback;
+    li.textContent = dwHumanize(rawValue, dwHumanize(fallback));
     return li;
   });
   target.replaceChildren(...nodes);
@@ -2477,26 +2498,26 @@ function renderDecisionWorkspace(workspace) {
   const global = workspace?.globalStatus || {};
   const decision = workspace?.decisionSummary || {};
   const chart = workspace?.priceChartSlot || {};
-  dwText('dw-global-mode', global.mode);
-  dwText('dw-global-contract', global.actualContract ? `CONTRACT ${global.actualContract}` : 'CONTRACT UNAVAILABLE');
-  dwText('dw-global-session', global.session ? `SESSION ${global.session}` : 'SESSION UNAVAILABLE');
-  dwText('dw-global-time', global.sourceTime ? `SOURCE ${timeLabel(global.sourceTime)}` : 'TIME UNAVAILABLE');
-  dwText('dw-global-health', `DATA ${global.dataHealth || 'UNAVAILABLE'}`);
+  dwText('dw-global-mode', dwHumanize(global.mode));
+  dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
+  dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
+  dwText('dw-global-time', global.sourceTime ? `資料時間 ${timeLabel(global.sourceTime)}` : '時間目前無法取得');
+  dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
   $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
-  dwText('dw-global-counts', `${global.staleCount || 0} STALE · ${global.unavailableCount || 0} UNAVAILABLE`);
+  dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
 
   dwText('dw-posture', decision.posture || 'NO_TRADE');
   dwText('dw-readiness', decision.readiness || 'NOT_READY');
-  dwText('dw-no-trade-reason', decision.noTradeReason || 'DATA_INSUFFICIENT');
+  dwText('dw-no-trade-reason', dwHumanize(decision.noTradeReason || 'DATA_INSUFFICIENT'));
   dwText('dw-decision-explanation', decision.explanation);
   dwText('dw-direction', decision.direction);
   dwText('dw-global-alignment', decision.globalAlignment);
   dwText('dw-risk', decision.risk);
   dwText('dw-entry-quality', decision.entryQuality);
   dwText('dw-contrary-evidence', availabilityLabel(decision.strongestContraryEvidence));
-  dwText('dw-contrary-reason', decision.strongestContraryEvidence?.reason);
+  dwText('dw-contrary-reason', dwHumanize(decision.strongestContraryEvidence?.reason));
 
-  dwText('dw-chart-status', chart.status || 'NOT_IMPLEMENTED');
+  dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
   const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';
   dwText('dw-reference-price', reference, '—');
   dwText('dw-or-state', availabilityLabel(chart.OR));
@@ -2514,7 +2535,7 @@ function renderDecisionWorkspace(workspace) {
     const name = document.createElement('strong'); name.textContent = item.sourceId;
     const status = document.createElement('span'); status.textContent = item.freshnessState;
     const contract = document.createElement('span'); contract.textContent = item.actualContract || item.instrument || item.sourceType;
-    const reason = document.createElement('small'); reason.textContent = `${item.sourceAvailability} · ${item.readinessState}${item.reason ? ` · ${item.reason}` : ''}`;
+    const reason = document.createElement('small'); reason.textContent = `技術詳情：${item.sourceAvailability} · ${item.readinessState}${item.reason ? ` · ${item.reason}` : ''}`;
     row.append(name, status, contract, reason);
     return row;
   });
