@@ -1,5 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { URL } from 'node:url';
@@ -16,6 +17,10 @@ import { listReplayDays, loadCatalogReplay } from './src/intraday-replay-catalog
 import { marketFeedReadiness } from './src/market-feed.mjs';
 import { inspectShioajiBridge } from './src/shioaji-bridge-client.mjs';
 import { costScenarios } from './v2/src/trading-costs.mjs';
+import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
+import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
+import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
+import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -49,7 +54,28 @@ let dailyUpdateProcess = null;
 const intradayPath = path.join(config.dataDir, 'intraday', 'latest-bars.json');
 const replayPath = path.join(config.dataDir, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(config.dataDir, 'intraday', 'archive');
+const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
+const forwardShadowBaseRoot = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow');
+const futuresAuditPath = path.join(config.appRoot, 'data', 'live-events', 'futures-audits', 'latest.json');
 let lastRefreshError = null;
+
+function readLocalJson(filePath) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+}
+
+async function decisionWorkspacePayload(snapshot, service) {
+  const runtimeTruth = await readDashboardRuntimeTruth({
+    baseRoot: forwardShadowBaseRoot,
+    explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
+  });
+  const dataHealth = buildDataHealthContract({
+    snapshot,
+    service,
+    runtimeTruth,
+    futuresAudit: readLocalJson(futuresAuditPath),
+  });
+  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth });
+}
 
 function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
   const referencePrice = Number(snapshot?.futuresMarket?.data?.txDay?.close || snapshot?.marketOverview?.data?.twii?.price);
@@ -195,17 +221,41 @@ const server = http.createServer(async (req, res) => {
           enrichSnapshot(clientSnapshot, clientHistory);
           clientSnapshot.sixAxisShadow = buildSixAxisShadow(clientSnapshot);
         }
+        const servicePayload = {
+          readOnly: true,
+          brokerConnected: shioaji.connected,
+          brokerMarketData: shioaji,
+          lastRefreshError,
+          prelive: preliveStatus(latestSnapshot, shioaji),
+        };
+        const decisionWorkspace = clientSnapshot
+          ? await decisionWorkspacePayload(clientSnapshot, servicePayload)
+          : null;
         sendJson(res, latestSnapshot ? 200 : 503, {
           ok: Boolean(latestSnapshot),
           data: clientSnapshot,
-          service: {
-            readOnly: true,
-            brokerConnected: shioaji.connected,
-            brokerMarketData: shioaji,
-            lastRefreshError,
-            prelive: preliveStatus(latestSnapshot, shioaji),
-          },
+          service: servicePayload,
+          decisionWorkspace,
         });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/decision-journal') {
+        const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit') || '20', 10) || 20));
+        sendJson(res, 200, {
+          ok: true,
+          data: readDecisionJournal(decisionJournalPath, { limit }),
+          storage: 'LOCAL_APPEND_ONLY_ISOLATED',
+          executionAuthorized: false,
+        });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/api/v1/decision-journal') {
+        if (!requireCsrf(req, res, session)) return;
+        const body = await readJson(req, { maxBytes: 512 * 1024 });
+        const entry = appendDecisionJournal(decisionJournalPath, body);
+        sendJson(res, 201, { ok: true, data: entry, executionAuthorized: false });
         return;
       }
 

@@ -34,6 +34,13 @@ export async function inspectShioajiBridge(options = {}) {
       latestReceivedAt: health?.latestReceivedAt || null,
       freeBytes: Number(health?.freeBytes) || null,
       lowDisk: Boolean(health?.lowDisk),
+      marketSession: health?.marketSession && typeof health.marketSession === 'object'
+        ? {
+          state: health.marketSession.state || 'unknown',
+          isTradingSession: health.marketSession.isTradingSession === true,
+          timeZone: health.marketSession.timeZone || 'Asia/Taipei',
+        }
+        : null,
       executionAuthorized: false,
       orderRoutesEnabled: false,
       safetyVerified: safe,
@@ -54,6 +61,7 @@ export async function inspectShioajiBridge(options = {}) {
       latestReceivedAt: null,
       freeBytes: null,
       lowDisk: false,
+      marketSession: null,
       executionAuthorized: false,
       orderRoutesEnabled: false,
       safetyVerified: false,

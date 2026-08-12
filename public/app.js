@@ -4,12 +4,14 @@ const state = {
   csrfToken: '', snapshot: null, history: [], historyDays: 20,
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
+  decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
+  gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
 };
 const $ = (id) => document.getElementById(id);
 
 function setDashboardPage(page) {
-  const valid = new Set(['today', 'market', 'options', 'intraday', 'research', 'quality']);
-  const selected = valid.has(page) ? page : 'today';
+  const valid = new Set(['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']);
+  const selected = valid.has(page) ? page : 'workspace';
   document.querySelectorAll('[data-page]').forEach((element) => element.classList.toggle('is-active-page', element.dataset.page === selected));
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2441,6 +2443,142 @@ async function loadV2Backtests() {
   renderV2Backtests(payload.data);
 }
 
+function dwText(id, value, fallback = 'UNAVAILABLE') {
+  const node = $(id);
+  if (node) node.textContent = value == null || value === '' ? fallback : String(value);
+}
+
+const DW_REASON_LABELS = Object.freeze({
+  DERIVATION_NOT_IMPLEMENTED: '尚未實作',
+  CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED: '反向證據目前無法計算',
+  MOCK_NOT_DECISION_ELIGIBLE: '測試資料，不可進入決策狀態',
+  RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD: 'Runtime 狀態目前無法取得',
+  RUNTIME_UNAVAILABLE: 'Runtime 狀態目前無法取得',
+  DATA_INSUFFICIENT: '資料不足',
+  ENTRY_QUALITY_NOT_IMPLEMENTED: '進場條件尚未實作',
+  INVALIDATION_CONTRACT_NOT_IMPLEMENTED: '失效條件尚未實作',
+  CHANGE_DERIVATION_NOT_IMPLEMENTED: '近期變化目前無法計算',
+  CONTRACT_NOT_FROZEN: '契約語意尚未凍結',
+  NOT_IMPLEMENTED: '尚未實作',
+  UNAVAILABLE: '目前無法取得',
+});
+
+function dwHumanize(value, fallback = '目前無法取得') {
+  if (value == null || value === '') return fallback;
+  return DW_REASON_LABELS[value] || value;
+}
+
+function availabilityLabel(field) {
+  return field?.availability === 'AVAILABLE' ? (field.value ?? 'AVAILABLE') : dwHumanize(field?.reason || 'UNAVAILABLE');
+}
+
+function renderPlainList(id, items, fallback) {
+  const target = $(id);
+  if (!target) return;
+  const values = Array.isArray(items) ? items : [];
+  const nodes = (values.length ? values : [fallback]).map((item) => {
+    const li = document.createElement('li');
+    const rawValue = typeof item === 'string'
+      ? item
+      : item?.title || item?.sourceId || item?.reason || item?.availability || fallback;
+    li.textContent = dwHumanize(rawValue, dwHumanize(fallback));
+    return li;
+  });
+  target.replaceChildren(...nodes);
+}
+
+function healthTone(value) {
+  return value === 'LIVE' || value === 'FRESH' ? 'is-ready' : 'is-unavailable';
+}
+
+function renderDecisionWorkspace(workspace) {
+  state.decisionWorkspace = workspace || null;
+  state.lockedDecisionSnapshot = null;
+  dwText('dw-snapshot-status', 'Snapshot 尚未鎖定');
+  const global = workspace?.globalStatus || {};
+  const decision = workspace?.decisionSummary || {};
+  const chart = workspace?.priceChartSlot || {};
+  dwText('dw-global-mode', dwHumanize(global.mode));
+  dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
+  dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
+  dwText('dw-global-time', global.sourceTime ? `資料時間 ${timeLabel(global.sourceTime)}` : '時間目前無法取得');
+  dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
+  $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
+  dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
+
+  dwText('dw-posture', decision.posture || 'NO_TRADE');
+  dwText('dw-readiness', decision.readiness || 'NOT_READY');
+  dwText('dw-no-trade-reason', dwHumanize(decision.noTradeReason || 'DATA_INSUFFICIENT'));
+  dwText('dw-decision-explanation', decision.explanation);
+  dwText('dw-direction', decision.direction);
+  dwText('dw-global-alignment', decision.globalAlignment);
+  dwText('dw-risk', decision.risk);
+  dwText('dw-entry-quality', decision.entryQuality);
+  dwText('dw-contrary-evidence', availabilityLabel(decision.strongestContraryEvidence));
+  dwText('dw-contrary-reason', dwHumanize(decision.strongestContraryEvidence?.reason));
+
+  dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
+  const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';
+  dwText('dw-reference-price', reference, '—');
+  dwText('dw-or-state', availabilityLabel(chart.OR));
+  dwText('dw-vwap-state', availabilityLabel(chart.VWAP));
+  dwText('dw-rvol-state', availabilityLabel(chart.RVOL));
+
+  renderPlainList('dw-support-list', workspace?.againstMyTrade?.support, 'NOT_IMPLEMENTED');
+  renderPlainList('dw-against-list', workspace?.againstMyTrade?.against, 'NOT_IMPLEMENTED');
+  renderPlainList('dw-missing-list', workspace?.againstMyTrade?.missingEvidence, '無可用反證衍生資料');
+
+  const healthTarget = $('dw-health-list');
+  const healthItems = workspace?.snapshot?.dataHealth?.items || [];
+  const rows = healthItems.map((item) => {
+    const row = document.createElement('article'); row.className = 'dw-health-row';
+    const name = document.createElement('strong'); name.textContent = item.sourceId;
+    const status = document.createElement('span'); status.textContent = item.freshnessState;
+    const contract = document.createElement('span'); contract.textContent = item.actualContract || item.instrument || item.sourceType;
+    const reason = document.createElement('small'); reason.textContent = `技術詳情：${item.sourceAvailability} · ${item.readinessState}${item.reason ? ` · ${item.reason}` : ''}`;
+    row.append(name, status, contract, reason);
+    return row;
+  });
+  if (healthTarget) healthTarget.replaceChildren(...rows);
+}
+
+function renderJournalHistory(rows) {
+  const target = $('dw-journal-history');
+  if (!target) return;
+  if (!rows?.length) {
+    const empty = document.createElement('p'); empty.textContent = '尚無人工決策紀錄。'; target.replaceChildren(empty); return;
+  }
+  const nodes = rows.map((entry) => {
+    const row = document.createElement('article');
+    const time = document.createElement('span'); time.textContent = timeLabel(entry.recordedAt);
+    const intent = document.createElement('strong'); intent.textContent = entry.intent;
+    const reason = document.createElement('span'); reason.textContent = entry.reason || entry.setup || '未填寫說明';
+    const hash = document.createElement('code'); hash.textContent = `${entry.snapshotHash.slice(0, 10)}…`;
+    row.append(time, intent, reason, hash); return row;
+  });
+  target.replaceChildren(...nodes);
+}
+
+async function loadDecisionJournal() {
+  try {
+    const payload = await api('/api/v1/decision-journal?limit=20');
+    renderJournalHistory(payload.data || []);
+  } catch (error) {
+    const target = $('dw-journal-history');
+    if (target) target.textContent = `Journal UNAVAILABLE · ${error.message}`;
+  }
+}
+
+async function copyToClipboard(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value; textarea.setAttribute('readonly', ''); textarea.style.position = 'fixed'; textarea.style.opacity = '0';
+  document.body.append(textarea); textarea.select(); document.execCommand('copy'); textarea.remove();
+}
+
 async function loadDashboard() {
   const [payload] = await Promise.all([api('/api/v1/dashboard'), loadHistory(), loadBacktest(), loadV2Research().catch((error) => {
     text('v2-data-status', `V2 無法讀取：${error.message}`); $('v2-data-status').className = 'source-badge bad';
@@ -2448,6 +2586,8 @@ async function loadDashboard() {
     text('v2-backtest-period', '尚未完成'); text('v2-backtest-note', `V2.3 回測尚未就緒：${error.message}`);
   })]);
   if (payload.data) render(payload.data);
+  renderDecisionWorkspace(payload.decisionWorkspace);
+  await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
   if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
 }
@@ -2459,6 +2599,67 @@ document.querySelectorAll('#v2-range-controls button').forEach((button) => butto
 }));
 
 document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.addEventListener('click', () => setDashboardPage(button.dataset.dashboardPage)));
+document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventListener('click', () => {
+  const mode = button.dataset.dwMode;
+  document.querySelectorAll('[data-dw-mode]').forEach((item) => item.classList.toggle('is-selected', item === button));
+  $('dw-focus-mode').classList.toggle('hidden', mode !== 'FOCUS');
+  $('dw-review-mode').classList.toggle('hidden', mode !== 'REVIEW');
+}));
+document.querySelectorAll('[data-review-intent]').forEach((button) => button.addEventListener('click', () => {
+  document.querySelectorAll('[data-review-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));
+}));
+document.querySelectorAll('[data-journal-intent]').forEach((button) => button.addEventListener('click', () => {
+  state.journalIntent = button.dataset.journalIntent;
+  document.querySelectorAll('[data-journal-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));
+}));
+document.querySelectorAll('[data-gpt-question]').forEach((button) => button.addEventListener('click', () => {
+  state.gptQuestion = button.dataset.gptQuestion;
+  document.querySelectorAll('[data-gpt-question]').forEach((item) => item.classList.toggle('is-selected', item === button));
+}));
+$('dw-health-toggle').addEventListener('click', () => $('dw-data-health-panel').classList.remove('hidden'));
+$('dw-health-close').addEventListener('click', () => $('dw-data-health-panel').classList.add('hidden'));
+$('dw-lock-snapshot').addEventListener('click', () => {
+  const snapshot = state.decisionWorkspace?.snapshot;
+  if (!snapshot) { dwText('dw-snapshot-status', 'Snapshot UNAVAILABLE'); return; }
+  state.lockedDecisionSnapshot = JSON.parse(JSON.stringify(snapshot));
+  dwText('dw-snapshot-status', `LOCKED ${snapshot.snapshotTime} · ${snapshot.snapshotHash}`);
+});
+$('dw-copy-chatgpt').addEventListener('click', async () => {
+  const workspace = state.decisionWorkspace;
+  if (!workspace?.chatGptCopy) { dwText('dw-journal-feedback', 'Copy context UNAVAILABLE'); return; }
+  await copyToClipboard(workspace.chatGptCopy);
+  dwText('dw-journal-feedback', 'ChatGPT discussion context copied · NOT A TRADING SIGNAL');
+});
+$('dw-copy-gpt-prompt').addEventListener('click', async () => {
+  const workspace = state.decisionWorkspace;
+  if (!workspace?.chatGptCopy) return;
+  await copyToClipboard(`QUESTION\n${state.gptQuestion}\n\n${workspace.chatGptCopy}`);
+  dwText('dw-journal-feedback', 'Question + immutable snapshot copied');
+});
+$('dw-journal-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!state.lockedDecisionSnapshot) {
+    dwText('dw-journal-feedback', '請先 Lock Snapshot；未鎖定資料不得寫入人工決策日誌。');
+    return;
+  }
+  const submit = $('dw-journal-submit'); submit.disabled = true;
+  try {
+    const payload = await api('/api/v1/decision-journal', {
+      method: 'POST',
+      body: JSON.stringify({
+        intent: state.journalIntent,
+        setup: $('dw-journal-setup').value,
+        reason: $('dw-journal-reason').value,
+        invalidation: $('dw-journal-invalidation').value,
+        snapshot: state.lockedDecisionSnapshot,
+      }),
+    });
+    dwText('dw-journal-feedback', `Saved #${payload.data.sequence} · ${payload.data.recordHash.slice(0, 12)}… · executionAuthorized=false`);
+    await loadDecisionJournal();
+  } catch (error) {
+    dwText('dw-journal-feedback', `Journal write rejected · ${error.message}`);
+  } finally { submit.disabled = false; }
+});
 document.querySelectorAll('#v2-delta-controls button').forEach((button) => button.addEventListener('click', async () => {
   state.v2Delta = Number(button.dataset.delta) || 1;
   document.querySelectorAll('#v2-delta-controls button').forEach((item) => item.classList.toggle('is-selected', item === button));
