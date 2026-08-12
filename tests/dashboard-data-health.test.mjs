@@ -48,3 +48,43 @@ test('data health vocabulary is frozen and does not invent numeric defaults', ()
   const health = buildDataHealthContract({ now, snapshot: { sources: {} } });
   assert.equal(health.items.find((item) => item.sourceId === 'forwardShadowRuntime').reason, 'RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD');
 });
+
+test('governed chart derivations expose source, readiness and quality independently', () => {
+  const chart = {
+    status: 'READY',
+    timeframe: '5m',
+    actualContract: 'TXFH6',
+    session: 'DAY',
+    sessionId: '2026-08-12-DAY',
+    source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK',
+    sourceEventCount: 120,
+    bars: [{ time: '2026-08-12T00:45:00.000Z' }],
+    openingRange: { status: 'READY' },
+    levels: { vwap: { availability: 'AVAILABLE' } },
+    qualityStatus: 'PASS',
+    lastEventTime: '2026-08-12T02:14:30.000Z',
+    availableAt: '2026-08-12T02:14:45.000Z',
+  };
+  const health = buildDataHealthContract({ now, snapshot: { sources: {} }, chart });
+  for (const sourceId of ['chartBar', 'chartHistory', 'liveVwap', 'openingRange']) {
+    const item = health.items.find((candidate) => candidate.sourceId === sourceId);
+    assert.equal(item.sourceAvailability, 'SOURCE_AVAILABLE');
+    assert.equal(item.readinessState, 'READY');
+    assert.equal(item.freshnessState, 'LIVE');
+    assert.equal(item.actualContract, 'TXFH6');
+  }
+});
+
+test('chart derivation failure is not misreported as a missing upstream Tick source', () => {
+  const contract = buildDataHealthContract({
+    chart: {
+      status: 'UNAVAILABLE', reason: 'BAR_DERIVATION_FAILED', sourceEventCount: 4,
+      bars: [], actualContract: 'TXFH6', qualityStatus: 'UNAVAILABLE',
+    },
+    now: new Date('2026-08-12T01:00:00.000Z'),
+  });
+  const chartBar = contract.items.find((item) => item.sourceId === 'chartBar');
+  assert.equal(chartBar.sourceAvailability, 'SOURCE_AVAILABLE');
+  assert.equal(chartBar.readinessState, 'DERIVATION_FAILURE');
+  assert.equal(chartBar.reason, 'BAR_DERIVATION_FAILED');
+});

@@ -460,9 +460,24 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-contrary small { color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
 .dw-main-grid { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(330px, .78fr); gap: 12px; min-height: 405px; }
 .dw-price-region, .dw-card, .dw-change-strip, .dw-data-health, .dw-journal-bar, #dw-review-mode { border: 1px solid var(--dw-line); border-radius: 17px; background: var(--dw-surface); }
-.dw-price-region { padding: 15px; display: grid; grid-template-rows: auto 1fr; }
+.dw-price-region { padding: 15px; display: grid; grid-template-rows: auto auto minmax(325px, 1fr) auto; }
 .dw-section-heading, .dw-journal-heading, .dw-review-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .dw-section-heading.compact h3 { font-size: 15px; }
+.dw-chart-heading-status { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.dw-chart-context { padding: 5px 8px; border: 1px solid var(--dw-line); border-radius: 999px; color: #aebbd0; background: rgba(7,12,20,.7); font: 700 9px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dw-chart-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 9px; }
+.dw-timeframe-switch { display: grid; grid-template-columns: repeat(7, minmax(42px, 1fr)); gap: 4px; padding: 3px; border: 1px solid var(--dw-line); border-radius: 10px; background: #080d14; }
+.dw-timeframe-switch button { min-width: 42px; padding: 7px 10px; border-radius: 7px; background: transparent; color: #8795aa; font: 800 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dw-timeframe-switch button:hover, .dw-timeframe-switch button:focus-visible { color: var(--text); background: #172234; }
+.dw-timeframe-switch button.is-selected { color: #06110e; background: var(--accent); box-shadow: 0 0 18px rgba(85,214,190,.15); }
+.dw-chart-mode { color: var(--muted); font: 700 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.dw-chart-stage { position: relative; min-height: 325px; margin-top: 8px; overflow: hidden; border-radius: 12px; border: 1px solid rgba(138,167,255,.15); background: #090f18; }
+.dw-chart-canvas { width: 100%; height: 100%; min-height: 325px; }
+.dw-chart-empty { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; gap: 6px; padding: 30px; text-align: center; background: linear-gradient(rgba(138,167,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(138,167,255,.035) 1px, transparent 1px), rgba(7,12,20,.93); background-size: 36px 36px; }
+.dw-chart-empty strong { color: #d4deed; font-size: 13px; }.dw-chart-empty p { margin: 0; color: var(--muted); font-size: 10px; }
+.dw-chart-crosshair { position: absolute; z-index: 2; left: 8px; bottom: 8px; max-width: calc(100% - 130px); padding: 5px 8px; border: 1px solid rgba(138,167,255,.15); border-radius: 7px; background: rgba(5,9,15,.86); color: #b7c5d8; font: 700 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; pointer-events: none; }
+.dw-chart-attribution { position: absolute; right: 8px; bottom: 8px; z-index: 2; color: #68768a; font-size: 8px; pointer-events: auto; }.dw-chart-attribution a { color: #8295b3; }
+.dw-chart-stage .dw-chart-price { pointer-events: none; }
 .dw-chart-placeholder { position: relative; min-height: 325px; margin-top: 10px; overflow: hidden; display: grid; place-items: center; border-radius: 12px; border: 1px solid rgba(138,167,255,.15); background: linear-gradient(rgba(138,167,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(138,167,255,.045) 1px, transparent 1px), #090f18; background-size: 36px 36px; }
 .dw-chart-placeholder::after { content: ''; position: absolute; inset: 28% 3% auto; height: 1px; background: rgba(85,214,190,.22); transform: rotate(-3deg); }
 .dw-chart-price { position: absolute; top: 14px; left: 14px; display: grid; gap: 2px; z-index: 1; }
@@ -472,7 +487,7 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-chart-message span { color: var(--accent-2); font-size: 10px; font-weight: 900; letter-spacing: .02em; }
 .dw-chart-message strong { display: block; margin: 7px 0; }
 .dw-chart-message p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
-.dw-level-grid { position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.dw-level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 8px; }
 .dw-level-grid article { display: flex; justify-content: space-between; gap: 10px; padding: 8px 9px; border-radius: 8px; background: rgba(9,15,24,.86); border: 1px solid var(--dw-line); font-size: 9px; }
 .dw-level-grid strong { color: var(--muted); font-size: 9px; }
 .dw-side-stack { display: grid; grid-template-rows: 1fr auto; gap: 12px; }
@@ -524,12 +539,13 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
   .app-shell { width: min(1760px, calc(100% - 48px)); }
   .workspace-layout { grid-template-columns: 230px minmax(0, 1fr); }
   .dw-main-grid { min-height: 485px; }
-  .dw-chart-placeholder { min-height: 400px; }
+  .dw-chart-stage, .dw-chart-canvas { min-height: 400px; }
 }
 @media (max-width: 1250px) {
   .dw-decision-bar { grid-template-columns: 1fr 1.5fr; }
   .dw-contrary { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--dw-line); }
   .dw-main-grid { grid-template-columns: 1fr; }
+  .dw-chart-toolbar { align-items: flex-start; flex-direction: column; }
   #dw-journal-form { grid-template-columns: 1fr 1fr; }
   .dw-journal-intents { grid-column: 1 / -1; }
   .dw-change-items { grid-template-columns: repeat(3, 1fr); }

@@ -59,8 +59,25 @@ test('workspace makes NO_TRADE first class and never promotes legacy scores', ()
   assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
   assert.equal(workspace.decisionSummary.readiness, 'NOT_READY');
   assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
-  assert.equal(workspace.priceChartSlot.status, 'NOT_IMPLEMENTED');
+  assert.equal(workspace.priceChartSlot.status, 'UNAVAILABLE');
   assert.equal(workspace.policies.directGptApi, false);
+});
+
+test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market State', () => {
+  const chart = {
+    status: 'READY', timeframe: '5m', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
+    availableAt: '2026-08-12T00:19:59.000Z', source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK', qualityStatus: 'PASS',
+    openingRange: { status: 'READY', high: 22520, low: 22480, source: 'FROZEN_T0_DAY_OPENING_RANGE_0845_0900', availableAt: '2026-08-12T00:19:00.000Z' },
+    levels: { vwap: { availability: 'AVAILABLE', value: 22501.5, source: 'SESSION_EXACT_TX_TICK_VWAP', availableAt: '2026-08-12T00:19:59.000Z' } },
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), chart, now });
+  assert.equal(workspace.priceChartSlot.status, 'READY');
+  assert.equal(workspace.priceChartSlot.actualContract, 'TXFH6');
+  assert.equal(workspace.snapshot.price.value, 22510);
+  assert.deepEqual(workspace.snapshot.OR.value, { high: 22520, low: 22480 });
+  assert.equal(workspace.snapshot.VWAP.value, 22501.5);
+  assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
+  assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
 });
 
 test('copy for ChatGPT includes immutable identity and discussion-only boundary', () => {

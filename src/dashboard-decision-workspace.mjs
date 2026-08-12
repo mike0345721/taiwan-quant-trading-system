@@ -81,12 +81,18 @@ function buildDecisionSummary(marketState, dataHealth) {
   });
 }
 
-export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth = null, snapshotTime = new Date().toISOString() } = {}) {
+export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, snapshotTime = new Date().toISOString() } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
   if (Number.isNaN(parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_TIME_INVALID');
   for (const item of dataHealth?.items || []) {
     if (item.availableAt && Date.parse(item.availableAt) > parsedSnapshotTime) throw new Error('DECISION_SNAPSHOT_FUTURE_EVIDENCE');
   }
+  const chartAvailableTimes = [
+    chart?.availableAt,
+    chart?.openingRange?.availableAt,
+    ...Object.values(chart?.levels || {}).map((level) => level?.availableAt),
+  ].filter(Boolean);
+  if (chartAvailableTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_FUTURE_CHART_EVIDENCE');
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
   const marketState = safeMarketState(runtimeTruth);
@@ -95,13 +101,17 @@ export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth
     snapshotTime: new Date(parsedSnapshotTime).toISOString(),
     contract: tx.contract || null,
     session: runtimeTruth?.stateRecord?.sessionId || tx.session || null,
-    price: Number.isFinite(Number(tx.close))
-      ? available(Number(tx.close), 'futuresMarket', futuresHealth?.availableAt)
+    price: Number.isFinite(Number(chart?.lastPrice ?? tx.close))
+      ? available(Number(chart?.lastPrice ?? tx.close), chart?.source || 'futuresMarket', chart?.availableAt || futuresHealth?.availableAt)
       : unavailable('PRICE_UNAVAILABLE'),
     marketState,
     dataHealth,
-    OR: unavailable('DERIVATION_NOT_IMPLEMENTED'),
-    VWAP: unavailable('DERIVATION_NOT_IMPLEMENTED'),
+    OR: chart?.openingRange?.status === 'READY'
+      ? available({ high: chart.openingRange.high, low: chart.openingRange.low }, chart.openingRange.source, chart.openingRange.availableAt)
+      : unavailable(chart?.openingRange?.reason || 'DERIVATION_NOT_IMPLEMENTED'),
+    VWAP: chart?.levels?.vwap?.availability === 'AVAILABLE'
+      ? available(chart.levels.vwap.value, chart.levels.vwap.source, chart.levels.vwap.availableAt)
+      : unavailable(chart?.levels?.vwap?.reason || 'DERIVATION_NOT_IMPLEMENTED'),
     entryQuality: unavailable('CONTRACT_NOT_FROZEN'),
     breadth: snapshot?.marketBreadth?.ok
       ? available(snapshot.marketBreadth.data, 'breadth', snapshot.marketBreadth.fetchedAt)
@@ -165,8 +175,8 @@ export function copyForChatGpt(snapshot, question = null) {
   return readable.join('\n');
 }
 
-export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth = null, now = new Date() } = {}) {
-  const lockedSnapshotCandidate = createDecisionSnapshot({ snapshot, dataHealth, runtimeTruth, snapshotTime: now.toISOString() });
+export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, now = new Date() } = {}) {
+  const lockedSnapshotCandidate = createDecisionSnapshot({ snapshot, dataHealth, runtimeTruth, chart, snapshotTime: now.toISOString() });
   const marketState = lockedSnapshotCandidate.marketState;
   return Object.freeze({
     schemaVersion: 'dashboard-decision-workspace-v1',
@@ -183,13 +193,18 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
     },
     decisionSummary: buildDecisionSummary(marketState, dataHealth),
     priceChartSlot: {
-      status: 'NOT_IMPLEMENTED',
-      label: 'Decision-aware Price Chart',
-      reason: 'DW-2_CHART_ENGINE_NOT_INSTALLED',
+      status: chart?.status || 'UNAVAILABLE',
+      label: 'Governed Multi-Timeframe TX Decision Chart',
+      reason: chart?.reason || null,
       price: lockedSnapshotCandidate.price,
       OR: lockedSnapshotCandidate.OR,
       VWAP: lockedSnapshotCandidate.VWAP,
       RVOL: unavailable('DERIVATION_NOT_IMPLEMENTED'),
+      timeframe: chart?.timeframe || '5m',
+      session: chart?.session || null,
+      actualContract: chart?.actualContract || null,
+      qualityStatus: chart?.qualityStatus || 'UNAVAILABLE',
+      barSemanticsOwnerDecisionRequired: chart?.barSemanticsOwnerDecisionRequired === true,
     },
     againstMyTrade: {
       status: 'NOT_IMPLEMENTED',
