@@ -23,6 +23,7 @@ import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
+import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -84,7 +85,31 @@ async function decisionWorkspacePayload(snapshot, service) {
     futuresAudit: readLocalJson(futuresAuditPath),
     chart,
   });
-  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth, chart });
+  const marketChangeFeed = buildMarketChangeFeed(chart);
+  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed });
+}
+
+function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
+  const chart = loadTxDecisionChart({
+    dataRoot: txChartDataRoot,
+    cacheRoot: txChartCacheRoot,
+    calendar: chartCalendar,
+    timeframe: '5m',
+    mode,
+    tradeDate,
+    session,
+    actualContract,
+    asOf,
+  });
+  return Object.freeze({ chart, feed: buildMarketChangeFeed(chart) });
+}
+
+function decorateChartWithMarketChanges(chart, feed) {
+  return Object.freeze({
+    ...chart,
+    markers: chartMarkersFromEvents(feed.events, chart),
+    marketChangeFeed: feed,
+  });
 }
 
 function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
@@ -280,7 +305,28 @@ const server = http.createServer(async (req, res) => {
           actualContract,
           asOf,
         });
-        sendJson(res, 200, { ok: true, data: chart });
+        const feedSource = timeframe === '5m'
+          ? Object.freeze({ chart, feed: buildMarketChangeFeed(chart) })
+          : loadMarketChangeFeed({
+            mode,
+            tradeDate: chart.tradeDate || tradeDate,
+            session: ['DAY', 'NIGHT'].includes(chart.session) ? chart.session : selectedSession,
+            actualContract: chart.actualContract || actualContract,
+            asOf: asOf || chart.asOf,
+          });
+        sendJson(res, 200, { ok: true, data: decorateChartWithMarketChanges(chart, feedSource.feed) });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/market-changes') {
+        const mode = url.searchParams.get('mode') === 'REPLAY' ? 'REPLAY' : 'LIVE';
+        const tradeDate = url.searchParams.get('tradeDate') || null;
+        const sessionType = url.searchParams.get('session');
+        const selectedSession = ['DAY', 'NIGHT'].includes(sessionType) ? sessionType : null;
+        const actualContract = url.searchParams.get('actualContract') || null;
+        const asOf = url.searchParams.get('asOf') || null;
+        const { feed } = loadMarketChangeFeed({ mode, tradeDate, session: selectedSession, actualContract, asOf });
+        sendJson(res, 200, { ok: true, data: feed });
         return;
       }
 

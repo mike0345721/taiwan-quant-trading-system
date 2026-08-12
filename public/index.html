@@ -173,11 +173,22 @@
           </div>
 
           <section class="dw-change-strip" aria-labelledby="dw-changed-title">
-            <div><p class="eyebrow">最近 5–15 分鐘</p><h3 id="dw-changed-title">最近發生什麼變化？</h3></div>
-            <div class="dw-change-items">
-              <span>價格 <b>尚未實作</b></span><span>市場廣度 <b>尚未實作</b></span>
-              <span>預估資金流 <b>尚未實作</b></span><span>RVOL <b>尚未實作</b></span>
-              <span>基差 <b>尚未實作</b></span><span>選擇權 <b>尚未實作</b></span>
+            <header class="dw-change-heading">
+              <div><p class="eyebrow">完成 5 分鐘證據 · READ ONLY</p><h3 id="dw-changed-title">最近發生什麼變化？</h3></div>
+              <div class="dw-change-meta"><span id="dw-change-status" class="dw-status-pill is-unavailable">UNAVAILABLE</span><small id="dw-change-contract">TX —</small></div>
+            </header>
+            <div id="dw-change-latest" class="dw-change-latest">
+              <time>—</time><div><strong>尚無合法變化事件</strong><p>只比較前後兩根合法完成的 5 分鐘觀察，不讀 forming K 棒。</p></div>
+            </div>
+            <div class="dw-evidence-layout">
+              <section aria-labelledby="dw-timeline-title">
+                <div class="dw-evidence-subhead"><h4 id="dw-timeline-title">Evidence Timeline</h4><small>最新事件優先</small></div>
+                <ol id="dw-evidence-timeline" class="dw-evidence-timeline"><li class="is-empty">目前沒有可顯示的 governed event</li></ol>
+              </section>
+              <section aria-labelledby="dw-evidence-title">
+                <div class="dw-evidence-subhead"><h4 id="dw-evidence-title">Evidence Cards</h4><small>展開查看 lineage 與品質</small></div>
+                <div id="dw-evidence-cards" class="dw-evidence-cards"><p class="is-empty">等待完成的 5 分鐘證據。</p></div>
+              </section>
             </div>
           </section>
 

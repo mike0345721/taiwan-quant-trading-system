@@ -175,7 +175,7 @@ export function copyForChatGpt(snapshot, question = null) {
   return readable.join('\n');
 }
 
-export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, now = new Date() } = {}) {
+export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null, now = new Date() } = {}) {
   const lockedSnapshotCandidate = createDecisionSnapshot({ snapshot, dataHealth, runtimeTruth, chart, snapshotTime: now.toISOString() });
   const marketState = lockedSnapshotCandidate.marketState;
   return Object.freeze({
@@ -214,11 +214,23 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
       entryRisk: [lockedSnapshotCandidate.entryQuality],
       invalidation: unavailable('INVALIDATION_CONTRACT_NOT_IMPLEMENTED'),
     },
-    whatChanged: {
-      status: 'NOT_IMPLEMENTED',
-      windows: ['5m', '15m'],
-      reason: 'CHANGE_DERIVATION_NOT_IMPLEMENTED',
-    },
+    whatChanged: marketChangeFeed
+      ? {
+        ...marketChangeFeed,
+        label: 'Market Change Feed V1',
+        observationCadence: 'COMPLETED_5M_ONLY',
+      }
+      : {
+        status: 'UNAVAILABLE',
+        observationCadence: 'COMPLETED_5M_ONLY',
+        reason: 'MARKET_CHANGE_FEED_UNAVAILABLE',
+        events: [],
+        latestFirst: [],
+        futureDataViolations: 0,
+        formalWeight: 0,
+        researchOnly: true,
+        executionAuthorized: false,
+      },
     snapshot: lockedSnapshotCandidate,
     chatGptCopy: copyForChatGpt(lockedSnapshotCandidate),
     policies: {

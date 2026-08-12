@@ -7,7 +7,8 @@ const state = {
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
-  txChartLevelLines: [], txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  marketChangeFeed: null,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -2544,6 +2545,7 @@ function ensureTxChart() {
   const vwap = chart.addSeries(L.LineSeries, {
     color: '#f5c86b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'VWAP',
   });
+  const markers = typeof L.createSeriesMarkers === 'function' ? L.createSeriesMarkers(candle, []) : null;
   chart.subscribeCrosshairMove((parameter) => {
     const bar = parameter.seriesData?.get(candle);
     if (!bar || parameter.time == null) {
@@ -2564,6 +2566,7 @@ function ensureTxChart() {
   });
   state.txChartApi = chart;
   state.txChartSeries = { candle, volume, vwap };
+  state.txChartMarkers = markers;
   return chart;
 }
 
@@ -2628,6 +2631,113 @@ function chartSeriesData(payload) {
   return { candles, volumes, vwap };
 }
 
+function marketChangeMarkerData(payload) {
+  return (payload?.markers || []).map((marker) => ({
+    time: chartEpoch(marker.time),
+    position: marker.position,
+    color: marker.color,
+    shape: marker.shape,
+    text: marker.text,
+  })).filter((marker) => marker.time != null);
+}
+
+function marketChangeFactText(fact = {}) {
+  const values = [];
+  if (fact.close != null && Number.isFinite(Number(fact.close))) values.push(`Close ${fmt(fact.close)}`);
+  if (fact.vwap != null && Number.isFinite(Number(fact.vwap))) values.push(`VWAP ${fmt(fact.vwap, 2)}`);
+  if (fact.openingRangeHigh != null && fact.openingRangeLow != null && Number.isFinite(Number(fact.openingRangeHigh)) && Number.isFinite(Number(fact.openingRangeLow))) {
+    values.push(`OR ${fmt(fact.openingRangeLow)}–${fmt(fact.openingRangeHigh)}`);
+  }
+  if (fact.sessionHigh != null && Number.isFinite(Number(fact.sessionHigh))) values.push(`H ${fmt(fact.sessionHigh)}`);
+  if (fact.sessionLow != null && Number.isFinite(Number(fact.sessionLow))) values.push(`L ${fmt(fact.sessionLow)}`);
+  if (fact.dataHealthState) values.push(`Health ${fact.dataHealthState}`);
+  return values.join(' · ') || 'UNAVAILABLE';
+}
+
+function marketChangeDetail(label, value, wide = false) {
+  const cell = document.createElement('div');
+  if (wide) cell.className = 'is-wide';
+  const caption = document.createElement('span'); caption.textContent = label;
+  const content = document.createElement('strong'); content.textContent = value || 'UNAVAILABLE';
+  cell.append(caption, content);
+  return cell;
+}
+
+function renderMarketChangeFeed(feed) {
+  state.marketChangeFeed = feed || null;
+  const events = feed?.latestFirst || [];
+  const status = feed?.status || 'UNAVAILABLE';
+  dwText('dw-change-status', status);
+  $('dw-change-status').className = `dw-status-pill ${status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
+  dwText('dw-change-contract', feed?.actualContract ? `${feed.actualContract} · ${feed.session || '—'}` : 'TX —');
+
+  const latestTarget = $('dw-change-latest');
+  const latest = events[0];
+  if (latestTarget) {
+    if (!latest) {
+      const time = document.createElement('time'); time.textContent = '—';
+      const body = document.createElement('div');
+      const title = document.createElement('strong'); title.textContent = '尚無合法變化事件';
+      const summary = document.createElement('p'); summary.textContent = '只比較前後兩根合法完成的 5 分鐘觀察，不讀 forming K 棒。';
+      body.append(title, summary); latestTarget.replaceChildren(time, body); latestTarget.classList.remove('is-quality');
+    } else {
+      const time = document.createElement('time'); time.textContent = timeLabel(latest.eventAt);
+      const body = document.createElement('div');
+      const title = document.createElement('strong'); title.textContent = latest.headline;
+      const summary = document.createElement('p'); summary.textContent = `${latest.summary} · ${latest.qualityStatus}`;
+      body.append(title, summary); latestTarget.replaceChildren(time, body);
+      latestTarget.classList.toggle('is-quality', latest.eventType.startsWith('DATA_HEALTH_') || latest.qualityStatus !== 'PASS');
+    }
+  }
+
+  const timeline = $('dw-evidence-timeline');
+  if (timeline) {
+    if (!events.length) {
+      const empty = document.createElement('li'); empty.className = 'is-empty'; empty.textContent = '目前沒有可顯示的 governed event';
+      timeline.replaceChildren(empty);
+    } else {
+      timeline.replaceChildren(...events.slice(0, 12).map((event) => {
+        const row = document.createElement('li');
+        if (event.eventType.startsWith('DATA_HEALTH_') || event.qualityStatus !== 'PASS') row.className = 'is-quality';
+        const at = document.createElement('time'); at.textContent = timeLabel(event.eventAt);
+        const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true');
+        const title = document.createElement('strong'); title.textContent = event.headline;
+        const context = document.createElement('small'); context.textContent = `${event.session} · ${event.qualityStatus}`;
+        row.append(at, dot, title, context); return row;
+      }));
+    }
+  }
+
+  const cards = $('dw-evidence-cards');
+  if (cards) {
+    if (!events.length) {
+      const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '等待完成的 5 分鐘證據。';
+      cards.replaceChildren(empty);
+    } else {
+      cards.replaceChildren(...events.slice(0, 8).map((event, index) => {
+        const card = document.createElement('details'); card.className = 'dw-evidence-card'; card.open = index === 0;
+        const summary = document.createElement('summary');
+        const heading = document.createElement('span');
+        const title = document.createElement('strong'); title.textContent = event.headline;
+        const sub = document.createElement('small'); sub.textContent = `${timeLabel(event.eventAt)} · ${event.actualContract}`;
+        heading.append(title, sub);
+        const code = document.createElement('code'); code.textContent = event.eventType;
+        summary.append(heading, code);
+        const detail = document.createElement('div'); detail.className = 'dw-evidence-detail';
+        detail.append(
+          marketChangeDetail('Previous', marketChangeFactText(event.sourceFacts?.previous)),
+          marketChangeDetail('Current', marketChangeFactText(event.sourceFacts?.current)),
+          marketChangeDetail('availableAt', event.availableAt),
+          marketChangeDetail('Data Quality', `${event.qualityStatus}${event.qualityReasons?.length ? ` · ${event.qualityReasons.join(', ')}` : ''}`),
+          marketChangeDetail('Sources', (event.sourceIds || []).join(', '), true),
+          marketChangeDetail('Derivation Version', event.derivationVersion, true),
+        );
+        card.append(summary, detail); return card;
+      }));
+    }
+  }
+}
+
 function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
   dwText('dw-chart-status', payload?.status || 'UNAVAILABLE');
@@ -2655,6 +2765,8 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
     if (data.volumes.length) state.txChartSeries.volume.update(data.volumes.at(-1));
     if (data.vwap.length) state.txChartSeries.vwap.update(data.vwap.at(-1));
   }
+  if (state.txChartMarkers) state.txChartMarkers.setMarkers(visualizable ? marketChangeMarkerData(payload) : []);
+  if (payload?.marketChangeFeed) renderMarketChangeFeed(payload.marketChangeFeed);
   state.txChartIdentity = identity;
   state.txChartBarCount = data.candles.length;
   if ((mustReset || fit) && visualizable) chart.timeScale().fitContent();
@@ -2706,6 +2818,7 @@ function renderDecisionWorkspace(workspace) {
   renderPlainList('dw-support-list', workspace?.againstMyTrade?.support, 'NOT_IMPLEMENTED');
   renderPlainList('dw-against-list', workspace?.againstMyTrade?.against, 'NOT_IMPLEMENTED');
   renderPlainList('dw-missing-list', workspace?.againstMyTrade?.missingEvidence, '無可用反證衍生資料');
+  renderMarketChangeFeed(workspace?.whatChanged);
 
   const healthTarget = $('dw-health-list');
   const healthItems = workspace?.snapshot?.dataHealth?.items || [];

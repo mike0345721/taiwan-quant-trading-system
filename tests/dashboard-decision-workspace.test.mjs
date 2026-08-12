@@ -80,6 +80,21 @@ test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market Sta
   assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
 });
 
+test('DW-3 Market Change Feed is exposed through workspace without changing decision posture', () => {
+  const marketChangeFeed = {
+    schemaVersion: 'market-change-feed-v1', status: 'READY', observationCount: 2, eventCount: 1,
+    events: [{ eventId: 'event-1', eventType: 'VWAP_CROSS_UP' }],
+    latestFirst: [{ eventId: 'event-1', eventType: 'VWAP_CROSS_UP' }],
+    futureDataViolations: 0, formalWeight: 0, researchOnly: true, executionAuthorized: false,
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), marketChangeFeed, now });
+  assert.equal(workspace.whatChanged.status, 'READY');
+  assert.equal(workspace.whatChanged.observationCadence, 'COMPLETED_5M_ONLY');
+  assert.equal(workspace.whatChanged.events[0].eventType, 'VWAP_CROSS_UP');
+  assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
+  assert.equal(workspace.policies.executionAuthorized, false);
+});
+
 test('copy for ChatGPT includes immutable identity and discussion-only boundary', () => {
   const snapshot = createDecisionSnapshot({ snapshot: sourceSnapshot(), dataHealth: health(), snapshotTime: now.toISOString() });
   const text = copyForChatGpt(snapshot, '最大反向證據？');
