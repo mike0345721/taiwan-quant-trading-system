@@ -192,6 +192,18 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
       unavailableCount: dataHealth.unavailableCount,
     },
     decisionSummary: buildDecisionSummary(marketState, dataHealth),
+    forwardShadowStatus: runtimeTruth?.statusExplanation || {
+      status: 'UNKNOWN',
+      reasonCode: 'UNKNOWN_INSUFFICIENT_EVIDENCE',
+      reasonSummary: '沒有足夠的官方證據判定 Forward Shadow 狀態',
+      tradeDate: null,
+      expectedAt: null,
+      observedAt: null,
+      lastSuccessfulStage: null,
+      failedStage: 'UNKNOWN',
+      evidenceSource: 'UNAVAILABLE',
+      dataTrust: 'UNAVAILABLE',
+    },
     priceChartSlot: {
       status: chart?.status || 'UNAVAILABLE',
       label: 'Governed Multi-Timeframe TX Decision Chart',

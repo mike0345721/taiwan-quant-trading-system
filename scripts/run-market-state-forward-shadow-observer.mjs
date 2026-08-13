@@ -8,7 +8,8 @@ import { digest, stableJson } from '../src/market-state-forward-shadow.mjs';
 import { buildObserverReport, runDailyOutcomePhase, runDailyStatePhase, verifyRuntimeEvidence } from '../src/market-state-forward-shadow-runtime.mjs';
 import { collectForwardMarketStateSnapshot } from '../src/market-state-forward-shadow-collector.mjs';
 import { collectForwardLargeMoveOutcome } from '../src/market-state-forward-shadow-outcome-collector.mjs';
-import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
+import { loadGovernedTradingCalendar, resolveGovernedTradingDay, resolvePreviousGovernedTradingDate } from '../src/market-state-forward-shadow-calendar.mjs';
+import { waitForPremarketDecisionBoundary } from '../src/market-state-forward-shadow-premarket.mjs';
 
 const value = (name, fallback = null) => {
   const index = process.argv.indexOf(name);
@@ -51,6 +52,9 @@ if (mode === 'FORWARD_SHADOW') {
     exceptionEvidencePath,
   );
   const tradingDay = resolveGovernedTradingDay(governedCalendar, tradeDate);
+  const priorTradeDate = tradingDay.officialTradingDay
+    ? resolvePreviousGovernedTradingDate(governedCalendar, tradeDate)
+    : null;
   const readinessPath = path.resolve(root, config.contractReadinessPath || 'data/readiness/shioaji-futures-access.json');
   const readiness = fs.existsSync(readinessPath) ? JSON.parse(fs.readFileSync(readinessPath, 'utf8')) : null;
   const actualContract = readiness?.contracts?.TX?.targetCode || null;
@@ -70,6 +74,7 @@ if (mode === 'FORWARD_SHADOW') {
     collectorSource: {
       databasePath: path.resolve(root, config.databasePath),
       featureSpecPath: path.resolve(root, config.featureSpecPath),
+      priorTradeDate,
     },
     outcomeCollectorSource: {
       ledgerFile: path.resolve(root, String(config.liveLedgerTemplate || 'data/live-events/<tradeDate>.ndjson').replace('<tradeDate>', tradeDate)),
@@ -94,9 +99,14 @@ if (mode === 'FORWARD_SHADOW') {
 }
 let collectionDurationMs = 0;
 if (phase === 'STATE' && input.collectorSource && !input.marketStateInput && !input.marketStateEvaluation) {
+  if (input.officialTradingDay === true) {
+    await waitForPremarketDecisionBoundary({ tradeDate: input.tradeDate, now: input.now });
+    input = { ...input, now: new Date().toISOString() };
+  }
   const collectionStarted = performance.now();
   const snapshot = collectForwardMarketStateSnapshot({ ...input.collectorSource, tradeDate: input.tradeDate });
   collectionDurationMs = performance.now() - collectionStarted;
+  input = { ...input, now: new Date().toISOString() };
   if (snapshot.state === 'AVAILABLE') {
     input = {
       ...input,
@@ -106,6 +116,8 @@ if (phase === 'STATE' && input.collectorSource && !input.marketStateInput && !in
       sourceHashes: snapshot.sourceHashes,
       sourceTimestamps: snapshot.sourceTimestamps,
     };
+  } else {
+    input = { ...input, unavailableReason: snapshot.unavailableReason || 'NO_LEGAL_PREMARKET_SNAPSHOT' };
   }
 }
 if (phase === 'OUTCOME' && input.outcomeCollectorSource && !input.outcome && input.officialTradingDay === true) {

@@ -7,6 +7,7 @@ import {
   validateOwnerLaunchApprovalArtifact,
   validateReadyForLaunchManifest,
 } from '../src/market-state-forward-shadow.mjs';
+import { explainForwardShadowStatus } from '../src/forward-shadow-status-explanation.mjs';
 
 const SCRIPT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.dirname(SCRIPT_ROOT);
@@ -312,7 +313,39 @@ function latestDailyStatus(runtimeRoot) {
   return null;
 }
 
-export function inspectForwardShadow(root) {
+function latestOfficialStateRecord(runtimeRoot, maxBytes = 256 * 1024) {
+  const ledgerPath = path.join(runtimeRoot, 'official-ledger.ndjson');
+  if (!fs.existsSync(ledgerPath)) return null;
+  try {
+    const stat = fs.statSync(ledgerPath);
+    const length = Math.min(stat.size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    const fd = fs.openSync(ledgerPath, 'r');
+    try { fs.readSync(fd, buffer, 0, length, stat.size - length); } finally { fs.closeSync(fd); }
+    const lines = buffer.toString('utf8').split(/\r?\n/).filter(Boolean);
+    if (stat.size > length) lines.shift();
+    return lines.map((line) => JSON.parse(line))
+      .filter((row) => ['STATE', 'SESSION_STATUS'].includes(row.recordType)).at(-1) || null;
+  } catch { return null; }
+}
+
+export function inspectForwardShadowScheduler() {
+  if (process.platform !== 'win32') return Object.freeze({ availability: 'UNAVAILABLE', stateTask: null, outcomeTask: null, reason: 'WINDOWS_TASK_QUERY_UNAVAILABLE' });
+  const task = (name) => {
+    const command = `$task=Get-ScheduledTask -TaskName '${name}' -ErrorAction Stop; [pscustomobject]@{exists=$true;enabled=($task.State -ne 'Disabled');state=[string]$task.State;user=$task.Principal.UserId}|ConvertTo-Json -Compress`;
+    try {
+      return JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+        encoding: 'utf8', windowsHide: true, timeout: 4_000, maxBuffer: 64 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).trim());
+    } catch { return { exists: false, enabled: false, state: 'ABSENT', user: null }; }
+  };
+  const stateTask = task('TwChipDashboard-MarketStateForwardShadow-State');
+  const outcomeTask = task('TwChipDashboard-MarketStateForwardShadow-Outcome');
+  return Object.freeze({ availability: 'AVAILABLE', stateTask: Object.freeze(stateTask), outcomeTask: Object.freeze(outcomeTask) });
+}
+
+export function inspectForwardShadow(root, schedulerProbe = inspectForwardShadowScheduler) {
   const baseRoot = path.join(root, 'data', 'market-state', 'forward-shadow');
   if (!fs.existsSync(baseRoot)) return Object.freeze({ availability: 'UNAVAILABLE', governed: false, reason: 'FORWARD_SHADOW_ROOT_NOT_FOUND', executionAuthorized: false });
   const candidates = fs.readdirSync(baseRoot, { withFileTypes: true })
@@ -334,6 +367,15 @@ export function inspectForwardShadow(root) {
   validated.sort((left, right) => Date.parse(right.approval.approvedAt || 0) - Date.parse(left.approval.approvedAt || 0));
   const selected = validated[0];
   if (!selected) return Object.freeze({ availability: 'UNAVAILABLE', governed: false, reason: 'NO_VALIDATED_RUNTIME', executionAuthorized: false });
+  const latestStatus = latestDailyStatus(selected.runtimeRoot);
+  const stateRecord = latestOfficialStateRecord(selected.runtimeRoot);
+  const scheduler = schedulerProbe();
+  const statusExplanation = explainForwardShadowStatus({
+    stateRecord,
+    dailyStatus: latestStatus,
+    stateTask: scheduler.stateTask,
+    outcomeTask: scheduler.outcomeTask,
+  });
   return Object.freeze({
     availability: 'AVAILABLE',
     governed: true,
@@ -342,7 +384,17 @@ export function inspectForwardShadow(root) {
     officialStartTradeDate: selected.manifest.officialStartTradeDate || null,
     recoveryEffectiveTradeDate: selected.manifest.runtimeRecoveryBinding?.recoveryEffectiveTradeDate || null,
     finalMainCommit: selected.manifest.finalMainCommit || null,
-    latestDailyStatus: latestDailyStatus(selected.runtimeRoot),
+    latestDailyStatus: latestStatus,
+    latestOfficialState: stateRecord ? Object.freeze({
+      tradeDate: stateRecord.tradeDate || null,
+      recordType: stateRecord.recordType || null,
+      qualityStatus: stateRecord.qualityStatus || null,
+      missedReason: stateRecord.missedReason || null,
+      scheduledAt: stateRecord.scheduledAt || null,
+      recordedAt: stateRecord.recordedAt || null,
+    }) : null,
+    statusExplanation,
+    schedulerReadiness: statusExplanation.schedulerReadiness,
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
@@ -383,17 +435,32 @@ export async function collectProjectStatus({
     inspectDatabase(resolvedRoot),
   ]);
   const localMarketData = inspectLocalMarketData(resolvedRoot, maxTailBytes);
+  const git = gitProbe(resolvedRoot);
+  const forwardShadow = inspectForwardShadow(resolvedRoot);
+  const runtimeVersion = forwardShadow.governed && git.availability === 'AVAILABLE'
+    ? Object.freeze({
+      state: git.head === forwardShadow.finalMainCommit ? 'MATCH' : 'LOCAL_RUNTIME_VERSION_DRIFT',
+      observedHead: git.head,
+      governedCommit: forwardShadow.finalMainCommit,
+    })
+    : Object.freeze({ state: 'UNKNOWN', observedHead: git.head || null, governedCommit: forwardShadow.finalMainCommit || null });
   return Object.freeze({
     schemaVersion: 'project-handoff-status-v1',
     capturedAt: now.toISOString(),
     repository: 'mike0345721/taiwan-quant-trading-system',
-    scopeAuthority: 'ROADMAP.md',
-    git: gitProbe(resolvedRoot),
+    authority: Object.freeze({
+      finalApproval: 'Product Owner',
+      liveCurrentNext: 'Linear',
+      durableScopeMap: 'ROADMAP.md',
+      approvedImplementation: 'GitHub main',
+      immutableEvidence: 'Manifest/Ledger/Frozen Artifact',
+    }),
+    git,
     dashboard,
     shioaji,
     localMarketData,
     database,
-    forwardShadow: inspectForwardShadow(resolvedRoot),
+    forwardShadow: Object.freeze({ ...forwardShadow, runtimeVersion }),
     quality: inspectQuality(resolvedRoot, localMarketData),
     safety: SAFETY,
   });
@@ -405,13 +472,13 @@ function line(label, value) {
 
 export function formatHumanStatus(report) {
   const sections = [
-    ['PROJECT', [line('capturedAt', report.capturedAt), line('repository', report.repository), line('scopeAuthority', report.scopeAuthority)]],
+    ['PROJECT', [line('capturedAt', report.capturedAt), line('repository', report.repository), line('authority.finalApproval', report.authority?.finalApproval), line('authority.liveCurrentNext', report.authority?.liveCurrentNext), line('authority.durableScopeMap', report.authority?.durableScopeMap)]],
     ['GIT', [line('branch', report.git.branch), line('HEAD', report.git.head), line('origin/main', report.git.originMain), line('ahead', report.git.ahead), line('behind', report.git.behind), line('dirtyPaths', report.git.dirtyPaths?.join(', ') || 'NONE')]],
     ['DASHBOARD 8787', [line('availability', report.dashboard.availability), line('health', report.dashboard.health), line('service', report.dashboard.service)]],
     ['SHIOAJI 8790', [line('availability', report.shioaji.availability), line('safetyState', report.shioaji.safetyState), line('provider', report.shioaji.provider), line('observed.mode', report.shioaji.mode), line('expected.mode', report.shioaji.expectedSafety?.mode), line('expected.executionAuthorized', report.shioaji.expectedSafety?.executionAuthorized), line('observed.executionAuthorized', report.shioaji.observedRuntime?.executionAuthorized), line('expected.orderRoutesEnabled', report.shioaji.expectedSafety?.orderRoutesEnabled), line('observed.orderRoutesEnabled', report.shioaji.observedRuntime?.orderRoutesEnabled), line('writerErrors', report.shioaji.writerErrors), line('latestReceivedAt', report.shioaji.latestReceivedAt)]],
     ['LOCAL MARKET DATA', [line('availability', report.localMarketData.availability), line('latestLedgerDate', report.localMarketData.latestLedgerDate), line('latestLedgerBytes', report.localMarketData.latestLedgerBytes), line('latestTxTickTimestamp', report.localMarketData.tx?.latestTxTickTimestamp), line('latestActualContract', report.localMarketData.tx?.latestActualContract), line('boundedTailBytesScanned', report.localMarketData.tx?.bytesScanned)]],
     ['DATABASE', [line('availability', report.database.availability), line('bytes', report.database.bytes), line('latestDataDate', report.database.latestDataDate)]],
-    ['FORWARD SHADOW', [line('availability', report.forwardShadow.availability), line('governed', report.forwardShadow.governed), line('launchStatus', report.forwardShadow.launchStatus), line('latestTradeDate', report.forwardShadow.latestDailyStatus?.tradeDate), line('latestQualityStatus', report.forwardShadow.latestDailyStatus?.qualityStatus)]],
+    ['FORWARD SHADOW', [line('availability', report.forwardShadow.availability), line('governed', report.forwardShadow.governed), line('launchStatus', report.forwardShadow.launchStatus), line('latestTradeDate', report.forwardShadow.statusExplanation?.tradeDate), line('latestStatus', report.forwardShadow.statusExplanation?.status), line('latestReasonCode', report.forwardShadow.statusExplanation?.reasonCode), line('lastSuccessfulStage', report.forwardShadow.statusExplanation?.lastSuccessfulStage), line('failedStage', report.forwardShadow.statusExplanation?.failedStage), line('schedulerReadiness', report.forwardShadow.schedulerReadiness?.currentState), line('runtimeVersion', report.forwardShadow.runtimeVersion?.state), line('governedCommit', report.forwardShadow.runtimeVersion?.governedCommit)]],
     ['QUALITY', [line('availability', report.quality.availability), line('nativeSequenceAvailability', report.quality.nativeSequenceAvailability), line('timestampLineageState', report.quality.timestampLineageState), line('qualityReasons', report.quality.qualityReasons?.join(', ') || 'NONE')]],
     ['SAFETY', [line('formalWeight', report.safety.formalWeight), line('researchOnly', report.safety.researchOnly), line('executionAuthorized', report.safety.executionAuthorized), line('orderRoutesEnabled', report.safety.orderRoutesEnabled)]],
   ];

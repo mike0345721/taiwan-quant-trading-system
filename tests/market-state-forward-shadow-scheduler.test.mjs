@@ -37,6 +37,10 @@ test('scheduler installation requires both explicit install and Owner approval i
   assert.match(source, /taifex-official-calendar-2026\.json/);
   assert.doesNotMatch(source, /\[switch\]\$OwnerApproved/);
   assert.doesNotMatch(source, /executionAuthorized\s*=\s*\$true/i);
+  assert.match(source, /PERSISTED_AND_VERIFIED/);
+  assert.match(source, /Get-ScheduledTask -TaskName \$stateTaskName -ErrorAction Stop/);
+  assert.match(source, /TASK_MANIFEST_BINDING_MISMATCH/);
+  assert.match(source, /TASK_APPROVAL_BINDING_MISMATCH/);
 });
 
 test('wrapper defaults to NOT_ACTIVE and cannot write evidence without a test input', () => {

@@ -69,3 +69,18 @@ export function resolveGovernedTradingDay(calendar, tradeDate) {
   if (calendar.nonTradingDates.has(tradeDate)) return Object.freeze({ officialTradingDay: false, state: 'NON_TRADING_DAY', sourceHash: calendar.payload.sourceHash, fileHash: calendar.fileHash });
   throw new Error('FORWARD_SHADOW_TRADING_DAY_NOT_COVERED');
 }
+
+export function resolvePreviousGovernedTradingDate(calendar, tradeDate) {
+  const current = resolveGovernedTradingDay(calendar, tradeDate);
+  if (current.officialTradingDay !== true) throw new Error('FORWARD_SHADOW_CURRENT_DATE_NOT_TRADING_DAY');
+  const coverageStart = calendar.payload.coverageStart;
+  for (
+    let time = Date.parse(`${tradeDate}T00:00:00Z`) - 86_400_000;
+    time >= Date.parse(`${coverageStart}T00:00:00Z`);
+    time -= 86_400_000
+  ) {
+    const candidate = new Date(time).toISOString().slice(0, 10);
+    if (resolveGovernedTradingDay(calendar, candidate).officialTradingDay === true) return candidate;
+  }
+  throw new Error('FORWARD_SHADOW_PREVIOUS_TRADING_DATE_NOT_COVERED');
+}
