@@ -82,13 +82,15 @@ test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market Sta
 
 test('DW-3 Market Change Feed is exposed through workspace without changing decision posture', () => {
   const marketChangeFeed = {
-    schemaVersion: 'market-change-feed-v1', status: 'READY', observationCount: 2, eventCount: 1,
+    schemaVersion: 'market-change-feed-v1', status: 'AVAILABLE', engineAvailability: 'AVAILABLE',
+    dataTrust: { status: 'QUALITY_INSUFFICIENT', reasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'] }, observationCount: 2, eventCount: 1,
     events: [{ eventId: 'event-1', eventType: 'VWAP_CROSS_UP' }],
     latestFirst: [{ eventId: 'event-1', eventType: 'VWAP_CROSS_UP' }],
     futureDataViolations: 0, formalWeight: 0, researchOnly: true, executionAuthorized: false,
   };
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), marketChangeFeed, now });
-  assert.equal(workspace.whatChanged.status, 'READY');
+  assert.equal(workspace.whatChanged.status, 'AVAILABLE');
+  assert.equal(workspace.whatChanged.dataTrust.status, 'QUALITY_INSUFFICIENT');
   assert.equal(workspace.whatChanged.observationCadence, 'COMPLETED_5M_ONLY');
   assert.equal(workspace.whatChanged.events[0].eventType, 'VWAP_CROSS_UP');
   assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');

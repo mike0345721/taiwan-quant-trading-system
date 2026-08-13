@@ -6,25 +6,31 @@ const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), '
 const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 
-test('What Changed, Evidence Timeline and Evidence Cards are first-class DW-3 UI regions', () => {
+test('What Changed uses Chinese-first result, evidence and technical-detail layers', () => {
   for (const id of ['dw-changed-title', 'dw-change-status', 'dw-change-latest', 'dw-evidence-timeline', 'dw-evidence-cards']) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /完成 5 分鐘證據/);
-  assert.match(html, /Evidence Timeline/);
-  assert.match(html, /Evidence Cards/);
+  assert.match(html, /證據時間軸/);
+  assert.match(html, /證據詳情/);
+  assert.match(html, /dw-change-trust/);
+  assert.match(app, /latestGroupsFirst/);
+  assert.match(app, /dw-evidence-technical/);
   assert.match(app, /function renderMarketChangeFeed/);
   assert.match(app, /event\.sourceFacts\?\.previous/);
   assert.match(app, /event\.sourceFacts\?\.current/);
   assert.match(app, /event\.qualityReasons\.join/);
 });
 
-test('chart markers and Timeline consume the same marketChangeFeed events', () => {
-  assert.match(server, /marketChangeFeed: feed/);
+test('Market Change Feed is independent from chart timeframe and markers remain 5m-only', () => {
+  assert.match(server, /marketChangeFeed = Object\.freeze/);
   assert.match(server, /chartMarkersFromEvents\(feed\.events, chart\)/);
-  assert.match(app, /payload\?\.marketChangeFeed/);
-  assert.match(app, /payload\?\.markers/);
+  assert.doesNotMatch(server, /const feedSource = timeframe === '5m'/);
+  assert.match(app, /marketChangeMarkerData\(state\.marketChangeFeed, payload\?\.timeframe\)/);
+  assert.match(app, /if \(timeframe !== '5m'\) return \[\]/);
   assert.match(app, /createSeriesMarkers/);
+  const dw3Render = app.slice(app.indexOf('function marketChangeMarkerData'), app.indexOf('function renderTxDecisionChart'));
+  assert.doesNotMatch(dw3Render, /positive|negative|bullish|bearish/);
   assert.doesNotMatch(server, /place_order|update_order|cancel_order/);
 });
 

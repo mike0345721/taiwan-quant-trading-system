@@ -85,7 +85,8 @@ async function decisionWorkspacePayload(snapshot, service) {
     futuresAudit: readLocalJson(futuresAuditPath),
     chart,
   });
-  const marketChangeFeed = buildMarketChangeFeed(chart);
+  const feed = buildMarketChangeFeed(chart);
+  const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
   return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed });
 }
 
@@ -101,15 +102,8 @@ function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null,
     actualContract,
     asOf,
   });
-  return Object.freeze({ chart, feed: buildMarketChangeFeed(chart) });
-}
-
-function decorateChartWithMarketChanges(chart, feed) {
-  return Object.freeze({
-    ...chart,
-    markers: chartMarkersFromEvents(feed.events, chart),
-    marketChangeFeed: feed,
-  });
+  const feed = buildMarketChangeFeed(chart);
+  return Object.freeze({ chart, feed: Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) }) });
 }
 
 function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
@@ -305,16 +299,7 @@ const server = http.createServer(async (req, res) => {
           actualContract,
           asOf,
         });
-        const feedSource = timeframe === '5m'
-          ? Object.freeze({ chart, feed: buildMarketChangeFeed(chart) })
-          : loadMarketChangeFeed({
-            mode,
-            tradeDate: chart.tradeDate || tradeDate,
-            session: ['DAY', 'NIGHT'].includes(chart.session) ? chart.session : selectedSession,
-            actualContract: chart.actualContract || actualContract,
-            asOf: asOf || chart.asOf,
-          });
-        sendJson(res, 200, { ok: true, data: decorateChartWithMarketChanges(chart, feedSource.feed) });
+        sendJson(res, 200, { ok: true, data: chart });
         return;
       }
 

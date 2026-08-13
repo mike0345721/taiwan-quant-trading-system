@@ -14,10 +14,11 @@
 
 ## Current main
 
-- Product Owner identified the latest approved merge as PR #19, merge commit `c0a8c0f52e1fdd8894f0735beb1f8566ebb9eafc`.
+- The latest approved merge at this checkpoint is PR #20, merge commit `e190e06530be21f0df58879747e95c1018977a66`.
+- PR #20 adds this status-only handoff document and the bounded, read-only `npm run project:status` tool. It does not authorize new development.
 - PR #19 preserves the governed TX chart under local timestamp skew by using `effectiveAvailableAt = max(receivedAt, exchangeTimestamp)` for chart availability.
 - The underlying lineage warning remains visible: `QUALITY_INSUFFICIENT` and `TIMESTAMP_LINEAGE_INSUFFICIENT`. This is not a claim that timestamp lineage is repaired.
-- GitHub was authenticated and `origin/main` was verified as `c0a8c0f52e1fdd8894f0735beb1f8566ebb9eafc` at this capture. Run `npm run project:status` after future authenticated fetches to verify the current local `origin/main` value rather than relying on this checkpoint.
+- `origin/main` was verified as `e190e06530be21f0df58879747e95c1018977a66` at this capture. Run `npm run project:status` after future authenticated fetches to verify the current local tracking value rather than relying on this checkpoint.
 
 ## Local state
 
@@ -47,9 +48,8 @@ Only capabilities already present in approved code or governed runtime evidence 
 
 ## Open work
 
-- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Owner merge approval pending.
-- PR #18 is not part of approved `main`. It still requires alignment with current main, regression verification, visual review, and an explicit Product Owner merge decision.
-- PROJECT HANDOFF V1 must not merge, expand, or otherwise modify PR #18.
+- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Refit and integration review are in progress under explicit Product Owner authorization.
+- PR #18 remains outside approved `main`. It requires completed regression and visual review followed by an explicit Product Owner merge decision.
 
 ## Known issues and watch items
 
@@ -60,17 +60,17 @@ Only capabilities already present in approved code or governed runtime evidence 
 
 ## Current authorized task
 
-`PROJECT HANDOFF V1` only:
+`DW-3 PRODUCT REFIT + INTEGRATION REVIEW` only:
 
-- establish this checkpoint document;
-- add a fast, bounded, fail-closed, read-only local status command;
-- add the minimum regression coverage for those two deliverables.
+- align existing PR #18 to the approved main without overwriting PR #19 or PR #20 behavior;
+- keep DW-3 a completed-5m market evidence layer with no directional or trading implication;
+- separate evidence-engine availability from data trust, prevent unsupported historical Data Health transitions, keep markers 5m-only, group same-observation evidence, and complete regression/visual review.
 
-No trading feature, DW-2 performance hotfix, DW-3 expansion, Market State retuning, or Forward Shadow semantic change is authorized by this task.
+No DW-4, new evidence family, DW-2 performance hotfix, trading feature, Market State retuning, or Forward Shadow semantic change is authorized by this task.
 
 ## Next Owner decision
 
-The next decision for this work package is Product Owner review of the PROJECT HANDOFF V1 Draft PR. PR #18 has its own separate review and merge decision; this handoff document cannot approve it.
+The next decision is Product Owner review of the refitted, integrated Draft PR #18. This handoff document cannot approve or merge it.
 
 ## Status tool contract
 

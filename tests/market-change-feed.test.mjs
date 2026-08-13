@@ -6,6 +6,7 @@ import {
   buildMarketChangeFeed,
   chartMarkersFromEvents,
   deriveEvidenceChanges,
+  groupMarketChangeEvents,
   stableMarketChangeJson,
 } from '../src/market-change-feed.mjs';
 
@@ -63,24 +64,35 @@ test('Opening Range break and re-entry events are deterministic evidence changes
   assert.equal(eventTypes(below, recoverInside).includes('OR_REENTRY_FROM_BELOW'), true);
 });
 
-test('session high/low and governed Data Health transitions produce no trading signal vocabulary', () => {
+test('session high/low retain current data trust without inventing historical health transitions', () => {
   const previous = observation();
   const degraded = observation({
     barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z',
     price: { open: 100, high: 105, low: 97, close: 100, volume: 10 }, sessionHigh: 105, sessionLow: 97,
-    qualityStatus: 'QUALITY_INSUFFICIENT', qualityReasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'], dataHealthState: 'DEGRADED',
+    qualityStatus: 'QUALITY_INSUFFICIENT', qualityReasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'],
+    dataTrust: { status: 'QUALITY_INSUFFICIENT', reasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'] },
+    dataHealthTransitionSupport: 'NOT_SUPPORTED_BY_TIME_LOCAL_EVIDENCE', timeLocalDataHealthState: null,
   });
   const types = eventTypes(previous, degraded);
   assert.equal(types.includes('NEW_SESSION_HIGH'), true);
   assert.equal(types.includes('NEW_SESSION_LOW'), true);
-  assert.equal(types.includes('DATA_HEALTH_DEGRADED'), true);
+  assert.equal(types.includes('DATA_HEALTH_DEGRADED'), false);
   const events = deriveEvidenceChanges(previous, degraded);
   assert.equal(events.every((event) => event.qualityStatus === 'QUALITY_INSUFFICIENT'), true);
   assert.equal(events.every((event) => event.qualityReasons.includes('TIMESTAMP_LINEAGE_INSUFFICIENT')), true);
   assert.doesNotMatch(JSON.stringify(events), /BUY|SELL|LONG|SHORT|ENTRY|EXIT/);
 
   const recovered = observation({ barTime: '2026-08-12T01:10:00.000Z', observedAt: '2026-08-12T01:15:00.000Z', sessionHigh: 105, sessionLow: 97 });
-  assert.equal(eventTypes(degraded, recovered).includes('DATA_HEALTH_RECOVERED'), true);
+  assert.equal(eventTypes(degraded, recovered).includes('DATA_HEALTH_RECOVERED'), false);
+});
+
+test('health transitions require explicit governed time-local evidence', () => {
+  const previous = observation({ dataHealthTransitionSupport: 'GOVERNED_TIME_LOCAL_EVIDENCE', timeLocalDataHealthState: 'FRESH' });
+  const current = observation({
+    barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z',
+    dataHealthTransitionSupport: 'GOVERNED_TIME_LOCAL_EVIDENCE', timeLocalDataHealthState: 'DEGRADED',
+  });
+  assert.equal(eventTypes(previous, current).includes('DATA_HEALTH_DEGRADED'), true);
 });
 
 test('forming, cross-contract, rollover, session boundary and unknown evidence fail closed', () => {
@@ -150,6 +162,9 @@ test('feed uses completed bars only, rejects future/forming bar and remains dete
   assert.equal(first.logicalHash, second.logicalHash);
   assert.equal(stableMarketChangeJson(first), stableMarketChangeJson(second));
   assert.equal(first.futureDataViolations, 0);
+  assert.equal(first.engineAvailability, 'AVAILABLE');
+  assert.equal(first.dataTrust.status, 'QUALITY_INSUFFICIENT');
+  assert.equal(first.dataTrust.historicalTransitionSupport, 'NOT_SUPPORTED_BY_TIME_LOCAL_EVIDENCE');
   assert.equal(first.events.filter((event) => event.eventType === 'OR_BREAK_UP').length, 1);
   assert.equal(new Set(first.events.map((event) => event.eventId)).size, first.events.length);
   assert.equal(first.events.every((event) => event.formalWeight === 0 && event.researchOnly === true && event.executionAuthorized === false), true);
@@ -163,4 +178,19 @@ test('chart markers are derived from the exact feed events and keep deterministi
   const markers = chartMarkersFromEvents(feed.events, chart);
   assert.deepEqual(markers.map((marker) => marker.eventId), feed.events.map((event) => event.eventId));
   assert.equal(markers.every((marker) => !/BUY|SELL|LONG|SHORT|ENTRY|EXIT/.test(marker.text)), true);
+  assert.equal(markers.every((marker) => ['#8aa7ff', '#9aa8bd', '#f5c86b'].includes(marker.color)), true);
+  for (const timeframe of ['15m', '1h', '1D']) {
+    assert.deepEqual(chartMarkersFromEvents(feed.events, { ...chart, timeframe }), []);
+  }
+});
+
+test('events from the same completed observation are grouped deterministically without scores', () => {
+  const feed = buildMarketChangeFeed(chartFixture());
+  const groups = groupMarketChangeEvents(feed.events);
+  const multiEventGroup = groups.find((group) => group.events.length > 1);
+  assert.ok(multiEventGroup);
+  assert.equal(multiEventGroup.headline, '價格結構出現變化');
+  assert.equal(multiEventGroup.events.every((event) => ['PRIMARY_STRUCTURE', 'SECONDARY_STRUCTURE', 'DATA_TRUST'].includes(event.evidenceGroup)), true);
+  assert.doesNotMatch(JSON.stringify(groups), /importanceScore|confidenceScore|directionScore/);
+  assert.deepEqual(groups, groupMarketChangeEvents(structuredClone(feed.events)));
 });
