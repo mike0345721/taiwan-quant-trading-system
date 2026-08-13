@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
-import { buildTxDecisionChart } from './dashboard-tx-chart.mjs';
+import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
 
 const ledgerCache = new Map();
+const TAIPEI_OFFSET = '+08:00';
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -205,6 +206,87 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
   return Object.freeze([...cached.records]);
 }
 
+function chartTimestampMs(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const text = value.trim();
+  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(text) ? text : `${text}${TAIPEI_OFFSET}`;
+  const parsed = Date.parse(zoned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeTimestampLineageForChart(records, calendar) {
+  const violations = [];
+  const normalizedRecords = (records || []).map((record) => {
+    if (record?.kind !== 'futures_tick' || record?.duplicate === true) return record;
+    const payload = record.payload || {};
+    const exchangeTimestamp = String(payload.datetime || record.exchangeTimestamp || '');
+    const receivedAt = record.receivedAt || payload._received_at || null;
+    const exchangeMs = chartTimestampMs(exchangeTimestamp);
+    const receivedMs = chartTimestampMs(receivedAt);
+    if (exchangeMs == null || receivedMs == null || receivedMs >= exchangeMs) return record;
+    let context;
+    try { context = classifyTxChartSession(exchangeTimestamp, calendar); } catch { return record; }
+    const effectiveAvailableAt = new Date(exchangeMs).toISOString();
+    violations.push(Object.freeze({
+      eventId: record.eventId || null,
+      actualContract: String(payload._target_code || record.product || payload.code || ''),
+      exchangeTimestamp: new Date(exchangeMs).toISOString(),
+      receivedAt: new Date(receivedMs).toISOString(),
+      effectiveAvailableAt,
+      deltaMs: receivedMs - exchangeMs,
+      ...context,
+    }));
+    return Object.freeze({
+      ...record,
+      receivedAt: effectiveAvailableAt,
+      timestampLineageAdjusted: true,
+      rawReceivedAt: receivedAt,
+    });
+  });
+  return Object.freeze({ records: Object.freeze(normalizedRecords), violations: Object.freeze(violations) });
+}
+
+function scopedTimestampLineageViolations(violations, { tradeDate, session, timeframe, cutoff }) {
+  const cutoffMs = chartTimestampMs(cutoff);
+  return Object.freeze((violations || []).filter((violation) => {
+    const effectiveMs = chartTimestampMs(violation.effectiveAvailableAt);
+    if (cutoffMs != null && (effectiveMs == null || effectiveMs > cutoffMs)) return false;
+    if (tradeDate && violation.sessionTradeDate !== tradeDate) return false;
+    if (timeframe !== '1D' && session && violation.session !== session) return false;
+    return true;
+  }));
+}
+
+function attachTimestampLineageQuality(chart, violations, { timeframe, tradeDate, session, cutoff }) {
+  const scoped = scopedTimestampLineageViolations(violations, { tradeDate, session, timeframe, cutoff });
+  if (!scoped.length) return chart;
+  const qualityReasons = [...new Set([...(chart.qualityReasons || []), 'TIMESTAMP_LINEAGE_INSUFFICIENT'])];
+  const hasEvidence = Number(chart.sourceEventCount) > 0;
+  const next = {
+    ...chart,
+    qualityStatus: hasEvidence ? 'QUALITY_INSUFFICIENT' : chart.qualityStatus,
+    qualityReasons: Object.freeze(qualityReasons),
+    timeLineageViolationCount: scoped.length,
+    timestampLineagePolicy: 'EFFECTIVE_AVAILABLE_AT_MAX_RECEIVED_EXCHANGE',
+    timestampLineageAdjustedEventCount: scoped.length,
+  };
+  if (timeframe === '1D' && chart.sessionCoverage) {
+    const nightCount = scoped.filter((violation) => violation.session === 'NIGHT').length;
+    const dayCount = scoped.filter((violation) => violation.session === 'DAY').length;
+    const adjustCoverage = (coverage, count) => Object.freeze({
+      ...coverage,
+      timeLineageViolationCount: count,
+      qualityStatus: count > 0 && Number(coverage?.eventCount) > 0 ? 'QUALITY_INSUFFICIENT' : coverage?.qualityStatus,
+    });
+    next.sessionCoverage = Object.freeze({
+      night: adjustCoverage(chart.sessionCoverage.night, nightCount),
+      day: adjustCoverage(chart.sessionCoverage.day, dayCount),
+    });
+    if (hasEvidence && chart.windowState === 'CLOSED' && chart.status === 'READY') next.status = 'QUALITY_INSUFFICIENT';
+  }
+  return Object.freeze(next);
+}
+
 function readPriorDayLevel(archiveDir, calendar, tradeDate, selectedContract, contractMonth) {
   const priorTradeDate = previousOfficial(calendar, tradeDate);
   if (!priorTradeDate) return null;
@@ -286,15 +368,22 @@ export function loadTxDecisionChart({
   if (!selectedTradeDate) return buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
   const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
   const records = ledgerDates.flatMap((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`), { cacheRoot }));
-  const initial = buildTxDecisionChart(records, {
+  const lineage = normalizeTimestampLineageForChart(records, calendar);
+  const initial = buildTxDecisionChart(lineage.records, {
     calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate,
     session: timeframe === '1D' ? null : selectedSession,
     actualContract, mode,
   });
-  const priorDay = initial.actualContract && initial.contractMonth
-    ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, initial.actualContract, initial.contractMonth)
+  const governedInitial = attachTimestampLineageQuality(initial, lineage.violations, {
+    timeframe,
+    tradeDate: selectedTradeDate,
+    session: selectedSession,
+    cutoff,
+  });
+  const priorDay = governedInitial.actualContract && governedInitial.contractMonth
+    ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, governedInitial.actualContract, governedInitial.contractMonth)
     : null;
-  const result = attachPriorDayLevels(initial, priorDay, cutoff);
+  const result = attachPriorDayLevels(governedInitial, priorDay, cutoff);
   return Object.freeze({
     ...result,
     sourceLedgerDates: Object.freeze(ledgerDates),
