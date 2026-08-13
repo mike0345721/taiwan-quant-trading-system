@@ -18,11 +18,20 @@ const SAFETY = Object.freeze({
   executionAuthorized: false,
   orderRoutesEnabled: false,
 });
+const SHIOAJI_EXPECTED_SAFETY = Object.freeze({
+  mode: 'market_data_only',
+  executionAuthorized: false,
+  orderRoutesEnabled: false,
+});
 
 function isoOrNull(value) {
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
+function booleanOrNull(value) {
+  return typeof value === 'boolean' ? value : null;
 }
 
 function fileMetadata(filePath) {
@@ -110,9 +119,13 @@ export async function inspectDashboard(request = fetchJson, baseUrl = 'http://12
 export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.0.0.1:8790') {
   try {
     const { payload } = await request(`${baseUrl}/health`);
-    const safe = payload?.mode === 'market_data_only'
-      && payload?.executionAuthorized === false
-      && payload?.orderRoutesEnabled === false;
+    const observedRuntime = Object.freeze({
+      executionAuthorized: booleanOrNull(payload?.executionAuthorized),
+      orderRoutesEnabled: booleanOrNull(payload?.orderRoutesEnabled),
+    });
+    const safe = payload?.mode === SHIOAJI_EXPECTED_SAFETY.mode
+      && observedRuntime.executionAuthorized === SHIOAJI_EXPECTED_SAFETY.executionAuthorized
+      && observedRuntime.orderRoutesEnabled === SHIOAJI_EXPECTED_SAFETY.orderRoutesEnabled;
     if (!safe) {
       return Object.freeze({
         availability: 'UNAVAILABLE',
@@ -120,8 +133,8 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
         safetyState: 'FAIL_CLOSED_UNSAFE_RESPONSE',
         provider: typeof payload?.provider === 'string' ? payload.provider : 'UNKNOWN',
         mode: 'UNKNOWN',
-        executionAuthorized: false,
-        orderRoutesEnabled: false,
+        expectedSafety: SHIOAJI_EXPECTED_SAFETY,
+        observedRuntime,
       });
     }
     return Object.freeze({
@@ -137,8 +150,8 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
       eventsWritten: Number(payload.eventsWritten ?? payload.written) || 0,
       queueDepth: Number(payload.eventQueueDepth) || 0,
       lowDisk: payload.lowDisk === true,
-      executionAuthorized: false,
-      orderRoutesEnabled: false,
+      expectedSafety: SHIOAJI_EXPECTED_SAFETY,
+      observedRuntime,
     });
   } catch (error) {
     return Object.freeze({
@@ -146,9 +159,9 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
       reachable: false,
       safetyState: 'UNAVAILABLE',
       provider: 'shioaji',
-      mode: 'market_data_only',
-      executionAuthorized: false,
-      orderRoutesEnabled: false,
+      mode: 'UNKNOWN',
+      expectedSafety: SHIOAJI_EXPECTED_SAFETY,
+      observedRuntime: Object.freeze({ executionAuthorized: null, orderRoutesEnabled: null }),
       reason: error?.name === 'AbortError' ? 'TIMEOUT' : 'UNREACHABLE',
     });
   }
@@ -395,7 +408,7 @@ export function formatHumanStatus(report) {
     ['PROJECT', [line('capturedAt', report.capturedAt), line('repository', report.repository), line('scopeAuthority', report.scopeAuthority)]],
     ['GIT', [line('branch', report.git.branch), line('HEAD', report.git.head), line('origin/main', report.git.originMain), line('ahead', report.git.ahead), line('behind', report.git.behind), line('dirtyPaths', report.git.dirtyPaths?.join(', ') || 'NONE')]],
     ['DASHBOARD 8787', [line('availability', report.dashboard.availability), line('health', report.dashboard.health), line('service', report.dashboard.service)]],
-    ['SHIOAJI 8790', [line('availability', report.shioaji.availability), line('provider', report.shioaji.provider), line('mode', report.shioaji.mode), line('writerErrors', report.shioaji.writerErrors), line('latestReceivedAt', report.shioaji.latestReceivedAt), line('executionAuthorized', report.shioaji.executionAuthorized), line('orderRoutesEnabled', report.shioaji.orderRoutesEnabled)]],
+    ['SHIOAJI 8790', [line('availability', report.shioaji.availability), line('safetyState', report.shioaji.safetyState), line('provider', report.shioaji.provider), line('observed.mode', report.shioaji.mode), line('expected.mode', report.shioaji.expectedSafety?.mode), line('expected.executionAuthorized', report.shioaji.expectedSafety?.executionAuthorized), line('observed.executionAuthorized', report.shioaji.observedRuntime?.executionAuthorized), line('expected.orderRoutesEnabled', report.shioaji.expectedSafety?.orderRoutesEnabled), line('observed.orderRoutesEnabled', report.shioaji.observedRuntime?.orderRoutesEnabled), line('writerErrors', report.shioaji.writerErrors), line('latestReceivedAt', report.shioaji.latestReceivedAt)]],
     ['LOCAL MARKET DATA', [line('availability', report.localMarketData.availability), line('latestLedgerDate', report.localMarketData.latestLedgerDate), line('latestLedgerBytes', report.localMarketData.latestLedgerBytes), line('latestTxTickTimestamp', report.localMarketData.tx?.latestTxTickTimestamp), line('latestActualContract', report.localMarketData.tx?.latestActualContract), line('boundedTailBytesScanned', report.localMarketData.tx?.bytesScanned)]],
     ['DATABASE', [line('availability', report.database.availability), line('bytes', report.database.bytes), line('latestDataDate', report.database.latestDataDate)]],
     ['FORWARD SHADOW', [line('availability', report.forwardShadow.availability), line('governed', report.forwardShadow.governed), line('launchStatus', report.forwardShadow.launchStatus), line('latestTradeDate', report.forwardShadow.latestDailyStatus?.tradeDate), line('latestQualityStatus', report.forwardShadow.latestDailyStatus?.qualityStatus)]],

@@ -78,7 +78,7 @@ The next decision for this work package is Product Owner review of the PROJECT H
 
 - Git branch, HEAD, local `origin/main`, ahead/behind, and dirty paths without network fetch;
 - Dashboard 8787 health using a response allowlist;
-- Shioaji 8790 market-data-only health using a response allowlist;
+- Shioaji 8790 market-data-only health using a response allowlist, with governed expected safety shown separately from allowlisted observed runtime booleans; unsafe or missing values fail closed;
 - latest live-event ledger metadata and a fixed-size tail scan for the latest usable actual-contract TX tick;
 - SQLite existence/size and one read-only latest-date query when available;
 - validated Forward Shadow manifest/approval plus the latest small daily-status record, never the full official ledger;
