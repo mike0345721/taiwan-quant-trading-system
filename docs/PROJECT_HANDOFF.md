@@ -1,6 +1,6 @@
 # Project Handoff V1
 
-> Captured at: 2026-08-13 (Asia/Taipei)
+> Captured at: 2026-08-13T23:16:35+08:00 (Asia/Taipei)
 > Document role: a status and handoff checkpoint. It is not a roadmap and does not authorize development.
 
 ## Project identity
@@ -22,17 +22,21 @@
 
 ## Local state
 
-- Captured branch: `hotfix/dw2-timestamp-lineage-effective-available-at`
-- Captured HEAD: `8e6c6c57837de20305fb31bef75a825cdc2360ca`
-- Protected dirty path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
+- Captured branch: `codex/dw-3-market-change-feed-v1`
+- Captured HEAD: `aced143deeb387decdf441423e97dc2d0f9d13b6`
+- Captured `origin/main`: `e190e06530be21f0df58879747e95c1018977a66` after `git fetch origin`
+- Captured branch worktree dirty paths: `NONE`
+- Canonical checkout protected dirty path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
 - The protected report is Product Owner work in progress. Do not stash, restore, reset, overwrite, delete, or include it in another work package.
 
-Local branch, HEAD, remote-tracking ref, ahead/behind counts, and dirty paths are transient. Re-run the read-only status tool for the current values:
+Captured Git/local state is a durable handoff checkpoint, not permanent runtime truth. Branch, HEAD, remote-tracking ref, ahead/behind counts, dirty paths, services, and runtime availability are transient. Re-run the read-only status tool for the current observation:
 
 ```powershell
 npm run project:status
 npm run project:status -- --json
 ```
+
+Authority remains separated: `ROADMAP.md` defines scope, this document records a durable checkpoint, and `npm run project:status` observes current transient state. None of these replace Product Owner approval.
 
 ## Current capabilities
 
@@ -48,8 +52,8 @@ Only capabilities already present in approved code or governed runtime evidence 
 
 ## Open work
 
-- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Refit and integration review are in progress under explicit Product Owner authorization.
-- PR #18 remains outside approved `main`. It requires completed regression and visual review followed by an explicit Product Owner merge decision.
+- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Refit is complete and the final Product Owner merge decision is pending.
+- PR #18 remains outside approved `main`. Validation does not make it approved, merged, or a current formal feature.
 
 ## Known issues and watch items
 
@@ -70,7 +74,7 @@ No DW-4, new evidence family, DW-2 performance hotfix, trading feature, Market S
 
 ## Next Owner decision
 
-The next decision is Product Owner review of the refitted, integrated Draft PR #18. This handoff document cannot approve or merge it.
+The next decision is the final Product Owner merge decision for the refitted, integrated Draft PR #18. This handoff document cannot approve or merge it.
 
 ## Status tool contract
 
