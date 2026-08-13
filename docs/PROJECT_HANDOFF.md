@@ -1,6 +1,6 @@
 # Project Handoff V1
 
-> Captured at: 2026-08-13 (Asia/Taipei)
+> Captured at: 2026-08-13T23:16:35+08:00 (Asia/Taipei)
 > Document role: a status and handoff checkpoint. It is not a roadmap and does not authorize development.
 
 ## Project identity
@@ -14,24 +14,29 @@
 
 ## Current main
 
-- Product Owner identified the latest approved merge as PR #19, merge commit `c0a8c0f52e1fdd8894f0735beb1f8566ebb9eafc`.
+- The latest approved merge at this checkpoint is PR #20, merge commit `e190e06530be21f0df58879747e95c1018977a66`.
+- PR #20 adds this status-only handoff document and the bounded, read-only `npm run project:status` tool. It does not authorize new development.
 - PR #19 preserves the governed TX chart under local timestamp skew by using `effectiveAvailableAt = max(receivedAt, exchangeTimestamp)` for chart availability.
 - The underlying lineage warning remains visible: `QUALITY_INSUFFICIENT` and `TIMESTAMP_LINEAGE_INSUFFICIENT`. This is not a claim that timestamp lineage is repaired.
-- GitHub was authenticated and `origin/main` was verified as `c0a8c0f52e1fdd8894f0735beb1f8566ebb9eafc` at this capture. Run `npm run project:status` after future authenticated fetches to verify the current local `origin/main` value rather than relying on this checkpoint.
+- `origin/main` was verified as `e190e06530be21f0df58879747e95c1018977a66` at this capture. Run `npm run project:status` after future authenticated fetches to verify the current local tracking value rather than relying on this checkpoint.
 
 ## Local state
 
-- Captured branch: `hotfix/dw2-timestamp-lineage-effective-available-at`
-- Captured HEAD: `8e6c6c57837de20305fb31bef75a825cdc2360ca`
-- Protected dirty path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
+- Captured branch: `codex/dw-3-market-change-feed-v1`
+- Captured HEAD: `aced143deeb387decdf441423e97dc2d0f9d13b6`
+- Captured `origin/main`: `e190e06530be21f0df58879747e95c1018977a66` after `git fetch origin`
+- Captured branch worktree dirty paths: `NONE`
+- Canonical checkout protected dirty path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
 - The protected report is Product Owner work in progress. Do not stash, restore, reset, overwrite, delete, or include it in another work package.
 
-Local branch, HEAD, remote-tracking ref, ahead/behind counts, and dirty paths are transient. Re-run the read-only status tool for the current values:
+Captured Git/local state is a durable handoff checkpoint, not permanent runtime truth. Branch, HEAD, remote-tracking ref, ahead/behind counts, dirty paths, services, and runtime availability are transient. Re-run the read-only status tool for the current observation:
 
 ```powershell
 npm run project:status
 npm run project:status -- --json
 ```
+
+Authority remains separated: `ROADMAP.md` defines scope, this document records a durable checkpoint, and `npm run project:status` observes current transient state. None of these replace Product Owner approval.
 
 ## Current capabilities
 
@@ -47,9 +52,8 @@ Only capabilities already present in approved code or governed runtime evidence 
 
 ## Open work
 
-- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Owner merge approval pending.
-- PR #18 is not part of approved `main`. It still requires alignment with current main, regression verification, visual review, and an explicit Product Owner merge decision.
-- PROJECT HANDOFF V1 must not merge, expand, or otherwise modify PR #18.
+- PR #18 — **DW-3: Market Change Feed V1**: Draft; Product Refit is complete and the final Product Owner merge decision is pending.
+- PR #18 remains outside approved `main`. Validation does not make it approved, merged, or a current formal feature.
 
 ## Known issues and watch items
 
@@ -60,17 +64,17 @@ Only capabilities already present in approved code or governed runtime evidence 
 
 ## Current authorized task
 
-`PROJECT HANDOFF V1` only:
+`DW-3 PRODUCT REFIT + INTEGRATION REVIEW` only:
 
-- establish this checkpoint document;
-- add a fast, bounded, fail-closed, read-only local status command;
-- add the minimum regression coverage for those two deliverables.
+- align existing PR #18 to the approved main without overwriting PR #19 or PR #20 behavior;
+- keep DW-3 a completed-5m market evidence layer with no directional or trading implication;
+- separate evidence-engine availability from data trust, prevent unsupported historical Data Health transitions, keep markers 5m-only, group same-observation evidence, and complete regression/visual review.
 
-No trading feature, DW-2 performance hotfix, DW-3 expansion, Market State retuning, or Forward Shadow semantic change is authorized by this task.
+No DW-4, new evidence family, DW-2 performance hotfix, trading feature, Market State retuning, or Forward Shadow semantic change is authorized by this task.
 
 ## Next Owner decision
 
-The next decision for this work package is Product Owner review of the PROJECT HANDOFF V1 Draft PR. PR #18 has its own separate review and merge decision; this handoff document cannot approve it.
+The next decision is the final Product Owner merge decision for the refitted, integrated Draft PR #18. This handoff document cannot approve or merge it.
 
 ## Status tool contract
 

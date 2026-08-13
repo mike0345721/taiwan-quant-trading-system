@@ -7,7 +7,8 @@ const state = {
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
-  txChartLevelLines: [], txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  marketChangeFeed: null,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -2544,6 +2545,7 @@ function ensureTxChart() {
   const vwap = chart.addSeries(L.LineSeries, {
     color: '#f5c86b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'VWAP',
   });
+  const markers = typeof L.createSeriesMarkers === 'function' ? L.createSeriesMarkers(candle, []) : null;
   chart.subscribeCrosshairMove((parameter) => {
     const bar = parameter.seriesData?.get(candle);
     if (!bar || parameter.time == null) {
@@ -2564,6 +2566,7 @@ function ensureTxChart() {
   });
   state.txChartApi = chart;
   state.txChartSeries = { candle, volume, vwap };
+  state.txChartMarkers = markers;
   return chart;
 }
 
@@ -2628,6 +2631,135 @@ function chartSeriesData(payload) {
   return { candles, volumes, vwap };
 }
 
+function marketChangeMarkerData(feed, timeframe) {
+  if (timeframe !== '5m') return [];
+  return (feed?.markers || []).map((marker) => ({
+    time: chartEpoch(marker.time),
+    position: marker.position,
+    color: marker.color,
+    shape: marker.shape,
+    text: marker.text,
+  })).filter((marker) => marker.time != null);
+}
+
+function marketChangeFactText(fact = {}) {
+  const values = [];
+  if (fact.close != null && Number.isFinite(Number(fact.close))) values.push(`Close ${fmt(fact.close)}`);
+  if (fact.vwap != null && Number.isFinite(Number(fact.vwap))) values.push(`VWAP ${fmt(fact.vwap, 2)}`);
+  if (fact.openingRangeHigh != null && fact.openingRangeLow != null && Number.isFinite(Number(fact.openingRangeHigh)) && Number.isFinite(Number(fact.openingRangeLow))) {
+    values.push(`OR ${fmt(fact.openingRangeLow)}–${fmt(fact.openingRangeHigh)}`);
+  }
+  if (fact.sessionHigh != null && Number.isFinite(Number(fact.sessionHigh))) values.push(`H ${fmt(fact.sessionHigh)}`);
+  if (fact.sessionLow != null && Number.isFinite(Number(fact.sessionLow))) values.push(`L ${fmt(fact.sessionLow)}`);
+  if (fact.dataTrustStatus) values.push(`Data Trust ${fact.dataTrustStatus}`);
+  return values.join(' · ') || 'UNAVAILABLE';
+}
+
+function marketChangeDetail(label, value, wide = false) {
+  const cell = document.createElement('div');
+  if (wide) cell.className = 'is-wide';
+  const caption = document.createElement('span'); caption.textContent = label;
+  const content = document.createElement('strong'); content.textContent = value || 'UNAVAILABLE';
+  cell.append(caption, content);
+  return cell;
+}
+
+function renderMarketChangeFeed(feed) {
+  state.marketChangeFeed = feed || null;
+  const groups = feed?.latestGroupsFirst || [];
+  const engineAvailability = feed?.engineAvailability || feed?.status || 'UNAVAILABLE';
+  const dataTrust = feed?.dataTrust?.status || 'UNAVAILABLE';
+  dwText('dw-change-status', `引擎 ${engineAvailability}`);
+  $('dw-change-status').className = `dw-status-pill ${engineAvailability === 'AVAILABLE' ? 'is-ready' : 'is-unavailable'}`;
+  dwText('dw-change-trust', `資料 ${dataTrust}`);
+  $('dw-change-trust').className = `dw-status-pill ${dataTrust === 'PASS' ? 'is-ready' : 'is-quality'}`;
+  dwText('dw-change-reasons', (feed?.dataTrust?.reasons || []).join(' · ') || '無資料品質警告');
+  dwText('dw-change-contract', feed?.actualContract ? `${feed.actualContract} · ${feed.session || '—'}` : 'TX —');
+
+  const latestTarget = $('dw-change-latest');
+  const latest = groups[0];
+  if (latestTarget) {
+    if (!latest) {
+      const time = document.createElement('time'); time.textContent = '—';
+      const body = document.createElement('div');
+      const title = document.createElement('strong'); title.textContent = '尚無合法變化事件';
+      const summary = document.createElement('p'); summary.textContent = '只比較前後兩根合法完成的 5 分鐘觀察，不讀 forming K 棒。';
+      body.append(title, summary); latestTarget.replaceChildren(time, body); latestTarget.classList.remove('is-quality');
+    } else {
+      const time = document.createElement('time'); time.textContent = timeLabel(latest.observedAt);
+      const body = document.createElement('div');
+      const title = document.createElement('strong'); title.textContent = latest.headline;
+      const summary = document.createElement('p'); summary.textContent = `${latest.events.map((event) => event.headline).join('；')} · 資料 ${latest.qualityStatus}`;
+      body.append(title, summary); latestTarget.replaceChildren(time, body);
+      latestTarget.classList.toggle('is-quality', latest.qualityStatus !== 'PASS');
+    }
+  }
+
+  const timeline = $('dw-evidence-timeline');
+  if (timeline) {
+    if (!groups.length) {
+      const empty = document.createElement('li'); empty.className = 'is-empty'; empty.textContent = '目前沒有可顯示的 governed event';
+      timeline.replaceChildren(empty);
+    } else {
+      timeline.replaceChildren(...groups.slice(0, 12).map((group) => {
+        const row = document.createElement('li');
+        if (group.qualityStatus !== 'PASS') row.className = 'is-quality';
+        const at = document.createElement('time'); at.textContent = timeLabel(group.observedAt);
+        const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true');
+        const title = document.createElement('strong'); title.textContent = group.headline;
+        const context = document.createElement('small'); context.textContent = `${group.evidenceCount} 項證據 · ${group.qualityStatus}`;
+        row.append(at, dot, title, context); return row;
+      }));
+    }
+  }
+
+  const cards = $('dw-evidence-cards');
+  if (cards) {
+    if (!groups.length) {
+      const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '等待完成的 5 分鐘證據。';
+      cards.replaceChildren(empty);
+    } else {
+      cards.replaceChildren(...groups.slice(0, 8).map((group, index) => {
+        const card = document.createElement('details'); card.className = 'dw-evidence-card'; card.open = index === 0;
+        const summary = document.createElement('summary');
+        const heading = document.createElement('span');
+        const title = document.createElement('strong'); title.textContent = group.headline;
+        const sub = document.createElement('small'); sub.textContent = `${timeLabel(group.observedAt)} · ${group.actualContract} · ${group.evidenceCount} 項`;
+        heading.append(title, sub);
+        const trust = document.createElement('span'); trust.className = 'dw-evidence-trust'; trust.textContent = group.qualityStatus;
+        summary.append(heading, trust);
+        const detail = document.createElement('div'); detail.className = 'dw-evidence-detail';
+        const evidenceList = document.createElement('ul'); evidenceList.className = 'dw-evidence-items';
+        evidenceList.replaceChildren(...group.events.map((event) => {
+          const item = document.createElement('li');
+          const label = document.createElement('strong'); label.textContent = event.headline;
+          const code = document.createElement('code'); code.textContent = event.eventType;
+          item.append(label, code); return item;
+        }));
+        detail.append(evidenceList);
+        for (const event of group.events) {
+          const technical = document.createElement('details'); technical.className = 'dw-evidence-technical';
+          const technicalSummary = document.createElement('summary'); technicalSummary.textContent = `${event.headline} · 技術詳情`;
+          const technicalBody = document.createElement('div'); technicalBody.className = 'dw-evidence-technical-body';
+          technicalBody.append(
+            marketChangeDetail('Previous', marketChangeFactText(event.sourceFacts?.previous)),
+            marketChangeDetail('Current', marketChangeFactText(event.sourceFacts?.current)),
+            marketChangeDetail('availableAt', event.availableAt),
+            marketChangeDetail('Data Trust', `${event.qualityStatus}${event.qualityReasons?.length ? ` · ${event.qualityReasons.join(', ')}` : ''}`),
+            marketChangeDetail('Sources', (event.sourceIds || []).join(', '), true),
+            marketChangeDetail('Derivation Version', event.derivationVersion, true),
+          );
+          technical.append(technicalSummary, technicalBody); detail.append(technical);
+        }
+        card.append(summary, detail); return card;
+      }));
+    }
+  }
+  if (state.txChartMarkers && state.txChartPayload) {
+    state.txChartMarkers.setMarkers(marketChangeMarkerData(state.marketChangeFeed, state.txChartPayload.timeframe));
+  }
+}
+
 function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
   dwText('dw-chart-status', payload?.status || 'UNAVAILABLE');
@@ -2655,6 +2787,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
     if (data.volumes.length) state.txChartSeries.volume.update(data.volumes.at(-1));
     if (data.vwap.length) state.txChartSeries.vwap.update(data.vwap.at(-1));
   }
+  if (state.txChartMarkers) state.txChartMarkers.setMarkers(visualizable ? marketChangeMarkerData(state.marketChangeFeed, payload?.timeframe) : []);
   state.txChartIdentity = identity;
   state.txChartBarCount = data.candles.length;
   if ((mustReset || fit) && visualizable) chart.timeScale().fitContent();
@@ -2706,6 +2839,7 @@ function renderDecisionWorkspace(workspace) {
   renderPlainList('dw-support-list', workspace?.againstMyTrade?.support, 'NOT_IMPLEMENTED');
   renderPlainList('dw-against-list', workspace?.againstMyTrade?.against, 'NOT_IMPLEMENTED');
   renderPlainList('dw-missing-list', workspace?.againstMyTrade?.missingEvidence, '無可用反證衍生資料');
+  renderMarketChangeFeed(workspace?.whatChanged);
 
   const healthTarget = $('dw-health-list');
   const healthItems = workspace?.snapshot?.dataHealth?.items || [];
