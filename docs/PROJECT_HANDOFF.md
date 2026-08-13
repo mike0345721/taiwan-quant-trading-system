@@ -7,10 +7,12 @@
 
 - Repository: `mike0345721/taiwan-quant-trading-system`
 - Canonical local repository: `D:\Taiwan stock\standalone-v1`
-- Scope authority recorded by this checkpoint: `ROADMAP.md`
+- Live CURRENT / NEXT execution source: Linear
+- Durable strategic / scope map: `ROADMAP.md`
+- Approved implementation truth: GitHub `main`
 - Final approval authority: Product Owner
 
-`ROADMAP.md` defines the repository's CURRENT / NEXT / FUTURE scope at this checkpoint. `PROJECT_HANDOFF.md` records what was actually observed. `npm run project:status` observes transient local state. None of these documents or tools independently authorize implementation, research promotion, paper trading, or execution.
+Product Owner explicit approval is highest authority. Notion stores Product Vision, architecture, Owner Decisions and research conclusions. Linear stores live CURRENT / NEXT work packages, bugs, blockers and acceptance. `ROADMAP.md` is the durable CURRENT / NEXT / FUTURE strategic map and must not contradict Linear. `PROJECT_HANDOFF.md` records what was actually observed. `npm run project:status` observes transient local state. None of these documents or tools independently authorize implementation, research promotion, paper trading, or execution.
 
 ## Current approved main
 
@@ -95,30 +97,29 @@ Runtime values above are time-stamped observations. They may change and must not
 - Native TX sequence is unavailable in audited payloads; true TX tick loss remains `UNKNOWN` and must not be guessed.
 - Forward Shadow is governed and evidence-bearing, but its current operational loop is not healthy: the latest official session is `MISSED`, no later daily status was found, and both expected Scheduled Tasks were absent at capture.
 - DW-2 timeframe switching: **WATCH**. It was previously observed at roughly 5-10 seconds; the 2026-08-13 Product Owner retest materially improved. No optimization is authorized unless the issue becomes repeatable again.
-- `ROADMAP.md` materially predates DW-1, DW-2, Market State / Forward Shadow, Daily Use, Project Handoff, and merged DW-3. Its CURRENT / NEXT / FUTURE classification requires a dedicated Product Owner-approved governance rebase before it is used to authorize another implementation package.
-- Repository governance text is not fully aligned: `AGENTS.md` assigns live CURRENT / NEXT execution state to Linear, while `ROADMAP.md` calls itself the sole scope authority. Product Owner resolution is required; this checkpoint does not silently choose or rewrite either rule.
+- `ROADMAP.md` was rebased in this governance-only branch to include DW-1, DW-2, Market State / Forward Shadow, Daily Use, Project Handoff and merged DW-3, and to classify remaining work without authorizing it.
+- Governance target is now explicit: Product Owner approval > Notion decision context > Linear live execution state > GitHub approved implementation > immutable evidence, with Roadmap as the durable strategic map and this file as a checkpoint.
 
 ## Open work
 
 - PR #18 is no longer open work; it is merged into approved `main`.
 - No new feature, research, strategy, or execution work is authorized by this checkpoint.
-- The only active package represented here is `POST-DW3 CHECKPOINT + ROADMAP RECONCILIATION`.
+- The active documentation package represented by this branch is `GOVERNANCE REBASE`.
 
 ## Current authorized task
 
-`POST-DW3 CHECKPOINT + ROADMAP RECONCILIATION` only:
+`GOVERNANCE REBASE` only:
 
-- verify the PR #18 merge and current runtime truth;
-- update this durable checkpoint;
-- compare `ROADMAP.md` with approved main;
-- identify capability and governance gaps;
-- propose, but do not start, up to three next-stage candidates.
+- reconcile the durable Roadmap with approved `main`;
+- align repository authority wording with Product Owner / Notion / Linear / GitHub / immutable-evidence governance;
+- classify delivered, partial, research-only, blocked and deferred work without authorizing any implementation;
+- update this durable checkpoint and stop for Product Owner review.
 
 No DW-4, Estimated CVD, BidAsk Pressure, Large Trade, Evidence Conflict, Market State retuning, Strategy Engine, Risk Engine, Paper Trading, broker/order integration, or automated trading is authorized.
 
 ## Next Owner decision
 
-Decide whether to authorize a documentation-only **ROADMAP REBASE / GOVERNANCE UPDATE** work package. Its purpose would be to reconcile the stale CURRENT / NEXT / FUTURE map with approved main and resolve the ROADMAP-versus-Linear authority wording. This recommendation does not itself authorize that work or any feature implementation.
+Review the separate Governance Rebase Draft PR. Approval of that PR updates authority wording and the strategic map only; it does not authorize any new product or research implementation.
 
 ## Status tool contract
 
