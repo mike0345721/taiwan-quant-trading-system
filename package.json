@@ -46,6 +46,7 @@
     "research:phase-b:b0": "node scripts/run-phase-b-b0-f3c02.mjs",
     "research:phase-b:b0:v4": "node scripts/run-phase-b-b0-f3c02-v4.mjs",
     "shioaji:check": "node scripts/check-shioaji-readiness.mjs",
+    "shioaji:continuity:candidate": "node scripts/run-shioaji-market-data-continuity.mjs",
     "current:audit": "node scripts/audit-current-readiness.mjs",
     "project:status": "node scripts/project-status.mjs"
   },

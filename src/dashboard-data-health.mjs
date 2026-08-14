@@ -118,6 +118,8 @@ function auditedLiveRecord(sourceId, kind, instrument, auditContract, actualCont
   const freshnessState = connected
     ? (ageMs <= 60_000 ? 'LIVE' : ageMs <= 5 * 60_000 ? 'DELAYED' : 'STALE')
     : 'UNAVAILABLE';
+  const continuity = bridge?.continuity || {};
+  const dataTrustReady = continuity.dataTrust === 'PASS';
   return record({
     sourceId,
     sourceType: kind === 'tick' ? 'EXECUTED_TRADE_EVENTS' : 'BIDASK_EVENTS',
@@ -128,14 +130,41 @@ function auditedLiveRecord(sourceId, kind, instrument, auditContract, actualCont
     receivedAt: lastReceivedAt,
     availableAt: lastReceivedAt,
     freshnessState,
-    reason: connected ? null : (bridge?.error || 'LIVE_BRIDGE_NOT_CONNECTED'),
-    quality: connected ? 'PASS' : capabilityAvailable ? 'HISTORICAL_CAPABILITY_ONLY' : 'UNAVAILABLE',
+    reason: connected ? (dataTrustReady ? null : 'TIMESTAMP_LINEAGE_INSUFFICIENT') : (continuity.reasonCode || bridge?.error || 'LIVE_BRIDGE_NOT_CONNECTED'),
+    quality: connected ? (dataTrustReady ? 'PASS' : 'QUALITY_INSUFFICIENT') : capabilityAvailable ? 'HISTORICAL_CAPABILITY_ONLY' : 'UNAVAILABLE',
     coverage: capabilityAvailable ? `${kindCount} accepted audit events` : null,
     startup: 'AUTO_START',
-    reconnect: audit?.acceptance?.checks?.reconnectEvidence ? 'AUTO_RECONNECT' : 'UNKNOWN',
+    reconnect: continuity.state === 'RECOVERING' ? 'RECOVERING'
+      : continuity.state === 'HEALTHY' && continuity.lastHealthyAt ? 'BOUNDED_RECOVERY_READY'
+        : audit?.acceptance?.checks?.reconnectEvidence ? 'RESTART_EVIDENCE_ONLY' : 'UNKNOWN',
     lineage: audit?.ledgerFile || 'Shioaji market-data-only bridge',
     sourceAvailability: capabilityAvailable ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
-    readinessState: connected ? 'READY' : 'QUALITY_INSUFFICIENT',
+    readinessState: connected && dataTrustReady ? 'READY' : 'QUALITY_INSUFFICIENT',
+  });
+}
+
+function continuityRecord(bridge) {
+  const continuity = bridge?.continuity || {};
+  const healthy = bridge?.connected === true && continuity.state === 'HEALTHY';
+  const trustReady = continuity.dataTrust === 'PASS';
+  return record({
+    sourceId: 'shioajiContinuity',
+    sourceType: 'MARKET_DATA_RUNTIME_CONTINUITY',
+    session: bridge?.marketSession?.state || null,
+    sessionState: continuity.state || 'UNAVAILABLE',
+    receivedAt: continuity.lastHealthyAt || bridge?.checkedAt || null,
+    availableAt: continuity.lastHealthyAt || bridge?.checkedAt || null,
+    freshnessState: healthy ? 'FRESH' : continuity.state === 'RECOVERING' ? 'DELAYED' : 'UNAVAILABLE',
+    reason: healthy ? (trustReady ? null : 'TIMESTAMP_LINEAGE_INSUFFICIENT') : continuity.reasonCode || bridge?.error || 'BRIDGE_HEALTH_UNAVAILABLE',
+    quality: continuity.dataTrust || 'UNAVAILABLE',
+    coverage: Array.isArray(continuity.requiredSubscriptions)
+      ? continuity.requiredSubscriptions.map((item) => `${item.product}:${item.state}`).join(', ')
+      : null,
+    startup: continuity.recoveryLimit ? 'AUTO_START' : 'UNKNOWN',
+    reconnect: continuity.state === 'RECOVERING' ? 'RECOVERING' : continuity.recoveryResult === 'RECOVERED' ? 'AUTO_RECONNECT' : 'UNKNOWN',
+    lineage: 'Shioaji market-data-only bridge health allowlist',
+    sourceAvailability: bridge?.safetyVerified === true ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
+    readinessState: healthy && trustReady ? 'READY' : 'QUALITY_INSUFFICIENT',
   });
 }
 
@@ -239,6 +268,7 @@ export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTr
 
   const items = [
     runtimeRecord(runtimeTruth),
+    continuityRecord(bridge),
     auditedLiveRecord('txTick', 'tick', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('txBidAsk', 'bidAsk', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('mtxTick', 'tick', 'MTX', mtxCode, actualContract, bridge, futuresAudit, now),

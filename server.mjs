@@ -60,6 +60,7 @@ const replayArchiveDir = path.join(config.dataDir, 'intraday', 'archive');
 const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
 const forwardShadowBaseRoot = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow');
 const futuresAuditPath = path.join(config.appRoot, 'data', 'live-events', 'futures-audits', 'latest.json');
+const shioajiContinuityStatusPath = path.join(config.appRoot, 'data', 'runtime', 'shioaji-continuity', 'status.json');
 const chartCalendarPath = path.join(config.appRoot, 'config', 'taifex-official-calendar-2026.json');
 const chartCalendarExceptionPath = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
@@ -239,7 +240,7 @@ const server = http.createServer(async (req, res) => {
         if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
           try { await refreshSnapshot(); } catch { /* status returned below */ }
         }
-        const shioaji = await inspectShioajiBridge();
+        const shioaji = await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
         const clientHistory = latestSnapshot ? await cache.listHistory(400) : [];
         const clientSnapshot = latestSnapshot ? {
           ...latestSnapshot,
