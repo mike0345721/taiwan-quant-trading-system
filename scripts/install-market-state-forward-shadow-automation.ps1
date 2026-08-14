@@ -87,3 +87,26 @@ $outcomeTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,We
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $stateTaskName -Action $stateAction -Trigger $stateTrigger -Settings $settings -Description 'Owner-approved Market State Forward Shadow STATE; executionAuthorized=false.' | Out-Null
 Register-ScheduledTask -TaskName $outcomeTaskName -Action $outcomeAction -Trigger $outcomeTrigger -Settings $settings -Description 'Owner-approved Market State Forward Shadow OUTCOME; executionAuthorized=false.' | Out-Null
+
+$persistedState = Get-ScheduledTask -TaskName $stateTaskName -ErrorAction Stop
+$persistedOutcome = Get-ScheduledTask -TaskName $outcomeTaskName -ErrorAction Stop
+foreach ($item in @(
+  @{ Task = $persistedState; Phase = 'STATE' },
+  @{ Task = $persistedOutcome; Phase = 'OUTCOME' }
+)) {
+  if ($item.Task.State -eq 'Disabled') { throw "FORWARD_SHADOW_$($item.Phase)_TASK_DISABLED_AFTER_INSTALL" }
+  if ($item.Task.Actions.Count -ne 1) { throw "FORWARD_SHADOW_$($item.Phase)_TASK_ACTION_COUNT_INVALID" }
+  if ($item.Task.Actions[0].Execute -ne $powershell) { throw "FORWARD_SHADOW_$($item.Phase)_TASK_EXECUTABLE_MISMATCH" }
+  if ($item.Task.Actions[0].WorkingDirectory -ne $projectRoot) { throw "FORWARD_SHADOW_$($item.Phase)_TASK_WORKING_DIRECTORY_MISMATCH" }
+  if ($item.Task.Actions[0].Arguments -notmatch "-Phase $($item.Phase)") { throw "FORWARD_SHADOW_$($item.Phase)_TASK_PHASE_MISMATCH" }
+  if ($item.Task.Actions[0].Arguments -notmatch [regex]::Escape($resolvedManifest)) { throw "FORWARD_SHADOW_$($item.Phase)_TASK_MANIFEST_BINDING_MISMATCH" }
+  if ($item.Task.Actions[0].Arguments -notmatch [regex]::Escape($resolvedApproval)) { throw "FORWARD_SHADOW_$($item.Phase)_TASK_APPROVAL_BINDING_MISMATCH" }
+}
+
+[pscustomobject]@{
+  installStatus = 'PERSISTED_AND_VERIFIED'
+  stateTask = $stateTaskName
+  outcomeTask = $outcomeTaskName
+  formalSchedulerEnabled = $true
+  executionAuthorized = $false
+} | ConvertTo-Json -Compress

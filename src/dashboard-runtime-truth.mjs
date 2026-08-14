@@ -6,6 +6,7 @@ import {
   validateOwnerLaunchApprovalArtifact,
   validateReadyForLaunchManifest,
 } from './market-state-forward-shadow.mjs';
+import { explainForwardShadowStatus } from './forward-shadow-status-explanation.mjs';
 
 const execFileAsync = promisify(execFile);
 const STATE_TASK = 'TwChipDashboard-MarketStateForwardShadow-State';
@@ -60,15 +61,36 @@ async function queryTask(taskName) {
   }
 }
 
-function latestStateRecord(runtimeRoot) {
+function boundedLedgerRows(runtimeRoot, maxBytes = 256 * 1024) {
   const ledgerPath = path.join(runtimeRoot, 'official-ledger.ndjson');
-  if (!fs.existsSync(ledgerPath)) return null;
+  if (!fs.existsSync(ledgerPath)) return [];
   try {
-    const rows = fs.readFileSync(ledgerPath, 'utf8').split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
-    return rows.filter((row) => ['STATE', 'SESSION_STATUS'].includes(row.recordType)).at(-1) || null;
+    const stat = fs.statSync(ledgerPath);
+    const length = Math.min(stat.size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    const fd = fs.openSync(ledgerPath, 'r');
+    try { fs.readSync(fd, buffer, 0, length, stat.size - length); } finally { fs.closeSync(fd); }
+    const text = buffer.toString('utf8');
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (stat.size > length) lines.shift();
+    return lines.map((line) => JSON.parse(line));
   } catch {
-    return null;
+    return [];
   }
+}
+
+function latestStateRecord(runtimeRoot) {
+  return boundedLedgerRows(runtimeRoot).filter((row) => ['STATE', 'SESSION_STATUS'].includes(row.recordType)).at(-1) || null;
+}
+
+function latestDailyStateStatus(runtimeRoot) {
+  const statusRoot = path.join(runtimeRoot, 'daily-status');
+  if (!fs.existsSync(statusRoot)) return null;
+  const files = fs.readdirSync(statusRoot).filter((name) => /-state\.json$/i.test(name)).sort().reverse();
+  for (const name of files) {
+    try { return readJson(path.join(statusRoot, name)); } catch { /* immutable malformed evidence fails to next older status */ }
+  }
+  return null;
 }
 
 export async function readDashboardRuntimeTruth({ baseRoot, explicitRoot = null, now = new Date(), taskQuery = queryTask } = {}) {
@@ -84,6 +106,9 @@ export async function readDashboardRuntimeTruth({ baseRoot, explicitRoot = null,
     });
   }
   const [stateTask, outcomeTask] = await Promise.all([taskQuery(STATE_TASK), taskQuery(OUTCOME_TASK)]);
+  const stateRecord = latestStateRecord(selected.root);
+  const dailyStatus = latestDailyStateStatus(selected.root);
+  const statusExplanation = explainForwardShadowStatus({ stateRecord, dailyStatus, stateTask, outcomeTask });
   return Object.freeze({
     governed: true,
     checkedAt: now.toISOString(),
@@ -95,7 +120,9 @@ export async function readDashboardRuntimeTruth({ baseRoot, explicitRoot = null,
     finalMainCommit: selected.manifest.finalMainCommit,
     stateTask,
     outcomeTask,
-    stateRecord: latestStateRecord(selected.root),
+    stateRecord,
+    dailyStatus,
+    statusExplanation,
     lineage: {
       manifestPath: selected.manifestPath,
       manifestHash: selected.manifest.manifestHash,

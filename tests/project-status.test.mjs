@@ -154,6 +154,8 @@ test('project status is read only, preserves protected dirty file, and fixes exe
   assert.equal(report.localMarketData.availability, 'UNAVAILABLE');
   assert.equal(report.database.availability, 'UNAVAILABLE');
   assert.equal(report.forwardShadow.availability, 'UNAVAILABLE');
+  assert.equal(report.authority.liveCurrentNext, 'Linear');
+  assert.equal(report.authority.durableScopeMap, 'ROADMAP.md');
   assert.deepEqual(report.safety, { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false });
   assert.equal(hash(protectedReport), before);
   const output = JSON.stringify(report);

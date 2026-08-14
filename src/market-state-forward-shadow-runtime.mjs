@@ -283,7 +283,9 @@ export function runDailyStatePhase(input) {
         sessionId: input.sessionId,
         scheduledAt: input.scheduledAt,
         recordedAt: input.now,
-        missedReason: now >= observationStart ? 'LATE_START_AFTER_OBSERVATION' : 'NO_LEGAL_PREMARKET_SNAPSHOT',
+        missedReason: now >= observationStart
+          ? 'LATE_START_AFTER_OBSERVATION'
+          : (input.unavailableReason || 'NO_LEGAL_PREMARKET_SNAPSHOT'),
         ...AUTHORIZATION,
       }, records);
       lifecycle = ['PRECHECK', 'TRADING_DAY_CHECK', 'INPUT_AVAILABILITY_CHECK', 'APPEND_SESSION_STATUS'];

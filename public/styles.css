@@ -565,6 +565,11 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-health-row strong { font-size: 10px; }
 .dw-health-row span { font-size: 9px; color: var(--muted); }
 .dw-health-row small { grid-column: 1 / -1; color: #7f8da1; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 8px; }
+.dw-technical-detail { margin: 10px 0; padding: 9px 11px; border: 1px solid var(--dw-line); border-radius: 10px; background: rgba(13, 19, 29, .65); }
+.dw-technical-detail > summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+.dw-technical-detail > summary strong { margin-left: 5px; color: #f4c56a; letter-spacing: .04em; }
+.dw-technical-detail[open] > .dw-health-row { margin-top: 9px; }
+.dw-technical-detail code { grid-column: 1 / -1; color: #7f8da1; font-size: 8px; overflow-wrap: anywhere; }
 .dw-journal-bar { padding: 13px 14px; }
 .dw-journal-actions { display: flex; gap: 7px; }
 .dw-snapshot-status { margin: 6px 0 9px; color: var(--muted); font-size: 9px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }

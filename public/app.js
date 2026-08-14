@@ -2810,6 +2810,7 @@ function renderDecisionWorkspace(workspace) {
   const global = workspace?.globalStatus || {};
   const decision = workspace?.decisionSummary || {};
   const chart = workspace?.priceChartSlot || {};
+  const forward = workspace?.forwardShadowStatus || {};
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
   dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
@@ -2817,6 +2818,14 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
   $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
   dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
+
+  dwText('dw-forward-status-value', forward.status || 'UNKNOWN');
+  dwText('dw-forward-reason-summary', forward.reasonSummary || '證據不足，無法判定');
+  dwText('dw-forward-trade-date', `交易日 ${forward.tradeDate || '—'}`);
+  dwText('dw-forward-timing', `預期 ${forward.expectedAt ? timeLabel(forward.expectedAt) : '—'} · 觀測 ${forward.observedAt ? timeLabel(forward.observedAt) : '—'}`);
+  dwText('dw-forward-stage', `最後成功階段 ${forward.lastSuccessfulStage || '—'} · 失敗階段 ${forward.failedStage || '—'}`);
+  dwText('dw-forward-evidence', `證據來源 ${forward.evidenceSource || 'UNAVAILABLE'} · Data Trust ${forward.dataTrust || 'UNAVAILABLE'}`);
+  dwText('dw-forward-reason-code', forward.reasonCode || 'NONE');
 
   dwText('dw-posture', decision.posture || 'NO_TRADE');
   dwText('dw-readiness', decision.readiness || 'NOT_READY');

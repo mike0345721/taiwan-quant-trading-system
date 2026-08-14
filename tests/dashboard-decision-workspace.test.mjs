@@ -61,6 +61,8 @@ test('workspace makes NO_TRADE first class and never promotes legacy scores', ()
   assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
   assert.equal(workspace.priceChartSlot.status, 'UNAVAILABLE');
   assert.equal(workspace.policies.directGptApi, false);
+  assert.equal(workspace.forwardShadowStatus.status, 'UNKNOWN');
+  assert.equal(workspace.forwardShadowStatus.reasonCode, 'UNKNOWN_INSUFFICIENT_EVIDENCE');
 });
 
 test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market State', () => {
