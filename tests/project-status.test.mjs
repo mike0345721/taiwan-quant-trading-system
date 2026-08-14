@@ -84,7 +84,20 @@ test('Shioaji status fails closed while preserving unsafe or missing observed sa
   assert.match(human, /observed\.executionAuthorized=true/);
 });
 
-test('git status preserves the complete protected dirty path', () => {
+test('OI normalization report is governed as mutable generated output with an explicit writer contract', () => {
+  const handoff = fs.readFileSync(path.join(process.cwd(), 'docs', 'PROJECT_HANDOFF.md'), 'utf8');
+  const generator = fs.readFileSync(path.join(process.cwd(), 'v2', 'scripts', 'build-normalized-futures-oi.mjs'), 'utf8');
+  const pipeline = fs.readFileSync(path.join(process.cwd(), 'v2', 'scripts', 'run-v3-daily-update.mjs'), 'utf8');
+  assert.match(handoff, /MUTABLE_GENERATED_REPORT/);
+  assert.match(handoff, /generated report SHA-256 is an observation/i);
+  assert.match(generator, /oi-normalization-audit\.json/);
+  assert.match(generator, /V3_3_OI_NORMALIZATION_AUDIT\.md/);
+  assert.match(generator, /fs\.writeFileSync/);
+  assert.match(pipeline, /key: 'normalized_futures_oi', script: 'build-normalized-futures-oi\.mjs'/);
+  assert.doesNotMatch(handoff, /Protected canonical dirty path/);
+});
+
+test('git status preserves the complete mutable generated report path', () => {
   const responses = new Map([
     ['branch --show-current', 'main'],
     ['rev-parse HEAD', 'a'.repeat(40)],
@@ -133,7 +146,7 @@ test('bounded tail reports actual TX contract and timestamp lineage without muta
   assert.equal(hash(ledger), before);
 });
 
-test('project status is read only, preserves protected dirty file, and fixes execution boundaries false', async () => {
+test('project status is read only, preserves mutable generated output, and fixes execution boundaries false', async () => {
   const root = temporaryRoot();
   const protectedReport = path.join(root, 'v2', 'reports', 'V3_3_OI_NORMALIZATION_AUDIT.md');
   fs.mkdirSync(path.dirname(protectedReport), { recursive: true });
