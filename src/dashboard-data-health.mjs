@@ -14,6 +14,7 @@ const READINESS_STATES = Object.freeze([
   'DERIVATION_FAILURE',
   'QUALITY_INSUFFICIENT',
   'CONTRACT_NOT_FROZEN',
+  'RAW_VALIDATED_CANDIDATE',
 ]);
 
 export const DATA_HEALTH_ENUMS = Object.freeze({
@@ -168,6 +169,31 @@ function continuityRecord(bridge) {
   });
 }
 
+function txoCollectionRecord(bridge) {
+  const txo = bridge?.txoCollection || {};
+  const enabled = txo.enabled === true;
+  const healthy = enabled && txo.collectorState === 'HEALTHY'
+    && txo.expectedSubscriptionCount > 0
+    && txo.restoredSubscriptionCount === txo.expectedSubscriptionCount;
+  return record({
+    sourceId: 'txoLiveChainRaw',
+    sourceType: 'SHIOAJI_TXO_LIVE_CHAIN_RAW',
+    instrument: 'TXO',
+    receivedAt: txo.lastQuoteAt || null,
+    availableAt: txo.lastQuoteAt || null,
+    freshnessState: healthy ? 'LIVE' : 'UNAVAILABLE',
+    reason: healthy ? 'RAW_ONLY_NOT_PROMOTED' : enabled ? 'TXO_COLLECTION_DEGRADED' : 'PRODUCTION_ACTIVATION_NOT_APPROVED',
+    quality: healthy ? 'RESEARCH_ONLY' : 'UNAVAILABLE',
+    coverage: `${txo.restoredSubscriptionCount || 0}/${txo.expectedSubscriptionCount || 0} subscriptions`,
+    startup: 'DEFAULT_OFF',
+    reconnect: 'USES_EXISTING_SINGLE_BRIDGE',
+    lineage: 'Shioaji TXO Tick/BidAsk; raw only; no IV promotion',
+    sourceAvailability: 'SOURCE_AVAILABLE',
+    readinessState: healthy ? 'RAW_VALIDATED_CANDIDATE'
+      : enabled ? 'QUALITY_INSUFFICIENT' : 'CONTRACT_NOT_FROZEN',
+  });
+}
+
 function derivedRecord(sourceId, sourceType, sourceIds, reason = 'DERIVATION_NOT_IMPLEMENTED') {
   return record({
     sourceId,
@@ -269,6 +295,7 @@ export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTr
   const items = [
     runtimeRecord(runtimeTruth),
     continuityRecord(bridge),
+    txoCollectionRecord(bridge),
     auditedLiveRecord('txTick', 'tick', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('txBidAsk', 'bidAsk', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('mtxTick', 'tick', 'MTX', mtxCode, actualContract, bridge, futuresAudit, now),

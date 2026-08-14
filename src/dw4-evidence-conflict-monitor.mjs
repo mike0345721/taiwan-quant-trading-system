@@ -1,25 +1,29 @@
-export const DW4_EVIDENCE_STATES = Object.freeze([
+export const DW4_DIRECTION_STATES = Object.freeze([
   'SUPPORTS_UP',
   'SUPPORTS_DOWN',
   'NEUTRAL',
   'CONFLICT_INTERNAL',
-  'UNAVAILABLE',
-  'STALE',
-  'QUALITY_INSUFFICIENT',
+  'NOT_ELIGIBLE',
 ]);
 
+export const DW4_AVAILABILITY_STATES = Object.freeze(['AVAILABLE', 'UNAVAILABLE', 'STALE']);
+export const DW4_QUALITY_STATES = Object.freeze(['PASS', 'QUALITY_INSUFFICIENT', 'UNKNOWN']);
+export const DW4_PROMOTION_STATES = Object.freeze(['ELIGIBLE', 'RAW_ONLY', 'RESEARCH_ONLY', 'NOT_PROMOTED']);
 export const DW4_CONFLICT_STATES = Object.freeze([
-  'ALIGNED_UP',
-  'ALIGNED_DOWN',
-  'MIXED',
-  'INSUFFICIENT_EVIDENCE',
-  'QUALITY_BLOCKED',
+  'ALIGNED_UP', 'ALIGNED_DOWN', 'MIXED', 'NO_DIRECTIONAL_EVIDENCE',
 ]);
+export const DW4_COVERAGE_STATES = Object.freeze(['COMPLETE', 'PARTIAL', 'INSUFFICIENT']);
+export const DW4_DATA_TRUST_STATES = Object.freeze(['PASS', 'DEGRADED', 'QUALITY_INSUFFICIENT', 'BLOCKED']);
 
 export const DW4_EVIDENCE_CONTRACT = Object.freeze({
-  schemaVersion: 'dw4-evidence-conflict-monitor-v1',
-  allowedEvidenceStates: DW4_EVIDENCE_STATES,
+  schemaVersion: 'dw4-evidence-conflict-monitor-v2',
+  allowedDirectionStates: DW4_DIRECTION_STATES,
+  allowedAvailabilityStates: DW4_AVAILABILITY_STATES,
+  allowedQualityStates: DW4_QUALITY_STATES,
+  allowedPromotionStates: DW4_PROMOTION_STATES,
   allowedConflictStates: DW4_CONFLICT_STATES,
+  allowedCoverageStates: DW4_COVERAGE_STATES,
+  allowedDataTrustStates: DW4_DATA_TRUST_STATES,
   missingIsNeutral: false,
   staleIsNeutral: false,
   qualityInsufficientIsNeutral: false,
@@ -58,27 +62,42 @@ function iso(value) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
 
+function requiredEnum(value, allowed, code) {
+  if (!allowed.includes(value)) throw new Error(code);
+  return value;
+}
+
 export function createDw4EvidenceObservation(input = {}) {
   if (typeof input.evidenceId !== 'string' || !input.evidenceId.trim()) throw new Error('EVIDENCE_ID_REQUIRED');
-  if (!DW4_EVIDENCE_STATES.includes(input.state)) throw new Error('EVIDENCE_STATE_INVALID');
+  const directionState = requiredEnum(input.directionState, DW4_DIRECTION_STATES, 'DIRECTION_STATE_INVALID');
+  const availabilityState = requiredEnum(input.availabilityState, DW4_AVAILABILITY_STATES, 'AVAILABILITY_STATE_INVALID');
+  const qualityState = requiredEnum(input.qualityState, DW4_QUALITY_STATES, 'QUALITY_STATE_INVALID');
+  const promotionState = requiredEnum(input.promotionState, DW4_PROMOTION_STATES, 'PROMOTION_STATE_INVALID');
   const eventTime = iso(input.eventTime);
   const availableAt = iso(input.availableAt);
-  if (!eventTime) throw new Error('EVENT_TIME_INVALID');
-  if (!availableAt) throw new Error('AVAILABLE_AT_INVALID');
-  if (Date.parse(availableAt) < Date.parse(eventTime)) throw new Error('AVAILABLE_AT_BEFORE_EVENT');
-  if (['UNAVAILABLE', 'STALE', 'QUALITY_INSUFFICIENT'].includes(input.state) && input.direction != null) {
-    throw new Error('NON_DIRECTIONAL_STATE_MUST_NOT_HAVE_DIRECTION');
+  if (availabilityState === 'AVAILABLE') {
+    if (!eventTime) throw new Error('EVENT_TIME_INVALID');
+    if (!availableAt) throw new Error('AVAILABLE_AT_INVALID');
+    if (Date.parse(availableAt) < Date.parse(eventTime)) throw new Error('AVAILABLE_AT_BEFORE_EVENT');
   }
+  const eligible = availabilityState === 'AVAILABLE'
+    && qualityState === 'PASS'
+    && promotionState === 'ELIGIBLE'
+    && directionState !== 'NOT_ELIGIBLE';
+  if (!eligible && directionState !== 'NOT_ELIGIBLE') throw new Error('NON_ELIGIBLE_OBSERVATION_MUST_NOT_ASSERT_DIRECTION');
   return Object.freeze({
-    schemaVersion: 'dw4-evidence-observation-v1',
+    schemaVersion: 'dw4-evidence-observation-v2',
     evidenceId: input.evidenceId.trim(),
-    group: typeof input.group === 'string' && input.group.trim() ? input.group.trim() : 'UNCLASSIFIED',
-    state: input.state,
+    family: typeof input.family === 'string' && input.family.trim() ? input.family.trim() : 'UNCLASSIFIED',
+    directionState,
+    availabilityState,
+    qualityState,
+    promotionState,
+    eligibleDirectionalEvidence: eligible,
     eventTime,
     availableAt,
     sourceId: typeof input.sourceId === 'string' && input.sourceId.trim() ? input.sourceId.trim() : null,
     qualityReasons: Object.freeze([...(input.qualityReasons || [])].filter(Boolean).sort()),
-    requiredForV1: input.requiredForV1 !== false,
     detail: input.detail ?? null,
     formalWeight: 0,
     researchOnly: true,
@@ -87,27 +106,76 @@ export function createDw4EvidenceObservation(input = {}) {
   });
 }
 
-export function summarizeDw4Evidence(observations = []) {
-  const evidence = [...observations];
-  const required = evidence.filter((item) => item.requiredForV1 !== false);
-  let state = 'INSUFFICIENT_EVIDENCE';
-  if (required.some((item) => item.state === 'QUALITY_INSUFFICIENT')) {
-    state = 'QUALITY_BLOCKED';
-  } else if (required.some((item) => ['UNAVAILABLE', 'STALE'].includes(item.state)) || required.length === 0) {
-    state = 'INSUFFICIENT_EVIDENCE';
-  } else {
-    const up = required.some((item) => item.state === 'SUPPORTS_UP');
-    const down = required.some((item) => item.state === 'SUPPORTS_DOWN');
-    const internal = required.some((item) => item.state === 'CONFLICT_INTERNAL');
-    if (internal || (up && down)) state = 'MIXED';
-    else if (up) state = 'ALIGNED_UP';
-    else if (down) state = 'ALIGNED_DOWN';
-  }
+function uniqueSorted(values) {
+  return Object.freeze([...new Set(values)].sort());
+}
+
+export function summarizeDw4Evidence(observations = [], {
+  expectedEvidenceFamilies = null,
+  snapshotBlocked = false,
+} = {}) {
+  const evidence = Object.freeze([...observations]);
+  const expected = uniqueSorted(expectedEvidenceFamilies || evidence.map((item) => item.family));
+  const eligible = evidence.filter((item) => item.eligibleDirectionalEvidence && expected.includes(item.family));
+  const eligibleFamilies = uniqueSorted(eligible.map((item) => item.family));
+  const unavailableFamilies = uniqueSorted(evidence
+    .filter((item) => expected.includes(item.family) && item.availabilityState === 'UNAVAILABLE')
+    .map((item) => item.family));
+  const staleFamilies = uniqueSorted(evidence
+    .filter((item) => expected.includes(item.family) && item.availabilityState === 'STALE')
+    .map((item) => item.family));
+  const qualityExcludedFamilies = uniqueSorted(evidence
+    .filter((item) => expected.includes(item.family) && item.qualityState !== 'PASS')
+    .map((item) => item.family));
+  const promotionExcludedFamilies = uniqueSorted(evidence
+    .filter((item) => expected.includes(item.family) && item.promotionState !== 'ELIGIBLE')
+    .map((item) => item.family));
+  const observedFamilies = new Set(evidence.map((item) => item.family));
+  const missingFamilies = uniqueSorted(expected.filter((family) => !observedFamilies.has(family)));
+
+  const up = eligible.some((item) => item.directionState === 'SUPPORTS_UP');
+  const down = eligible.some((item) => item.directionState === 'SUPPORTS_DOWN');
+  const internal = eligible.some((item) => item.directionState === 'CONFLICT_INTERNAL');
+  let conflictState = 'NO_DIRECTIONAL_EVIDENCE';
+  if (internal || (up && down)) conflictState = 'MIXED';
+  else if (up) conflictState = 'ALIGNED_UP';
+  else if (down) conflictState = 'ALIGNED_DOWN';
+
+  const coverageState = eligibleFamilies.length === 0
+    ? 'INSUFFICIENT'
+    : eligibleFamilies.length === expected.length
+      ? 'COMPLETE'
+      : 'PARTIAL';
+
+  const hasQualityLimitation = qualityExcludedFamilies.length > 0;
+  const hasOtherLimitation = unavailableFamilies.length > 0
+    || staleFamilies.length > 0
+    || missingFamilies.length > 0
+    || promotionExcludedFamilies.length > 0;
+  const dataTrustState = snapshotBlocked || eligibleFamilies.length === 0
+    ? 'BLOCKED'
+    : hasQualityLimitation
+      ? 'QUALITY_INSUFFICIENT'
+      : hasOtherLimitation
+        ? 'DEGRADED'
+        : 'PASS';
+
   return Object.freeze({
-    schemaVersion: 'dw4-evidence-conflict-summary-v1',
-    state,
+    schemaVersion: 'dw4-evidence-conflict-summary-v2',
+    conflictState,
+    coverageState,
+    dataTrustState,
+    expectedEvidenceFamilies: expected,
+    eligibleEvidenceFamilies: eligibleFamilies,
+    unavailableEvidenceFamilies: unavailableFamilies,
+    staleEvidenceFamilies: staleFamilies,
+    qualityExcludedFamilies,
+    promotionExcludedFamilies,
+    missingEvidenceFamilies: missingFamilies,
+    expectedFamilies: expected.length,
+    eligibleFamilies: eligibleFamilies.length,
     evidenceCount: evidence.length,
-    evidence: Object.freeze(evidence),
+    evidence,
     score: null,
     confidence: null,
     formalWeight: 0,

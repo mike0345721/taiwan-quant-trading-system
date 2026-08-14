@@ -22,7 +22,7 @@ CREDENTIAL_PATH = ROOT / ".shioaji.credentials.json"
 CREDENTIAL_READER = ROOT / "scripts" / "read-shioaji-credentials.ps1"
 
 
-def load_credentials() -> dict[str, Any]:
+def load_credentials(path: Path = CREDENTIAL_PATH) -> dict[str, Any]:
     result = subprocess.run(
         [
             "powershell",
@@ -32,7 +32,7 @@ def load_credentials() -> dict[str, Any]:
             "-File",
             str(CREDENTIAL_READER),
             "-Path",
-            str(CREDENTIAL_PATH),
+            str(path),
         ],
         check=True,
         capture_output=True,
@@ -103,6 +103,12 @@ def main() -> None:
         type=Path,
         help="write the sanitized result to a JSON evidence file",
     )
+    parser.add_argument(
+        "--credential-path",
+        type=Path,
+        default=CREDENTIAL_PATH,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args()
     previous_result: dict[str, Any] = {}
     if args.output and args.output.exists():
@@ -127,6 +133,8 @@ def main() -> None:
         "optionsAccess": {
             "txoGroupVisible": False,
             "contractCount": 0,
+            "expirySummaries": [],
+            "txOptionRoots": [],
             "snapshotFields": [],
             "providerGreeksFields": [],
             "sampleContracts": [],
@@ -141,7 +149,7 @@ def main() -> None:
         "executionAuthorized": False,
         "orderRoutesEnabled": False,
     }
-    credentials = load_credentials()
+    credentials = load_credentials(args.credential_path)
     simulation = (
         False
         if args.production_readonly
@@ -183,6 +191,24 @@ def main() -> None:
         result["optionsAccess"]["optionsSignature"] = str(
             inspect.signature(contracts.options)
         )
+        option_roots_value = contracts.option_roots()
+        option_roots = sorted(str(root) for root in (option_roots_value or []))
+        tx_option_roots = [root for root in option_roots if root.startswith("TX")]
+        for option_root in tx_option_roots:
+            try:
+                root_contracts = list(contracts.options(option_root))
+            except (AttributeError, TypeError):
+                continue
+            dates = sorted({
+                str(getattr(item, "delivery_date", "") or "")
+                for item in root_contracts
+                if str(getattr(item, "delivery_date", "") or "")
+            })
+            result["optionsAccess"]["txOptionRoots"].append({
+                "root": option_root,
+                "contractCount": len(root_contracts),
+                "deliveryDates": dates,
+            })
         contract_refs = {
             "TX": find_contract(contracts, ("TXFR1", "TXF")),
             "MTX": find_contract(contracts, ("MXFR1", "MXF", "MTX")),
@@ -226,6 +252,32 @@ def main() -> None:
             result["optionsAccess"]["txoGroupVisible"] = True
             result["optionsAccess"]["contractCount"] = len(txo_contracts)
             if txo_contracts:
+                expiry_groups: dict[tuple[str, str], list[Any]] = {}
+                for option_contract in txo_contracts:
+                    key = (
+                        str(getattr(option_contract, "delivery_date", "") or ""),
+                        str(getattr(option_contract, "delivery_month", "") or ""),
+                    )
+                    expiry_groups.setdefault(key, []).append(option_contract)
+                expiry_summaries = []
+                for (delivery_date, delivery_month), group in sorted(expiry_groups.items()):
+                    strikes = sorted({
+                        float(getattr(item, "strike_price", 0) or 0)
+                        for item in group
+                        if float(getattr(item, "strike_price", 0) or 0) > 0
+                    })
+                    rights = [enum_value(getattr(item, "option_right", None)) for item in group]
+                    expiry_summaries.append({
+                        "deliveryDate": delivery_date,
+                        "deliveryMonth": delivery_month,
+                        "contractCount": len(group),
+                        "callCount": sum(right in {"C", "CALL"} for right in rights),
+                        "putCount": sum(right in {"P", "PUT"} for right in rights),
+                        "strikeCount": len(strikes),
+                        "minStrike": strikes[0] if strikes else None,
+                        "maxStrike": strikes[-1] if strikes else None,
+                    })
+                result["optionsAccess"]["expirySummaries"] = expiry_summaries
                 result["optionsAccess"]["sampleContracts"] = [
                     option_contract_summary(contract)
                     for contract in sorted(

@@ -10,6 +10,9 @@ const data = fs.readFileSync(path.join(root, 'docs', 'data', 'DW4_DATA_REQUIREME
 test('DW-4 documents keep collection separate from promotion and trading', () => {
   assert.match(product, /Collection is not promotion/);
   assert.match(product, /hidden weights/i);
+  assert.match(product, /conflictState/);
+  assert.match(product, /coverageState/);
+  assert.match(product, /dataTrustState/);
   assert.match(product, /executionAuthorized=false/);
   assert.match(data, /productionActivationApproved/);
   assert.match(data, /\*\*NOT ACTIVATED\*\*/);
@@ -23,6 +26,9 @@ test('data matrix preserves source identity and quality limitations', () => {
   assert.match(data, /NQ futures/);
   assert.match(data, /CONTRIBUTION_NOT_YET_ELIGIBLE/);
   assert.match(data, /TIMESTAMP_LINEAGE_INSUFFICIENT/);
+  assert.match(data, /2,050 contracts/);
+  assert.match(data, /RAW_VALIDATED_CANDIDATE/);
+  assert.match(data, /production activation readiness is `NOT_READY`/);
 });
 
 test('documents contain no production activation or execution authorization', () => {
