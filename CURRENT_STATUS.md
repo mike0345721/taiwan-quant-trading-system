@@ -1,7 +1,14 @@
 # 目前專案真實狀態
 
-> 更新日期：2026-08-02  
-> 文件角色：只描述現在可由程式、資料與測試佐證的系統狀態，不保存版本歷史、不授權下一階段。工作範圍以`ROADMAP.md`為唯一權威，歷史變更請搜尋`CHANGELOG.md`。
+> 更新日期：2026-08-13
+> 文件角色：只描述現在可由程式、資料與測試佐證的系統狀態，不保存版本歷史、不授權下一階段。Product Owner明確決策為最高權威；Linear保存live CURRENT／NEXT執行狀態，`ROADMAP.md`保存耐久策略／範圍地圖，GitHub `main`保存已批准實作。歷史變更請搜尋`CHANGELOG.md`。
+
+## 2026-08-13 Approved Main Checkpoint
+
+- DW-1中文優先Decision Workspace、DW-2 governed actual-contract TX多時間框架圖表、PR #19 timestamp-lineage chart availability hotfix、PR #20 Project Handoff V1，以及DW-3 Market Change Feed V1均已進入approved `main`。
+- DW-3只輸出completed legal 5m VWAP／Opening Range／Session Structure evidence，分離Evidence Engine Availability與Data Trust，不是交易訊號。
+- Timestamp lineage仍為`QUALITY_INSUFFICIENT / TIMESTAMP_LINEAGE_INSUFFICIENT`；native sequence仍為`UNAVAILABLE`。PR #19沒有消除底層品質問題。
+- Market State／Forward Shadow維持`researchOnly=true`、`formalWeight=0`、`executionAuthorized=false`；正式歷史MISSED不得backfill或改寫。
 
 ## T0 Final Spec／Data-Replay Gate Closeout
 

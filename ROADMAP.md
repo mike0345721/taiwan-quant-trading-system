@@ -1,9 +1,13 @@
 # 台股籌碼神器：執行 Roadmap
 
-> 更新日期：2026-07-29  
-> 本文件用途：控制目前工作範圍，避免長期願景造成scope creep。  
-> 本文件是CURRENT／NEXT／FUTURE工作範圍的唯一權威。若其他狀態、待辦或歷史計畫與本文件衝突，以本文件為準；詳細研究公式仍以各專項規格為準。  
+> 更新日期：2026-08-13
+> 本文件用途：控制目前工作範圍，避免長期願景造成scope creep。
+> 本文件是耐久的CURRENT／NEXT／FUTURE策略與範圍地圖，不是即時工作佇列，也不自行授權開工。Product Owner明確批准是最高權威；Notion保存產品願景、架構、Owner Decision及研究結論；Linear保存live CURRENT／NEXT工作包、Bug、Blocker及驗收狀態；GitHub `main`保存已批准實作；Immutable Manifest／Ledger／Frozen Artifact保存不可為救結果而改寫的證據。若本文件與上述即時或不可變來源衝突，必須回報並由Product Owner裁決，不得以本文件靜默覆蓋。
 > `NEXT_TASKS.md`僅為歷史索引，不構成開發授權。
+
+只有Product Owner可以批准新Scope、開始工作、Promotion或Merge。下列`CURRENT`、`NEXT`、`FUTURE`分類只描述策略位置；即使標為`CURRENT`，仍不得在沒有Product Owner明確批准及Linear工作包的情況下自動實作。
+
+狀態標記：`DONE`、`PARTIAL`、`RESEARCH_ONLY`、`BLOCKED_BY_DATA`、`BLOCKED_BY_QUALITY`、`NOT_STARTED`、`DEFERRED`、`SUPERSEDED`。
 
 ## 一、目前實際階段
 
@@ -18,6 +22,11 @@
 - 官方5分鐘歷史回放、價格／量能特徵與凍結策略工程骨架。
 - Options Smart Radar、六軸影子評分及Transparent Dealer Map Beta。
 - Shioaji股票唯讀接線、事件契約、append-only儲存與稽核工具。
+- `DONE`：DW-1中文優先Decision Workspace，`NO_TRADE`為一級狀態，沒有交易授權。
+- `DONE`：DW-2 governed actual-contract TX多時間框架圖表，以及PR #19 timestamp-lineage chart availability hotfix；底層lineage品質警告仍保留。
+- `DONE`：PR #20 Project Handoff V1與bounded/read-only `npm run project:status`。
+- `DONE`：DW-3 Market Change Feed V1，只提供completed legal 5m market evidence，不是交易訊號。
+- `RESEARCH_ONLY`：Market State V1與Forward Shadow治理、Manifest及append-only狀態證據；不代表策略Edge或交易權限。
 
 尚未跨越的門檻：
 
@@ -31,7 +40,7 @@
 
 CURRENT只允許維護與完成正在進行的台股籌碼神器核心工作。
 
-### CURRENT 1：資料品質與連續累積
+### CURRENT 1：資料品質與連續累積 — `PARTIAL / BLOCKED_BY_QUALITY`
 
 工作範圍：
 
@@ -47,7 +56,7 @@ CURRENT只允許維護與完成正在進行的台股籌碼神器核心工作。
 - 主要資料源持續通過完整性與時間稽核。
 - 正式盤中研究累積至少120個完整、通過品質檢查的交易日。
 
-### CURRENT 2：只讀行情可靠性驗證
+### CURRENT 2：只讀行情可靠性驗證 — `PARTIAL / BLOCKED_BY_QUALITY`
 
 工作範圍：
 
@@ -62,11 +71,11 @@ CURRENT只允許維護與完成正在進行的台股籌碼神器核心工作。
 - 斷線、重複、過期與時鐘偏差能被偵測並安全降級。
 - 任何行情錯誤都不會轉成交易授權。
 
-### CURRENT 3：既有功能穩定與研究規則凍結
+### CURRENT 3：既有功能穩定與研究規則凍結 — `PARTIAL`
 
 工作範圍：
 
-- 維持Dashboard、V2研究查詢、盤中回放、Smart Radar、六軸影子評分及Dealer Map Beta穩定。
+- 維持Dashboard、DW-1 Decision Workspace、DW-2 governed TX chart、DW-3 Market Change Feed、V2研究查詢、盤中回放、Smart Radar、六軸影子評分及Dealer Map Beta穩定。
 - 修正資料或文件不一致、測試失敗與明確缺陷。
 - 持續執行自動測試、秘密掃描及資料品質稽核。
 - 保留已失敗的研究結果，不回頭調整舊規則。
@@ -78,14 +87,14 @@ CURRENT只允許維護與完成正在進行的台股籌碼神器核心工作。
 - 當前研究輸入、公式、版本與結果可重現。
 - 未驗證因子的正式權重保持0。
 
-### CURRENT 4：V3.10 唯讀市場資料與第三波前向研究（2026-07-30授權）
+### CURRENT 4：V3.10 唯讀市場資料與第三波前向研究（2026-07-30授權）— `PARTIAL / RESEARCH_ONLY`
 
 本里程碑只授權依資料相依性逐級驗收，不授權一次平行開發全部NEXT頁面：
 
-1. 先完成TX／MTX／TMF即時Tick與五檔Bid／Ask、日夜盤口徑、append-only ledger、
+1. `DONE`：TX／MTX／TMF即時Tick與五檔Bid／Ask、日夜盤口徑、append-only ledger、
    30分鐘乾淨運行及受控重啟驗收。
-2. 通過後保存供應商`tick_type`分類、最佳Bid／Ask交叉分類、分類衝突率、逐筆CVD與
-   捕捉串流內精確VWAP；所有輸出維持候選研究、正式權重0。
+2. `RESEARCH_ONLY`：供應商`tick_type`分類、最佳Bid／Ask交叉分類、分類衝突率、逐筆CVD與
+   捕捉串流內精確VWAP只存在於候選研究層；正式權重0，不因本Roadmap自動產品化。
 3. 再以有限履約價與最近到期契約驗證選擇權唯讀行情。供應商若不直接提供Greeks，
    必須另以版本化本機估值及可追溯輸入交叉驗證，未通過不得進入下一Gate。
 4. 只有Greeks資料Gate通過後，才執行DEX／GEX與Gamma結構的多情境研究；
@@ -115,7 +124,7 @@ CURRENT只允許維護與完成正在進行的台股籌碼神器核心工作。
 
 NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可另行規劃與授權。
 
-### NEXT 1：Dealer Map Beta驗證與硬化
+### NEXT 1：Dealer Map Beta驗證與硬化 — `RESEARCH_ONLY`
 
 現況：V3.9.7 Beta已實作。
 
@@ -140,7 +149,9 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 - 不稱為勝率。
 - 不稱為真實Dealer Cost。
 
-### NEXT 2：市場風向與台指期面板
+### NEXT 2：市場風向與台指期面板 — `PARTIAL`
+
+DW-1、DW-2與DW-3已交付決策工作台、governed TX圖表與5分鐘證據層；完整Market Direction頁、權值貢獻、海外盤中脈絡及未通過Data Gate的衍生項目仍未完成。不得把部分交付描述為完整NEXT 2完成。
 
 啟動前置條件：
 
@@ -185,7 +196,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 - 不因技術上可行而一次接入大量個股或海外商品；若樣本外改善不具實質意義，保留較簡單版本。
 - 不新增委託、帳戶、部位或自動交易能力。
 
-### NEXT 3：Greeks唯讀資料層
+### NEXT 3：Greeks唯讀資料層 — `BLOCKED_BY_QUALITY`
 
 啟動前置條件：
 
@@ -199,7 +210,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 - 保存估值方法、利率、到期時間、標的價格與版本。
 - 異常或缺值時保持unknown並降級。
 
-### NEXT 4：DEX／GEX與Gamma結構情境
+### NEXT 4：DEX／GEX與Gamma結構情境 — `BLOCKED_BY_DATA`
 
 只有NEXT 3通過後才規劃：
 
@@ -218,7 +229,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 - 情境而非真實Dealer帳本
 - 正式權重0
 
-### NEXT 5：四股力量影子構成
+### NEXT 5：四股力量影子構成 — `DEFERRED`
 
 在資料足夠後，將Gravity／Momentum／Barrier／Acceleration分開保存。
 
@@ -235,7 +246,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 
 以下項目已正式記錄，但目前禁止自行實作。
 
-### FUTURE A：進階Research與Strategy Engine
+### FUTURE A：進階Research與Strategy Engine — `DEFERRED`
 
 - 完整Market Regime分類
 - 凍結策略庫與Strategy Router
@@ -248,7 +259,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 
 啟動門檻：至少完成Hypothesis、Backtest、Out-of-Sample、Walk-Forward及Stress Test。
 
-### FUTURE B：Option Income Engine
+### FUTURE B：Option Income Engine — `DEFERRED`
 
 - Theta與Volatility Risk Premium
 - IV vs Realized Volatility
@@ -258,7 +269,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 
 禁止將此項簡化成每日固定雙賣。
 
-### FUTURE C：Position / Hedge Engine
+### FUTURE C：Position / Hedge Engine — `DEFERRED`
 
 - Portfolio Delta／Gamma／Theta／Vega
 - Margin與Max Loss
@@ -266,7 +277,7 @@ NEXT只有在CURRENT穩定，且相依資料／權限通過品質門檻後才可
 - 小台期貨Hedge
 - 部位與券商帳務核對
 
-### FUTURE D：Risk Engine
+### FUTURE D：Risk Engine — `DEFERRED`
 
 Risk Engine未來擁有最高否決權，範圍包括：
 
@@ -281,7 +292,7 @@ Risk Engine未來擁有最高否決權，範圍包括：
 
 在Risk Engine完成以前，不得啟用自動交易。
 
-### FUTURE E：Failure Database
+### FUTURE E：Failure Database — `DEFERRED`
 
 - False Breakout
 - Wrong Gamma Regime
@@ -293,7 +304,7 @@ Risk Engine未來擁有最高否決權，範圍包括：
 
 用途是研究模型如何失效，不是只保存成功案例。
 
-### FUTURE F：資料生命週期與Adaptive Sampling
+### FUTURE F：資料生命週期與Adaptive Sampling — `DEFERRED`
 
 - Hot／Warm／Cold Data分層
 - Parquet與壓縮封存
@@ -301,7 +312,7 @@ Risk Engine未來擁有最高否決權，範圍包括：
 - 高波動及重要行情提高精度
 - 本機Feature先行、AI選擇性讀取
 
-### FUTURE G：Paper Trading、Small Capital與Automated Trading
+### FUTURE G：Paper Trading、Small Capital與Automated Trading — `DEFERRED`
 
 順序不得顛倒：
 
@@ -338,7 +349,7 @@ Resource／Complexity Gate只治理NEXT與FUTURE的升級提案，不改變CURRE
 ## 六、範圍變更流程
 
 1. 新想法先寫入願景或FUTURE，不直接寫程式。
-2. 只有使用者能授權NEXT轉為CURRENT。
+2. 只有Product Owner能授權NEXT轉為CURRENT；Linear保存live工作包與驗收狀態。
 3. 啟動前必須寫出資料需求、退出條件、失敗條件、不做事項、Resource Budget及Complexity Budget。
 4. 每次只推進一個主要里程碑。
 5. 階段完成後先驗證與更新文件，再討論下一階段。
