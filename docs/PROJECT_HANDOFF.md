@@ -33,9 +33,15 @@ Run `git fetch origin` and `npm run project:status` before relying on these capt
 - Canonical checkout branch: `hotfix/dw2-timestamp-lineage-effective-available-at`
 - Canonical checkout HEAD: `8e6c6c57837de20305fb31bef75a825cdc2360ca`
 - Canonical checkout relation to `origin/main`: ahead `0`, behind `9`
-- Protected canonical dirty path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
+- Mutable generated report observation path: `v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md`
 
-The protected report belongs to the Product Owner. Do not stash, restore, reset, overwrite, delete, or include it in another work package.
+Product Owner classifies this file as `MUTABLE_GENERATED_REPORT`. The governed writer is the
+`normalized_futures_oi` stage in `v2/scripts/run-v3-daily-update.mjs`, which invokes
+`v2/scripts/build-normalized-futures-oi.mjs`. A generated report SHA-256 is an observation for that
+run, not a permanent byte-identical baseline. Protection applies to the generator source and
+generation contract, SQLite/source lineage, daily-update execution log,
+`oi-normalization-audit.json`, and report integrity. Status and handoff tools remain read only and
+must never regenerate, stash, restore, reset, overwrite, delete, or commit the local output.
 
 Captured Git state is not permanent runtime truth. Re-run:
 
