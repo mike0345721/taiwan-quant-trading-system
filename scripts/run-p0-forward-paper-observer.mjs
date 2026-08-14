@@ -15,11 +15,12 @@ const part = (type) => taipei.find((row) => row.type === type)?.value;
 const tradeDate = value('--trade-date', `${part('year')}-${part('month')}-${part('day')}`);
 const localMinutes = Number(part('hour')) * 60 + Number(part('minute'));
 const sessionId = `${tradeDate}-DAY`;
+const canonicalRuntimeRoot = path.join(root, 'data/paper/p0-forward');
+const runtimeRoot = path.resolve(value('--runtime-root', canonicalRuntimeRoot));
 const liveLedger = path.resolve(value('--market-ledger', path.join(root, 'data/live-events', `${tradeDate}.ndjson`)));
-const paperLedger = path.resolve(value('--ledger', path.join(root, 'data/paper/p0-forward', 'PAPER_TRADING_EVENT_LEDGER.jsonl')));
-const statusDir = path.join(root, 'data/paper/p0-forward/daily');
+const paperLedger = path.resolve(value('--ledger', path.join(runtimeRoot, 'PAPER_TRADING_EVENT_LEDGER.jsonl')));
+const statusDir = path.resolve(value('--status-dir', path.join(runtimeRoot, 'daily')));
 const statusFile = path.join(statusDir, `${tradeDate}.json`);
-const frozen = loadAndVerifyFrozenInputs(root);
 const existing = readPaperLedgerFile(paperLedger);
 const priorAudit = auditPaperTradingLedger(existing);
 if (!priorAudit.ok) throw new Error(`HARD_FAIL_AMBIGUOUS_POSITION_STATE:${priorAudit.errors.join(',')}`);
@@ -62,6 +63,7 @@ const targetCode = value('--contract-code') || (() => {
 })();
 if (!targetCode) { reject('CONTRACT_UNRESOLVED'); process.exit(0); }
 
+const frozen = loadAndVerifyFrozenInputs(root);
 const tickRead = await readP0LiveTicks({ ledgerFile:liveLedger, tradeDate, contractCode:targetCode });
 const processingAt = new Date();
 const manifestRow = { tradeDate, sessionId, actualReplayContractCode:targetCode, selectedResearchContractCode:targetCode, settlementClass:'SETTLEMENT_STATUS_UNAVAILABLE', rollSession:false, eligibilityClass:'FORWARD_PP1_PROVIDER_MAPPED' };
