@@ -11,6 +11,7 @@ import os
 import queue
 import signal
 import subprocess
+import sys
 import threading
 import traceback
 import ctypes
@@ -51,6 +52,17 @@ QUEUE_STATE: dict[str, Any] = {
     "lastWriterError": None,
     "sessionDown": False,
     "subscriptionGeneration": 0,
+    "writerThreadAlive": False,
+}
+BRIDGE_STARTED_AT: str | None = None
+LAST_HEALTHY_AT: str | None = None
+EXPECTED_STOP_REQUESTED = False
+REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
+    "TX": {"product": "TX", "subscriptionAlias": "TXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
+    "MTX": {"product": "MTX", "subscriptionAlias": "MXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
+    "TMF": {"product": "TMF", "subscriptionAlias": "TMFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
+    "2330": {"product": "2330", "subscriptionAlias": "2330", "quoteTypes": ["Tick"], "state": "PENDING", "actualContract": "2330", "lastObservedAt": None},
+    "IX0001": {"product": "IX0001", "subscriptionAlias": "IX0001", "quoteTypes": ["Quote"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
 }
 
 
@@ -163,6 +175,11 @@ def record(kind: str, data: Any) -> None:
             normalized["_product_family"] = futures_metadata["productFamily"]
             normalized["_subscription_alias"] = futures_metadata["subscriptionAlias"]
             normalized["_target_code"] = futures_metadata["targetCode"]
+        product = futures_metadata["productFamily"] if futures_metadata else code
+        with LOCK:
+            subscription = REQUIRED_SUBSCRIPTIONS.get(product)
+            if subscription is not None:
+                subscription["lastObservedAt"] = normalized["_received_at"]
         enqueue(kind, normalized)
     except Exception as error:
         frame = traceback.extract_tb(error.__traceback__)[-1]
@@ -203,21 +220,58 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
+            global LAST_HEALTHY_AT
             with LOCK:
                 queue_state = dict(QUEUE_STATE)
+                subscriptions = [dict(item) for item in REQUIRED_SUBSCRIPTIONS.values()]
+            ledger_health = EVENT_LEDGER.health()
+            writer_state = (
+                "PASS"
+                if queue_state["writerThreadAlive"]
+                and queue_state["writerErrors"] == 0
+                and not ledger_health.get("lowDisk", False)
+                else "FAIL"
+            )
+            subscriptions_ready = all(item["state"] == "RESTORED" for item in subscriptions)
+            bridge_state = (
+                "DEGRADED"
+                if queue_state["sessionDown"] or writer_state != "PASS" or not subscriptions_ready
+                else "HEALTHY"
+            )
+            reason_code = (
+                "SESSION_TERMINATED"
+                if queue_state["sessionDown"]
+                else "WRITER_UNAVAILABLE"
+                if writer_state != "PASS"
+                else "SUBSCRIPTION_RESTORE_FAILED"
+                if not subscriptions_ready
+                else None
+            )
+            if bridge_state == "HEALTHY":
+                LAST_HEALTHY_AT = datetime.now().astimezone().isoformat()
             self.respond(200, {
                 "ok": True,
                 "provider": "shioaji",
                 "mode": "market_data_only",
                 "executionAuthorized": False,
                 "orderRoutesEnabled": False,
+                "bridgeState": bridge_state,
+                "reasonCode": reason_code,
+                "bridgeStartedAt": BRIDGE_STARTED_AT,
+                "lastHealthyAt": LAST_HEALTHY_AT,
+                "requiredSubscriptions": subscriptions,
+                "subscriptionState": "RESTORED" if subscriptions_ready else "PARTIAL",
+                "writerState": writer_state,
+                "nativeSequenceAvailability": "UNAVAILABLE",
+                "dataLossCertainty": "UNKNOWN_NO_NATIVE_SEQUENCE",
+                "timestampLineageState": "QUALITY_INSUFFICIENT",
                 "credentialProtection": "windows_dpapi_current_user",
                 "processId": os.getpid(),
                 "symbolsReceived": len(LATEST),
                 "eventQueueDepth": EVENT_QUEUE.qsize(),
                 "eventQueueCapacity": EVENT_QUEUE_CAPACITY,
                 **queue_state,
-                **EVENT_LEDGER.health(),
+                **ledger_health,
             })
             return
         if self.path == "/latest":
@@ -234,6 +288,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/shutdown":
+            global EXPECTED_STOP_REQUESTED
+            EXPECTED_STOP_REQUESTED = True
             self.respond(202, {
                 "ok": True,
                 "mode": "market_data_only",
@@ -266,8 +322,21 @@ def required(name: str) -> str:
     return value
 
 
+def startup_exit_code(error: Exception) -> tuple[int, str]:
+    text = f"{type(error).__name__} {str(error)}".lower()[:4096]
+    if "dpapi credential" in text or "api key" in text or "secret key" in text or "token" in text:
+        return 77, "TOKEN_OR_AUTH_FAILURE"
+    if "unauthorized" in text or "authentication" in text or "login" in text:
+        return 80, "LOGIN_FAILED"
+    if "network" in text or "connection" in text or "socket" in text or "timeout" in text or "dns" in text:
+        return 78, "NETWORK_UNAVAILABLE"
+    if isinstance(error, LookupError) or "subscribe" in text or "contract not found" in text:
+        return 79, "SUBSCRIPTION_RESTORE_FAILED"
+    return 1, "UNKNOWN_INSUFFICIENT_EVIDENCE"
+
+
 def main() -> None:
-    global SERVER
+    global SERVER, BRIDGE_STARTED_AT
     instance_mutex = acquire_single_instance()
     # Acquire the singleton port before login. A second launcher therefore exits
     # without consuming another broker connection or creating duplicate subscriptions.
@@ -275,10 +344,13 @@ def main() -> None:
     SERVER = server
     writer = threading.Thread(target=event_writer, name="live-event-writer", daemon=True)
     writer.start()
+    with LOCK:
+        QUEUE_STATE["writerThreadAlive"] = True
     api: Any = None
     subscriptions: list[tuple[Any, Any]] = []
     stop = threading.Event()
     bridge_started = False
+    exit_code = 0
 
     def shutdown(*_: Any) -> None:
         if stop.is_set():
@@ -297,6 +369,7 @@ def main() -> None:
         api = sj.Shioaji(simulation=simulation)
         api.login(api_key=api_key, secret_key=secret_key)
         bridge_started = True
+        BRIDGE_STARTED_AT = datetime.now().astimezone().isoformat()
         record_lifecycle("bridge_started", simulation=simulation, processId=os.getpid())
 
         api.set_on_tick_stk_v1_callback(lambda tick: record("stock_tick", tick))
@@ -307,8 +380,10 @@ def main() -> None:
         )
 
         def on_session_down() -> None:
+            nonlocal exit_code
             with LOCK:
                 QUEUE_STATE["sessionDown"] = True
+            exit_code = 75
             record_lifecycle(
                 "session_down",
                 recovery="restart_bridge_then_resubscribe",
@@ -324,12 +399,16 @@ def main() -> None:
             raise LookupError("stock contract not found: 2330")
         api.subscribe(contract, quote_type=sj.QuoteType.Tick)
         subscriptions.append((contract, sj.QuoteType.Tick))
+        with LOCK:
+            REQUIRED_SUBSCRIPTIONS["2330"]["state"] = "RESTORED"
 
         index = api.contracts.get("IX0001")
         if index is None:
             raise LookupError("TAIEX index contract not found: IX0001")
         api.subscribe(index, quote_type=sj.QuoteType.Quote)
         subscriptions.append((index, sj.QuoteType.Quote))
+        with LOCK:
+            REQUIRED_SUBSCRIPTIONS["IX0001"]["state"] = "RESTORED"
 
         futures_contracts: list[tuple[str, str, Any]] = []
         for product_family, alias in (
@@ -353,6 +432,8 @@ def main() -> None:
             FUTURES_METADATA[alias] = metadata
             FUTURES_METADATA[target_code] = metadata
             futures_contracts.append((product_family, alias, futures_contract))
+            with LOCK:
+                REQUIRED_SUBSCRIPTIONS[product_family]["actualContract"] = target_code
 
         for _, _, futures_contract in futures_contracts:
             api.subscribe(futures_contract, quote_type=sj.QuoteType.Tick)
@@ -360,6 +441,8 @@ def main() -> None:
             api.subscribe(futures_contract, quote_type=sj.QuoteType.BidAsk)
             subscriptions.append((futures_contract, sj.QuoteType.BidAsk))
         with LOCK:
+            for product_family, _, _ in futures_contracts:
+                REQUIRED_SUBSCRIPTIONS[product_family]["state"] = "RESTORED"
             QUEUE_STATE["subscriptionGeneration"] += 1
             QUEUE_STATE["sessionDown"] = False
             subscription_generation = QUEUE_STATE["subscriptionGeneration"]
@@ -402,6 +485,8 @@ def main() -> None:
         EVENT_QUEUE.join()
         EVENT_QUEUE.put(None)
         writer.join(timeout=5)
+        with LOCK:
+            QUEUE_STATE["writerThreadAlive"] = writer.is_alive()
         if api is not None:
             for contract, quote_type in subscriptions:
                 try:
@@ -415,7 +500,18 @@ def main() -> None:
         server.server_close()
         SERVER = None
         release_single_instance(instance_mutex)
+    if exit_code:
+        raise SystemExit(exit_code)
+    if EXPECTED_STOP_REQUESTED:
+        raise SystemExit(76)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as error:
+        code, reason = startup_exit_code(error)
+        print(f"Shioaji bridge stopped before readiness: reasonCode={reason}", file=sys.stderr)
+        raise SystemExit(code) from None

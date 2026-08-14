@@ -2472,6 +2472,14 @@ const DW_REASON_LABELS = Object.freeze({
   ACTUAL_CONTRACT_MISMATCH: '真實契約不一致，禁止混用',
   DERIVATION_FAILURE: '衍生計算失敗',
   QUALITY_INSUFFICIENT: '資料品質不足',
+  SESSION_TERMINATED: '行情連線已中斷',
+  BRIDGE_NOT_RUNNING: '即時行情服務未執行',
+  BRIDGE_HEALTH_UNAVAILABLE: '即時行情健康狀態無法取得',
+  SUBSCRIPTION_RESTORE_FAILED: '必要行情訂閱尚未完整恢復',
+  WRITER_UNAVAILABLE: '行情寫入器目前不可用',
+  PORT_OCCUPIED_UNHEALTHY: '行情連接埠已被不健康程序占用',
+  RECOVERY_BUDGET_EXHAUSTED: '自動恢復次數已用完，進入冷卻',
+  TIMESTAMP_LINEAGE_INSUFFICIENT: '時間來源品質仍不足',
 });
 
 function dwHumanize(value, fallback = '目前無法取得') {
@@ -2854,10 +2862,10 @@ function renderDecisionWorkspace(workspace) {
   const healthItems = workspace?.snapshot?.dataHealth?.items || [];
   const rows = healthItems.map((item) => {
     const row = document.createElement('article'); row.className = 'dw-health-row';
-    const name = document.createElement('strong'); name.textContent = item.sourceId;
+    const name = document.createElement('strong'); name.textContent = item.sourceId === 'shioajiContinuity' ? 'Shioaji 即時行情持續性' : item.sourceId;
     const status = document.createElement('span'); status.textContent = item.freshnessState;
     const contract = document.createElement('span'); contract.textContent = item.actualContract || item.instrument || item.sourceType;
-    const reason = document.createElement('small'); reason.textContent = `技術詳情：${item.sourceAvailability} · ${item.readinessState}${item.reason ? ` · ${item.reason}` : ''}`;
+    const reason = document.createElement('small'); reason.textContent = `技術詳情：${item.sourceAvailability} · ${item.readinessState}${item.reason ? ` · ${dwHumanize(item.reason)} (${item.reason})` : ''}`;
     row.append(name, status, contract, reason);
     return row;
   });
