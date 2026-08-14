@@ -45,6 +45,43 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+const CONTINUITY_STATES = new Set(['HEALTHY', 'STARTING', 'DEGRADED', 'RECOVERING', 'RECOVERY_FAILED', 'STOPPED_EXPECTED', 'UNAVAILABLE', 'UNKNOWN']);
+
+export function inspectContinuityStatus(root) {
+  const filePath = path.join(root, 'data', 'runtime', 'shioaji-continuity', 'status.json');
+  if (!fs.existsSync(filePath)) return Object.freeze({ availability: 'UNAVAILABLE', state: 'UNAVAILABLE', reasonCode: 'CONTINUITY_SUPERVISOR_NOT_ACTIVE' });
+  try {
+    const payload = readJson(filePath);
+    if (payload?.schemaVersion !== 'shioaji-market-data-continuity-v1'
+        || payload?.executionAuthorized !== false || payload?.orderRoutesEnabled !== false
+        || payload?.runtimeMode !== 'market_data_only') {
+      return Object.freeze({ availability: 'UNAVAILABLE', state: 'UNAVAILABLE', reasonCode: 'CONTINUITY_STATUS_UNSAFE_OR_INVALID' });
+    }
+    return Object.freeze({
+      availability: 'AVAILABLE',
+      state: CONTINUITY_STATES.has(payload.state) ? payload.state : 'UNKNOWN',
+      reasonCode: typeof payload.reasonCode === 'string' ? payload.reasonCode : null,
+      lastHealthyAt: isoOrNull(payload.lastHealthyAt),
+      failureDetectedAt: isoOrNull(payload.failureDetectedAt),
+      recoveryStartedAt: isoOrNull(payload.recoveryStartedAt),
+      recoveryAttempt: Number.isInteger(payload.recoveryAttempt) ? payload.recoveryAttempt : 0,
+      recoveryLimit: Number.isInteger(payload.recoveryLimit) ? payload.recoveryLimit : null,
+      recoveryResult: typeof payload.recoveryResult === 'string' ? payload.recoveryResult : null,
+      subscriptionStatus: Array.isArray(payload.requiredSubscriptions) ? payload.requiredSubscriptions.map((item) => Object.freeze({
+        product: typeof item?.product === 'string' ? item.product : 'UNKNOWN',
+        state: item?.state === 'RESTORED' ? 'RESTORED' : item?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+      })) : Object.freeze([]),
+      writerStatus: ['PASS', 'FAIL', 'UNKNOWN'].includes(payload.writerStatus) ? payload.writerStatus : 'UNKNOWN',
+      dataTrust: payload.dataTrust === 'PASS' ? 'PASS' : payload.dataTrust === 'QUALITY_INSUFFICIENT' ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
+      nativeSequenceAvailability: 'UNAVAILABLE',
+      dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+      timestampLineageState: 'QUALITY_INSUFFICIENT',
+    });
+  } catch {
+    return Object.freeze({ availability: 'UNAVAILABLE', state: 'UNAVAILABLE', reasonCode: 'CONTINUITY_STATUS_UNREADABLE' });
+  }
+}
+
 function runGit(root, args) {
   return execFileSync('git', ['-c', `safe.directory=${path.resolve(root)}`, ...args], {
     cwd: root,
@@ -151,6 +188,17 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
       eventsWritten: Number(payload.eventsWritten ?? payload.written) || 0,
       queueDepth: Number(payload.eventQueueDepth) || 0,
       lowDisk: payload.lowDisk === true,
+      continuity: Object.freeze({
+        state: typeof payload.bridgeState === 'string' ? payload.bridgeState : payload.ok === true ? 'HEALTHY' : 'UNKNOWN',
+        reasonCode: typeof payload.reasonCode === 'string' ? payload.reasonCode : null,
+        writerStatus: payload.writerState === 'PASS' ? 'PASS' : payload.writerState === 'FAIL' ? 'FAIL' : 'UNKNOWN',
+        subscriptionStatus: Array.isArray(payload.requiredSubscriptions) ? payload.requiredSubscriptions.map((item) => Object.freeze({
+          product: typeof item?.product === 'string' ? item.product : 'UNKNOWN',
+          state: item?.state === 'RESTORED' ? 'RESTORED' : item?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+        })) : Object.freeze([]),
+        dataTrust: payload.timestampLineageState === 'PASS' ? 'PASS' : 'QUALITY_INSUFFICIENT',
+        dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+      }),
       expectedSafety: SHIOAJI_EXPECTED_SAFETY,
       observedRuntime,
     });
@@ -435,6 +483,7 @@ export async function collectProjectStatus({
     inspectDatabase(resolvedRoot),
   ]);
   const localMarketData = inspectLocalMarketData(resolvedRoot, maxTailBytes);
+  const continuityRuntime = inspectContinuityStatus(resolvedRoot);
   const git = gitProbe(resolvedRoot);
   const forwardShadow = inspectForwardShadow(resolvedRoot);
   const runtimeVersion = forwardShadow.governed && git.availability === 'AVAILABLE'
@@ -457,7 +506,7 @@ export async function collectProjectStatus({
     }),
     git,
     dashboard,
-    shioaji,
+    shioaji: Object.freeze({ ...shioaji, continuityRuntime }),
     localMarketData,
     database,
     forwardShadow: Object.freeze({ ...forwardShadow, runtimeVersion }),
@@ -475,7 +524,7 @@ export function formatHumanStatus(report) {
     ['PROJECT', [line('capturedAt', report.capturedAt), line('repository', report.repository), line('authority.finalApproval', report.authority?.finalApproval), line('authority.liveCurrentNext', report.authority?.liveCurrentNext), line('authority.durableScopeMap', report.authority?.durableScopeMap)]],
     ['GIT', [line('branch', report.git.branch), line('HEAD', report.git.head), line('origin/main', report.git.originMain), line('ahead', report.git.ahead), line('behind', report.git.behind), line('dirtyPaths', report.git.dirtyPaths?.join(', ') || 'NONE')]],
     ['DASHBOARD 8787', [line('availability', report.dashboard.availability), line('health', report.dashboard.health), line('service', report.dashboard.service)]],
-    ['SHIOAJI 8790', [line('availability', report.shioaji.availability), line('safetyState', report.shioaji.safetyState), line('provider', report.shioaji.provider), line('observed.mode', report.shioaji.mode), line('expected.mode', report.shioaji.expectedSafety?.mode), line('expected.executionAuthorized', report.shioaji.expectedSafety?.executionAuthorized), line('observed.executionAuthorized', report.shioaji.observedRuntime?.executionAuthorized), line('expected.orderRoutesEnabled', report.shioaji.expectedSafety?.orderRoutesEnabled), line('observed.orderRoutesEnabled', report.shioaji.observedRuntime?.orderRoutesEnabled), line('writerErrors', report.shioaji.writerErrors), line('latestReceivedAt', report.shioaji.latestReceivedAt)]],
+    ['SHIOAJI 8790', [line('availability', report.shioaji.availability), line('safetyState', report.shioaji.safetyState), line('provider', report.shioaji.provider), line('observed.mode', report.shioaji.mode), line('expected.mode', report.shioaji.expectedSafety?.mode), line('expected.executionAuthorized', report.shioaji.expectedSafety?.executionAuthorized), line('observed.executionAuthorized', report.shioaji.observedRuntime?.executionAuthorized), line('expected.orderRoutesEnabled', report.shioaji.expectedSafety?.orderRoutesEnabled), line('observed.orderRoutesEnabled', report.shioaji.observedRuntime?.orderRoutesEnabled), line('bridgeState', report.shioaji.continuity?.state), line('reasonCode', report.shioaji.continuity?.reasonCode), line('writerStatus', report.shioaji.continuity?.writerStatus), line('continuitySupervisorState', report.shioaji.continuityRuntime?.state), line('recoveryAttempt', report.shioaji.continuityRuntime?.recoveryAttempt), line('dataLossCertainty', report.shioaji.continuityRuntime?.dataLossCertainty || report.shioaji.continuity?.dataLossCertainty), line('writerErrors', report.shioaji.writerErrors), line('latestReceivedAt', report.shioaji.latestReceivedAt)]],
     ['LOCAL MARKET DATA', [line('availability', report.localMarketData.availability), line('latestLedgerDate', report.localMarketData.latestLedgerDate), line('latestLedgerBytes', report.localMarketData.latestLedgerBytes), line('latestTxTickTimestamp', report.localMarketData.tx?.latestTxTickTimestamp), line('latestActualContract', report.localMarketData.tx?.latestActualContract), line('boundedTailBytesScanned', report.localMarketData.tx?.bytesScanned)]],
     ['DATABASE', [line('availability', report.database.availability), line('bytes', report.database.bytes), line('latestDataDate', report.database.latestDataDate)]],
     ['FORWARD SHADOW', [line('availability', report.forwardShadow.availability), line('governed', report.forwardShadow.governed), line('launchStatus', report.forwardShadow.launchStatus), line('latestTradeDate', report.forwardShadow.statusExplanation?.tradeDate), line('latestStatus', report.forwardShadow.statusExplanation?.status), line('latestReasonCode', report.forwardShadow.statusExplanation?.reasonCode), line('lastSuccessfulStage', report.forwardShadow.statusExplanation?.lastSuccessfulStage), line('failedStage', report.forwardShadow.statusExplanation?.failedStage), line('schedulerReadiness', report.forwardShadow.schedulerReadiness?.currentState), line('runtimeVersion', report.forwardShadow.runtimeVersion?.state), line('governedCommit', report.forwardShadow.runtimeVersion?.governedCommit)]],
