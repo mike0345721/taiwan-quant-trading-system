@@ -2507,7 +2507,82 @@ function renderPlainList(id, items, fallback) {
 }
 
 function healthTone(value) {
-  return value === 'LIVE' || value === 'FRESH' ? 'is-ready' : 'is-unavailable';
+  if (value === 'LIVE' || value === 'FRESH' || value === 'AVAILABLE' || value === 'PASS' || value === 'READY_FOR_REVIEW') return 'is-ready';
+  if (value === 'DELAYED' || value === 'DEGRADED' || value === 'QUALITY_INSUFFICIENT' || value === 'PARTIAL') return 'is-quality';
+  return 'is-unavailable';
+}
+
+const DW4_FAMILY_LABELS = Object.freeze({
+  PRICE_STRUCTURE: '價格結構',
+  PARTICIPATION_BREADTH: '參與度／市場廣度',
+  FUTURES_INSTITUTIONAL: '期貨／法人',
+  OPTIONS_CONTEXT: '選擇權背景',
+  GLOBAL_FX: '全球／匯率',
+});
+
+function dw4FamilyLabel(value) {
+  return DW4_FAMILY_LABELS[value] || value || '未知證據家族';
+}
+
+function renderDw4FamilyList(id, values) {
+  const target = $(id);
+  if (!target) return;
+  const items = Array.isArray(values) && values.length ? values : ['目前沒有'];
+  target.replaceChildren(...items.map((value) => {
+    const li = document.createElement('li');
+    li.textContent = value === '目前沒有' ? value : dw4FamilyLabel(value);
+    return li;
+  }));
+}
+
+function renderDw4Evidence(summary) {
+  const value = summary || {};
+  dwText('dw-conflict-state', value.conflictState || 'NO_DIRECTIONAL_EVIDENCE');
+  dwText('dw-coverage-state', value.coverageState || 'INSUFFICIENT');
+  dwText('dw-trust-state', value.dataTrustState || 'BLOCKED');
+  dwText('dw-coverage-counts', `${value.eligibleFamilies || 0} / ${value.expectedFamilies || 5} evidence families`);
+  $('dw-conflict-state').className = healthTone(value.conflictState === 'NO_DIRECTIONAL_EVIDENCE' ? 'UNAVAILABLE' : 'PASS');
+  $('dw-coverage-state').className = healthTone(value.coverageState);
+  $('dw-trust-state').className = healthTone(value.dataTrustState);
+
+  renderDw4FamilyList('dw-eligible-families', value.eligibleEvidenceFamilies);
+  renderDw4FamilyList('dw-unavailable-families', value.unavailableEvidenceFamilies);
+  renderDw4FamilyList('dw-stale-families', value.staleEvidenceFamilies);
+  renderDw4FamilyList('dw-quality-families', value.qualityExcludedFamilies);
+  renderDw4FamilyList('dw-promotion-families', value.promotionExcludedFamilies);
+  renderDw4FamilyList('dw-missing-families', value.missingEvidenceFamilies);
+
+  const target = $('dw-family-grid');
+  if (!target) return;
+  const evidence = Array.isArray(value.evidence) ? value.evidence : [];
+  const cards = evidence.map((item) => {
+    const card = document.createElement('details'); card.className = 'dw-family-card';
+    const summaryNode = document.createElement('summary');
+    const title = document.createElement('span');
+    const strong = document.createElement('strong'); strong.textContent = dw4FamilyLabel(item.family);
+    const source = document.createElement('small'); source.textContent = item.sourceId || 'SOURCE UNAVAILABLE';
+    title.append(strong, source);
+    const stateNode = document.createElement('span'); stateNode.className = `dw-family-state ${healthTone(item.availabilityState)}`;
+    stateNode.textContent = item.eligibleDirectionalEvidence ? item.directionState : item.availabilityState;
+    summaryNode.append(title, stateNode);
+    const detail = document.createElement('dl'); detail.className = 'dw-family-detail';
+    const rows = [
+      ['方向', item.directionState], ['來源', item.availabilityState], ['品質', item.qualityState],
+      ['Promotion', item.promotionState], ['availableAt', item.availableAt || 'UNAVAILABLE'],
+      ['技術原因', (item.qualityReasons || []).join(' · ') || 'NONE'],
+    ];
+    rows.forEach(([label, detailValue]) => {
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = detailValue;
+      detail.append(dt, dd);
+    });
+    card.append(summaryNode, detail);
+    return card;
+  });
+  if (!cards.length) {
+    const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '證據 contract 目前無法取得。';
+    target.replaceChildren(empty);
+  } else target.replaceChildren(...cards);
 }
 
 function chartTimeLabel(timestampSeconds) {
@@ -2822,7 +2897,10 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
   dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
-  dwText('dw-global-time', global.sourceTime ? `資料時間 ${timeLabel(global.sourceTime)}` : '時間目前無法取得');
+  dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
+  dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
+  dwText('dw-global-readiness', global.decisionReadiness || decision.readiness || 'UNAVAILABLE');
+  $('dw-global-readiness').className = `dw-status-pill ${healthTone(global.decisionReadiness || decision.readiness)}`;
   dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
   $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
   dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
@@ -2837,6 +2915,7 @@ function renderDecisionWorkspace(workspace) {
 
   dwText('dw-posture', decision.posture || 'NO_TRADE');
   dwText('dw-readiness', decision.readiness || 'NOT_READY');
+  $('dw-readiness').className = `dw-status-pill ${healthTone(decision.readiness)}`;
   dwText('dw-no-trade-reason', dwHumanize(decision.noTradeReason || 'DATA_INSUFFICIENT'));
   dwText('dw-decision-explanation', decision.explanation);
   dwText('dw-direction', decision.direction);
@@ -2845,6 +2924,7 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-entry-quality', decision.entryQuality);
   dwText('dw-contrary-evidence', availabilityLabel(decision.strongestContraryEvidence));
   dwText('dw-contrary-reason', dwHumanize(decision.strongestContraryEvidence?.reason));
+  renderDw4Evidence(workspace?.evidenceConflict);
 
   dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
   const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';

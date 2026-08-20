@@ -445,8 +445,9 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-mode-switch button, .dw-intent-switch button { padding: 7px 11px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 10px; }
 .dw-mode-switch button.is-selected, .dw-intent-switch button.is-selected { background: #233147; color: var(--text); }
 .dw-mode-panel { display: grid; gap: 12px; }
-#dw-focus-mode { grid-template-areas: "decision" "changes" "main" "health" "journal"; }
+#dw-focus-mode { grid-template-areas: "decision" "conflict" "main" "changes" "health" "journal"; }
 #dw-focus-mode > .dw-decision-bar { grid-area: decision; }
+#dw-focus-mode > .dw-conflict-monitor { grid-area: conflict; }
 #dw-focus-mode > .dw-change-strip { grid-area: changes; }
 #dw-focus-mode > .dw-main-grid { grid-area: main; }
 #dw-focus-mode > .dw-data-health { grid-area: health; }
@@ -465,7 +466,41 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-contrary strong { color: #f4d38e; font-size: 12px; }
 .dw-contrary small { color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
 .dw-main-grid { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(330px, .78fr); gap: 12px; min-height: 405px; }
-.dw-price-region, .dw-card, .dw-change-strip, .dw-data-health, .dw-journal-bar, #dw-review-mode { border: 1px solid var(--dw-line); border-radius: 17px; background: var(--dw-surface); }
+.dw-price-region, .dw-card, .dw-conflict-monitor, .dw-change-strip, .dw-data-health, .dw-journal-bar, #dw-review-mode { border: 1px solid var(--dw-line); border-radius: 17px; background: var(--dw-surface); }
+.dw-conflict-monitor { display: grid; gap: 11px; padding: 14px; border-color: rgba(85,214,190,.22); }
+.dw-conflict-monitor .dw-section-heading p:last-child { max-width: 720px; margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.dw-read-only-label { padding: 6px 9px; border: 1px solid var(--dw-line); border-radius: 999px; color: #91a0b5; font: 700 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.dw-conflict-axis-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.dw-conflict-axis-grid article { min-width: 0; padding: 12px; border: 1px solid var(--dw-line); border-left: 3px solid var(--accent-2); border-radius: 11px; background: rgba(6,10,16,.52); }
+.dw-conflict-axis-grid span, .dw-conflict-axis-grid strong, .dw-conflict-axis-grid small { display: block; overflow-wrap: anywhere; }
+.dw-conflict-axis-grid span { color: var(--muted); font-size: 9px; }
+.dw-conflict-axis-grid strong { margin-top: 7px; font: 800 14px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dw-conflict-axis-grid strong.is-ready { color: var(--accent); }
+.dw-conflict-axis-grid strong.is-quality { color: var(--warning); }
+.dw-conflict-axis-grid strong.is-unavailable { color: #9ba8ba; }
+.dw-conflict-axis-grid small { margin-top: 7px; color: #78869a; font-size: 8px; line-height: 1.4; }
+.dw-family-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; }
+.dw-family-card { min-width: 0; border: 1px solid var(--dw-line); border-radius: 10px; background: rgba(255,255,255,.018); }
+.dw-family-card summary { display: flex; justify-content: space-between; gap: 8px; min-width: 0; padding: 9px; cursor: pointer; list-style: none; }
+.dw-family-card summary::-webkit-details-marker { display: none; }
+.dw-family-card summary > span:first-child { min-width: 0; }
+.dw-family-card strong, .dw-family-card small { display: block; overflow-wrap: anywhere; }
+.dw-family-card strong { font-size: 9px; }
+.dw-family-card small { margin-top: 4px; color: var(--muted); font-size: 7px; }
+.dw-family-state { flex: 0 0 auto; align-self: start; max-width: 105px; padding: 4px 6px; border-radius: 999px; background: rgba(150,166,190,.08); font: 700 7px/1.15 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.dw-family-state.is-ready { color: var(--accent); }
+.dw-family-state.is-quality { color: var(--warning); }
+.dw-family-state.is-unavailable { color: #93a0b2; }
+.dw-family-detail { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 5px 8px; margin: 0; padding: 0 9px 9px; border-top: 1px solid rgba(255,255,255,.05); }
+.dw-family-detail dt, .dw-family-detail dd { margin: 0; padding-top: 6px; overflow-wrap: anywhere; font-size: 7px; }
+.dw-family-detail dt { color: var(--muted); }
+.dw-family-detail dd { color: #aebbd0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dw-conflict-detail { border-top: 1px solid rgba(255,255,255,.055); }
+.dw-conflict-detail > summary { padding-top: 9px; cursor: pointer; color: var(--muted); font-size: 9px; }
+.dw-conflict-lists { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; margin-top: 9px; }
+.dw-conflict-lists > div { min-width: 0; padding: 9px; border-radius: 9px; background: rgba(6,10,16,.5); }
+.dw-conflict-lists span { color: #aab6c8; font-size: 8px; font-weight: 800; }
+.dw-conflict-lists ul { margin: 7px 0 0; padding-left: 15px; color: var(--muted); font-size: 8px; line-height: 1.5; }
 .dw-price-region { padding: 15px; display: grid; grid-template-rows: auto auto minmax(325px, 1fr) auto; }
 .dw-section-heading, .dw-journal-heading, .dw-review-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .dw-section-heading.compact h3 { font-size: 15px; }
@@ -601,6 +636,7 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
   #dw-journal-form { grid-template-columns: 1fr 1fr; }
   .dw-journal-intents { grid-column: 1 / -1; }
   .dw-evidence-layout { grid-template-columns: 1fr; }
+  .dw-family-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
   .dw-global-strip { flex-wrap: wrap; }
@@ -611,6 +647,7 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
   .dw-level-grid, .dw-health-list { grid-template-columns: 1fr 1fr; }
   .dw-change-heading, .dw-evidence-subhead { flex-direction: column; }
   .dw-evidence-cards { grid-template-columns: 1fr; }
+  .dw-conflict-axis-grid, .dw-conflict-lists, .dw-family-grid { grid-template-columns: 1fr; }
   #dw-journal-form { grid-template-columns: 1fr; }
   .dw-journal-intents { grid-column: auto; flex-wrap: wrap; }
 }

@@ -9,6 +9,7 @@ import {
   validateDecisionSnapshot,
 } from '../src/dashboard-decision-workspace.mjs';
 import { appendDecisionJournal, auditDecisionJournal, readDecisionJournal } from '../src/decision-journal.mjs';
+import { createDw4EvidenceObservation } from '../src/dw4-evidence-conflict-monitor.mjs';
 
 const root = path.resolve('data/decision-workspace/dw1-test-fixtures');
 const now = new Date('2026-08-12T00:20:00.000Z');
@@ -46,6 +47,7 @@ test('decision snapshot is deterministic, hashable and preserves unavailable val
   assert.equal(first.OR.reason, 'DERIVATION_NOT_IMPLEMENTED');
   assert.equal(first.marketState.direction, 'UNAVAILABLE');
   assert.equal(first.executionAuthorized, false);
+  assert.equal(first.orderRoutesEnabled, false);
 });
 
 test('snapshot rejects evidence that was not available at decision time', () => {
@@ -105,6 +107,37 @@ test('copy for ChatGPT includes immutable identity and discussion-only boundary'
   assert.match(text, /DISCUSSION CONTEXT — NOT A TRADING SIGNAL/);
   assert.match(text, new RegExp(snapshot.snapshotHash));
   assert.match(text, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD/);
+  assert.match(text, /DW-4: conflict=NO_DIRECTIONAL_EVIDENCE; coverage=INSUFFICIENT; dataTrust=BLOCKED/);
+  assert.match(text, /USER QUESTION: 最大反向證據？$/);
+});
+
+test('DW-4 mixed eligible evidence remains separate from quality and coverage', () => {
+  const eligible = (family, directionState) => createDw4EvidenceObservation({
+    evidenceId: `fixture:${family}`, family, directionState, availabilityState: 'AVAILABLE', qualityState: 'PASS',
+    promotionState: 'ELIGIBLE', eventTime: '2026-08-12T00:15:00.000Z', availableAt: '2026-08-12T00:16:00.000Z', sourceId: `fixture-${family}`,
+  });
+  const price = createDw4EvidenceObservation({
+    evidenceId: 'fixture:PRICE_STRUCTURE', family: 'PRICE_STRUCTURE', directionState: 'NOT_ELIGIBLE',
+    availabilityState: 'AVAILABLE', qualityState: 'QUALITY_INSUFFICIENT', promotionState: 'ELIGIBLE',
+    eventTime: '2026-08-12T00:15:00.000Z', availableAt: '2026-08-12T00:16:00.000Z', sourceId: 'fixture-price',
+    qualityReasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'],
+  });
+  const workspace = buildDecisionWorkspace({
+    snapshot: sourceSnapshot(), dataHealth: health(), now,
+    dw4EvidenceObservations: [
+      price,
+      eligible('PARTICIPATION_BREADTH', 'SUPPORTS_UP'),
+      eligible('FUTURES_INSTITUTIONAL', 'SUPPORTS_UP'),
+      eligible('OPTIONS_CONTEXT', 'SUPPORTS_UP'),
+      eligible('GLOBAL_FX', 'SUPPORTS_DOWN'),
+    ],
+  });
+  assert.equal(workspace.evidenceConflict.conflictState, 'MIXED');
+  assert.equal(workspace.evidenceConflict.coverageState, 'PARTIAL');
+  assert.equal(workspace.evidenceConflict.dataTrustState, 'QUALITY_INSUFFICIENT');
+  assert.equal(workspace.decisionSummary.readiness, 'DEGRADED');
+  assert.deepEqual(workspace.evidenceConflict.qualityExcludedFamilies, ['PRICE_STRUCTURE']);
+  assert.match(workspace.chatGptCopy, /conflict=MIXED; coverage=PARTIAL; dataTrust=QUALITY_INSUFFICIENT/);
 });
 
 test('manual decision journal is isolated, append-only and snapshot immutable', () => {
@@ -128,6 +161,7 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
     'decision-workspace', 'dw-global-strip', 'dw-posture', 'dw-readiness', 'dw-no-trade-reason',
     'dw-price-title', 'dw-against-title', 'dw-changed-title', 'dw-data-health-panel', 'dw-ask-gpt',
     'dw-lock-snapshot', 'dw-copy-chatgpt', 'dw-journal-form', 'dw-review-mode',
+    'dw-conflict-state', 'dw-coverage-state', 'dw-trust-state', 'dw-family-grid',
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.match(html, /COPY MODE · NOT A TRADING SIGNAL/);
   assert.match(html, /LONG_INTENT/);

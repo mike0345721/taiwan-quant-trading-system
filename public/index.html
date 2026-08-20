@@ -69,7 +69,9 @@
           </div>
           <span id="dw-global-contract">CONTRACT —</span>
           <span id="dw-global-session">SESSION —</span>
-          <span id="dw-global-time">TIME —</span>
+          <span id="dw-global-trade-date">交易日 —</span>
+          <span id="dw-global-time">截至 —</span>
+          <span id="dw-global-readiness" class="dw-status-pill is-blocked">NOT_READY</span>
           <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
           <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
           <button id="dw-health-toggle" class="dw-link-button" type="button">資料健康度</button>
@@ -121,6 +123,46 @@
               <strong id="dw-contrary-evidence">UNAVAILABLE</strong>
               <small id="dw-contrary-reason">反向證據目前無法計算</small>
             </div>
+          </section>
+
+          <section class="dw-conflict-monitor" aria-labelledby="dw-conflict-title">
+            <header class="dw-section-heading">
+              <div>
+                <p class="eyebrow">DW-4 · Evidence Conflict Monitor</p>
+                <h3 id="dw-conflict-title">證據衝突監控</h3>
+                <p>衝突、完整度與資料信任分開呈現；不使用分數、信心值或隱藏權重。</p>
+              </div>
+              <span class="dw-read-only-label">READ ONLY · NOT A TRADING SIGNAL</span>
+            </header>
+            <div class="dw-conflict-axis-grid" aria-label="DW-4 三軸摘要">
+              <article>
+                <span>證據衝突</span>
+                <strong id="dw-conflict-state">NO_DIRECTIONAL_EVIDENCE</strong>
+                <small>只彙總合法且已 promotion 的方向證據</small>
+              </article>
+              <article>
+                <span>完整度</span>
+                <strong id="dw-coverage-state">INSUFFICIENT</strong>
+                <small id="dw-coverage-counts">0 / 5 evidence families</small>
+              </article>
+              <article>
+                <span>資料信任</span>
+                <strong id="dw-trust-state">BLOCKED</strong>
+                <small>品質不足不會抹除其他合法證據</small>
+              </article>
+            </div>
+            <div id="dw-family-grid" class="dw-family-grid" aria-label="DW-4 證據家族"></div>
+            <details class="dw-conflict-detail">
+              <summary>查看排除、缺失與技術原因</summary>
+              <div class="dw-conflict-lists">
+                <div><span>可納入方向彙總</span><ul id="dw-eligible-families"><li>目前沒有</li></ul></div>
+                <div><span>來源無法取得</span><ul id="dw-unavailable-families"><li>目前沒有</li></ul></div>
+                <div><span>資料過期</span><ul id="dw-stale-families"><li>目前沒有</li></ul></div>
+                <div><span>品質排除</span><ul id="dw-quality-families"><li>目前沒有</li></ul></div>
+                <div><span>尚未 Promotion</span><ul id="dw-promotion-families"><li>目前沒有</li></ul></div>
+                <div><span>缺失家族</span><ul id="dw-missing-families"><li>目前沒有</li></ul></div>
+              </div>
+            </details>
           </section>
 
           <div class="dw-main-grid">

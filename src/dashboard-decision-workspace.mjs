@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { buildDashboardDw4Evidence } from './dashboard-dw4-evidence.mjs';
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -59,7 +60,7 @@ function safeMarketState(runtimeTruth) {
   };
 }
 
-function buildDecisionSummary(marketState, dataHealth) {
+function buildDecisionSummary(marketState, dataHealth, evidenceConflict) {
   const critical = ['forwardShadowRuntime', 'txTick', 'breadth', 'futuresPositioning', 'optionsEod']
     .map((sourceId) => healthItem(dataHealth, sourceId)).filter(Boolean);
   const stale = critical.find((item) => ['STALE', 'DELAYED'].includes(item.freshnessState));
@@ -68,9 +69,16 @@ function buildDecisionSummary(marketState, dataHealth) {
   if (marketState.availability !== 'AVAILABLE') noTradeReason = 'RUNTIME_UNAVAILABLE';
   else if (missing) noTradeReason = 'DATA_INSUFFICIENT';
   else if (stale) noTradeReason = 'DATA_STALE';
+  const readiness = evidenceConflict?.dataTrustState === 'PASS' && evidenceConflict?.coverageState === 'COMPLETE'
+    ? 'READY_FOR_REVIEW'
+    : evidenceConflict?.dataTrustState === 'BLOCKED'
+      ? 'NOT_READY'
+      : evidenceConflict
+        ? 'DEGRADED'
+        : 'UNAVAILABLE';
   return Object.freeze({
     posture: 'NO_TRADE',
-    readiness: 'NOT_READY',
+    readiness,
     noTradeReason,
     direction: marketState.direction,
     globalAlignment: marketState.globalAlignment,
@@ -81,7 +89,10 @@ function buildDecisionSummary(marketState, dataHealth) {
   });
 }
 
-export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, snapshotTime = new Date().toISOString() } = {}) {
+export function createDecisionSnapshot({
+  snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
+  marketChangeFeed = null, decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
+} = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
   if (Number.isNaN(parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_TIME_INVALID');
   for (const item of dataHealth?.items || []) {
@@ -132,6 +143,15 @@ export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth
         usdTwd: snapshot.marketOverview.data?.usdtwd ?? null,
       }, 'marketOverview', snapshot.marketOverview.fetchedAt)
       : unavailable('SOURCE_UNAVAILABLE'),
+    decisionReadiness,
+    evidenceConflict: evidenceConflict || buildDashboardDw4Evidence(dataHealth),
+    governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
+      eventId: event.eventId || null,
+      eventType: event.eventType || null,
+      observedAt: event.observedAt || event.eventTime || event.availableAt || null,
+      summary: event.summary || event.label || null,
+      dataTrust: event.dataTrust || null,
+    }))),
     support: [],
     contraryEvidence: [],
     missingOrStaleInputs: (dataHealth?.items || [])
@@ -140,13 +160,14 @@ export function createDecisionSnapshot({ snapshot = {}, dataHealth, runtimeTruth
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   };
   return Object.freeze({ ...body, snapshotHash: decisionDigest(body) });
 }
 
 export function validateDecisionSnapshot(snapshot) {
   if (snapshot?.schemaVersion !== 'manual-decision-snapshot-v1') throw new Error('DECISION_SNAPSHOT_SCHEMA_INVALID');
-  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.executionAuthorized !== false) {
+  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false) {
     throw new Error('DECISION_SNAPSHOT_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
@@ -160,24 +181,47 @@ export function copyForChatGpt(snapshot, question = null) {
   const prompt = question || '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。';
   const readable = [
     'DISCUSSION CONTEXT — NOT A TRADING SIGNAL',
-    `Question: ${prompt}`,
     `Snapshot: ${snapshot.snapshotTime}`,
     `Hash: ${snapshot.snapshotHash}`,
     `Contract / Session: ${snapshot.contract || 'UNAVAILABLE'} / ${snapshot.session || 'UNAVAILABLE'}`,
+    `Decision Readiness: ${snapshot.decisionReadiness || 'UNAVAILABLE'}`,
+    `DW-4: conflict=${snapshot.evidenceConflict?.conflictState || 'NO_DIRECTIONAL_EVIDENCE'}; coverage=${snapshot.evidenceConflict?.coverageState || 'INSUFFICIENT'}; dataTrust=${snapshot.evidenceConflict?.dataTrustState || 'BLOCKED'}`,
+    `Eligible evidence: ${(snapshot.evidenceConflict?.eligibleEvidenceFamilies || []).join(', ') || 'none'}`,
+    `Excluded evidence: unavailable=${(snapshot.evidenceConflict?.unavailableEvidenceFamilies || []).join(', ') || 'none'}; stale=${(snapshot.evidenceConflict?.staleEvidenceFamilies || []).join(', ') || 'none'}; quality=${(snapshot.evidenceConflict?.qualityExcludedFamilies || []).join(', ') || 'none'}; promotion=${(snapshot.evidenceConflict?.promotionExcludedFamilies || []).join(', ') || 'none'}`,
     `Market State: direction=${snapshot.marketState.direction}; global=${snapshot.marketState.globalAlignment}; risk=${snapshot.marketState.risk}`,
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
+    `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
     '',
     'STRUCTURED SNAPSHOT',
     stableDecisionJson(snapshot).trimEnd(),
+    '',
+    `USER QUESTION: ${prompt}`,
   ];
   return readable.join('\n');
 }
 
-export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null, now = new Date() } = {}) {
-  const lockedSnapshotCandidate = createDecisionSnapshot({ snapshot, dataHealth, runtimeTruth, chart, snapshotTime: now.toISOString() });
-  const marketState = lockedSnapshotCandidate.marketState;
+export function buildDecisionWorkspace({
+  snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null,
+  dw4EvidenceObservations = null, now = new Date(),
+} = {}) {
+  const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
+    observations: dw4EvidenceObservations,
+    snapshotBlocked: !dataHealth,
+  });
+  const marketState = safeMarketState(runtimeTruth);
+  const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict);
+  const lockedSnapshotCandidate = createDecisionSnapshot({
+    snapshot,
+    dataHealth,
+    runtimeTruth,
+    chart,
+    evidenceConflict,
+    marketChangeFeed,
+    decisionReadiness: decisionSummary.readiness,
+    snapshotTime: now.toISOString(),
+  });
   return Object.freeze({
     schemaVersion: 'dashboard-decision-workspace-v1',
     generatedAt: now.toISOString(),
@@ -186,12 +230,17 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
       mode: snapshot.dataMode === 'mock' ? 'MOCK_NOT_DECISION_ELIGIBLE' : (runtimeTruth?.launchStatus || 'UNAVAILABLE'),
       actualContract: lockedSnapshotCandidate.contract,
       session: lockedSnapshotCandidate.session,
+      tradeDate: chart?.tradeDate || runtimeTruth?.stateRecord?.tradeDate || snapshot?.asOfDate || null,
       sourceTime: snapshot.generatedAt || null,
+      asOf: chart?.asOf || chart?.availableAt || snapshot.generatedAt || null,
+      decisionReadiness: decisionSummary.readiness,
+      dataTrust: evidenceConflict.dataTrustState,
       dataHealth: dataHealth.overall,
       staleCount: dataHealth.staleCount,
       unavailableCount: dataHealth.unavailableCount,
     },
-    decisionSummary: buildDecisionSummary(marketState, dataHealth),
+    decisionSummary,
+    evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',
       reasonCode: 'UNKNOWN_INSUFFICIENT_EVIDENCE',
@@ -251,6 +300,7 @@ export function buildDecisionWorkspace({ snapshot = {}, dataHealth, runtimeTruth
       formalWeight: 0,
       researchOnly: true,
       executionAuthorized: false,
+      orderRoutesEnabled: false,
     },
   });
 }
