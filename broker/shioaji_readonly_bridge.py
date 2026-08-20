@@ -25,6 +25,14 @@ from typing import Any
 
 import shioaji as sj
 from live_event_ledger import LiveEventLedger
+from txo_live_chain import (
+    contract_metadata,
+    load_activation_config,
+    load_governed_calendar,
+    resolve_session_trade_date,
+    select_governed_universe,
+    select_nearest_expiry_contracts,
+)
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +42,7 @@ HOST = "127.0.0.1"
 PORT = 8790
 LATEST: dict[str, dict[str, Any]] = {}
 FUTURES_METADATA: dict[str, dict[str, str]] = {}
+OPTIONS_METADATA: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
 EVENT_LEDGER = LiveEventLedger(ROOT / "data" / "live-events")
 SERVER: ThreadingHTTPServer | None = None
@@ -57,6 +66,29 @@ QUEUE_STATE: dict[str, Any] = {
 BRIDGE_STARTED_AT: str | None = None
 LAST_HEALTHY_AT: str | None = None
 EXPECTED_STOP_REQUESTED = False
+TXO_COLLECTION_STATE: dict[str, Any] = {
+    "enabled": False,
+    "collectorState": "STOPPED_EXPECTED",
+    "universeContractVersion": "txo-live-chain-forward-v1",
+    "subscriptionCount": 0,
+    "selectedContractCount": 0,
+    "expectedSubscriptionCount": 0,
+    "restoredSubscriptionCount": 0,
+    "lastQuoteAt": None,
+    "latestEventTime": None,
+    "latestReceivedAt": None,
+    "writerState": "UNKNOWN",
+    "queueDepth": 0,
+    "dropped": 0,
+    "callbackErrors": 0,
+    "writerErrors": 0,
+    "diskHealth": "UNKNOWN",
+    "sourceRoot": "TXO",
+    "expiryClass": "MONTHLY",
+    "nativeSequenceAvailability": "UNAVAILABLE",
+    "packetLossCertainty": "UNKNOWN_NO_NATIVE_SEQUENCE",
+    "productionActivationApproved": False,
+}
 REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
     "TX": {"product": "TX", "subscriptionAlias": "TXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
     "MTX": {"product": "MTX", "subscriptionAlias": "MXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
@@ -170,6 +202,29 @@ def record(kind: str, data: Any) -> None:
         normalized["_kind"] = kind
         normalized["_received_at"] = datetime.now().astimezone().isoformat()
         code = str(normalized.get("code") or normalized.get("Code") or "")
+        option_metadata = OPTIONS_METADATA.get(code)
+        if option_metadata:
+            kind = "options_tick" if kind == "futures_tick" else "options_bidask"
+            normalized["_kind"] = kind
+            normalized["_product_family"] = "TXO"
+            normalized["_source_root"] = option_metadata["sourceRoot"]
+            normalized["_expiry_class"] = option_metadata["expiryClass"]
+            normalized["_expiry"] = option_metadata["expiry"]
+            normalized["_strike"] = option_metadata["strike"]
+            normalized["_call_put"] = option_metadata["callPut"]
+            normalized["_collection_run_id"] = BRIDGE_STARTED_AT
+            event_raw = normalized.get("datetime") or normalized.get("timestamp")
+            if event_raw:
+                event_time = datetime.fromisoformat(str(event_raw).replace("Z", "+00:00"))
+                session, trade_date = resolve_session_trade_date(
+                    event_time, option_metadata["calendar"]
+                )
+                normalized["_session"] = session
+                normalized["_trade_date"] = trade_date
+            with LOCK:
+                TXO_COLLECTION_STATE["lastQuoteAt"] = normalized["_received_at"]
+                TXO_COLLECTION_STATE["latestReceivedAt"] = normalized["_received_at"]
+                TXO_COLLECTION_STATE["latestEventTime"] = str(event_raw) if event_raw else None
         futures_metadata = FUTURES_METADATA.get(code)
         if futures_metadata:
             normalized["_product_family"] = futures_metadata["productFamily"]
@@ -224,6 +279,7 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 queue_state = dict(QUEUE_STATE)
                 subscriptions = [dict(item) for item in REQUIRED_SUBSCRIPTIONS.values()]
+                txo_state = dict(TXO_COLLECTION_STATE)
             ledger_health = EVENT_LEDGER.health()
             writer_state = (
                 "PASS"
@@ -232,10 +288,29 @@ class Handler(BaseHTTPRequestHandler):
                 and not ledger_health.get("lowDisk", False)
                 else "FAIL"
             )
+            txo_state.update({
+                "writerState": writer_state,
+                "queueDepth": EVENT_QUEUE.qsize(),
+                "dropped": queue_state["dropped"],
+                "callbackErrors": queue_state["callbackErrors"],
+                "writerErrors": queue_state["writerErrors"],
+                "diskHealth": "LOW_DISK" if ledger_health.get("lowDisk", False) else "PASS",
+            })
+            if txo_state["enabled"] and (
+                writer_state != "PASS"
+                or queue_state["dropped"] > 0
+                or queue_state["callbackErrors"] > 0
+                or queue_state["writerErrors"] > 0
+            ):
+                txo_state["collectorState"] = "DEGRADED"
             subscriptions_ready = all(item["state"] == "RESTORED" for item in subscriptions)
+            txo_ready = not txo_state["enabled"] or (
+                txo_state["collectorState"] == "HEALTHY"
+                and txo_state["restoredSubscriptionCount"] == txo_state["expectedSubscriptionCount"]
+            )
             bridge_state = (
                 "DEGRADED"
-                if queue_state["sessionDown"] or writer_state != "PASS" or not subscriptions_ready
+                if queue_state["sessionDown"] or writer_state != "PASS" or not subscriptions_ready or not txo_ready
                 else "HEALTHY"
             )
             reason_code = (
@@ -245,6 +320,8 @@ class Handler(BaseHTTPRequestHandler):
                 if writer_state != "PASS"
                 else "SUBSCRIPTION_RESTORE_FAILED"
                 if not subscriptions_ready
+                else "SUBSCRIPTION_RESTORE_FAILED"
+                if not txo_ready
                 else None
             )
             if bridge_state == "HEALTHY":
@@ -262,6 +339,7 @@ class Handler(BaseHTTPRequestHandler):
                 "requiredSubscriptions": subscriptions,
                 "subscriptionState": "RESTORED" if subscriptions_ready else "PARTIAL",
                 "writerState": writer_state,
+                "txoCollection": txo_state,
                 "nativeSequenceAvailability": "UNAVAILABLE",
                 "dataLossCertainty": "UNKNOWN_NO_NATIVE_SEQUENCE",
                 "timestampLineageState": "QUALITY_INSUFFICIENT",
@@ -446,6 +524,40 @@ def main() -> None:
             QUEUE_STATE["subscriptionGeneration"] += 1
             QUEUE_STATE["sessionDown"] = False
             subscription_generation = QUEUE_STATE["subscriptionGeneration"]
+
+        txo_enabled = os.getenv("DW4_TXO_COLLECTION_ENABLED", "").strip().lower() == "true"
+        txo_config_path_raw = os.getenv("DW4_TXO_COLLECTION_CONFIG", "").strip()
+        txo_config = load_activation_config(
+            txo_enabled, Path(txo_config_path_raw) if txo_config_path_raw else None
+        )
+        if txo_config["enabled"]:
+            calendar = load_governed_calendar(ROOT / "config" / "taifex-official-calendar-2026.json")
+            all_txo_contracts = list(api.contracts.options("TXO"))
+            nearest_contracts = select_nearest_expiry_contracts(all_txo_contracts, datetime.now().date())
+            option_snapshots = list(api.snapshots(nearest_contracts))
+            tx_snapshot = list(api.snapshots([futures_contracts[0][2]]))[0]
+            underlying_price = float(getattr(tx_snapshot, "close", 0) or 0)
+            maximum_contracts = txo_config["universe"]["ownerApprovedMaxContracts"]
+            selected_options = select_governed_universe(
+                nearest_contracts, option_snapshots, underlying_price, maximum_contracts
+            )
+            for option_contract in selected_options:
+                code = str(getattr(option_contract, "code", "") or "")
+                OPTIONS_METADATA[code] = {**contract_metadata(option_contract), "calendar": calendar}
+                api.subscribe(option_contract, quote_type=sj.QuoteType.Tick)
+                subscriptions.append((option_contract, sj.QuoteType.Tick))
+                api.subscribe(option_contract, quote_type=sj.QuoteType.BidAsk)
+                subscriptions.append((option_contract, sj.QuoteType.BidAsk))
+            with LOCK:
+                TXO_COLLECTION_STATE.update({
+                    "enabled": True,
+                    "collectorState": "HEALTHY",
+                    "selectedContractCount": len(selected_options),
+                    "subscriptionCount": len(selected_options) * 2,
+                    "expectedSubscriptionCount": len(selected_options) * 2,
+                    "restoredSubscriptionCount": len(selected_options) * 2,
+                    "productionActivationApproved": True,
+                })
         record_lifecycle(
             "subscriptions_ready",
             products=[
@@ -470,7 +582,7 @@ def main() -> None:
         )
 
         print(f"Shioaji read-only quotes: http://{HOST}:{PORT}/health")
-        print("Subscribed: IX0001, 2330, TXFR1, MXFR1, TMFR1")
+        print("Subscribed: IX0001, 2330, TXFR1, MXFR1, TMFR1; TXO default-off")
         print("Order routes: disabled")
         server.serve_forever()
     finally:

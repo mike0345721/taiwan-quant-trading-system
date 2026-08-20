@@ -175,6 +175,11 @@ test('read-only bridge source persists events and contains no order routes', () 
   assert.match(source, /shioaji_readonly_bridge_already_running/);
   assert.match(source, /controlled_bridge_shutdown/);
   assert.match(source, /orderRoutesEnabled/);
+  assert.equal((source.match(/sj\.Shioaji\(/g) || []).length, 1, 'must keep one Shioaji login');
+  assert.equal((source.match(/LiveEventLedger\(/g) || []).length, 1, 'must keep one writer');
+  assert.match(source, /DW4_TXO_COLLECTION_ENABLED/);
+  assert.match(source, /TXO default-off/);
+  assert.doesNotMatch(source, /Register-ScheduledTask|Startup\\/i);
   assert.doesNotMatch(source, /\.place_order|\.cancel_order|update_status|list_positions/);
 });
 

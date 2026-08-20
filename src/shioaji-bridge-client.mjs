@@ -40,6 +40,26 @@ export async function inspectShioajiBridge(options = {}) {
     const operationallyHealthy = bridgeState === 'HEALTHY'
       && writerState === 'PASS'
       && (requiredSubscriptions.length === 0 || requiredSubscriptions.every((item) => item.state === 'RESTORED'));
+    const txoCollection = {
+      enabled: health?.txoCollection?.enabled === true,
+      collectorState: typeof health?.txoCollection?.collectorState === 'string'
+        ? health.txoCollection.collectorState : 'UNKNOWN',
+      subscriptionCount: Number(health?.txoCollection?.subscriptionCount) || 0,
+      expectedSubscriptionCount: Number(health?.txoCollection?.expectedSubscriptionCount) || 0,
+      restoredSubscriptionCount: Number(health?.txoCollection?.restoredSubscriptionCount) || 0,
+      lastQuoteAt: typeof health?.txoCollection?.lastQuoteAt === 'string' ? health.txoCollection.lastQuoteAt : null,
+      latestEventTime: typeof health?.txoCollection?.latestEventTime === 'string' ? health.txoCollection.latestEventTime : null,
+      latestReceivedAt: typeof health?.txoCollection?.latestReceivedAt === 'string' ? health.txoCollection.latestReceivedAt : null,
+      writerState: typeof health?.txoCollection?.writerState === 'string' ? health.txoCollection.writerState : 'UNKNOWN',
+      queueDepth: Number(health?.txoCollection?.queueDepth) || 0,
+      dropped: Number(health?.txoCollection?.dropped) || 0,
+      callbackErrors: Number(health?.txoCollection?.callbackErrors) || 0,
+      writerErrors: Number(health?.txoCollection?.writerErrors) || 0,
+      diskHealth: typeof health?.txoCollection?.diskHealth === 'string' ? health.txoCollection.diskHealth : 'UNKNOWN',
+      nativeSequenceAvailability: 'UNAVAILABLE',
+      packetLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+      productionActivationApproved: health?.txoCollection?.productionActivationApproved === true,
+    };
     return {
       connected: Boolean(health?.ok) && safe && operationallyHealthy,
       provider: health?.provider || 'shioaji',
@@ -74,6 +94,7 @@ export async function inspectShioajiBridge(options = {}) {
         nativeSequenceAvailability: health?.nativeSequenceAvailability === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE',
         dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
       },
+      txoCollection,
       executionAuthorized: false,
       orderRoutesEnabled: false,
       safetyVerified: safe,
@@ -107,6 +128,14 @@ export async function inspectShioajiBridge(options = {}) {
         recoveryResult: typeof runtime?.recoveryResult === 'string' ? runtime.recoveryResult : null,
         dataTrust: runtime?.dataTrust === 'QUALITY_INSUFFICIENT' ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
         nativeSequenceAvailability: 'UNAVAILABLE', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+      },
+      txoCollection: {
+        enabled: false, collectorState: 'UNAVAILABLE', subscriptionCount: 0,
+        expectedSubscriptionCount: 0, restoredSubscriptionCount: 0, lastQuoteAt: null,
+        latestEventTime: null, latestReceivedAt: null, writerState: 'UNKNOWN', queueDepth: 0,
+        dropped: 0, callbackErrors: 0, writerErrors: 0, diskHealth: 'UNKNOWN',
+        nativeSequenceAvailability: 'UNAVAILABLE', packetLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+        productionActivationApproved: false,
       },
       executionAuthorized: false,
       orderRoutesEnabled: false,

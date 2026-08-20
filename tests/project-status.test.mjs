@@ -37,6 +37,11 @@ test('Shioaji status separates governed expectation from observed safe runtime a
     executionAuthorized: false,
     orderRoutesEnabled: false,
     writerErrors: 3,
+    txoCollection: {
+      enabled: false, collectorState: 'STOPPED_EXPECTED', productionActivationApproved: false,
+      expectedSubscriptionCount: 0, restoredSubscriptionCount: 0,
+      privateConfigPath: 'must-never-be-copied',
+    },
     untrustedExtra: 'must-never-be-copied',
     nestedPrivateValue: { value: 'also-must-not-be-copied' },
   } });
@@ -46,6 +51,8 @@ test('Shioaji status separates governed expectation from observed safe runtime a
   assert.equal(result.safetyState, 'PASS');
   assert.deepEqual(result.expectedSafety, { mode: 'market_data_only', executionAuthorized: false, orderRoutesEnabled: false });
   assert.deepEqual(result.observedRuntime, { executionAuthorized: false, orderRoutesEnabled: false });
+  assert.equal(result.continuity.txoCollection.collectorState, 'STOPPED_EXPECTED');
+  assert.equal(result.continuity.txoCollection.productionActivationApproved, false);
   assert.doesNotMatch(rendered, /must-never|nestedPrivateValue|untrustedExtra/);
 });
 

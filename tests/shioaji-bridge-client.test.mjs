@@ -18,6 +18,7 @@ test('accepts only a connected read-only Shioaji bridge', async () => {
     ok: true, provider: 'shioaji', mode: 'market_data_only',
     executionAuthorized: false, orderRoutesEnabled: false, symbolsReceived: 2,
     eventStorage: 'append_only_hash_chain', eventsWritten: 20, freeBytes: 10_000_000_000,
+    txoCollection: { enabled: false, collectorState: 'STOPPED_EXPECTED', privatePath: 'must-not-leak' },
   });
   const { port } = server.address();
   const status = await inspectShioajiBridge({ baseUrl: `http://127.0.0.1:${port}` });
@@ -27,6 +28,8 @@ test('accepts only a connected read-only Shioaji bridge', async () => {
   assert.equal(status.orderRoutesEnabled, false);
   assert.equal(status.eventsWritten, 20);
   assert.equal(status.eventStorage, 'append_only_hash_chain');
+  assert.equal(status.txoCollection.collectorState, 'STOPPED_EXPECTED');
+  assert.doesNotMatch(JSON.stringify(status), /must-not-leak|privatePath/);
 });
 
 test('fails closed if a bridge reports an execution route', async () => {

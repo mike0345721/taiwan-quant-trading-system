@@ -89,12 +89,17 @@ class LiveEventLedger:
                 clock_skew_ms = int((received - exchange_time).total_seconds() * 1000)
             except (TypeError, ValueError):
                 pass
+        product = (
+            str(payload.get("_product_family"))
+            if kind in {"options_tick", "options_bidask"} and payload.get("_product_family")
+            else code
+        )
         body = {
             "schemaVersion": "1.0.0",
             "provider": "shioaji",
             "kind": kind,
             "code": code,
-            "product": code,
+            "product": product,
             "receivedAt": received_at,
             "exchangeTimestamp": exchange_timestamp,
             "sequence": sequence,
