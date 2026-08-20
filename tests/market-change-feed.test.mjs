@@ -4,6 +4,7 @@ import {
   MARKET_CHANGE_DERIVATION_VERSION,
   buildCompletedFiveMinuteObservations,
   buildMarketChangeFeed,
+  buildSessionExtremePresentationGroups,
   chartMarkersFromEvents,
   deriveEvidenceChanges,
   groupMarketChangeEvents,
@@ -193,4 +194,66 @@ test('events from the same completed observation are grouped deterministically w
   assert.equal(multiEventGroup.events.every((event) => ['PRIMARY_STRUCTURE', 'SECONDARY_STRUCTURE', 'DATA_TRUST'].includes(event.evidenceGroup)), true);
   assert.doesNotMatch(JSON.stringify(groups), /importanceScore|confidenceScore|directionScore/);
   assert.deepEqual(groups, groupMarketChangeEvents(structuredClone(feed.events)));
+});
+
+test('trader-facing event labels are human-readable while raw event types stay unchanged', () => {
+  const previous = observation();
+  const next = observation({
+    barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z',
+    price: { open: 100, high: 104, low: 99, close: 103, volume: 10 }, sessionHigh: 104,
+  });
+  const events = deriveEvidenceChanges(previous, next);
+  const byType = new Map(events.map((event) => [event.eventType, event]));
+  assert.equal(byType.get('NEW_SESSION_HIGH').headline, '本時段再創新高');
+  assert.equal(byType.get('OR_BREAK_UP').headline, '價格向上突破 Opening Range 高點');
+  assert.equal(byType.get('NEW_SESSION_HIGH').eventType, 'NEW_SESSION_HIGH');
+  assert.equal(byType.get('OR_BREAK_UP').eventType, 'OR_BREAK_UP');
+  const lower = observation({
+    barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z',
+    price: { open: 100, high: 101, low: 96, close: 97, volume: 10 }, sessionLow: 96,
+  });
+  const lowEvent = deriveEvidenceChanges(previous, lower).find((event) => event.eventType === 'NEW_SESSION_LOW');
+  assert.equal(lowEvent.headline, '本時段再創新低');
+  assert.equal(lowEvent.eventType, 'NEW_SESSION_LOW');
+});
+
+test('repeated session extremes group deterministically for presentation without changing individual evidence', () => {
+  const observations = [
+    observation({ observedAt: '2026-08-12T01:05:00.000Z', sessionHigh: 102 }),
+    observation({ barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z', availableAt: '2026-08-12T01:09:59.000Z', sessionHigh: 103, price: { open: 100, high: 103, low: 99, close: 100, volume: 10 } }),
+    observation({ barTime: '2026-08-12T01:10:00.000Z', observedAt: '2026-08-12T01:15:00.000Z', availableAt: '2026-08-12T01:14:59.000Z', sessionHigh: 104, price: { open: 100, high: 104, low: 99, close: 100, volume: 10 } }),
+    observation({ barTime: '2026-08-12T01:15:00.000Z', observedAt: '2026-08-12T01:20:00.000Z', availableAt: '2026-08-12T01:19:59.000Z', sessionHigh: 105, price: { open: 100, high: 105, low: 99, close: 100, volume: 10 } }),
+  ];
+  const events = observations.slice(1).flatMap((current, index) => deriveEvidenceChanges(observations[index], current));
+  const rawIds = events.map((event) => event.eventId);
+  const rawTypes = events.map((event) => event.eventType);
+  const groups = groupMarketChangeEvents(events);
+  const first = buildSessionExtremePresentationGroups(groups, observations);
+  const second = buildSessionExtremePresentationGroups(structuredClone(groups), structuredClone(observations));
+  assert.deepEqual(first, second);
+  assert.equal(first.length, 1);
+  assert.equal(first[0].presentationType, 'SESSION_EXTREME_STREAK');
+  assert.equal(first[0].headline, '本時段再創新高 × 3');
+  assert.equal(first[0].individualEventsPreserved, true);
+  assert.deepEqual(first[0].events.map((event) => event.eventId), rawIds);
+  assert.deepEqual(first[0].events.map((event) => event.eventType), rawTypes);
+  assert.equal(first[0].descriptiveContext.previousExtreme, 102);
+  assert.equal(first[0].descriptiveContext.newExtreme, 105);
+  assert.equal(first[0].descriptiveContext.absoluteExtension, 3);
+  assert.equal(first[0].descriptiveContext.ticksExtension, null);
+  assert.doesNotMatch(JSON.stringify(first), /importanceScore|confidenceScore|directionScore/);
+});
+
+test('primary structure event breaks a session-extreme presentation streak', () => {
+  const observations = [
+    observation({ observedAt: '2026-08-12T01:05:00.000Z', sessionHigh: 102 }),
+    observation({ barTime: '2026-08-12T01:05:00.000Z', observedAt: '2026-08-12T01:10:00.000Z', availableAt: '2026-08-12T01:09:59.000Z', sessionHigh: 103, price: { open: 100, high: 103, low: 99, close: 100, volume: 10 } }),
+    observation({ barTime: '2026-08-12T01:10:00.000Z', observedAt: '2026-08-12T01:15:00.000Z', availableAt: '2026-08-12T01:14:59.000Z', sessionHigh: 104, price: { open: 100, high: 104, low: 99, close: 103, volume: 10 } }),
+    observation({ barTime: '2026-08-12T01:15:00.000Z', observedAt: '2026-08-12T01:20:00.000Z', availableAt: '2026-08-12T01:19:59.000Z', sessionHigh: 105, price: { open: 103, high: 105, low: 102, close: 103, volume: 10 } }),
+  ];
+  const events = observations.slice(1).flatMap((current, index) => deriveEvidenceChanges(observations[index], current));
+  const presentation = buildSessionExtremePresentationGroups(groupMarketChangeEvents(events), observations);
+  assert.equal(presentation.some((group) => group.evidenceGroups.includes('PRIMARY_STRUCTURE')), true);
+  assert.equal(presentation.some((group) => group.presentationType === 'SESSION_EXTREME_STREAK'), false);
+  assert.equal(presentation.flatMap((group) => group.events).length, events.length);
 });

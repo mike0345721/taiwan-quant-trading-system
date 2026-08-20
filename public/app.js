@@ -2507,7 +2507,184 @@ function renderPlainList(id, items, fallback) {
 }
 
 function healthTone(value) {
-  return value === 'LIVE' || value === 'FRESH' ? 'is-ready' : 'is-unavailable';
+  if (value === 'LIVE' || value === 'FRESH' || value === 'AVAILABLE' || value === 'PASS' || value === 'READY_FOR_REVIEW') return 'is-ready';
+  if (value === 'DELAYED' || value === 'DEGRADED' || value === 'QUALITY_INSUFFICIENT' || value === 'PARTIAL') return 'is-quality';
+  return 'is-unavailable';
+}
+
+const DW4_FAMILY_LABELS = Object.freeze({
+  PRICE_STRUCTURE: '價格結構',
+  PARTICIPATION_BREADTH: '參與度／市場廣度',
+  FUTURES_INSTITUTIONAL: '期貨／法人',
+  OPTIONS_CONTEXT: '選擇權背景',
+  GLOBAL_FX: '全球／匯率',
+});
+
+const DW4_STATE_LABELS = Object.freeze({
+  AVAILABLE: '可取得',
+  UNAVAILABLE: '目前無法取得',
+  STALE: '資料已過期',
+  PASS: '品質通過',
+  QUALITY_INSUFFICIENT: '品質不足',
+  UNKNOWN: '品質未知',
+  ELIGIBLE: '可納入方向彙總',
+  RAW_ONLY: '僅原始資料',
+  RESEARCH_ONLY: '僅供研究',
+  NOT_PROMOTED: '尚未升級為方向證據',
+  NOT_ELIGIBLE: '不納入方向彙總',
+});
+
+const DW4_SUMMARY_LABELS = Object.freeze({
+  ALIGNED_UP: '可用證據方向一致向上',
+  ALIGNED_DOWN: '可用證據方向一致向下',
+  MIXED: '可用證據方向互有衝突',
+  NO_DIRECTIONAL_EVIDENCE: '目前沒有可用方向證據',
+  COMPLETE: '證據家族完整',
+  PARTIAL: '證據家族部分可用',
+  INSUFFICIENT: '證據覆蓋不足',
+  PASS: '資料信任通過',
+  DEGRADED: '資料信任降級',
+  QUALITY_INSUFFICIENT: '資料品質不足',
+  BLOCKED: '目前無法形成完整證據判讀',
+});
+
+const SOURCE_MODE_LABELS = Object.freeze({
+  LIVE: '即時',
+  LIVE_OR_REPLAY: '即時／重播',
+  EOD: 'EOD',
+  EOD_OR_DELAYED: 'EOD／延遲',
+  BATCH: '批次',
+  SESSION_ONLY: '本時段',
+  PROXY_ONLY: '代理資料',
+  LIVE_RAW: '即時原始資料',
+  DAY_0845_0900: '日盤 08:45–09:00',
+});
+
+function dw4StateLabel(value) {
+  return DW4_STATE_LABELS[value] || dwHumanize(value, value || '目前無法取得');
+}
+
+function dw4SummaryLabel(value) {
+  return DW4_SUMMARY_LABELS[value] || dw4StateLabel(value);
+}
+
+function sourceModeLabel(value) {
+  return SOURCE_MODE_LABELS[value] || null;
+}
+
+function dw4DescriptiveValue(entry) {
+  if (!entry || entry.value == null || entry.value === '') return 'UNAVAILABLE';
+  const raw = typeof entry.value === 'number' ? fmt(entry.value, Number.isInteger(entry.value) ? 0 : 2) : entry.value;
+  return `${raw}${entry.unit || ''}`;
+}
+
+function dw4FamilyLabel(value) {
+  return DW4_FAMILY_LABELS[value] || value || '未知證據家族';
+}
+
+function renderDw4FamilyList(id, values) {
+  const target = $(id);
+  if (!target) return;
+  const items = Array.isArray(values) && values.length ? values : ['目前沒有'];
+  target.replaceChildren(...items.map((value) => {
+    const li = document.createElement('li');
+    li.textContent = value === '目前沒有' ? value : dw4FamilyLabel(value);
+    return li;
+  }));
+}
+
+function renderDw4Evidence(summary) {
+  const value = summary || {};
+  const conflictState = value.conflictState || 'NO_DIRECTIONAL_EVIDENCE';
+  const coverageState = value.coverageState || 'INSUFFICIENT';
+  const dataTrustState = value.dataTrustState || 'BLOCKED';
+  dwText('dw-conflict-state', dw4SummaryLabel(conflictState));
+  dwText('dw-coverage-state', dw4SummaryLabel(coverageState));
+  dwText('dw-trust-state', dw4SummaryLabel(dataTrustState));
+  dwText('dw-conflict-state-raw', conflictState);
+  dwText('dw-coverage-state-raw', coverageState);
+  dwText('dw-trust-state-raw', dataTrustState);
+  dwText('dw-coverage-counts', `${value.eligibleFamilies || 0} / ${value.expectedFamilies || 5} evidence families`);
+  $('dw-conflict-state').className = healthTone(value.conflictState === 'NO_DIRECTIONAL_EVIDENCE' ? 'UNAVAILABLE' : 'PASS');
+  $('dw-coverage-state').className = healthTone(value.coverageState);
+  $('dw-trust-state').className = healthTone(value.dataTrustState);
+
+  renderDw4FamilyList('dw-eligible-families', value.eligibleEvidenceFamilies);
+  renderDw4FamilyList('dw-unavailable-families', value.unavailableEvidenceFamilies);
+  renderDw4FamilyList('dw-stale-families', value.staleEvidenceFamilies);
+  renderDw4FamilyList('dw-quality-families', value.qualityExcludedFamilies);
+  renderDw4FamilyList('dw-promotion-families', value.promotionExcludedFamilies);
+  renderDw4FamilyList('dw-missing-families', value.missingEvidenceFamilies);
+
+  const target = $('dw-family-grid');
+  if (!target) return;
+  const evidence = Array.isArray(value.evidence) ? value.evidence : [];
+  const cards = evidence.map((item) => {
+    const card = document.createElement('details'); card.className = 'dw-family-card';
+    const summaryNode = document.createElement('summary');
+    const title = document.createElement('span');
+    const strong = document.createElement('strong'); strong.textContent = dw4FamilyLabel(item.family);
+    const source = document.createElement('small'); source.textContent = item.detail?.descriptiveStatus === 'AVAILABLE' ? '描述資料可查看' : '描述資料目前不可用';
+    title.append(strong, source);
+    const statusGrid = document.createElement('span'); statusGrid.className = 'dw-family-status-grid';
+    [
+      ['來源', item.availabilityState],
+      ['品質', item.qualityState],
+      ['方向資格', item.promotionState],
+    ].forEach(([label, rawState]) => {
+      const axis = document.createElement('span'); axis.className = 'dw-family-axis';
+      axis.title = label === '來源'
+        ? '來源可取得不代表可以影響方向彙總。'
+        : label === '品質'
+          ? '品質不足代表限制仍存在，不代表資料完全錯誤。'
+          : 'RAW_ONLY／尚未升級的資料只供描述，不影響方向彙總。';
+      const axisLabel = document.createElement('small'); axisLabel.textContent = label;
+      const axisValue = document.createElement('b'); axisValue.className = healthTone(rawState); axisValue.textContent = dw4StateLabel(rawState);
+      axis.append(axisLabel, axisValue); statusGrid.append(axis);
+    });
+    const descriptive = Array.isArray(item.detail?.descriptiveValues) ? item.detail.descriptiveValues : [];
+    const preview = document.createElement('span'); preview.className = 'dw-family-preview';
+    const previewValues = descriptive.length ? descriptive.slice(0, 2) : [{ label: '描述值', value: 'UNAVAILABLE' }];
+    preview.append(...previewValues.map((entry) => {
+      const metric = document.createElement('span');
+      const metricLabel = document.createElement('small'); metricLabel.textContent = entry.label;
+      const metricValue = document.createElement('b'); metricValue.textContent = dw4DescriptiveValue(entry);
+      metric.append(metricLabel, metricValue);
+      const modeLabel = sourceModeLabel(entry.sourceMode);
+      if (modeLabel) {
+        const sourceMode = document.createElement('em');
+        sourceMode.className = 'dw-source-mode'; sourceMode.textContent = modeLabel;
+        sourceMode.title = `原始 sourceMode：${entry.sourceMode}`;
+        metric.append(sourceMode);
+      }
+      return metric;
+    }));
+    const caveat = document.createElement('em'); caveat.className = 'dw-family-caveat';
+    caveat.textContent = '描述資料；尚未納入 DW-4 方向彙總';
+    summaryNode.append(title, statusGrid, preview, caveat);
+    const detail = document.createElement('dl'); detail.className = 'dw-family-detail';
+    const rows = [
+      ['方向', item.directionState], ['來源', item.availabilityState], ['品質', item.qualityState],
+      ['Source ID', item.sourceId || 'UNAVAILABLE'],
+      ['Promotion', item.promotionState], ['availableAt', item.availableAt || 'UNAVAILABLE'],
+      ['描述值狀態', item.detail?.descriptiveStatus || 'UNAVAILABLE'],
+      ['全部描述值', descriptive.map((entry) => `${entry.label}=${dw4DescriptiveValue(entry)}${entry.sourceMode ? ` [${entry.sourceMode}]` : ''}`).join(' · ') || 'UNAVAILABLE'],
+      ['用途邊界', item.detail?.descriptiveUse || 'DESCRIPTIVE_ONLY_NOT_DIRECTIONAL_EVIDENCE'],
+      ['識別警告', item.detail?.identityWarning || 'NONE'],
+      ['技術原因', (item.qualityReasons || []).join(' · ') || 'NONE'],
+    ];
+    rows.forEach(([label, detailValue]) => {
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = detailValue;
+      detail.append(dt, dd);
+    });
+    card.append(summaryNode, detail);
+    return card;
+  });
+  if (!cards.length) {
+    const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '證據 contract 目前無法取得。';
+    target.replaceChildren(empty);
+  } else target.replaceChildren(...cards);
 }
 
 function chartTimeLabel(timestampSeconds) {
@@ -2672,9 +2849,43 @@ function marketChangeDetail(label, value, wide = false) {
   return cell;
 }
 
+function marketChangeGroupKind(group) {
+  const groups = group?.evidenceGroups || [];
+  if (groups.includes('PRIMARY_STRUCTURE')) return 'PRIMARY_STRUCTURE';
+  if (groups.includes('DATA_TRUST')) return 'DATA_TRUST';
+  return 'SECONDARY_STRUCTURE';
+}
+
+function marketChangeGroupClass(group) {
+  const kind = marketChangeGroupKind(group);
+  if (kind === 'PRIMARY_STRUCTURE') return 'is-primary-structure';
+  if (kind === 'DATA_TRUST') return 'is-data-trust';
+  return 'is-secondary-structure';
+}
+
+function marketChangeGroupLabel(group) {
+  const kind = marketChangeGroupKind(group);
+  if (kind === 'PRIMARY_STRUCTURE') return '主要價格結構';
+  if (kind === 'DATA_TRUST') return '資料品質事件';
+  return '時段高低延伸';
+}
+
+function marketChangePresentationText(group) {
+  if (group?.presentationType !== 'SESSION_EXTREME_STREAK') {
+    return `${group?.events?.map((event) => event.headline).join('、') || 'UNAVAILABLE'} · 品質 ${dw4SummaryLabel(group?.qualityStatus || 'UNKNOWN')}`;
+  }
+  const context = group.descriptiveContext || {};
+  const values = [];
+  if (context.previousExtreme != null && context.newExtreme != null) values.push(`${fmt(context.previousExtreme)} → ${fmt(context.newExtreme)}`);
+  if (context.absoluteExtension != null) values.push(`延伸 ${fmt(context.absoluteExtension)} 點`);
+  if (context.ticksExtension != null) values.push(`${fmt(context.ticksExtension)} ticks`);
+  values.push(`${context.streakCount || group.evidenceCount} 次`);
+  return values.join(' · ');
+}
+
 function renderMarketChangeFeed(feed) {
   state.marketChangeFeed = feed || null;
-  const groups = feed?.latestGroupsFirst || [];
+  const groups = feed?.presentationGroupsLatestFirst || feed?.latestGroupsFirst || [];
   const engineAvailability = feed?.engineAvailability || feed?.status || 'UNAVAILABLE';
   const dataTrust = feed?.dataTrust?.status || 'UNAVAILABLE';
   dwText('dw-change-status', `引擎 ${engineAvailability}`);
@@ -2692,13 +2903,15 @@ function renderMarketChangeFeed(feed) {
       const body = document.createElement('div');
       const title = document.createElement('strong'); title.textContent = '尚無合法變化事件';
       const summary = document.createElement('p'); summary.textContent = '只比較前後兩根合法完成的 5 分鐘觀察，不讀 forming K 棒。';
-      body.append(title, summary); latestTarget.replaceChildren(time, body); latestTarget.classList.remove('is-quality');
+      body.append(title, summary); latestTarget.replaceChildren(time, body); latestTarget.className = 'dw-change-latest';
     } else {
       const time = document.createElement('time'); time.textContent = timeLabel(latest.observedAt);
       const body = document.createElement('div');
       const title = document.createElement('strong'); title.textContent = latest.headline;
-      const summary = document.createElement('p'); summary.textContent = `${latest.events.map((event) => event.headline).join('；')} · 資料 ${latest.qualityStatus}`;
-      body.append(title, summary); latestTarget.replaceChildren(time, body);
+      const groupLabel = document.createElement('span'); groupLabel.className = 'dw-event-kind'; groupLabel.textContent = marketChangeGroupLabel(latest);
+      const summary = document.createElement('p'); summary.textContent = marketChangePresentationText(latest);
+      body.append(groupLabel, title, summary); latestTarget.replaceChildren(time, body);
+      latestTarget.className = `dw-change-latest ${marketChangeGroupClass(latest)}`;
       latestTarget.classList.toggle('is-quality', latest.qualityStatus !== 'PASS');
     }
   }
@@ -2710,12 +2923,12 @@ function renderMarketChangeFeed(feed) {
       timeline.replaceChildren(empty);
     } else {
       timeline.replaceChildren(...groups.slice(0, 12).map((group) => {
-        const row = document.createElement('li');
-        if (group.qualityStatus !== 'PASS') row.className = 'is-quality';
+        const row = document.createElement('li'); row.className = marketChangeGroupClass(group);
+        if (group.qualityStatus !== 'PASS') row.classList.add('is-quality');
         const at = document.createElement('time'); at.textContent = timeLabel(group.observedAt);
         const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true');
         const title = document.createElement('strong'); title.textContent = group.headline;
-        const context = document.createElement('small'); context.textContent = `${group.evidenceCount} 項證據 · ${group.qualityStatus}`;
+        const context = document.createElement('small'); context.textContent = `${marketChangeGroupLabel(group)} · ${group.evidenceCount} 項`;
         row.append(at, dot, title, context); return row;
       }));
     }
@@ -2728,15 +2941,27 @@ function renderMarketChangeFeed(feed) {
       cards.replaceChildren(empty);
     } else {
       cards.replaceChildren(...groups.slice(0, 8).map((group, index) => {
-        const card = document.createElement('details'); card.className = 'dw-evidence-card'; card.open = index === 0;
+        const card = document.createElement('details'); card.className = `dw-evidence-card ${marketChangeGroupClass(group)}`;
+        card.open = index === 0 && marketChangeGroupKind(group) === 'PRIMARY_STRUCTURE';
         const summary = document.createElement('summary');
         const heading = document.createElement('span');
         const title = document.createElement('strong'); title.textContent = group.headline;
-        const sub = document.createElement('small'); sub.textContent = `${timeLabel(group.observedAt)} · ${group.actualContract} · ${group.evidenceCount} 項`;
+        const startedAt = group.startedAt && group.startedAt !== group.observedAt ? `${timeLabel(group.startedAt)}–` : '';
+        const sub = document.createElement('small'); sub.textContent = `${startedAt}${timeLabel(group.observedAt)} · ${group.actualContract} · ${marketChangeGroupLabel(group)}`;
         heading.append(title, sub);
         const trust = document.createElement('span'); trust.className = 'dw-evidence-trust'; trust.textContent = group.qualityStatus;
         summary.append(heading, trust);
         const detail = document.createElement('div'); detail.className = 'dw-evidence-detail';
+        if (group.presentationType === 'SESSION_EXTREME_STREAK') {
+          const context = group.descriptiveContext || {};
+          detail.append(
+            marketChangeDetail('前一時段高／低', context.previousExtreme == null ? 'UNAVAILABLE' : fmt(context.previousExtreme)),
+            marketChangeDetail('最新時段高／低', context.newExtreme == null ? 'UNAVAILABLE' : fmt(context.newExtreme)),
+            marketChangeDetail('價格延伸', context.absoluteExtension == null ? 'UNAVAILABLE' : `${fmt(context.absoluteExtension)} 點`),
+            marketChangeDetail('Ticks 延伸', context.ticksExtension == null ? 'UNAVAILABLE' : fmt(context.ticksExtension)),
+            marketChangeDetail('顯示群組', `${context.streakCount || group.evidenceCount} 個原始事件；presentation only`, true),
+          );
+        }
         const evidenceList = document.createElement('ul'); evidenceList.className = 'dw-evidence-items';
         evidenceList.replaceChildren(...group.events.map((event) => {
           const item = document.createElement('li');
@@ -2822,7 +3047,10 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
   dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
-  dwText('dw-global-time', global.sourceTime ? `資料時間 ${timeLabel(global.sourceTime)}` : '時間目前無法取得');
+  dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
+  dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
+  dwText('dw-global-readiness', global.decisionReadiness || decision.readiness || 'UNAVAILABLE');
+  $('dw-global-readiness').className = `dw-status-pill ${healthTone(global.decisionReadiness || decision.readiness)}`;
   dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
   $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
   dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
@@ -2835,8 +3063,9 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-forward-evidence', `證據來源 ${forward.evidenceSource || 'UNAVAILABLE'} · Data Trust ${forward.dataTrust || 'UNAVAILABLE'}`);
   dwText('dw-forward-reason-code', forward.reasonCode || 'NONE');
 
-  dwText('dw-posture', decision.posture || 'NO_TRADE');
+  dwText('dw-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');
   dwText('dw-readiness', decision.readiness || 'NOT_READY');
+  $('dw-readiness').className = `dw-status-pill ${healthTone(decision.readiness)}`;
   dwText('dw-no-trade-reason', dwHumanize(decision.noTradeReason || 'DATA_INSUFFICIENT'));
   dwText('dw-decision-explanation', decision.explanation);
   dwText('dw-direction', decision.direction);
@@ -2845,6 +3074,11 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-entry-quality', decision.entryQuality);
   dwText('dw-contrary-evidence', availabilityLabel(decision.strongestContraryEvidence));
   dwText('dw-contrary-reason', dwHumanize(decision.strongestContraryEvidence?.reason));
+  const currentFacts = workspace?.currentMarketFactSummary || {};
+  dwText('dw-now-price-fact', currentFacts.priceStructureFact || '目前沒有新的 governed 盤中結構事件。');
+  dwText('dw-now-evidence-fact', currentFacts.evidenceEligibilityFact || '目前沒有符合方向彙總資格的證據家族。');
+  dwText('dw-now-trust-fact', `完整度：${dw4SummaryLabel(currentFacts.coverageState || 'INSUFFICIENT')} · 資料信任：${dw4SummaryLabel(currentFacts.dataTrustState || 'BLOCKED')}`);
+  renderDw4Evidence(workspace?.evidenceConflict);
 
   dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
   const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';
