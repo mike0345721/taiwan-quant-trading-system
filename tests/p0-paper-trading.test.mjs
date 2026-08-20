@@ -43,8 +43,20 @@ test('append-only file ledger rejects duplicate conflict and preserves replay',(
 });
 
 test('forward observer records a missed start once and never accepts a frozen T0 result as input',()=>{
- const dir=fs.mkdtempSync(path.join(os.tmpdir(),'p0-forward-')),ledger=path.join(dir,'ledger.jsonl'),args=['scripts/run-p0-forward-paper-observer.mjs','--trade-date','2026-01-02','--ledger',ledger];
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'p0-forward-')),runtimeRoot=path.join(dir,'runtime'),ledger=path.join(runtimeRoot,'PAPER_TRADING_EVENT_LEDGER.jsonl'),status=path.join(runtimeRoot,'daily','2026-01-02.json'),args=['scripts/run-p0-forward-paper-observer.mjs','--trade-date','2026-01-02','--runtime-root',runtimeRoot];
  const source=fs.readFileSync(path.join(root,'scripts/run-p0-forward-paper-observer.mjs'),'utf8');assert.equal(source.includes('--session-result'),false);assert.equal(source.includes('t0-h0-formal-v1'),false);
  const first=spawnSync(process.execPath,args,{cwd:root,encoding:'utf8'});assert.equal(first.status,0,first.stderr);const count=readPaperLedgerFile(ledger).length;assert.equal(count,2);assert.ok(readPaperLedgerFile(ledger).every(x=>x.executionAuthorized===false));assert.equal(JSON.parse(first.stdout).reason,'MISSED_START');
+ assert.equal(fs.existsSync(status),true);assert.equal(JSON.parse(fs.readFileSync(status,'utf8')).reason,'MISSED_START');
  const second=spawnSync(process.execPath,args,{cwd:root,encoding:'utf8'});assert.equal(second.status,0,second.stderr);assert.equal(readPaperLedgerFile(ledger).length,count);
+});
+
+test('forward observer runtime-root injection prevents every output fallback to canonical runtime',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'p0-hermetic-')),runtimeRoot=path.join(dir,'isolated-runtime'),canonicalSentinel=path.join(dir,'canonical-sentinel.json');
+ fs.writeFileSync(canonicalSentinel,'immutable-canonical-fixture\n');
+ const before=fs.readFileSync(canonicalSentinel);
+ const run=spawnSync(process.execPath,['scripts/run-p0-forward-paper-observer.mjs','--trade-date','2026-01-02','--runtime-root',runtimeRoot],{cwd:root,encoding:'utf8'});
+ assert.equal(run.status,0,run.stderr);
+ assert.deepEqual(fs.readFileSync(canonicalSentinel),before);
+ assert.equal(fs.existsSync(path.join(runtimeRoot,'PAPER_TRADING_EVENT_LEDGER.jsonl')),true);
+ assert.equal(fs.existsSync(path.join(runtimeRoot,'daily','2026-01-02.json')),true);
 });

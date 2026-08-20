@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import { buildDailyUpdateGateSummary } from '../../src/daily-update-gates.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(scriptDir);
@@ -12,6 +14,25 @@ const dataDir = path.join(root, 'data');
 const statusPath = path.join(reportsDir, 'v3-daily-update-status.json');
 const lockPath = path.join(dataDir, '.v3-daily-update.lock');
 const dryRun = process.argv.includes('--dry-run') || process.env.V3_DAILY_DRY_RUN === '1';
+
+function taipeiDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function inspectMarketDaily() {
+  const tradeDate = taipeiDate();
+  const databasePath = path.join(dataDir, 'research-v2.sqlite');
+  if (!fs.existsSync(databasePath)) return { status: 'UNKNOWN', tradeDate };
+  const db = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const row = db.prepare('SELECT trade_date FROM market_daily WHERE trade_date = ? LIMIT 1').get(tradeDate);
+    return { status: row?.trade_date === tradeDate ? 'VALID' : 'MISSING', tradeDate };
+  } catch {
+    return { status: 'UNKNOWN', tradeDate };
+  } finally {
+    db.close();
+  }
+}
 
 fs.mkdirSync(reportsDir, { recursive: true });
 fs.mkdirSync(logsDir, { recursive: true });
@@ -105,6 +126,7 @@ const status = {
   policy: 'Daily updates collect data and resolve frozen forward records. They do not retune thresholds or rerun the formal V3.6.2 holdout research.',
   stages: [], failures: [], logPath: path.relative(appRoot, logPath),
 };
+status.gateSummary = buildDailyUpdateGateSummary({ stages: status.stages, failures: status.failures, marketDaily: inspectMarketDaily() });
 
 function log(message) {
   const line = `[${new Date().toISOString()}] ${message}`;
@@ -135,6 +157,7 @@ try {
       status.failures.push({ key: stage.key, error: item.error, critical: Boolean(stage.critical) });
     }
     status.stages.push(item);
+    status.gateSummary = buildDailyUpdateGateSummary({ stages: status.stages, failures: status.failures, marketDaily: inspectMarketDaily() });
     writeJsonAtomic(statusPath, status);
     log(`${ok ? 'DONE' : 'FAILED'} ${stage.key} (${item.durationSeconds}s)`);
     if (!ok && stage.critical) throw new Error(`Critical stage failed: ${stage.key}`);
@@ -148,6 +171,7 @@ try {
 } finally {
   status.currentStage = null;
   status.completedAt = new Date().toISOString();
+  status.gateSummary = buildDailyUpdateGateSummary({ stages: status.stages, failures: status.failures, marketDaily: inspectMarketDaily() });
   writeJsonAtomic(statusPath, status);
   try { fs.closeSync(lockHandle); } catch { /* already closed */ }
   try { fs.unlinkSync(lockPath); } catch { /* lock cleanup is best effort */ }
