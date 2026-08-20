@@ -60,7 +60,7 @@ function safeMarketState(runtimeTruth) {
   };
 }
 
-function buildDecisionSummary(marketState, dataHealth, evidenceConflict) {
+function buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart = null) {
   const critical = ['forwardShadowRuntime', 'txTick', 'breadth', 'futuresPositioning', 'optionsEod']
     .map((sourceId) => healthItem(dataHealth, sourceId)).filter(Boolean);
   const stale = critical.find((item) => ['STALE', 'DELAYED'].includes(item.freshnessState));
@@ -76,8 +76,17 @@ function buildDecisionSummary(marketState, dataHealth, evidenceConflict) {
       : evidenceConflict
         ? 'DEGRADED'
         : 'UNAVAILABLE';
-  return Object.freeze({
-    posture: 'NO_TRADE',
+  const visibleFacts = [];
+  if (chart?.lastPrice != null && Number.isFinite(Number(chart.lastPrice))) visibleFacts.push('TX 價格');
+  if (chart?.openingRange?.status === 'READY') visibleFacts.push('Opening Range');
+  if (chart?.levels?.vwap?.availability === 'AVAILABLE') visibleFacts.push(`${chart.levels.vwap.vwapSession || chart.session || 'Session'} VWAP`);
+  const factSummary = visibleFacts.length
+    ? `目前可直接查看：${visibleFacts.join('、')}。`
+    : '目前沒有可直接顯示的合法盤中價格衍生。';
+  const summary = Object.freeze({
+    posture: 'MANUAL_REVIEW_ONLY',
+    rawPosture: 'NO_TRADE',
+    systemDirectionalSignal: false,
     readiness,
     noTradeReason,
     direction: marketState.direction,
@@ -85,7 +94,11 @@ function buildDecisionSummary(marketState, dataHealth, evidenceConflict) {
     risk: marketState.risk,
     entryQuality: 'UNAVAILABLE',
     strongestContraryEvidence: unavailable('CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED'),
-    explanation: '方向與進場品質分離；DW-1 尚未實作 OR、VWAP、RVOL 或 Flow 衍生，因此不發布進場就緒狀態。',
+    explanation: null,
+  });
+  return Object.freeze({
+    ...summary,
+    explanation: `${factSummary} Entry Quality、Estimated Flow、最強反向證據與 RVOL 尚未形成 governed decision derivation；系統不提供交易方向。`,
   });
 }
 
@@ -179,6 +192,10 @@ export function validateDecisionSnapshot(snapshot) {
 export function copyForChatGpt(snapshot, question = null) {
   validateDecisionSnapshot(snapshot);
   const prompt = question || '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。';
+  const descriptiveEvidence = (snapshot.evidenceConflict?.evidence || []).map((item) => {
+    const values = (item.detail?.descriptiveValues || []).map((entry) => `${entry.label}=${entry.value}${entry.unit || ''}`).join(', ');
+    return `${item.family}: ${values || 'UNAVAILABLE'}; availability=${item.availabilityState}; quality=${item.qualityState}; promotion=${item.promotionState}; directionalEligible=${item.eligibleDirectionalEvidence}`;
+  });
   const readable = [
     'DISCUSSION CONTEXT — NOT A TRADING SIGNAL',
     `Snapshot: ${snapshot.snapshotTime}`,
@@ -188,6 +205,8 @@ export function copyForChatGpt(snapshot, question = null) {
     `DW-4: conflict=${snapshot.evidenceConflict?.conflictState || 'NO_DIRECTIONAL_EVIDENCE'}; coverage=${snapshot.evidenceConflict?.coverageState || 'INSUFFICIENT'}; dataTrust=${snapshot.evidenceConflict?.dataTrustState || 'BLOCKED'}`,
     `Eligible evidence: ${(snapshot.evidenceConflict?.eligibleEvidenceFamilies || []).join(', ') || 'none'}`,
     `Excluded evidence: unavailable=${(snapshot.evidenceConflict?.unavailableEvidenceFamilies || []).join(', ') || 'none'}; stale=${(snapshot.evidenceConflict?.staleEvidenceFamilies || []).join(', ') || 'none'}; quality=${(snapshot.evidenceConflict?.qualityExcludedFamilies || []).join(', ') || 'none'}; promotion=${(snapshot.evidenceConflict?.promotionExcludedFamilies || []).join(', ') || 'none'}`,
+    'Descriptive family values (display only; not directional evidence):',
+    ...(descriptiveEvidence.length ? descriptiveEvidence.map((line) => `- ${line}`) : ['- UNAVAILABLE']),
     `Market State: direction=${snapshot.marketState.direction}; global=${snapshot.marketState.globalAlignment}; risk=${snapshot.marketState.risk}`,
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
@@ -209,9 +228,11 @@ export function buildDecisionWorkspace({
   const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
     observations: dw4EvidenceObservations,
     snapshotBlocked: !dataHealth,
+    snapshot,
+    chart,
   });
   const marketState = safeMarketState(runtimeTruth);
-  const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict);
+  const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart);
   const lockedSnapshotCandidate = createDecisionSnapshot({
     snapshot,
     dataHealth,

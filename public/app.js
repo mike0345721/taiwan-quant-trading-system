@@ -2520,6 +2520,30 @@ const DW4_FAMILY_LABELS = Object.freeze({
   GLOBAL_FX: '全球／匯率',
 });
 
+const DW4_STATE_LABELS = Object.freeze({
+  AVAILABLE: '可取得',
+  UNAVAILABLE: '目前無法取得',
+  STALE: '資料已過期',
+  PASS: '品質通過',
+  QUALITY_INSUFFICIENT: '品質不足',
+  UNKNOWN: '品質未知',
+  ELIGIBLE: '可納入方向彙總',
+  RAW_ONLY: '僅原始資料',
+  RESEARCH_ONLY: '僅供研究',
+  NOT_PROMOTED: '尚未升級為方向證據',
+  NOT_ELIGIBLE: '不納入方向彙總',
+});
+
+function dw4StateLabel(value) {
+  return DW4_STATE_LABELS[value] || dwHumanize(value, value || '目前無法取得');
+}
+
+function dw4DescriptiveValue(entry) {
+  if (!entry || entry.value == null || entry.value === '') return 'UNAVAILABLE';
+  const raw = typeof entry.value === 'number' ? fmt(entry.value, Number.isInteger(entry.value) ? 0 : 2) : entry.value;
+  return `${raw}${entry.unit || ''}`;
+}
+
 function dw4FamilyLabel(value) {
   return DW4_FAMILY_LABELS[value] || value || '未知證據家族';
 }
@@ -2562,13 +2586,36 @@ function renderDw4Evidence(summary) {
     const strong = document.createElement('strong'); strong.textContent = dw4FamilyLabel(item.family);
     const source = document.createElement('small'); source.textContent = item.sourceId || 'SOURCE UNAVAILABLE';
     title.append(strong, source);
-    const stateNode = document.createElement('span'); stateNode.className = `dw-family-state ${healthTone(item.availabilityState)}`;
-    stateNode.textContent = item.eligibleDirectionalEvidence ? item.directionState : item.availabilityState;
-    summaryNode.append(title, stateNode);
+    const statusGrid = document.createElement('span'); statusGrid.className = 'dw-family-status-grid';
+    [
+      ['來源', item.availabilityState],
+      ['品質', item.qualityState],
+      ['方向資格', item.promotionState],
+    ].forEach(([label, rawState]) => {
+      const axis = document.createElement('span'); axis.className = 'dw-family-axis';
+      const axisLabel = document.createElement('small'); axisLabel.textContent = label;
+      const axisValue = document.createElement('b'); axisValue.className = healthTone(rawState); axisValue.textContent = dw4StateLabel(rawState);
+      axis.append(axisLabel, axisValue); statusGrid.append(axis);
+    });
+    const descriptive = Array.isArray(item.detail?.descriptiveValues) ? item.detail.descriptiveValues : [];
+    const preview = document.createElement('span'); preview.className = 'dw-family-preview';
+    const previewValues = descriptive.length ? descriptive.slice(0, 3) : [{ label: '描述值', value: 'UNAVAILABLE' }];
+    preview.append(...previewValues.map((entry) => {
+      const metric = document.createElement('span');
+      const metricLabel = document.createElement('small'); metricLabel.textContent = entry.label;
+      const metricValue = document.createElement('b'); metricValue.textContent = dw4DescriptiveValue(entry);
+      metric.append(metricLabel, metricValue); return metric;
+    }));
+    const caveat = document.createElement('em'); caveat.className = 'dw-family-caveat';
+    caveat.textContent = '描述資料；尚未納入 DW-4 方向彙總';
+    summaryNode.append(title, statusGrid, preview, caveat);
     const detail = document.createElement('dl'); detail.className = 'dw-family-detail';
     const rows = [
       ['方向', item.directionState], ['來源', item.availabilityState], ['品質', item.qualityState],
       ['Promotion', item.promotionState], ['availableAt', item.availableAt || 'UNAVAILABLE'],
+      ['描述值狀態', item.detail?.descriptiveStatus || 'UNAVAILABLE'],
+      ['用途邊界', item.detail?.descriptiveUse || 'DESCRIPTIVE_ONLY_NOT_DIRECTIONAL_EVIDENCE'],
+      ['識別警告', item.detail?.identityWarning || 'NONE'],
       ['技術原因', (item.qualityReasons || []).join(' · ') || 'NONE'],
     ];
     rows.forEach(([label, detailValue]) => {
@@ -2913,7 +2960,7 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-forward-evidence', `證據來源 ${forward.evidenceSource || 'UNAVAILABLE'} · Data Trust ${forward.dataTrust || 'UNAVAILABLE'}`);
   dwText('dw-forward-reason-code', forward.reasonCode || 'NONE');
 
-  dwText('dw-posture', decision.posture || 'NO_TRADE');
+  dwText('dw-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');
   dwText('dw-readiness', decision.readiness || 'NOT_READY');
   $('dw-readiness').className = `dw-status-pill ${healthTone(decision.readiness)}`;
   dwText('dw-no-trade-reason', dwHumanize(decision.noTradeReason || 'DATA_INSUFFICIENT'));

@@ -56,9 +56,11 @@ test('snapshot rejects evidence that was not available at decision time', () => 
   assert.throws(() => createDecisionSnapshot({ snapshot: sourceSnapshot(), dataHealth: futureHealth, snapshotTime: now.toISOString() }), /FUTURE_EVIDENCE/);
 });
 
-test('workspace makes NO_TRADE first class and never promotes legacy scores', () => {
+test('workspace is manual-review-only and never emits a system trade direction', () => {
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), now });
-  assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
+  assert.equal(workspace.decisionSummary.posture, 'MANUAL_REVIEW_ONLY');
+  assert.equal(workspace.decisionSummary.rawPosture, 'NO_TRADE');
+  assert.equal(workspace.decisionSummary.systemDirectionalSignal, false);
   assert.equal(workspace.decisionSummary.readiness, 'NOT_READY');
   assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
   assert.equal(workspace.priceChartSlot.status, 'UNAVAILABLE');
@@ -67,7 +69,7 @@ test('workspace makes NO_TRADE first class and never promotes legacy scores', ()
   assert.equal(workspace.forwardShadowStatus.reasonCode, 'UNKNOWN_INSUFFICIENT_EVIDENCE');
 });
 
-test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market State', () => {
+test('DW-2 chart facts populate snapshot and decision explanation without changing Market State', () => {
   const chart = {
     status: 'READY', timeframe: '5m', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
     availableAt: '2026-08-12T00:19:59.000Z', source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK', qualityStatus: 'PASS',
@@ -80,8 +82,12 @@ test('DW-2 chart facts populate snapshot without changing NO_TRADE or Market Sta
   assert.equal(workspace.snapshot.price.value, 22510);
   assert.deepEqual(workspace.snapshot.OR.value, { high: 22520, low: 22480 });
   assert.equal(workspace.snapshot.VWAP.value, 22501.5);
-  assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
+  assert.equal(workspace.decisionSummary.posture, 'MANUAL_REVIEW_ONLY');
   assert.equal(workspace.decisionSummary.direction, 'UNAVAILABLE');
+  assert.match(workspace.decisionSummary.explanation, /TX 價格/);
+  assert.match(workspace.decisionSummary.explanation, /Opening Range/);
+  assert.match(workspace.decisionSummary.explanation, /VWAP/);
+  assert.doesNotMatch(workspace.decisionSummary.explanation, /OR、VWAP.*尚未/);
 });
 
 test('DW-3 Market Change Feed is exposed through workspace without changing decision posture', () => {
@@ -97,7 +103,7 @@ test('DW-3 Market Change Feed is exposed through workspace without changing deci
   assert.equal(workspace.whatChanged.dataTrust.status, 'QUALITY_INSUFFICIENT');
   assert.equal(workspace.whatChanged.observationCadence, 'COMPLETED_5M_ONLY');
   assert.equal(workspace.whatChanged.events[0].eventType, 'VWAP_CROSS_UP');
-  assert.equal(workspace.decisionSummary.posture, 'NO_TRADE');
+  assert.equal(workspace.decisionSummary.posture, 'MANUAL_REVIEW_ONLY');
   assert.equal(workspace.policies.executionAuthorized, false);
 });
 
@@ -109,6 +115,39 @@ test('copy for ChatGPT includes immutable identity and discussion-only boundary'
   assert.match(text, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD/);
   assert.match(text, /DW-4: conflict=NO_DIRECTIONAL_EVIDENCE; coverage=INSUFFICIENT; dataTrust=BLOCKED/);
   assert.match(text, /USER QUESTION: 最大反向證據？$/);
+});
+
+test('Copy for ChatGPT preserves descriptive values and separates them from directional eligibility', () => {
+  const rich = sourceSnapshot();
+  rich.marketBreadth = { ok: true, fetchedAt: '2026-08-11T14:00:00.000Z', data: { listed: { advance: 500, decline: 300, unchanged: 100, limitUp: 12, limitDown: 2 } } };
+  rich.options = { ok: true, fetchedAt: '2026-08-11T14:00:00.000Z', data: { contract: 'TXO202608', oiPcRatio: 1.2, callWall: { strike: 23000 }, putWall: { strike: 22000 }, maxPain: 22500 } };
+  rich.marketOverview = { ok: true, fetchedAt: '2026-08-11T14:00:00.000Z', data: { vix: 18.2, usdtwd: 30.5, ndxProxy: 0.7 } };
+  rich.futuresInstitutional = { ok: true, fetchedAt: '2026-08-11T14:00:00.000Z', data: { foreignNet: -12345 } };
+  const richHealth = health();
+  richHealth.items.push(
+    { sourceId: 'chartBar', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'READY', exchangeTimestamp: '2026-08-12T00:15:00.000Z', availableAt: '2026-08-12T00:16:00.000Z' },
+    { sourceId: 'breadth', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'RAW_VALIDATED_CANDIDATE', exchangeTimestamp: '2026-08-11T14:00:00.000Z', availableAt: '2026-08-11T14:00:00.000Z' },
+    { sourceId: 'futuresPositioning', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'READY', exchangeTimestamp: '2026-08-11T14:00:00.000Z', availableAt: '2026-08-11T14:00:00.000Z' },
+    { sourceId: 'optionsEod', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'READY', exchangeTimestamp: '2026-08-11T14:00:00.000Z', availableAt: '2026-08-11T14:00:00.000Z' },
+    { sourceId: 'marketOverview', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'READY', exchangeTimestamp: '2026-08-11T14:00:00.000Z', availableAt: '2026-08-11T14:00:00.000Z' },
+  );
+  const chart = {
+    status: 'READY', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
+    availableAt: '2026-08-12T00:16:00.000Z',
+    openingRange: { status: 'READY', high: 22520, low: 22480, availableAt: '2026-08-12T00:15:00.000Z' },
+    levels: { vwap: { availability: 'AVAILABLE', value: 22501.5, vwapSession: 'DAY', availableAt: '2026-08-12T00:16:00.000Z' } },
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: rich, dataHealth: richHealth, chart, now });
+  const price = workspace.evidenceConflict.evidence.find((item) => item.family === 'PRICE_STRUCTURE');
+  const options = workspace.evidenceConflict.evidence.find((item) => item.family === 'OPTIONS_CONTEXT');
+  assert.equal(price.availabilityState, 'AVAILABLE');
+  assert.equal(price.promotionState, 'NOT_PROMOTED');
+  assert.equal(price.directionState, 'NOT_ELIGIBLE');
+  assert.equal(price.detail.descriptiveValues.some((item) => item.label === 'TX 最新成交' && item.value === 22510), true);
+  assert.equal(options.detail.descriptiveValues.some((item) => item.label === 'EOD OI P/C Ratio' && item.value === 1.2), true);
+  assert.match(workspace.chatGptCopy, /Descriptive family values \(display only; not directional evidence\)/);
+  assert.match(workspace.chatGptCopy, /directionalEligible=false/);
+  assert.doesNotMatch(JSON.stringify(workspace.evidenceConflict), /\bBUY\b|\bSELL\b/);
 });
 
 test('DW-4 mixed eligible evidence remains separate from quality and coverage', () => {
@@ -167,6 +206,8 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
   assert.match(html, /LONG_INTENT/);
   assert.match(html, /SHORT_INTENT/);
   assert.match(html, /NO_TRADE/);
+  assert.match(html, /僅供人工判讀/);
+  assert.doesNotMatch(html, /<h3 id="dw-posture">NO_TRADE<\/h3>/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });
 
