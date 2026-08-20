@@ -163,6 +163,7 @@ export function createDecisionSnapshot({
   const body = {
     schemaVersion: 'manual-decision-snapshot-v1',
     snapshotTime: new Date(parsedSnapshotTime).toISOString(),
+    tradeDate: chart?.tradeDate || runtimeTruth?.stateRecord?.tradeDate || snapshot?.asOfDate || null,
     contract: tx.contract || null,
     session: runtimeTruth?.stateRecord?.sessionId || tx.session || null,
     price: Number.isFinite(Number(chart?.lastPrice ?? tx.close))
@@ -213,6 +214,8 @@ export function createDecisionSnapshot({
       .map((item) => ({ sourceId: item.sourceId, state: item.freshnessState, reason: item.reason })),
     formalWeight: 0,
     researchOnly: true,
+    recommendation: false,
+    systemDirectionalSignal: false,
     executionAuthorized: false,
     orderRoutesEnabled: false,
   };
@@ -221,7 +224,7 @@ export function createDecisionSnapshot({
 
 export function validateDecisionSnapshot(snapshot) {
   if (snapshot?.schemaVersion !== 'manual-decision-snapshot-v1') throw new Error('DECISION_SNAPSHOT_SCHEMA_INVALID');
-  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false) {
+  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.recommendation !== false || snapshot.systemDirectionalSignal !== false || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false) {
     throw new Error('DECISION_SNAPSHOT_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
@@ -241,6 +244,7 @@ export function copyForChatGpt(snapshot, question = null) {
     'DISCUSSION CONTEXT — NOT A TRADING SIGNAL',
     `Snapshot: ${snapshot.snapshotTime}`,
     `Hash: ${snapshot.snapshotHash}`,
+    `Trade Date: ${snapshot.tradeDate || 'UNAVAILABLE'}`,
     `Contract / Session: ${snapshot.contract || 'UNAVAILABLE'} / ${snapshot.session || 'UNAVAILABLE'}`,
     `Decision Readiness: ${snapshot.decisionReadiness || 'UNAVAILABLE'}`,
     `DW-4: conflict=${snapshot.evidenceConflict?.conflictState || 'NO_DIRECTIONAL_EVIDENCE'}; coverage=${snapshot.evidenceConflict?.coverageState || 'INSUFFICIENT'}; dataTrust=${snapshot.evidenceConflict?.dataTrustState || 'BLOCKED'}`,
@@ -254,6 +258,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
+    `Safety: recommendation=false; systemDirectionalSignal=false; formalWeight=${snapshot.formalWeight}; researchOnly=${snapshot.researchOnly}; executionAuthorized=${snapshot.executionAuthorized}; orderRoutesEnabled=${snapshot.orderRoutesEnabled}`,
     '',
     'STRUCTURED SNAPSHOT',
     stableDecisionJson(snapshot).trimEnd(),

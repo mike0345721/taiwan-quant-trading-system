@@ -24,6 +24,7 @@ import { appendDecisionJournal, readDecisionJournal } from './src/decision-journ
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
+import { readRuntimeIdentity } from './src/runtime-identity.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -67,6 +68,7 @@ const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSy
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
+const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 let lastRefreshError = null;
 
 function readLocalJson(filePath) {
@@ -186,7 +188,12 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && pathname === '/healthz') {
-      sendJson(res, 200, { ok: true, service: 'tw-chip-dashboard-v1' });
+      sendJson(res, 200, {
+        ok: true,
+        service: 'tw-chip-dashboard-v1',
+        runtimeCommit: runtimeIdentity.commit,
+        runtimeIdentityStatus: runtimeIdentity.status,
+      });
       return;
     }
 

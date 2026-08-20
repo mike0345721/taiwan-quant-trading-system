@@ -29,7 +29,7 @@ function health() {
 
 function sourceSnapshot() {
   return {
-    dataMode: 'live', generatedAt: '2026-08-11T14:00:00.000Z',
+    dataMode: 'live', asOfDate: '2026-08-12', generatedAt: '2026-08-11T14:00:00.000Z',
     futuresMarket: { ok: true, fetchedAt: '2026-08-11T14:00:00.000Z', data: { txDay: { contract: '202608', close: 22500, session: 'DAY' } } },
     marketBreadth: { ok: false }, options: { ok: false }, marketOverview: { ok: false },
   };
@@ -49,6 +49,9 @@ test('decision snapshot is deterministic, hashable and preserves unavailable val
   assert.equal(first.marketState.direction, 'UNAVAILABLE');
   assert.equal(first.executionAuthorized, false);
   assert.equal(first.orderRoutesEnabled, false);
+  assert.equal(first.tradeDate, '2026-08-12');
+  assert.equal(first.recommendation, false);
+  assert.equal(first.systemDirectionalSignal, false);
 });
 
 test('snapshot rejects evidence that was not available at decision time', () => {
@@ -147,6 +150,8 @@ test('copy for ChatGPT includes immutable identity and discussion-only boundary'
   assert.match(text, new RegExp(snapshot.snapshotHash));
   assert.match(text, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD/);
   assert.match(text, /DW-4: conflict=NO_DIRECTIONAL_EVIDENCE; coverage=INSUFFICIENT; dataTrust=BLOCKED/);
+  assert.match(text, /Trade Date: 2026-08-12/);
+  assert.match(text, /recommendation=false; systemDirectionalSignal=false; formalWeight=0; researchOnly=true; executionAuthorized=false; orderRoutesEnabled=false/);
   assert.match(text, /USER QUESTION: 最大反向證據？$/);
 });
 
@@ -242,12 +247,34 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
   assert.match(html, /SHORT_INTENT/);
   assert.match(html, /NO_TRADE/);
   assert.match(html, /僅供人工判讀/);
+  assert.match(html, /id="dw-global-posture"/);
+  assert.match(html, /id="dw-global-trust"/);
   assert.doesNotMatch(html, /<h3 id="dw-posture">NO_TRADE<\/h3>/);
   for (const label of ['即時／重播', 'EOD／延遲', '批次', '本時段', '代理資料', '即時原始資料']) {
     assert.match(app, new RegExp(label));
   }
   assert.doesNotMatch(app, /EOD_OR_DELAYED:\s*['"]即時/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
+});
+
+test('formal dashboard wiring carries posture, five evidence families and complete ChatGPT copy', () => {
+  const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.match(server, /return buildDecisionWorkspace\(\{ snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed \}\)/);
+  assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
+  assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);
+  assert.match(app, /renderDw4Evidence\(workspace\?\.evidenceConflict\)/);
+  assert.match(app, /renderMarketPulse\(workspace/);
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), now });
+  assert.equal(workspace.evidenceConflict.evidence.length, 5);
+  assert.deepEqual(workspace.evidenceConflict.evidence.map((item) => item.family), [
+    'PRICE_STRUCTURE', 'PARTICIPATION_BREADTH', 'FUTURES_INSTITUTIONAL', 'OPTIONS_CONTEXT', 'GLOBAL_FX',
+  ]);
+  assert.equal(workspace.decisionSummary.posture, 'MANUAL_REVIEW_ONLY');
+  for (const required of [
+    'Trade Date:', 'DW-4: conflict=', 'Eligible evidence:', 'Excluded evidence:',
+    'Recent governed changes:', 'Current governed fact summary:', 'recommendation=false', 'orderRoutesEnabled=false',
+  ]) assert.match(workspace.chatGptCopy, new RegExp(required));
 });
 
 test('DW-1 presents Chinese-first decision copy while retaining engineering codes in technical detail', () => {
@@ -279,5 +306,12 @@ test('final trader UX keeps event hierarchy, source modes and raw contracts visi
     assert.match(styles, new RegExp(selector));
   }
   assert.match(html, /BLOCKED 只代表彙總不可用，不是禁止交易/);
+  assert.match(html, /id="side-nav-toggle"/);
+  assert.match(html, /Market Pulse/);
+  assert.match(html, /Evidence Detail｜五項證據/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 2\.25fr\) minmax\(300px, \.85fr\)/);
+  assert.match(styles, /workspace-layout\.is-nav-collapsed/);
+  assert.match(app, /localStorage\.setItem\(sidebarPreferenceKey/);
+  assert.match(app, /is-capability-limited/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });
