@@ -34,6 +34,27 @@ function Test-HttpOk([string]$Url) {
   }
 }
 
+function Get-DashboardHealth {
+  try {
+    $health = Invoke-RestMethod -Uri $dashboardHealthUrl -TimeoutSec 2
+    if (($health.ok -ne $true) -or ($health.service -ne 'tw-chip-dashboard-v1')) { return $null }
+    return $health
+  } catch {
+    return $null
+  }
+}
+
+function Get-CurrentProjectCommit {
+  $resolvedRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+  try {
+    $commit = (& git -c "safe.directory=$resolvedRoot" rev-parse HEAD 2>$null).Trim().ToLowerInvariant()
+    if ($commit -notmatch '^[0-9a-f]{40}$') { return $null }
+    return $commit
+  } catch {
+    return $null
+  }
+}
+
 function Test-LoopbackPort([int]$Port) {
   $needle = "127.0.0.1:$Port"
   $lines = & netstat.exe -ano -p tcp 2>$null
@@ -116,7 +137,16 @@ try {
   Write-Status "Market session: $(Get-MarketSessionLabel)"
   Write-Status 'Market data refresh uses the dashboard startup and configured official-source interval; it does not run a full daily pipeline or rebuild history.'
 
-  if (Test-HttpOk $dashboardHealthUrl) {
+  $expectedRuntimeCommit = Get-CurrentProjectCommit
+  if (-not $expectedRuntimeCommit) { Stop-WithMessage 'The approved local runtime identity could not be verified.' }
+  $dashboardHealth = Get-DashboardHealth
+  if ($dashboardHealth) {
+    if (($dashboardHealth.runtimeIdentityStatus -ne 'VERIFIED') -or (-not $dashboardHealth.runtimeCommit)) {
+      Stop-WithMessage 'The running 8787 service cannot prove which code version it loaded. A governed formal restart is required.'
+    }
+    if ($dashboardHealth.runtimeCommit -ne $expectedRuntimeCommit) {
+      Stop-WithMessage "The running 8787 service loaded $($dashboardHealth.runtimeCommit), but the approved local code is $expectedRuntimeCommit. A governed formal restart is required."
+    }
     Write-Status 'Formal dashboard 8787 is already healthy and will be reused.'
   } elseif (Test-LoopbackPort 8787) {
     Stop-WithMessage 'Port 8787 is occupied by a service that does not pass its health check. It was not replaced.'

@@ -20,6 +20,9 @@ test('daily-use launcher remains Git read-only and does not enable execution', (
   assert.match(source, /executionAuthorized=false/);
   assert.match(source, /orderRoutesEnabled=false/);
   assert.match(source, /market_data_only/);
+  assert.match(source, /git -c "safe\.directory=\$resolvedRoot" rev-parse HEAD/);
+  assert.doesNotMatch(source, /safe\.directory=\*/);
+  assert.doesNotMatch(source, /git config --global/i);
 });
 
 test('daily-use launcher guards unknown occupied ports and repeated clicks', () => {
@@ -27,6 +30,8 @@ test('daily-use launcher guards unknown occupied ports and repeated clicks', () 
   assert.match(source, /daily-use-bootstrap\.lock/);
   assert.match(source, /A normal startup is already running/);
   assert.match(source, /Port 8787 is occupied by a service that does not pass its health check/);
+  assert.match(source, /running 8787 service cannot prove which code version it loaded/);
+  assert.match(source, /running 8787 service loaded/);
   assert.doesNotMatch(source, /taskkill|Stop-Process|kill all/i);
 });
 

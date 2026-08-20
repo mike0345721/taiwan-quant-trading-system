@@ -50,14 +50,15 @@
       </header>
 
       <div class="workspace-layout">
-        <nav class="side-nav" aria-label="面板分頁">
-          <button class="side-nav-button is-selected" type="button" data-dashboard-page="workspace"><span>01</span>決策工作台<small>狀態、反證與人工決策</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="today"><span>02</span>今日研究<small>既有結論與研究條件</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="market"><span>03</span>現貨與期貨<small>市場、法人與期貨籌碼</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="options"><span>04</span>選擇權攻防<small>牆位、OI與Max Pain</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="intraday"><span>05</span>盤中價格<small>5分K、VWAP與回放</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="research"><span>06</span>V2研究回測<small>海外背景與正式驗證</small></button>
-          <button class="side-nav-button" type="button" data-dashboard-page="quality"><span>07</span>資料品質<small>來源、日期與安全</small></button>
+        <nav id="side-nav" class="side-nav" aria-label="面板分頁">
+          <button id="side-nav-toggle" class="side-nav-toggle" type="button" aria-expanded="true" title="收合側邊欄"><span aria-hidden="true">‹</span><b>收合</b></button>
+          <button class="side-nav-button is-selected" type="button" data-dashboard-page="workspace" title="決策工作台"><span class="side-nav-index">01</span><b>決策工作台</b><small>狀態、反證與人工決策</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="today" title="今日研究"><span class="side-nav-index">02</span><b>今日研究</b><small>既有結論與研究條件</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="market" title="現貨與期貨"><span class="side-nav-index">03</span><b>現貨與期貨</b><small>市場、法人與期貨籌碼</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="options" title="選擇權攻防"><span class="side-nav-index">04</span><b>選擇權攻防</b><small>牆位、OI與Max Pain</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="intraday" title="盤中價格"><span class="side-nav-index">05</span><b>盤中價格</b><small>5分K、VWAP與回放</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="research" title="V2研究回測"><span class="side-nav-index">06</span><b>V2研究回測</b><small>海外背景與正式驗證</small></button>
+          <button class="side-nav-button" type="button" data-dashboard-page="quality" title="資料品質"><span class="side-nav-index">07</span><b>資料品質</b><small>來源、日期與安全</small></button>
         </nav>
         <div class="dashboard-pages">
 
@@ -71,7 +72,9 @@
           <span id="dw-global-session">SESSION —</span>
           <span id="dw-global-trade-date">交易日 —</span>
           <span id="dw-global-time">截至 —</span>
+          <strong id="dw-global-posture" class="dw-manual-posture">僅供人工判讀</strong>
           <span id="dw-global-readiness" class="dw-status-pill is-blocked">NOT_READY</span>
+          <span id="dw-global-trust" class="dw-status-pill is-unavailable">資料信任 UNAVAILABLE</span>
           <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
           <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
           <button id="dw-health-toggle" class="dw-link-button" type="button">資料健康度</button>
@@ -211,28 +214,44 @@
             </section>
 
             <aside class="dw-side-stack">
-              <section class="dw-card" aria-labelledby="dw-against-title">
+              <section class="dw-card dw-market-pulse" aria-labelledby="dw-pulse-title">
                 <div class="dw-section-heading compact">
-                  <div><p class="eyebrow">反向檢查</p><h3 id="dw-against-title">反向證據</h3></div>
-                  <div class="dw-intent-switch"><button type="button" class="is-selected" data-review-intent="LONG">LONG</button><button type="button" data-review-intent="SHORT">SHORT</button></div>
+                  <div><p class="eyebrow">NOW · GOVERNED FACTS</p><h3 id="dw-pulse-title">Market Pulse</h3></div>
+                  <span class="dw-read-only-label">DESCRIPTIVE ONLY</span>
                 </div>
-                <div class="dw-evidence-columns">
-                  <div><span class="dw-list-label is-support">支持證據</span><ul id="dw-support-list"><li>尚未實作</li></ul></div>
-                  <div><span class="dw-list-label is-against">反向證據</span><ul id="dw-against-list"><li>尚未實作</li></ul></div>
+                <div class="dw-pulse-grid">
+                  <article><span>TX 最新成交</span><strong id="dw-pulse-price">UNAVAILABLE</strong><small id="dw-pulse-price-mode">即時／重播</small></article>
+                  <article><span>Session VWAP</span><strong id="dw-pulse-vwap">UNAVAILABLE</strong><small id="dw-pulse-vwap-mode">本時段</small></article>
+                  <article><span>時段高／低</span><strong id="dw-pulse-session">UNAVAILABLE</strong><small>即時／重播</small></article>
+                  <article><span>市場廣度</span><strong id="dw-pulse-breadth">UNAVAILABLE</strong><small id="dw-pulse-breadth-mode">來源狀態保留</small></article>
+                  <article><span>期貨／法人</span><strong id="dw-pulse-futures">UNAVAILABLE</strong><small id="dw-pulse-futures-mode">EOD</small></article>
+                  <article><span>選擇權</span><strong id="dw-pulse-options">UNAVAILABLE</strong><small id="dw-pulse-options-mode">EOD／RAW</small></article>
+                  <article><span>全球／匯率</span><strong id="dw-pulse-global">UNAVAILABLE</strong><small id="dw-pulse-global-mode">延遲／代理資料</small></article>
+                  <article><span>最新結構變化</span><strong id="dw-pulse-change">目前沒有合法事件</strong><small>完成 5 分鐘證據</small></article>
                 </div>
-                <div class="dw-missing-box"><span>缺失證據</span><ul id="dw-missing-list"><li>等待資料健康度</li></ul></div>
               </section>
+
+              <details class="dw-card dw-against-panel" aria-labelledby="dw-against-title">
+                <summary><span><b id="dw-against-title">反向證據</b><small>反向檢查 · 支持、反向與缺失證據</small></span><strong>＋</strong></summary>
+                <div class="dw-against-body">
+                  <div class="dw-intent-switch"><button type="button" class="is-selected" data-review-intent="LONG">LONG</button><button type="button" data-review-intent="SHORT">SHORT</button></div>
+                  <div class="dw-evidence-columns">
+                    <div><span class="dw-list-label is-support">支持證據</span><ul id="dw-support-list"><li>尚未實作</li></ul></div>
+                    <div><span class="dw-list-label is-against">反向證據</span><ul id="dw-against-list"><li>尚未實作</li></ul></div>
+                  </div>
+                  <div class="dw-missing-box"><span>缺失證據</span><ul id="dw-missing-list"><li>等待資料健康度</li></ul></div>
+                </div>
+              </details>
 
               <details id="dw-ask-gpt" class="dw-card dw-gpt-panel">
                 <summary><span><b>Ask GPT</b><small>COPY MODE · NOT A TRADING SIGNAL</small></span><strong>＋</strong></summary>
                 <div class="dw-gpt-body">
                   <p>問題與 immutable snapshot 會一起複製；不連接 API，也不改變 Market State 或 Readiness。</p>
                   <div class="dw-question-list">
-                    <button type="button" data-gpt-question="最大反向證據是什麼？">最大反向證據？</button>
-                    <button type="button" data-gpt-question="為什麼目前是 NOT_READY？">為什麼 NOT_READY？</button>
-                    <button type="button" data-gpt-question="現在追多最大的風險是什麼？">追多最大風險？</button>
-                    <button type="button" data-gpt-question="最近 15 分鐘改變了什麼？">15 分鐘改變？</button>
-                    <button type="button" data-gpt-question="請做 pre-trade checklist。">Pre-trade checklist</button>
+                    <button type="button" data-gpt-question="最大反方證據是什麼？">最大反方證據</button>
+                    <button type="button" data-gpt-question="哪些資料目前不能信？">哪些資料目前不能信？</button>
+                    <button type="button" data-gpt-question="現在市場發生什麼？">現在市場發生什麼？</button>
+                    <button type="button" data-gpt-question="請做交易前檢查。">交易前檢查</button>
                   </div>
                   <button id="dw-copy-gpt-prompt" class="secondary" type="button">Copy question + snapshot</button>
                 </div>
@@ -240,16 +259,13 @@
             </aside>
           </div>
 
-          <section class="dw-family-strip" aria-labelledby="dw-family-title">
-            <header class="dw-family-strip-heading">
-              <div>
-                <p class="eyebrow">證據家族 · DESCRIPTIVE FIRST</p>
-                <h3 id="dw-family-title">五項證據目前能告訴我什麼？</h3>
-              </div>
-              <small>描述值可查看；方向資格與 promotion 狀態分開呈現。</small>
-            </header>
+          <details class="dw-family-strip" aria-labelledby="dw-family-title">
+            <summary class="dw-family-strip-heading">
+              <div><p class="eyebrow">WHY · DESCRIPTIVE FIRST</p><h3 id="dw-family-title">Evidence Detail｜五項證據</h3></div>
+              <small>展開查看描述值、來源、品質與 promotion 狀態。</small>
+            </summary>
             <div id="dw-family-grid" class="dw-family-grid" aria-label="DW-4 證據家族"></div>
-          </section>
+          </details>
 
           <section class="dw-change-strip" aria-labelledby="dw-changed-title">
             <header class="dw-change-heading">

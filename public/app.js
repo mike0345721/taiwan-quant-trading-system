@@ -2582,6 +2582,42 @@ function dw4FamilyLabel(value) {
   return DW4_FAMILY_LABELS[value] || value || '未知證據家族';
 }
 
+function dw4FamilyEvidence(contract, family) {
+  return (contract?.evidence || []).find((item) => item.family === family) || null;
+}
+
+function dw4PulseValues(contract, family, limit = 2) {
+  const item = dw4FamilyEvidence(contract, family);
+  const descriptive = Array.isArray(item?.detail?.descriptiveValues) ? item.detail.descriptiveValues : [];
+  return descriptive.slice(0, limit);
+}
+
+function renderMarketPulse(workspace, chart = state.txChartPayload) {
+  const contract = workspace?.evidenceConflict;
+  const levels = chart?.levels || {};
+  const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
+  const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
+  const vwap = levelValue(levels.vwap);
+  dwText('dw-pulse-price', Number.isFinite(Number(chart?.lastPrice)) ? fmt(chart.lastPrice) : 'UNAVAILABLE');
+  dwText('dw-pulse-vwap', vwap == null ? 'UNAVAILABLE' : fmt(vwap, 2));
+  dwText('dw-pulse-vwap-mode', chart?.vwapSession === 'DAY' ? 'DAY VWAP · 本時段' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP · 本時段' : 'Session VWAP');
+  dwText('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
+
+  const mappings = [
+    ['PARTICIPATION_BREADTH', 'dw-pulse-breadth', 'dw-pulse-breadth-mode'],
+    ['FUTURES_INSTITUTIONAL', 'dw-pulse-futures', 'dw-pulse-futures-mode'],
+    ['OPTIONS_CONTEXT', 'dw-pulse-options', 'dw-pulse-options-mode'],
+    ['GLOBAL_FX', 'dw-pulse-global', 'dw-pulse-global-mode'],
+  ];
+  mappings.forEach(([family, valueId, modeId]) => {
+    const values = dw4PulseValues(contract, family);
+    dwText(valueId, values.length ? values.map((entry) => `${entry.label} ${dw4DescriptiveValue(entry)}`).join(' · ') : 'UNAVAILABLE');
+    const modes = [...new Set(values.map((entry) => sourceModeLabel(entry.sourceMode)).filter(Boolean))];
+    dwText(modeId, modes.join(' · ') || dw4StateLabel(dw4FamilyEvidence(contract, family)?.availabilityState));
+  });
+  dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
+}
+
 function renderDw4FamilyList(id, values) {
   const target = $(id);
   if (!target) return;
@@ -3003,6 +3039,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   dwText('dw-reference-price', Number.isFinite(Number(payload?.lastPrice)) ? fmt(payload.lastPrice) : '—', '—');
   const chart = ensureTxChart();
   renderTxChartLevels(payload);
+  renderMarketPulse(state.decisionWorkspace, payload);
 
   const visualizable = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
   $('dw-chart-empty').classList.toggle('hidden', visualizable);
@@ -3049,10 +3086,13 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
   dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
   dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
+  dwText('dw-global-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');
   dwText('dw-global-readiness', global.decisionReadiness || decision.readiness || 'UNAVAILABLE');
   $('dw-global-readiness').className = `dw-status-pill ${healthTone(global.decisionReadiness || decision.readiness)}`;
   dwText('dw-global-health', `資料 ${dwHumanize(global.dataHealth || 'UNAVAILABLE')}`);
   $('dw-global-health').className = `dw-status-pill ${healthTone(global.dataHealth)}`;
+  dwText('dw-global-trust', `資料信任 ${dw4SummaryLabel(workspace?.evidenceConflict?.dataTrustState || 'BLOCKED')}`);
+  $('dw-global-trust').className = `dw-status-pill ${healthTone(workspace?.evidenceConflict?.dataTrustState)}`;
   dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
 
   dwText('dw-forward-status-value', forward.status || 'UNKNOWN');
@@ -3079,6 +3119,10 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-now-evidence-fact', currentFacts.evidenceEligibilityFact || '目前沒有符合方向彙總資格的證據家族。');
   dwText('dw-now-trust-fact', `完整度：${dw4SummaryLabel(currentFacts.coverageState || 'INSUFFICIENT')} · 資料信任：${dw4SummaryLabel(currentFacts.dataTrustState || 'BLOCKED')}`);
   renderDw4Evidence(workspace?.evidenceConflict);
+  renderMarketPulse(workspace, state.txChartPayload || chart);
+
+  const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
+  $('dw-focus-mode')?.classList.toggle('is-capability-limited', compactCapabilityValues.every((value) => !value || ['UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(value)));
 
   dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
   const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';
@@ -3164,6 +3208,27 @@ document.querySelectorAll('#v2-range-controls button').forEach((button) => butto
 }));
 
 document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.addEventListener('click', () => setDashboardPage(button.dataset.dashboardPage)));
+const sidebarPreferenceKey = 'twchip.dashboard.sidebarCollapsed.v1';
+function setSidebarCollapsed(collapsed, { persist = false } = {}) {
+  const layout = document.querySelector('.workspace-layout');
+  const toggle = $('side-nav-toggle');
+  if (!layout || !toggle) return;
+  layout.classList.toggle('is-nav-collapsed', collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  toggle.title = collapsed ? '展開側邊欄' : '收合側邊欄';
+  const label = toggle.querySelector('b');
+  if (label) label.textContent = collapsed ? '展開' : '收合';
+  if (persist) {
+    try { localStorage.setItem(sidebarPreferenceKey, collapsed ? '1' : '0'); } catch { /* local preference is optional */ }
+  }
+}
+let sidebarCollapsed = false;
+try { sidebarCollapsed = localStorage.getItem(sidebarPreferenceKey) === '1'; } catch { /* local preference is optional */ }
+setSidebarCollapsed(sidebarCollapsed);
+$('side-nav-toggle')?.addEventListener('click', () => {
+  const collapsed = !document.querySelector('.workspace-layout')?.classList.contains('is-nav-collapsed');
+  setSidebarCollapsed(collapsed, { persist: true });
+});
 document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventListener('click', () => {
   const mode = button.dataset.dwMode;
   document.querySelectorAll('[data-dw-mode]').forEach((item) => item.classList.toggle('is-selected', item === button));
