@@ -74,9 +74,15 @@ test('available descriptive data remains visible while promotion and direction s
   assert.equal(result.evidence.every((entry) => ['NOT_PROMOTED', 'RAW_ONLY'].includes(entry.promotionState)), true);
   assert.equal(result.evidence.every((entry) => entry.detail.descriptiveStatus === 'AVAILABLE'), true);
   const global = result.evidence.find((entry) => entry.family === 'GLOBAL_FX');
+  const breadth = result.evidence.find((entry) => entry.family === 'PARTICIPATION_BREADTH');
+  const futures = result.evidence.find((entry) => entry.family === 'FUTURES_INSTITUTIONAL');
   assert.equal(global.detail.identityWarning, 'NDX_PROXY != TRUE_NQ');
   assert.equal(global.detail.descriptiveValues.some((entry) => entry.label === 'NDX Proxy'), true);
   assert.equal(global.detail.descriptiveValues.some((entry) => /NQ Futures/i.test(entry.label)), false);
+  assert.equal(breadth.detail.descriptiveValues.every((entry) => entry.sourceMode === 'LIVE_OR_REPLAY'), true);
+  assert.equal(futures.detail.descriptiveValues.every((entry) => entry.sourceMode === 'EOD'), true);
+  assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'USD/TWD').sourceMode, 'EOD_OR_DELAYED');
+  assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'NDX Proxy').sourceMode, 'PROXY_ONLY');
 });
 
 test('DW-4 UI is three-axis, progressive and contains no magic score or order route', () => {

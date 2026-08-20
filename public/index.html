@@ -125,6 +125,15 @@
             </div>
           </section>
 
+          <section class="dw-now-summary" aria-labelledby="dw-now-title">
+            <div>
+              <p class="eyebrow" id="dw-now-title">現在市場發生什麼？</p>
+              <strong id="dw-now-price-fact">目前沒有新的 governed 盤中結構事件。</strong>
+            </div>
+            <p id="dw-now-evidence-fact">目前沒有符合方向彙總資格的證據家族。</p>
+            <span id="dw-now-trust-fact">完整度不足 · 資料信任受限</span>
+          </section>
+
           <section class="dw-conflict-monitor" aria-labelledby="dw-conflict-title">
             <header class="dw-section-heading">
               <div>
@@ -136,24 +145,29 @@
             </header>
             <div class="dw-conflict-axis-grid" aria-label="DW-4 三軸摘要">
               <article>
-                <span>證據衝突</span>
-                <strong id="dw-conflict-state">NO_DIRECTIONAL_EVIDENCE</strong>
+                <span>證據衝突 <span class="dw-help" title="只比較已通過來源、品質、時間與 promotion gate 的方向證據；沒有合格證據不等於中性。" aria-label="證據衝突說明">?</span></span>
+                <strong id="dw-conflict-state">目前沒有可用方向證據</strong>
                 <small>只彙總合法且已 promotion 的方向證據</small>
               </article>
               <article>
-                <span>完整度</span>
-                <strong id="dw-coverage-state">INSUFFICIENT</strong>
+                <span>完整度 <span class="dw-help" title="顯示預期證據家族中，目前有多少家族可合法納入方向彙總；不是信心分數。" aria-label="完整度說明">?</span></span>
+                <strong id="dw-coverage-state">證據覆蓋不足</strong>
                 <small id="dw-coverage-counts">0 / 5 evidence families</small>
               </article>
               <article>
-                <span>資料信任</span>
-                <strong id="dw-trust-state">BLOCKED</strong>
+                <span>資料信任 <span class="dw-help" title="品質不足表示資料限制仍存在；BLOCKED 只代表彙總不可用，不是禁止交易。" aria-label="資料信任說明">?</span></span>
+                <strong id="dw-trust-state">目前無法形成完整證據判讀</strong>
                 <small>品質不足不會抹除其他合法證據</small>
               </article>
             </div>
-            <div id="dw-family-grid" class="dw-family-grid" aria-label="DW-4 證據家族"></div>
             <details class="dw-conflict-detail">
               <summary>查看排除、缺失與技術原因</summary>
+              <div class="dw-axis-raw-contract">
+                <span>原始三軸 contract</span>
+                <code id="dw-conflict-state-raw">NO_DIRECTIONAL_EVIDENCE</code>
+                <code id="dw-coverage-state-raw">INSUFFICIENT</code>
+                <code id="dw-trust-state-raw">BLOCKED</code>
+              </div>
               <div class="dw-conflict-lists">
                 <div><span>可納入方向彙總</span><ul id="dw-eligible-families"><li>目前沒有</li></ul></div>
                 <div><span>來源無法取得</span><ul id="dw-unavailable-families"><li>目前沒有</li></ul></div>
@@ -225,6 +239,17 @@
               </details>
             </aside>
           </div>
+
+          <section class="dw-family-strip" aria-labelledby="dw-family-title">
+            <header class="dw-family-strip-heading">
+              <div>
+                <p class="eyebrow">證據家族 · DESCRIPTIVE FIRST</p>
+                <h3 id="dw-family-title">五項證據目前能告訴我什麼？</h3>
+              </div>
+              <small>描述值可查看；方向資格與 promotion 狀態分開呈現。</small>
+            </header>
+            <div id="dw-family-grid" class="dw-family-grid" aria-label="DW-4 證據家族"></div>
+          </section>
 
           <section class="dw-change-strip" aria-labelledby="dw-changed-title">
             <header class="dw-change-heading">

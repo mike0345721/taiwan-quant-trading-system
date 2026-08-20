@@ -173,14 +173,14 @@ function comparable(previous, current) {
 }
 
 const EVENT_COPY = Object.freeze({
-  VWAP_CROSS_UP: ['向上穿越 VWAP', '完成的 5 分鐘收盤價由 VWAP 下方移至上方。'],
-  VWAP_CROSS_DOWN: ['向下跌破 VWAP', '完成的 5 分鐘收盤價由 VWAP 上方移至下方。'],
-  OR_BREAK_UP: ['向上突破 Opening Range', '完成的 5 分鐘收盤價站上 Opening Range 高點。'],
-  OR_BREAK_DOWN: ['向下跌破 Opening Range', '完成的 5 分鐘收盤價跌破 Opening Range 低點。'],
-  OR_REENTRY_FROM_ABOVE: ['由上方回到 Opening Range', '完成的 5 分鐘收盤價由區間上方回到 Opening Range 內。'],
-  OR_REENTRY_FROM_BELOW: ['由下方回到 Opening Range', '完成的 5 分鐘收盤價由區間下方回到 Opening Range 內。'],
-  NEW_SESSION_HIGH: ['更新時段高點', '完成的 5 分鐘證據形成新的時段高點。'],
-  NEW_SESSION_LOW: ['更新時段低點', '完成的 5 分鐘證據形成新的時段低點。'],
+  VWAP_CROSS_UP: ['價格向上穿越 VWAP', '完成的 5 分鐘收盤價由 VWAP 下方移至上方。'],
+  VWAP_CROSS_DOWN: ['價格向下跌破 VWAP', '完成的 5 分鐘收盤價由 VWAP 上方移至下方。'],
+  OR_BREAK_UP: ['價格向上突破 Opening Range 高點', '完成的 5 分鐘收盤價站上 Opening Range 高點。'],
+  OR_BREAK_DOWN: ['價格向下跌破 Opening Range 低點', '完成的 5 分鐘收盤價跌破 Opening Range 低點。'],
+  OR_REENTRY_FROM_ABOVE: ['價格由上方回到 Opening Range', '完成的 5 分鐘收盤價由區間上方回到 Opening Range 內。'],
+  OR_REENTRY_FROM_BELOW: ['價格由下方回到 Opening Range', '完成的 5 分鐘收盤價由區間下方回到 Opening Range 內。'],
+  NEW_SESSION_HIGH: ['本時段再創新高', '完成的 5 分鐘證據形成新的時段高點。'],
+  NEW_SESSION_LOW: ['本時段再創新低', '完成的 5 分鐘證據形成新的時段低點。'],
   DATA_HEALTH_DEGRADED: ['資料品質轉弱', '既有 governed Data Health 由正常轉為降級。'],
   DATA_HEALTH_RECOVERED: ['資料品質恢復', '既有 governed Data Health 由降級轉回正常。'],
 });
@@ -375,6 +375,122 @@ export function groupMarketChangeEvents(events) {
   }).sort((left, right) => left.observedAt.localeCompare(right.observedAt) || left.groupId.localeCompare(right.groupId)));
 }
 
+const SESSION_EXTREME_TYPES = Object.freeze(['NEW_SESSION_HIGH', 'NEW_SESSION_LOW']);
+
+function sessionExtremeCandidate(group) {
+  if (group?.events?.length !== 1) return null;
+  const event = group.events[0];
+  return SESSION_EXTREME_TYPES.includes(event.eventType) && event.evidenceGroup === 'SECONDARY_STRUCTURE'
+    ? event
+    : null;
+}
+
+function observationOrdinal(observations) {
+  return new Map((observations || []).map((item, index) => [item.observedAt, index]));
+}
+
+function groupsAreContinuous(previousGroup, currentGroup, ordinal) {
+  const previousOrdinal = ordinal.get(previousGroup.observedAt);
+  const currentOrdinal = ordinal.get(currentGroup.observedAt);
+  if (Number.isInteger(previousOrdinal) && Number.isInteger(currentOrdinal)) return currentOrdinal === previousOrdinal + 1;
+  return timestamp(currentGroup.observedAt) - timestamp(previousGroup.observedAt) === 5 * 60 * 1000;
+}
+
+function sameExtremeIdentity(previousGroup, currentGroup, previousEvent, currentEvent) {
+  return previousEvent.eventType === currentEvent.eventType
+    && previousEvent.tradeDate === currentEvent.tradeDate
+    && previousGroup.sessionTradeDate === currentGroup.sessionTradeDate
+    && previousGroup.session === currentGroup.session
+    && previousEvent.sessionId === currentEvent.sessionId
+    && previousGroup.actualContract === currentGroup.actualContract;
+}
+
+function extremeValue(event, side) {
+  const key = side === 'HIGH' ? 'sessionHigh' : 'sessionLow';
+  return finite(event?.sourceFacts?.current?.[key]);
+}
+
+function initialExtremeValue(event, side) {
+  const key = side === 'HIGH' ? 'sessionHigh' : 'sessionLow';
+  return finite(event?.sourceFacts?.previous?.[key]);
+}
+
+function presentationStreak(groups) {
+  if (groups.length === 1) return groups[0];
+  const events = Object.freeze(groups.flatMap((group) => group.events));
+  const eventType = events[0].eventType;
+  const side = eventType === 'NEW_SESSION_HIGH' ? 'HIGH' : 'LOW';
+  const previousExtreme = initialExtremeValue(events[0], side);
+  const newExtreme = extremeValue(events.at(-1), side);
+  const absoluteExtension = previousExtreme != null && newExtreme != null
+    ? Math.abs(newExtreme - previousExtreme)
+    : null;
+  const tickSize = finite(events.at(-1)?.sourceFacts?.current?.tickSizeIndexPoints);
+  const ticksExtension = absoluteExtension != null && tickSize != null && tickSize > 0
+    ? absoluteExtension / tickSize
+    : null;
+  const body = {
+    schemaVersion: 'market-change-presentation-streak-v1',
+    presentationType: 'SESSION_EXTREME_STREAK',
+    eventType,
+    startedAt: groups[0].observedAt,
+    observedAt: groups.at(-1).observedAt,
+    availableAt: maxIso(groups.map((group) => group.availableAt)),
+    tradeDate: events[0].tradeDate,
+    sessionTradeDate: groups[0].sessionTradeDate,
+    session: groups[0].session,
+    sessionId: events[0].sessionId,
+    actualContract: groups[0].actualContract,
+    headline: `${EVENT_COPY[eventType][0]} × ${events.length}`,
+    evidenceCount: events.length,
+    evidenceGroups: Object.freeze(['SECONDARY_STRUCTURE']),
+    qualityStatus: events.some((event) => event.qualityStatus !== 'PASS') ? 'QUALITY_INSUFFICIENT' : 'PASS',
+    qualityReasons: unique(events.flatMap((event) => event.qualityReasons || [])),
+    originalGroupIds: Object.freeze(groups.map((group) => group.groupId)),
+    originalGroups: Object.freeze([...groups]),
+    events,
+    individualEventsPreserved: true,
+    descriptiveContext: Object.freeze({
+      previousExtreme,
+      newExtreme,
+      absoluteExtension,
+      ticksExtension,
+      tickSizeIndexPoints: tickSize,
+      elapsedMinutes: Math.round((timestamp(groups.at(-1).observedAt) - timestamp(groups[0].observedAt)) / 60000),
+      streakCount: events.length,
+    }),
+  };
+  return Object.freeze({ ...body, groupId: marketChangeDigest(body) });
+}
+
+export function buildSessionExtremePresentationGroups(eventGroups, observations = []) {
+  const ordered = [...(eventGroups || [])].sort((left, right) => left.observedAt.localeCompare(right.observedAt)
+    || left.groupId.localeCompare(right.groupId));
+  const ordinal = observationOrdinal(observations);
+  const presentation = [];
+  let streak = [];
+  const flush = () => {
+    if (!streak.length) return;
+    presentation.push(presentationStreak(streak));
+    streak = [];
+  };
+  for (const group of ordered) {
+    const event = sessionExtremeCandidate(group);
+    if (!event) {
+      flush();
+      presentation.push(group);
+      continue;
+    }
+    const previousGroup = streak.at(-1);
+    const previousEvent = previousGroup ? sessionExtremeCandidate(previousGroup) : null;
+    if (previousGroup && (!sameExtremeIdentity(previousGroup, group, previousEvent, event)
+      || !groupsAreContinuous(previousGroup, group, ordinal))) flush();
+    streak.push(group);
+  }
+  flush();
+  return Object.freeze(presentation);
+}
+
 export function buildMarketChangeFeed(chart) {
   const observations = buildCompletedFiveMinuteObservations(chart);
   const deduplicated = new Map();
@@ -387,6 +503,7 @@ export function buildMarketChangeFeed(chart) {
     || left.eventType.localeCompare(right.eventType)
     || left.eventId.localeCompare(right.eventId)));
   const eventGroups = groupMarketChangeEvents(events);
+  const presentationGroups = buildSessionExtremePresentationGroups(eventGroups, observations);
   const engineAvailability = observations.length >= 2 ? 'AVAILABLE'
     : observations.length === 1 ? 'INSUFFICIENT_EVIDENCE' : 'UNAVAILABLE';
   const latestObservation = observations.at(-1) || null;
@@ -412,8 +529,10 @@ export function buildMarketChangeFeed(chart) {
     observations,
     events,
     eventGroups,
+    presentationGroups,
     latestFirst: Object.freeze([...events].reverse()),
     latestGroupsFirst: Object.freeze([...eventGroups].reverse()),
+    presentationGroupsLatestFirst: Object.freeze([...presentationGroups].reverse()),
     futureDataViolations: 0,
     derivationVersion: MARKET_CHANGE_DERIVATION_VERSION,
     dataQuality: Object.freeze({

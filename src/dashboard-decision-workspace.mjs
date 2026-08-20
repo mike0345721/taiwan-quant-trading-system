@@ -102,9 +102,49 @@ function buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart =
   });
 }
 
+function compactNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(parsed) : null;
+}
+
+export function buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict) {
+  const latest = marketChangeFeed?.presentationGroupsLatestFirst?.[0]
+    || marketChangeFeed?.latestGroupsFirst?.[0]
+    || null;
+  let priceStructureFact = '目前沒有新的 governed 盤中結構事件。';
+  if (latest?.presentationType === 'SESSION_EXTREME_STREAK') {
+    const context = latest.descriptiveContext || {};
+    const details = [];
+    const previous = compactNumber(context.previousExtreme);
+    const current = compactNumber(context.newExtreme);
+    const extension = compactNumber(context.absoluteExtension);
+    if (previous != null && current != null) details.push(`時段價位由 ${previous} 更新至 ${current}`);
+    if (extension != null) details.push(`延伸 ${extension} 點`);
+    details.push(`連續 ${context.streakCount || latest.evidenceCount} 次完成的 5 分鐘事件`);
+    priceStructureFact = `${latest.headline}；${details.join('，')}。`;
+  } else if (latest?.events?.length) {
+    priceStructureFact = `${latest.events.map((event) => event.headline).join('、')}。`;
+  }
+  const eligibleFamilies = evidenceConflict?.eligibleEvidenceFamilies || [];
+  const evidenceEligibilityFact = eligibleFamilies.length
+    ? `目前 ${eligibleFamilies.length} 個證據家族符合方向彙總資格。`
+    : '目前沒有符合方向彙總資格的證據家族。';
+  return Object.freeze({
+    schemaVersion: 'current-market-fact-summary-v1',
+    label: '現在市場發生什麼？',
+    priceStructureFact,
+    evidenceEligibilityFact,
+    coverageState: evidenceConflict?.coverageState || 'INSUFFICIENT',
+    dataTrustState: evidenceConflict?.dataTrustState || 'BLOCKED',
+    sourceEventIds: Object.freeze((latest?.events || []).map((event) => event.eventId)),
+    templateMode: 'DETERMINISTIC_GOVERNED_FACTS_ONLY',
+    recommendation: false,
+  });
+}
+
 export function createDecisionSnapshot({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
-  marketChangeFeed = null, decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
+  marketChangeFeed = null, currentMarketFactSummary = null, decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
 } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
   if (Number.isNaN(parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_TIME_INVALID');
@@ -158,6 +198,7 @@ export function createDecisionSnapshot({
       : unavailable('SOURCE_UNAVAILABLE'),
     decisionReadiness,
     evidenceConflict: evidenceConflict || buildDashboardDw4Evidence(dataHealth),
+    currentMarketFactSummary,
     governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
       eventId: event.eventId || null,
       eventType: event.eventType || null,
@@ -211,6 +252,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
+    `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
     '',
     'STRUCTURED SNAPSHOT',
@@ -233,6 +275,7 @@ export function buildDecisionWorkspace({
   });
   const marketState = safeMarketState(runtimeTruth);
   const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart);
+  const currentMarketFactSummary = buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict);
   const lockedSnapshotCandidate = createDecisionSnapshot({
     snapshot,
     dataHealth,
@@ -240,6 +283,7 @@ export function buildDecisionWorkspace({
     chart,
     evidenceConflict,
     marketChangeFeed,
+    currentMarketFactSummary,
     decisionReadiness: decisionSummary.readiness,
     snapshotTime: now.toISOString(),
   });
@@ -261,6 +305,7 @@ export function buildDecisionWorkspace({
       unavailableCount: dataHealth.unavailableCount,
     },
     decisionSummary,
+    currentMarketFactSummary,
     evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',

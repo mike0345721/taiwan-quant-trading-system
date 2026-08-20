@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  buildCurrentMarketFactSummary,
   buildDecisionWorkspace,
   copyForChatGpt,
   createDecisionSnapshot,
@@ -107,6 +108,38 @@ test('DW-3 Market Change Feed is exposed through workspace without changing deci
   assert.equal(workspace.policies.executionAuthorized, false);
 });
 
+test('current-market fact summary is deterministic, governed-input-only and never a recommendation', () => {
+  const feed = {
+    presentationGroupsLatestFirst: [{
+      presentationType: 'SESSION_EXTREME_STREAK', headline: '本時段再創新高 × 3', evidenceCount: 3,
+      descriptiveContext: { previousExtreme: 22500, newExtreme: 22508, absoluteExtension: 8, streakCount: 3 },
+      events: [
+        { eventId: 'event-1', eventType: 'NEW_SESSION_HIGH', headline: '本時段再創新高' },
+        { eventId: 'event-2', eventType: 'NEW_SESSION_HIGH', headline: '本時段再創新高' },
+        { eventId: 'event-3', eventType: 'NEW_SESSION_HIGH', headline: '本時段再創新高' },
+      ],
+    }],
+  };
+  const evidence = { eligibleEvidenceFamilies: [], coverageState: 'PARTIAL', dataTrustState: 'QUALITY_INSUFFICIENT' };
+  const first = buildCurrentMarketFactSummary(feed, evidence);
+  const second = buildCurrentMarketFactSummary(structuredClone(feed), structuredClone(evidence));
+  assert.deepEqual(first, second);
+  assert.match(first.priceStructureFact, /本時段再創新高 × 3/);
+  assert.match(first.priceStructureFact, /22,500.*22,508/);
+  assert.match(first.evidenceEligibilityFact, /沒有符合方向彙總資格/);
+  assert.deepEqual(first.sourceEventIds, ['event-1', 'event-2', 'event-3']);
+  assert.equal(first.recommendation, false);
+  assert.doesNotMatch(`${first.priceStructureFact} ${first.evidenceEligibilityFact}`, /\bBUY\b|\bSELL\b|\bLong\b|\bShort\b|信心|分數/i);
+});
+
+test('current-market fact summary fails closed when no governed event is available', () => {
+  const summary = buildCurrentMarketFactSummary(null, null);
+  assert.equal(summary.priceStructureFact, '目前沒有新的 governed 盤中結構事件。');
+  assert.equal(summary.coverageState, 'INSUFFICIENT');
+  assert.equal(summary.dataTrustState, 'BLOCKED');
+  assert.deepEqual(summary.sourceEventIds, []);
+});
+
 test('copy for ChatGPT includes immutable identity and discussion-only boundary', () => {
   const snapshot = createDecisionSnapshot({ snapshot: sourceSnapshot(), dataHealth: health(), snapshotTime: now.toISOString() });
   const text = copyForChatGpt(snapshot, '最大反向證據？');
@@ -201,6 +234,8 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
     'dw-price-title', 'dw-against-title', 'dw-changed-title', 'dw-data-health-panel', 'dw-ask-gpt',
     'dw-lock-snapshot', 'dw-copy-chatgpt', 'dw-journal-form', 'dw-review-mode',
     'dw-conflict-state', 'dw-coverage-state', 'dw-trust-state', 'dw-family-grid',
+    'dw-now-price-fact', 'dw-now-evidence-fact', 'dw-now-trust-fact',
+    'dw-conflict-state-raw', 'dw-coverage-state-raw', 'dw-trust-state-raw',
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.match(html, /COPY MODE · NOT A TRADING SIGNAL/);
   assert.match(html, /LONG_INTENT/);
@@ -208,6 +243,10 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
   assert.match(html, /NO_TRADE/);
   assert.match(html, /僅供人工判讀/);
   assert.doesNotMatch(html, /<h3 id="dw-posture">NO_TRADE<\/h3>/);
+  for (const label of ['即時／重播', 'EOD／延遲', '批次', '本時段', '代理資料', '即時原始資料']) {
+    assert.match(app, new RegExp(label));
+  }
+  assert.doesNotMatch(app, /EOD_OR_DELAYED:\s*['"]即時/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });
 
@@ -223,4 +262,22 @@ test('DW-1 presents Chinese-first decision copy while retaining engineering code
   assert.match(app, /CONTRARY_EVIDENCE_DERIVATION_NOT_IMPLEMENTED: '反向證據目前無法計算'/);
   assert.match(app, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD: 'Runtime 狀態目前無法取得'/);
   assert.match(app, /技術詳情：\$\{item\.sourceAvailability\}/);
+});
+
+test('final trader UX keeps event hierarchy, source modes and raw contracts visibly separated', () => {
+  const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(html, /現在市場發生什麼？/);
+  assert.match(html, /原始三軸 contract/);
+  assert.match(app, /presentationGroupsLatestFirst/);
+  assert.match(app, /主要價格結構/);
+  assert.match(app, /時段高低延伸/);
+  assert.match(app, /資料品質事件/);
+  assert.match(app, /原始 sourceMode/);
+  for (const selector of ['is-primary-structure', 'is-secondary-structure', 'is-data-trust', 'dw-source-mode', 'dw-now-summary']) {
+    assert.match(styles, new RegExp(selector));
+  }
+  assert.match(html, /BLOCKED 只代表彙總不可用，不是禁止交易/);
+  assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });

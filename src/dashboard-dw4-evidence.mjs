@@ -80,11 +80,11 @@ function directBreadthValues(data = {}) {
   const listed = data.listed || {};
   const otc = data.otc || {};
   const direct = [
-    descriptiveValue('上漲家數', data.raise_count ?? data.raiseCount),
-    descriptiveValue('下跌家數', data.fall_count ?? data.fallCount),
-    descriptiveValue('平盤家數', data.flat_count ?? data.flatCount),
-    descriptiveValue('漲停家數', data.limit_up_count ?? data.limitUpCount),
-    descriptiveValue('跌停家數', data.limit_down_count ?? data.limitDownCount),
+    descriptiveValue('上漲家數', data.raise_count ?? data.raiseCount, { sourceMode: 'LIVE_OR_REPLAY' }),
+    descriptiveValue('下跌家數', data.fall_count ?? data.fallCount, { sourceMode: 'LIVE_OR_REPLAY' }),
+    descriptiveValue('平盤家數', data.flat_count ?? data.flatCount, { sourceMode: 'LIVE_OR_REPLAY' }),
+    descriptiveValue('漲停家數', data.limit_up_count ?? data.limitUpCount, { sourceMode: 'LIVE_OR_REPLAY' }),
+    descriptiveValue('跌停家數', data.limit_down_count ?? data.limitDownCount, { sourceMode: 'LIVE_OR_REPLAY' }),
   ].filter(Boolean);
   if (direct.length) return direct;
   return [
