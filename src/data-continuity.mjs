@@ -12,6 +12,7 @@ export function buildContinuityReport({
   expectedDates,
   recoverableCoverage,
   liveCoverage,
+  liveCoverageAudit = null,
 }) {
   const recoverable = Object.fromEntries(
     Object.entries(recoverableCoverage).map(([key, dates]) => {
@@ -32,8 +33,11 @@ export function buildContinuityReport({
     : [];
   const missingLiveDates = [];
   const incompleteLiveDates = [];
+  const unresolved = new Set(liveCoverageAudit?.unresolvedDates ?? []);
+  const unresolvedLiveDates = expectedLiveDates.filter((date) => unresolved.has(date));
 
   for (const date of expectedLiveDates) {
+    if (unresolved.has(date)) continue;
     const products = new Set(liveCoverage[date] ?? []);
     const missingProducts = ['IX0001', '2330'].filter((product) => !products.has(product));
     if (missingProducts.length === 2) missingLiveDates.push(date);
@@ -48,10 +52,12 @@ export function buildContinuityReport({
     liveEventLedger: {
       collectionStartDate: liveStartDate,
       expectedCompletedTradingDays: expectedLiveDates.length,
-      completeDays: expectedLiveDates.length - missingLiveDates.length - incompleteLiveDates.length,
+      completeDays: expectedLiveDates.length - missingLiveDates.length - incompleteLiveDates.length - unresolvedLiveDates.length,
       missingDays: missingLiveDates,
       incompleteDays: incompleteLiveDates,
-      status: missingLiveDates.length || incompleteLiveDates.length ? 'GAP_RECORDED' : 'PASS',
+      unresolvedDays: [...unresolved].sort(),
+      status: unresolved.size ? 'AUDIT_INCOMPLETE' : (missingLiveDates.length || incompleteLiveDates.length ? 'GAP_RECORDED' : 'PASS'),
+      auditTelemetry: liveCoverageAudit?.telemetry ?? null,
       recoverability: 'Exact live events and latency evidence cannot be reconstructed after the fact.',
     },
   };
