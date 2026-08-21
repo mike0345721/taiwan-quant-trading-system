@@ -13,10 +13,10 @@ export const DW4_DASHBOARD_FAMILIES = Object.freeze([
 
 const FAMILY_SOURCES = Object.freeze({
   PRICE_STRUCTURE: Object.freeze(['chartBar']),
-  PARTICIPATION_BREADTH: Object.freeze(['breadth']),
+  PARTICIPATION_BREADTH: Object.freeze(['ix0001LiveBreadth', 'breadth']),
   FUTURES_INSTITUTIONAL: Object.freeze(['futuresPositioning', 'cashInstitutional', 'futuresMarket']),
   OPTIONS_CONTEXT: Object.freeze(['txoLiveChainRaw', 'optionsEod']),
-  GLOBAL_FX: Object.freeze(['marketOverview', 'taiwanVix']),
+  GLOBAL_FX: Object.freeze(['soxResearchContext', 'marketOverview', 'taiwanVix']),
 });
 
 function itemById(dataHealth, sourceId) {
@@ -76,15 +76,15 @@ function wallStrike(wall) {
   return finite(typeof wall === 'object' ? wall.strike : wall);
 }
 
-function directBreadthValues(data = {}) {
+function directBreadthValues(data = {}, { sourceMode = 'LIVE_RAW' } = {}) {
   const listed = data.listed || {};
   const otc = data.otc || {};
   const direct = [
-    descriptiveValue('上漲家數', data.raise_count ?? data.raiseCount, { sourceMode: 'LIVE_OR_REPLAY' }),
-    descriptiveValue('下跌家數', data.fall_count ?? data.fallCount, { sourceMode: 'LIVE_OR_REPLAY' }),
-    descriptiveValue('平盤家數', data.flat_count ?? data.flatCount, { sourceMode: 'LIVE_OR_REPLAY' }),
-    descriptiveValue('漲停家數', data.limit_up_count ?? data.limitUpCount, { sourceMode: 'LIVE_OR_REPLAY' }),
-    descriptiveValue('跌停家數', data.limit_down_count ?? data.limitDownCount, { sourceMode: 'LIVE_OR_REPLAY' }),
+    descriptiveValue('上漲', data.raise_count ?? data.raiseCount, { sourceMode }),
+    descriptiveValue('下跌', data.fall_count ?? data.fallCount, { sourceMode }),
+    descriptiveValue('平盤', data.flat_count ?? data.flatCount, { sourceMode }),
+    descriptiveValue('漲停', data.limit_up_count ?? data.limitUpCount, { sourceMode }),
+    descriptiveValue('跌停', data.limit_down_count ?? data.limitDownCount, { sourceMode }),
   ].filter(Boolean);
   if (direct.length) return direct;
   return [
@@ -99,7 +99,7 @@ function directBreadthValues(data = {}) {
   ].filter(Boolean);
 }
 
-function descriptiveValues(family, snapshot = {}, chart = null, dataHealth = null) {
+function descriptiveValues(family, snapshot = {}, chart = null, dataHealth = null, liveBreadth = null) {
   const values = [];
   if (family === 'PRICE_STRUCTURE') {
     values.push(
@@ -110,13 +110,20 @@ function descriptiveValues(family, snapshot = {}, chart = null, dataHealth = nul
       descriptiveValue('交易時段', chart?.session || snapshot?.futuresMarket?.data?.txDay?.session),
     );
   } else if (family === 'PARTICIPATION_BREADTH') {
-    values.push(...directBreadthValues(snapshot?.marketBreadth?.data));
+    const liveObservation = liveBreadth?.observation;
+    if (liveObservation && ['LIVE', 'EOD_CONTEXT'].includes(liveBreadth.state)) {
+      values.push(...directBreadthValues(liveObservation.breadth, { sourceMode: liveBreadth.sourceMode }));
+    } else {
+      values.push(...directBreadthValues(snapshot?.marketBreadth?.data, { sourceMode: 'EOD' }));
+    }
   } else if (family === 'FUTURES_INSTITUTIONAL') {
     const futures = snapshot?.futuresInstitutional?.data || {};
     const cash = snapshot?.spotInstitutional?.data || {};
     values.push(
       descriptiveValue('外資期貨淨部位', finite(futures.foreignNet), { sourceMode: 'EOD' }),
-      descriptiveValue('外資期貨單日變化', finite(futures.foreignNetDelta), { sourceMode: 'EOD' }),
+      descriptiveValue('外資期貨單日變化', futures.deltaAvailable === true
+        ? finite(futures.foreignNetDelta)
+        : Object.hasOwn(futures, 'deltaAvailable') ? '無法比較' : null, { sourceMode: 'EOD' }),
       descriptiveValue('投信期貨淨部位', finite(futures.trustNet), { sourceMode: 'EOD' }),
       descriptiveValue('自營商期貨淨部位', finite(futures.dealerNet), { sourceMode: 'EOD' }),
       descriptiveValue('外資現貨淨額', finite(cash.foreignNetE), { unit: '億元', sourceMode: 'EOD' }),
@@ -133,24 +140,30 @@ function descriptiveValues(family, snapshot = {}, chart = null, dataHealth = nul
     );
   } else if (family === 'GLOBAL_FX') {
     const global = snapshot?.marketOverview?.data || {};
-    const ndx = global.ndx?.changePct ?? global.ndxReturn ?? global.ndxProxy ?? null;
+    const globalContext = snapshot?.researchDecision?.globalContext || {};
+    const sox = globalContext.latest?.find((row) => row.symbol === 'SOX') || null;
+    const ndx = global.ndx?.changePct ?? global.ndxReturn ?? global.ndxProxy
+      ?? globalContext.latest?.find((row) => row.symbol === 'NDX')?.returnPct ?? null;
     values.push(
+      descriptiveValue('SOX / 費半', finite(sox?.close), { sourceMode: 'EOD_RESEARCH' }),
+      descriptiveValue('SOX 日變化', finite(sox?.returnPct), { unit: '%', sourceMode: 'EOD_RESEARCH' }),
       descriptiveValue('VIX', finite(global.vix), { sourceMode: 'EOD_OR_DELAYED' }),
       descriptiveValue('USD/TWD', finite(global.usdtwd), { sourceMode: 'EOD_OR_DELAYED' }),
       descriptiveValue('NDX Proxy', finite(ndx), { sourceMode: 'PROXY_ONLY' }),
     );
+    if (values.some(Boolean)) values.push(descriptiveValue('True NQ', 'UNAVAILABLE', { sourceMode: 'SOURCE_GAP' }));
   }
   return Object.freeze(values.filter(Boolean));
 }
 
-function observationForFamily(dataHealth, family, snapshot, chart) {
+function observationForFamily(dataHealth, family, snapshot, chart, liveBreadth) {
   const item = selectFamilyItem(dataHealth, family);
   const availability = availabilityState(item);
   const quality = qualityState(item);
   const promotion = promotionState(family, item);
   const eventTime = availability === 'AVAILABLE' ? (item.exchangeTimestamp || item.availableAt) : null;
   const availableAt = availability === 'AVAILABLE' ? item.availableAt : null;
-  const descriptive = descriptiveValues(family, snapshot, chart, dataHealth);
+  const descriptive = descriptiveValues(family, snapshot, chart, dataHealth, liveBreadth);
   return createDw4EvidenceObservation({
     evidenceId: `dashboard:${family}`,
     family,
@@ -173,14 +186,24 @@ function observationForFamily(dataHealth, family, snapshot, chart) {
       descriptiveValues: descriptive,
       descriptiveUse: 'DESCRIPTIVE_ONLY_NOT_DIRECTIONAL_EVIDENCE',
       identityWarning: family === 'GLOBAL_FX' ? 'NDX_PROXY != TRUE_NQ' : null,
+      displaySourceLabel: family === 'PARTICIPATION_BREADTH'
+        ? liveBreadth?.state === 'LIVE' ? '即時原始資料'
+          : liveBreadth?.state === 'EOD_CONTEXT' ? 'EOD 背景（日盤收盤原始資料）'
+            : 'EOD 背景資料'
+        : family === 'GLOBAL_FX' ? 'EOD / DELAYED / RESEARCH CONTEXT' : null,
+      sourceTradeDate: family === 'PARTICIPATION_BREADTH'
+        ? liveBreadth?.observation?.tradeDate || snapshot?.marketBreadth?.dataDate || snapshot?.marketBreadth?.sourceDataDate || null
+        : family === 'GLOBAL_FX'
+          ? snapshot?.researchDecision?.globalContext?.latest?.find((row) => row.symbol === 'SOX')?.tradeDate || null
+          : null,
     }),
   });
 }
 
 export function buildDashboardDw4Evidence(dataHealth, {
-  observations = null, snapshotBlocked = false, snapshot = {}, chart = null,
+  observations = null, snapshotBlocked = false, snapshot = {}, chart = null, liveBreadth = null,
 } = {}) {
-  const evidence = observations || DW4_DASHBOARD_FAMILIES.map((family) => observationForFamily(dataHealth, family, snapshot, chart));
+  const evidence = observations || DW4_DASHBOARD_FAMILIES.map((family) => observationForFamily(dataHealth, family, snapshot, chart, liveBreadth));
   return summarizeDw4Evidence(evidence, {
     expectedEvidenceFamilies: DW4_DASHBOARD_FAMILIES,
     snapshotBlocked,

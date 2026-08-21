@@ -194,6 +194,55 @@ function txoCollectionRecord(bridge) {
   });
 }
 
+function liveBreadthRecord(liveBreadth) {
+  const observation = liveBreadth?.observation;
+  const sourceAvailable = Boolean(observation);
+  const rawCandidate = liveBreadth?.state === 'LIVE' || liveBreadth?.state === 'EOD_CONTEXT';
+  return record({
+    sourceId: 'ix0001LiveBreadth',
+    sourceType: 'SHIOAJI_IX0001_LIVE_RAW_BREADTH',
+    instrument: 'IX0001',
+    actualContract: 'IX0001',
+    session: observation?.session || null,
+    sessionState: liveBreadth?.state || 'UNAVAILABLE',
+    exchangeTimestamp: observation?.eventTime || null,
+    receivedAt: observation?.receivedAt || null,
+    availableAt: observation?.availableAt || null,
+    freshnessState: liveBreadth?.freshnessState || 'UNAVAILABLE',
+    reason: liveBreadth?.reasonCode || null,
+    quality: observation?.qualityStatus === 'AVAILABLE' ? 'PASS'
+      : sourceAvailable ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
+    coverage: observation?.tradeDate ? `${observation.tradeDate}:${observation.session}` : null,
+    startup: 'REUSES_EXISTING_8790_CALLBACK',
+    reconnect: 'USES_EXISTING_SINGLE_BRIDGE',
+    lineage: 'SHIOAJI_INDEX_QUOTE_IX0001',
+    sourceAvailability: sourceAvailable ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
+    readinessState: rawCandidate ? 'RAW_VALIDATED_CANDIDATE' : 'QUALITY_INSUFFICIENT',
+  });
+}
+
+function soxResearchContextRecord(globalContext) {
+  const sox = globalContext?.latest?.find((row) => row.symbol === 'SOX') || null;
+  return record({
+    sourceId: 'soxResearchContext',
+    sourceType: 'SOX_EOD_RESEARCH_CONTEXT',
+    instrument: 'SOX',
+    session: 'EOD',
+    sessionState: 'SESSION_CLOSED',
+    receivedAt: sox?.availableAt || null,
+    availableAt: sox?.availableAt || null,
+    freshnessState: sox ? 'DELAYED' : 'UNAVAILABLE',
+    reason: sox ? 'EOD_DELAYED_RESEARCH_CONTEXT' : 'SOX_RESEARCH_CONTEXT_UNAVAILABLE',
+    quality: sox ? 'PASS' : 'UNAVAILABLE',
+    coverage: sox?.tradeDate || null,
+    startup: 'DAILY_UPDATE',
+    reconnect: 'NOT_APPLICABLE',
+    lineage: sox?.source || null,
+    sourceAvailability: sox ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
+    readinessState: sox ? 'READY' : 'QUALITY_INSUFFICIENT',
+  });
+}
+
 function derivedRecord(sourceId, sourceType, sourceIds, reason = 'DERIVATION_NOT_IMPLEMENTED') {
   return record({
     sourceId,
@@ -284,7 +333,10 @@ function chartDerivedRecord(sourceId, sourceType, chart, {
   });
 }
 
-export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTruth = null, futuresAudit = null, chart = null, now = new Date() } = {}) {
+export function buildDataHealthContract({
+  snapshot = {}, service = {}, runtimeTruth = null, futuresAudit = null, chart = null,
+  liveBreadth = null, globalContext = null, now = new Date(),
+} = {}) {
   const actualContract = snapshot?.futuresMarket?.data?.txDay?.contract || null;
   const txCode = futuresAudit?.productFamilies?.TX?.targetCode || null;
   const mtxCode = futuresAudit?.productFamilies?.MTX?.targetCode || null;
@@ -296,6 +348,8 @@ export function buildDataHealthContract({ snapshot = {}, service = {}, runtimeTr
     runtimeRecord(runtimeTruth),
     continuityRecord(bridge),
     txoCollectionRecord(bridge),
+    liveBreadthRecord(liveBreadth),
+    soxResearchContextRecord(globalContext),
     auditedLiveRecord('txTick', 'tick', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('txBidAsk', 'bidAsk', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('mtxTick', 'tick', 'MTX', mtxCode, actualContract, bridge, futuresAudit, now),

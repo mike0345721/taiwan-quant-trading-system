@@ -4,23 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>台股決策雷達 V3.9.7</title>
-  <link rel="stylesheet" href="/styles.css?v=3.9.7">
+  <title>台股決策雷達 V3.9.8</title>
+  <link rel="stylesheet" href="/styles.css?v=3.9.8">
   <script src="/vendor/lightweight-charts.js" defer></script>
-  <script src="/app.js?v=3.9.7" defer></script>
+  <script src="/app.js?v=3.9.8" defer></script>
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
     <section id="loading-view" class="center-card">
       <div class="brand-mark">籌</div>
-      <h1>台股決策雷達 V3.9.7</h1>
+      <h1>台股決策雷達 V3.9.8</h1>
       <p class="muted">正在確認安全工作階段…</p>
     </section>
 
     <section id="login-view" class="center-card hidden" aria-labelledby="login-title">
       <div class="brand-mark">籌</div>
       <p class="eyebrow">PRIVATE READ-ONLY DASHBOARD</p>
-      <h1 id="login-title">台股決策雷達 V3.9.7</h1>
+      <h1 id="login-title">台股決策雷達 V3.9.8</h1>
       <p class="muted">此版本不連接券商、不提供下單，也不將任何憑證送到瀏覽器。</p>
       <form id="login-form" autocomplete="on">
         <label for="password">登入密碼</label>
@@ -38,7 +38,7 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">TW MARKET INTELLIGENCE</p>
-        <h1>台股決策雷達 <span>V3.9.7</span></h1>
+        <h1>台股決策雷達 <span>V3.9.8</span></h1>
           <p id="as-of" class="muted"></p>
         </div>
         <div class="top-actions">
@@ -77,14 +77,25 @@
           <span id="dw-global-trust" class="dw-status-pill is-unavailable">資料信任 UNAVAILABLE</span>
           <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
           <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
+          <details id="dw-runtime-version" class="dw-runtime-version">
+            <summary id="dw-runtime-badge">DW V1.1 · UNKNOWN · UNKNOWN</summary>
+            <div>
+              <span>Product Version <code id="dw-version-product">DW V1.1</code></span>
+              <span>Local/Main Commit <code id="dw-version-main">UNKNOWN</code></span>
+              <span>Runtime Commit <code id="dw-version-runtime">UNKNOWN</code></span>
+              <span>Runtime Started At <code id="dw-version-started">UNKNOWN</code></span>
+              <span>Sync State <code id="dw-version-sync">UNKNOWN</code></span>
+            </div>
+          </details>
           <button id="dw-health-toggle" class="dw-link-button" type="button">資料健康度</button>
         </div>
 
         <details id="dw-forward-status" class="dw-technical-detail">
-          <summary>Forward Shadow 執行狀態：<strong id="dw-forward-status-value">UNKNOWN</strong></summary>
+          <summary>Forward Shadow｜歷史研究狀態：<strong id="dw-forward-status-value">UNKNOWN</strong></summary>
           <div class="dw-health-row">
             <strong id="dw-forward-reason-summary">證據不足，無法判定</strong>
-            <span id="dw-forward-trade-date">交易日 —</span>
+            <span id="dw-forward-trade-date">最近正式紀錄：—</span>
+            <span class="dw-forward-current-warning">此紀錄不代表目前市場狀態</span>
             <span id="dw-forward-timing">預期 — · 觀測 —</span>
             <small id="dw-forward-stage">最後成功階段 — · 失敗階段 UNKNOWN</small>
             <small id="dw-forward-evidence">證據來源 UNAVAILABLE · Data Trust UNAVAILABLE</small>

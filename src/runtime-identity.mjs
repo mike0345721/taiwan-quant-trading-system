@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-export function readRuntimeIdentity(projectRoot, { exec = execFileSync } = {}) {
+export function readRuntimeIdentity(projectRoot, { exec = execFileSync, ref = 'HEAD' } = {}) {
   const canonicalRoot = path.resolve(projectRoot);
   try {
     const commit = String(exec('git', [
       '-c', `safe.directory=${canonicalRoot}`,
-      'rev-parse', 'HEAD',
+      'rev-parse', ref,
     ], {
       cwd: canonicalRoot,
       encoding: 'utf8',
@@ -19,4 +19,25 @@ export function readRuntimeIdentity(projectRoot, { exec = execFileSync } = {}) {
   } catch {
     return Object.freeze({ status: 'UNAVAILABLE', commit: null });
   }
+}
+
+export function buildRuntimeVersionStatus({
+  productVersion = 'DW V1.1',
+  runtimeIdentity,
+  approvedMainIdentity,
+  runtimeStartedAt = null,
+} = {}) {
+  const runtimeCommit = runtimeIdentity?.status === 'VERIFIED' ? runtimeIdentity.commit : null;
+  const approvedMainCommit = approvedMainIdentity?.status === 'VERIFIED' ? approvedMainIdentity.commit : null;
+  const syncState = runtimeCommit && approvedMainCommit
+    ? runtimeCommit === approvedMainCommit ? 'SYNCED' : 'MISMATCH'
+    : 'UNKNOWN';
+  return Object.freeze({
+    productVersion,
+    approvedMainCommit,
+    runtimeCommit,
+    runtimeStartedAt: typeof runtimeStartedAt === 'string' && Number.isFinite(Date.parse(runtimeStartedAt))
+      ? new Date(runtimeStartedAt).toISOString() : null,
+    syncState,
+  });
 }

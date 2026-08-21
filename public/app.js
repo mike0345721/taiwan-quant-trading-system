@@ -2557,6 +2557,9 @@ const SOURCE_MODE_LABELS = Object.freeze({
   SESSION_ONLY: '本時段',
   PROXY_ONLY: '代理資料',
   LIVE_RAW: '即時原始資料',
+  EOD_CONTEXT: 'EOD 背景',
+  EOD_RESEARCH: 'EOD／延遲／研究背景',
+  SOURCE_GAP: '來源缺口',
   DAY_0845_0900: '日盤 08:45–09:00',
 });
 
@@ -2610,12 +2613,34 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
     ['GLOBAL_FX', 'dw-pulse-global', 'dw-pulse-global-mode'],
   ];
   mappings.forEach(([family, valueId, modeId]) => {
-    const values = dw4PulseValues(contract, family);
+    const evidence = dw4FamilyEvidence(contract, family);
+    const values = dw4PulseValues(contract, family, family === 'PARTICIPATION_BREADTH' ? 5 : 2);
     dwText(valueId, values.length ? values.map((entry) => `${entry.label} ${dw4DescriptiveValue(entry)}`).join(' · ') : 'UNAVAILABLE');
     const modes = [...new Set(values.map((entry) => sourceModeLabel(entry.sourceMode)).filter(Boolean))];
-    dwText(modeId, modes.join(' · ') || dw4StateLabel(dw4FamilyEvidence(contract, family)?.availabilityState));
+    const truth = family === 'PARTICIPATION_BREADTH'
+      ? [evidence?.detail?.displaySourceLabel, evidence?.detail?.sourceTradeDate,
+        dw4StateLabel(evidence?.qualityState), evidence?.promotionState].filter(Boolean)
+      : family === 'GLOBAL_FX'
+        ? [evidence?.detail?.displaySourceLabel, evidence?.detail?.sourceTradeDate].filter(Boolean)
+        : modes;
+    dwText(modeId, truth.join(' · ') || dw4StateLabel(evidence?.availabilityState));
   });
   dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
+}
+
+function renderRuntimeVersion(version = {}) {
+  const product = version.productVersion || 'DW V1.1';
+  const runtime = version.runtimeCommit || null;
+  const main = version.approvedMainCommit || null;
+  const sync = ['SYNCED', 'MISMATCH', 'UNKNOWN'].includes(version.syncState) ? version.syncState : 'UNKNOWN';
+  const short = runtime ? runtime.slice(0, 7) : 'UNKNOWN';
+  dwText('dw-runtime-badge', `${product} · ${short} · ${sync}`);
+  $('dw-runtime-version').className = `dw-runtime-version is-${sync.toLowerCase()}`;
+  dwText('dw-version-product', product);
+  dwText('dw-version-main', main || 'UNKNOWN');
+  dwText('dw-version-runtime', runtime || 'UNKNOWN');
+  dwText('dw-version-started', version.runtimeStartedAt || 'UNKNOWN');
+  dwText('dw-version-sync', sync);
 }
 
 function renderDw4FamilyList(id, values) {
@@ -3094,10 +3119,11 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-global-trust', `資料信任 ${dw4SummaryLabel(workspace?.evidenceConflict?.dataTrustState || 'BLOCKED')}`);
   $('dw-global-trust').className = `dw-status-pill ${healthTone(workspace?.evidenceConflict?.dataTrustState)}`;
   dwText('dw-global-counts', `${global.staleCount || 0} 項過期 · ${global.unavailableCount || 0} 項無法取得`);
+  renderRuntimeVersion(workspace?.runtimeVersion);
 
   dwText('dw-forward-status-value', forward.status || 'UNKNOWN');
   dwText('dw-forward-reason-summary', forward.reasonSummary || '證據不足，無法判定');
-  dwText('dw-forward-trade-date', `交易日 ${forward.tradeDate || '—'}`);
+  dwText('dw-forward-trade-date', `最近正式紀錄：${forward.tradeDate || '—'} · ${forward.status || 'UNKNOWN'}`);
   dwText('dw-forward-timing', `預期 ${forward.expectedAt ? timeLabel(forward.expectedAt) : '—'} · 觀測 ${forward.observedAt ? timeLabel(forward.observedAt) : '—'}`);
   dwText('dw-forward-stage', `最後成功階段 ${forward.lastSuccessfulStage || '—'} · 失敗階段 ${forward.failedStage || '—'}`);
   dwText('dw-forward-evidence', `證據來源 ${forward.evidenceSource || 'UNAVAILABLE'} · Data Trust ${forward.dataTrust || 'UNAVAILABLE'}`);

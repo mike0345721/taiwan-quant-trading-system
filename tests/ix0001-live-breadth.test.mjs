@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { IX0001_BREADTH_CONTRACT, auditIx0001Breadth, extractIx0001Breadth } from '../src/ix0001-live-breadth.mjs';
+import { classifyIx0001ForWorkspace, readLatestIx0001Record } from '../src/dashboard-live-breadth-source.mjs';
 
 function record(overrides = {}) {
   return {
@@ -65,4 +69,51 @@ test('IX0001 reuses one governed callback and prohibits duplicate collector', ()
   assert.equal(IX0001_BREADTH_CONTRACT.callback, 'set_on_quote_idx_v1_callback');
   assert.equal(IX0001_BREADTH_CONTRACT.duplicateCollectorAllowed, false);
   assert.equal(IX0001_BREADTH_CONTRACT.maximumPromotionReadiness, 'RAW_VALIDATED_CANDIDATE');
+});
+
+test('workspace breadth is LIVE only for the current governed DAY identity', () => {
+  const currentIdentity = { state: 'AVAILABLE', tradeDate: '2026-08-14', session: 'DAY', contract: 'TXFH6' };
+  const live = classifyIx0001ForWorkspace(record(), {
+    currentIdentity,
+    asOf: '2026-08-14T01:03:00.000Z',
+  });
+  assert.equal(live.state, 'LIVE');
+  assert.equal(live.sourceMode, 'LIVE_RAW');
+  assert.equal(live.currentSessionMatch, true);
+  assert.equal(live.observation.promotionState, 'RAW_ONLY');
+
+  const night = classifyIx0001ForWorkspace(record(), {
+    currentIdentity: { ...currentIdentity, session: 'NIGHT' },
+    asOf: '2026-08-14T11:00:00.000Z',
+  });
+  assert.equal(night.state, 'EOD_CONTEXT');
+  assert.equal(night.sourceMode, 'EOD_CONTEXT');
+  assert.equal(night.currentSessionMatch, false);
+});
+
+test('other-trade-date breadth is unavailable rather than silently presented as live', () => {
+  const result = classifyIx0001ForWorkspace(record(), {
+    currentIdentity: { state: 'AVAILABLE', tradeDate: '2026-08-15', session: 'DAY', contract: 'TXFH6' },
+    asOf: '2026-08-15T01:03:00.000Z',
+  });
+  assert.equal(result.state, 'UNAVAILABLE');
+  assert.equal(result.reasonCode, 'IX0001_CURRENT_IDENTITY_MISMATCH');
+});
+
+test('latest IX0001 lookup uses a bounded tail and ignores unrelated records', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ix0001-breadth-'));
+  const file = path.join(root, 'fixture.ndjson');
+  const older = record();
+  const latest = record({
+    exchangeTimestamp: '2026-08-14T09:02:00',
+    payload: { datetime: '2026-08-14T09:02:00', _received_at: '2026-08-14T09:02:00.050+08:00', raise_count: 701 },
+  });
+  fs.writeFileSync(file, `${JSON.stringify(older)}\n${JSON.stringify({ kind: 'tick', code: 'TXFH6' })}\n${JSON.stringify(latest)}\n`);
+  try {
+    const found = readLatestIx0001Record(file, { maxTailBytes: 64 * 1024 });
+    assert.equal(found.record.payload.raise_count, 701);
+    assert.ok(found.bytesScanned <= 64 * 1024);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

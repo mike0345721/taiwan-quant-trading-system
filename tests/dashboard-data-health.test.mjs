@@ -88,3 +88,29 @@ test('chart derivation failure is not misreported as a missing upstream Tick sou
   assert.equal(chartBar.readinessState, 'DERIVATION_FAILURE');
   assert.equal(chartBar.reason, 'BAR_DERIVATION_FAILED');
 });
+
+test('live breadth and SOX expose independent raw/delayed truth without promotion', () => {
+  const liveBreadth = {
+    state: 'LIVE', freshnessState: 'LIVE', reasonCode: 'TIMESTAMP_LINEAGE_INSUFFICIENT',
+    observation: {
+      sourceId: 'SHIOAJI_INDEX_QUOTE_IX0001', tradeDate: '2026-08-14', session: 'DAY',
+      eventTime: '2026-08-14T01:01:00.000Z', receivedAt: '2026-08-14T01:01:01.000Z',
+      availableAt: '2026-08-14T01:01:01.000Z', qualityStatus: 'QUALITY_INSUFFICIENT',
+    },
+  };
+  const globalContext = { latest: [{
+    symbol: 'SOX', tradeDate: '2026-08-13', availableAt: '2026-08-14T00:30:00.000Z',
+    source: 'existing-research-source', close: 11800, returnPct: 0.53,
+  }] };
+  const contract = buildDataHealthContract({ now, liveBreadth, globalContext });
+  const breadth = contract.items.find((item) => item.sourceId === 'ix0001LiveBreadth');
+  const sox = contract.items.find((item) => item.sourceId === 'soxResearchContext');
+  assert.equal(breadth.freshnessState, 'LIVE');
+  assert.equal(breadth.quality, 'QUALITY_INSUFFICIENT');
+  assert.equal(breadth.readinessState, 'RAW_VALIDATED_CANDIDATE');
+  assert.equal(breadth.startup, 'REUSES_EXISTING_8790_CALLBACK');
+  assert.equal(sox.freshnessState, 'DELAYED');
+  assert.equal(sox.sourceType, 'SOX_EOD_RESEARCH_CONTEXT');
+  assert.equal(sox.coverage, '2026-08-13');
+  assert.equal(contract.executionAuthorized, false);
+});

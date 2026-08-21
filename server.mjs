@@ -24,7 +24,8 @@ import { appendDecisionJournal, readDecisionJournal } from './src/decision-journ
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
-import { readRuntimeIdentity } from './src/runtime-identity.mjs';
+import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
+import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -69,6 +70,9 @@ const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.da
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
+const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
+const runtimeStartedAt = new Date().toISOString();
+const runtimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
 let lastRefreshError = null;
 
 function readLocalJson(filePath) {
@@ -81,16 +85,29 @@ async function decisionWorkspacePayload(snapshot, service) {
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
   const chart = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot, calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
+    ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
+    : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
+  const liveBreadth = loadIx0001BreadthForWorkspace({
+    dataRoot: txChartDataRoot,
+    currentIdentity,
+    asOf: chart?.asOf || new Date().toISOString(),
+  });
+  const globalContext = snapshot?.researchDecision?.globalContext || null;
   const dataHealth = buildDataHealthContract({
     snapshot,
     service,
     runtimeTruth,
     futuresAudit: readLocalJson(futuresAuditPath),
     chart,
+    liveBreadth,
+    globalContext,
   });
   const feed = buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
-  return buildDecisionWorkspace({ snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed });
+  return buildDecisionWorkspace({
+    snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion,
+  });
 }
 
 function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
@@ -193,6 +210,9 @@ const server = http.createServer(async (req, res) => {
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
         runtimeIdentityStatus: runtimeIdentity.status,
+        approvedMainCommit: runtimeVersion.approvedMainCommit,
+        runtimeStartedAt: runtimeVersion.runtimeStartedAt,
+        syncState: runtimeVersion.syncState,
       });
       return;
     }
@@ -264,6 +284,7 @@ const server = http.createServer(async (req, res) => {
           brokerMarketData: shioaji,
           lastRefreshError,
           prelive: preliveStatus(latestSnapshot, shioaji),
+          runtimeVersion,
         };
         const decisionWorkspace = clientSnapshot
           ? await decisionWorkspacePayload(clientSnapshot, servicePayload)
