@@ -34,6 +34,52 @@ function healthItem(dataHealth, sourceId) {
   return dataHealth.items.find((item) => item.sourceId === sourceId) || null;
 }
 
+function identityText(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function currentWorkspaceIdentity(chart) {
+  const tradeDate = identityText(chart?.tradeDate);
+  const contract = identityText(chart?.actualContract);
+  const session = identityText(chart?.session);
+  if (!tradeDate || !contract || !session) {
+    return Object.freeze({
+      state: 'UNAVAILABLE',
+      reason: 'CURRENT_CHART_IDENTITY_INCOMPLETE',
+      tradeDate: null,
+      contract: null,
+      session: null,
+      source: 'GOVERNED_TX_CHART',
+    });
+  }
+
+  const bars = Array.isArray(chart?.bars) ? chart.bars : [];
+  const mismatch = bars.find((bar) => (
+    (identityText(bar?.tradeDate) && identityText(bar.tradeDate) !== tradeDate)
+    || (identityText(bar?.actualContract) && identityText(bar.actualContract) !== contract)
+    || (identityText(bar?.session) && identityText(bar.session) !== session)
+  ));
+  if (mismatch) {
+    return Object.freeze({
+      state: 'UNAVAILABLE',
+      reason: 'CURRENT_CHART_IDENTITY_MISMATCH',
+      tradeDate: null,
+      contract: null,
+      session: null,
+      source: 'GOVERNED_TX_CHART',
+    });
+  }
+
+  return Object.freeze({
+    state: 'AVAILABLE',
+    reason: null,
+    tradeDate,
+    contract,
+    session,
+    source: 'GOVERNED_TX_CHART',
+  });
+}
+
 function safeMarketState(runtimeTruth) {
   const row = legalForwardState(runtimeTruth);
   if (!row) {
@@ -160,12 +206,16 @@ export function createDecisionSnapshot({
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
   const marketState = safeMarketState(runtimeTruth);
+  const identity = currentWorkspaceIdentity(chart);
   const body = {
     schemaVersion: 'manual-decision-snapshot-v1',
     snapshotTime: new Date(parsedSnapshotTime).toISOString(),
-    tradeDate: chart?.tradeDate || runtimeTruth?.stateRecord?.tradeDate || snapshot?.asOfDate || null,
-    contract: tx.contract || null,
-    session: runtimeTruth?.stateRecord?.sessionId || tx.session || null,
+    identityState: identity.state,
+    identityReason: identity.reason,
+    identitySource: identity.source,
+    tradeDate: identity.tradeDate,
+    contract: identity.contract,
+    session: identity.session,
     price: Number.isFinite(Number(chart?.lastPrice ?? tx.close))
       ? available(Number(chart?.lastPrice ?? tx.close), chart?.source || 'futuresMarket', chart?.availableAt || futuresHealth?.availableAt)
       : unavailable('PRICE_UNAVAILABLE'),
@@ -228,6 +278,12 @@ export function validateDecisionSnapshot(snapshot) {
     throw new Error('DECISION_SNAPSHOT_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
+  if (snapshot.identityState != null) {
+    const identityComplete = Boolean(snapshot.tradeDate && snapshot.contract && snapshot.session);
+    const identityPresent = Boolean(snapshot.tradeDate || snapshot.contract || snapshot.session);
+    if (snapshot.identityState === 'AVAILABLE' && !identityComplete) throw new Error('DECISION_SNAPSHOT_IDENTITY_INCOMPLETE');
+    if (snapshot.identityState !== 'AVAILABLE' && identityPresent) throw new Error('DECISION_SNAPSHOT_IDENTITY_FAIL_CLOSED');
+  }
   const { snapshotHash, ...body } = snapshot;
   if (decisionDigest(body) !== snapshotHash) throw new Error('DECISION_SNAPSHOT_HASH_MISMATCH');
   return Object.freeze({ valid: true, snapshotHash });
@@ -246,6 +302,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Hash: ${snapshot.snapshotHash}`,
     `Trade Date: ${snapshot.tradeDate || 'UNAVAILABLE'}`,
     `Contract / Session: ${snapshot.contract || 'UNAVAILABLE'} / ${snapshot.session || 'UNAVAILABLE'}`,
+    `Current identity: ${snapshot.identityState || 'UNAVAILABLE'}; source=${snapshot.identitySource || 'UNAVAILABLE'}; reason=${snapshot.identityReason || 'none'}`,
     `Decision Readiness: ${snapshot.decisionReadiness || 'UNAVAILABLE'}`,
     `DW-4: conflict=${snapshot.evidenceConflict?.conflictState || 'NO_DIRECTIONAL_EVIDENCE'}; coverage=${snapshot.evidenceConflict?.coverageState || 'INSUFFICIENT'}; dataTrust=${snapshot.evidenceConflict?.dataTrustState || 'BLOCKED'}`,
     `Eligible evidence: ${(snapshot.evidenceConflict?.eligibleEvidenceFamilies || []).join(', ') || 'none'}`,
@@ -298,9 +355,12 @@ export function buildDecisionWorkspace({
     mode: 'FOCUS',
     globalStatus: {
       mode: snapshot.dataMode === 'mock' ? 'MOCK_NOT_DECISION_ELIGIBLE' : (runtimeTruth?.launchStatus || 'UNAVAILABLE'),
+      identityState: lockedSnapshotCandidate.identityState,
+      identityReason: lockedSnapshotCandidate.identityReason,
+      identitySource: lockedSnapshotCandidate.identitySource,
       actualContract: lockedSnapshotCandidate.contract,
       session: lockedSnapshotCandidate.session,
-      tradeDate: chart?.tradeDate || runtimeTruth?.stateRecord?.tradeDate || snapshot?.asOfDate || null,
+      tradeDate: lockedSnapshotCandidate.tradeDate,
       sourceTime: snapshot.generatedAt || null,
       asOf: chart?.asOf || chart?.availableAt || snapshot.generatedAt || null,
       decisionReadiness: decisionSummary.readiness,
