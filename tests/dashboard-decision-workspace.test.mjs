@@ -49,7 +49,11 @@ test('decision snapshot is deterministic, hashable and preserves unavailable val
   assert.equal(first.marketState.direction, 'UNAVAILABLE');
   assert.equal(first.executionAuthorized, false);
   assert.equal(first.orderRoutesEnabled, false);
-  assert.equal(first.tradeDate, '2026-08-12');
+  assert.equal(first.identityState, 'UNAVAILABLE');
+  assert.equal(first.identityReason, 'CURRENT_CHART_IDENTITY_INCOMPLETE');
+  assert.equal(first.tradeDate, null);
+  assert.equal(first.contract, null);
+  assert.equal(first.session, null);
   assert.equal(first.recommendation, false);
   assert.equal(first.systemDirectionalSignal, false);
 });
@@ -75,7 +79,7 @@ test('workspace is manual-review-only and never emits a system trade direction',
 
 test('DW-2 chart facts populate snapshot and decision explanation without changing Market State', () => {
   const chart = {
-    status: 'READY', timeframe: '5m', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
+    status: 'READY', timeframe: '5m', tradeDate: '2026-08-12', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
     availableAt: '2026-08-12T00:19:59.000Z', source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK', qualityStatus: 'PASS',
     openingRange: { status: 'READY', high: 22520, low: 22480, source: 'FROZEN_T0_DAY_OPENING_RANGE_0845_0900', availableAt: '2026-08-12T00:19:00.000Z' },
     levels: { vwap: { availability: 'AVAILABLE', value: 22501.5, source: 'SESSION_EXACT_TX_TICK_VWAP', availableAt: '2026-08-12T00:19:59.000Z' } },
@@ -83,6 +87,10 @@ test('DW-2 chart facts populate snapshot and decision explanation without changi
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), chart, now });
   assert.equal(workspace.priceChartSlot.status, 'READY');
   assert.equal(workspace.priceChartSlot.actualContract, 'TXFH6');
+  assert.equal(workspace.snapshot.identityState, 'AVAILABLE');
+  assert.equal(workspace.snapshot.tradeDate, '2026-08-12');
+  assert.equal(workspace.snapshot.contract, 'TXFH6');
+  assert.equal(workspace.snapshot.session, 'DAY');
   assert.equal(workspace.snapshot.price.value, 22510);
   assert.deepEqual(workspace.snapshot.OR.value, { high: 22520, low: 22480 });
   assert.equal(workspace.snapshot.VWAP.value, 22501.5);
@@ -150,7 +158,8 @@ test('copy for ChatGPT includes immutable identity and discussion-only boundary'
   assert.match(text, new RegExp(snapshot.snapshotHash));
   assert.match(text, /RUNTIME_STATUS_NOT_EXPOSED_TO_DASHBOARD/);
   assert.match(text, /DW-4: conflict=NO_DIRECTIONAL_EVIDENCE; coverage=INSUFFICIENT; dataTrust=BLOCKED/);
-  assert.match(text, /Trade Date: 2026-08-12/);
+  assert.match(text, /Trade Date: UNAVAILABLE/);
+  assert.match(text, /Current identity: UNAVAILABLE; source=GOVERNED_TX_CHART; reason=CURRENT_CHART_IDENTITY_INCOMPLETE/);
   assert.match(text, /recommendation=false; systemDirectionalSignal=false; formalWeight=0; researchOnly=true; executionAuthorized=false; orderRoutesEnabled=false/);
   assert.match(text, /USER QUESTION: 最大反向證據？$/);
 });
@@ -170,7 +179,7 @@ test('Copy for ChatGPT preserves descriptive values and separates them from dire
     { sourceId: 'marketOverview', sourceAvailability: 'SOURCE_AVAILABLE', freshnessState: 'FRESH', quality: 'PASS', readinessState: 'READY', exchangeTimestamp: '2026-08-11T14:00:00.000Z', availableAt: '2026-08-11T14:00:00.000Z' },
   );
   const chart = {
-    status: 'READY', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
+    status: 'READY', tradeDate: '2026-08-12', session: 'DAY', actualContract: 'TXFH6', lastPrice: 22510,
     availableAt: '2026-08-12T00:16:00.000Z',
     openingRange: { status: 'READY', high: 22520, low: 22480, availableAt: '2026-08-12T00:15:00.000Z' },
     levels: { vwap: { availability: 'AVAILABLE', value: 22501.5, vwapSession: 'DAY', availableAt: '2026-08-12T00:16:00.000Z' } },
@@ -187,6 +196,52 @@ test('Copy for ChatGPT preserves descriptive values and separates them from dire
   assert.match(workspace.chatGptCopy, /directionalEligible=false/);
   assert.doesNotMatch(JSON.stringify(workspace.evidenceConflict), /\bBUY\b|\bSELL\b/);
 });
+
+test('current identity ignores conflicting batch and historical Forward identities', () => {
+  const runtimeTruth = {
+    stateRecord: {
+      recordType: 'STATE', tradeDate: '2026-08-11', sessionId: '2026-08-11-DAY',
+      axisStateSnapshot: {}, qualityStatus: 'UNAVAILABLE',
+    },
+  };
+  const chart = {
+    status: 'READY', tradeDate: '2026-08-12', session: 'DAY', actualContract: 'TXFH6',
+    availableAt: '2026-08-12T00:19:59.000Z', bars: [], levels: {},
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), runtimeTruth, chart, now });
+  assert.deepEqual(
+    { tradeDate: workspace.snapshot.tradeDate, contract: workspace.snapshot.contract, session: workspace.snapshot.session },
+    { tradeDate: '2026-08-12', contract: 'TXFH6', session: 'DAY' },
+  );
+  assert.equal(workspace.globalStatus.tradeDate, workspace.snapshot.tradeDate);
+  assert.equal(workspace.globalStatus.actualContract, workspace.snapshot.contract);
+  assert.equal(workspace.globalStatus.session, workspace.snapshot.session);
+  assert.equal(workspace.forwardShadowStatus.status, 'UNKNOWN');
+  assert.match(workspace.chatGptCopy, /Trade Date: 2026-08-12/);
+  assert.match(workspace.chatGptCopy, /Contract \/ Session: TXFH6 \/ DAY/);
+  assert.doesNotMatch(workspace.chatGptCopy, /2026-08-11-DAY|202608/);
+});
+
+for (const [field, value] of [
+  ['tradeDate', '2026-08-11'],
+  ['actualContract', 'TXFJ6'],
+  ['session', 'NIGHT'],
+]) {
+  test(`current identity fails closed on mixed chart ${field}`, () => {
+    const chart = {
+      status: 'READY', tradeDate: '2026-08-12', session: 'DAY', actualContract: 'TXFH6',
+      availableAt: '2026-08-12T00:19:59.000Z', levels: {},
+      bars: [{ tradeDate: '2026-08-12', session: 'DAY', actualContract: 'TXFH6', [field]: value }],
+    };
+    const snapshot = createDecisionSnapshot({ snapshot: sourceSnapshot(), dataHealth: health(), chart, snapshotTime: now.toISOString() });
+    assert.equal(snapshot.identityState, 'UNAVAILABLE');
+    assert.equal(snapshot.identityReason, 'CURRENT_CHART_IDENTITY_MISMATCH');
+    assert.equal(snapshot.tradeDate, null);
+    assert.equal(snapshot.contract, null);
+    assert.equal(snapshot.session, null);
+    assert.match(copyForChatGpt(snapshot), /Current identity: UNAVAILABLE/);
+  });
+}
 
 test('DW-4 mixed eligible evidence remains separate from quality and coverage', () => {
   const eligible = (family, directionState) => createDw4EvidenceObservation({
