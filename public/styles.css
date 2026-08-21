@@ -449,6 +449,15 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #617086; box-shadow: 0 0 0 4px rgba(97,112,134,.12); }
 .dw-link-button { background: transparent; color: var(--accent); padding: 5px 7px; font-size: 11px; }
 .dw-status-pill { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; padding: 5px 9px; background: rgba(85,214,190,.11); color: #9be8da; border: 1px solid rgba(85,214,190,.24); font-size: 10px; font-weight: 900; letter-spacing: .05em; }
+.dw-runtime-version { position: relative; flex: 0 0 auto; }
+.dw-runtime-version > summary { cursor: pointer; list-style: none; padding: 5px 8px; border: 1px solid var(--dw-line); border-radius: 999px; color: #a8b5c8; font-size: 10px; font-weight: 900; letter-spacing: .035em; white-space: nowrap; }
+.dw-runtime-version > summary::-webkit-details-marker { display: none; }
+.dw-runtime-version.is-synced > summary { color: #9be8da; border-color: rgba(85,214,190,.32); background: rgba(85,214,190,.08); }
+.dw-runtime-version.is-mismatch > summary { color: #ffb1a8; border-color: rgba(255,107,94,.5); background: rgba(255,107,94,.12); }
+.dw-runtime-version[open] > div { position: absolute; z-index: 30; top: calc(100% + 7px); right: 0; width: min(420px, 88vw); display: grid; gap: 7px; padding: 11px; border: 1px solid var(--dw-line); border-radius: 10px; background: #0b1119; box-shadow: 0 16px 36px rgba(0,0,0,.38); }
+.dw-runtime-version[open] > div span { display: grid; grid-template-columns: 118px minmax(0,1fr); gap: 8px; align-items: baseline; color: var(--muted); }
+.dw-runtime-version[open] code { overflow-wrap: anywhere; color: var(--text); }
+.dw-forward-current-warning { color: var(--muted); font-size: 10px; }
 .dw-status-pill.is-unavailable, .dw-status-pill.is-blocked { color: #f1c976; border-color: rgba(245,200,107,.28); background: rgba(245,200,107,.09); }
 .dw-manual-posture { color: #f2d38e; font-size: 10px; white-space: nowrap; }
 .dw-page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 6px 2px 0; }

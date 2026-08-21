@@ -58,12 +58,14 @@ export class V2ResearchService {
     try { if (fs.existsSync(this.forwardLedgerPath)) forwardRecords = fs.readFileSync(this.forwardLedgerPath, 'utf8').split(/\r?\n/).filter(Boolean).length; } catch { forwardRecords = 0; }
     let v3 = { available: false, reason: 'V2_DATABASE_NOT_READY' };
     let v362Risk = { available: false, reason: 'V2_DATABASE_NOT_READY' };
+    let globalContext = { available: false, latest: [], coverage: [] };
     if (this.available()) {
       const db = new DatabaseSync(this.databasePath, { readOnly: true });
       try {
         db.exec('PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;');
         v3 = buildV3Decision(db);
         v362Risk = buildV362RiskSummary(db, { v3, extendedReport: v362Extended, finalReport: v362Final, auditReport: v362Audit });
+        globalContext = this.#globalContext(db);
       } catch (error) {
         v3 = { available: false, reason: 'V3_DECISION_UNAVAILABLE', detail: error.message };
       } finally {
@@ -85,6 +87,7 @@ export class V2ResearchService {
       forward: { records: forwardRecords, status: forwardRecords ? 'tracking' : 'awaiting_new_data' },
       v3: { ...v3, forward: v3Forward, v34Forward, foreignRiskResearch: foreignRisk, oiAudit },
       v362Risk,
+      globalContext,
     };
   }
 
@@ -260,13 +263,24 @@ export class V2ResearchService {
   #globalContext(db) {
     const exists = db.prepare("SELECT 1 AS value FROM sqlite_master WHERE type='table' AND name='global_market_daily'").get()?.value;
     if (!exists) return { available: false, latest: [], coverage: [] };
+    const symbols = ['SOX', 'NDX', 'USDTWD'];
     const latest = db.prepare(`SELECT g.symbol, g.trade_date AS tradeDate, g.close, g.previous_close AS previousClose,
-      g.return_pct AS returnPct FROM global_market_daily g
+      g.return_pct AS returnPct, r.source, r.fetched_at AS availableAt, r.payload_sha256 AS sourceHash
+      FROM global_market_daily g
       JOIN (SELECT symbol, MAX(trade_date) AS trade_date FROM global_market_daily GROUP BY symbol) x
-      ON x.symbol=g.symbol AND x.trade_date=g.trade_date ORDER BY g.symbol`).all();
+      ON x.symbol=g.symbol AND x.trade_date=g.trade_date
+      LEFT JOIN global_import_runs r ON r.id=g.source_run_id
+      WHERE g.symbol IN ('SOX','NDX','USDTWD') ORDER BY g.symbol`).all();
     const coverage = db.prepare(`SELECT symbol, MIN(trade_date) AS firstDate, MAX(trade_date) AS lastDate, COUNT(*) AS days
-      FROM global_market_daily GROUP BY symbol ORDER BY symbol`).all();
-    return { available: latest.length === 3, latest, coverage, timing: '只使用台灣交易日前已完成的最近海外交易日' };
+      FROM global_market_daily WHERE symbol IN ('SOX','NDX','USDTWD') GROUP BY symbol ORDER BY symbol`).all();
+    return {
+      available: symbols.every((symbol) => latest.some((row) => row.symbol === symbol)),
+      latest,
+      coverage,
+      timing: '只使用台灣交易日前已完成的最近海外交易日',
+      sourceMode: 'EOD_DELAYED_RESEARCH_CONTEXT',
+      trueNqState: 'UNAVAILABLE_SOURCE_GAP',
+    };
   }
 
   #termStructure(db, days) {

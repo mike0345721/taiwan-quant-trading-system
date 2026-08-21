@@ -315,11 +315,12 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
 test('formal dashboard wiring carries posture, five evidence families and complete ChatGPT copy', () => {
   const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
   const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.match(server, /return buildDecisionWorkspace\(\{ snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed \}\)/);
+  assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion/);
   assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
   assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);
   assert.match(app, /renderDw4Evidence\(workspace\?\.evidenceConflict\)/);
   assert.match(app, /renderMarketPulse\(workspace/);
+  assert.match(app, /renderRuntimeVersion\(workspace\?\.runtimeVersion\)/);
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), now });
   assert.equal(workspace.evidenceConflict.evidence.length, 5);
   assert.deepEqual(workspace.evidenceConflict.evidence.map((item) => item.family), [
@@ -330,6 +331,32 @@ test('formal dashboard wiring carries posture, five evidence families and comple
     'Trade Date:', 'DW-4: conflict=', 'Eligible evidence:', 'Excluded evidence:',
     'Recent governed changes:', 'Current governed fact summary:', 'recommendation=false', 'orderRoutesEnabled=false',
   ]) assert.match(workspace.chatGptCopy, new RegExp(required));
+});
+
+test('Copy for ChatGPT uses an allowlist and excludes machine-local absolute paths', () => {
+  const dirtyHealth = health();
+  dirtyHealth.items.push({
+    sourceId: 'fixture', freshnessState: 'STALE', quality: 'QUALITY_INSUFFICIENT',
+    readinessState: 'QUALITY_INSUFFICIENT', reason: 'TEST_WARNING', availableAt: null,
+    lineage: 'D:\\private\\forward-shadow\\manifest.json',
+  });
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: dirtyHealth, now });
+  assert.doesNotMatch(workspace.chatGptCopy, /[A-Za-z]:[\\/]/);
+  assert.match(workspace.chatGptCopy, /fixture:TEST_WARNING/);
+  assert.match(workspace.chatGptCopy, /NOT A TRADING SIGNAL/);
+});
+
+test('visible runtime badge and historical Forward wording are present', () => {
+  const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  for (const id of ['dw-runtime-badge', 'dw-version-product', 'dw-version-main', 'dw-version-runtime', 'dw-version-started', 'dw-version-sync']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /Forward Shadow｜歷史研究狀態/);
+  assert.match(html, /此紀錄不代表目前市場狀態/);
+  assert.match(app, /DW V1\.1.*MISMATCH/s);
+  assert.match(styles, /\.dw-runtime-version\.is-mismatch/);
 });
 
 test('DW-1 presents Chinese-first decision copy while retaining engineering codes in technical detail', () => {

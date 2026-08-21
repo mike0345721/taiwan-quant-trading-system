@@ -79,10 +79,47 @@ test('available descriptive data remains visible while promotion and direction s
   assert.equal(global.detail.identityWarning, 'NDX_PROXY != TRUE_NQ');
   assert.equal(global.detail.descriptiveValues.some((entry) => entry.label === 'NDX Proxy'), true);
   assert.equal(global.detail.descriptiveValues.some((entry) => /NQ Futures/i.test(entry.label)), false);
-  assert.equal(breadth.detail.descriptiveValues.every((entry) => entry.sourceMode === 'LIVE_OR_REPLAY'), true);
+  assert.equal(breadth.detail.descriptiveValues.every((entry) => entry.sourceMode === 'EOD'), true);
   assert.equal(futures.detail.descriptiveValues.every((entry) => entry.sourceMode === 'EOD'), true);
   assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'USD/TWD').sourceMode, 'EOD_OR_DELAYED');
   assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'NDX Proxy').sourceMode, 'PROXY_ONLY');
+});
+
+test('live raw breadth, delayed SOX and unavailable institutional delta remain truthful and unpromoted', () => {
+  const liveBreadth = {
+    state: 'LIVE', sourceMode: 'LIVE_RAW', freshnessState: 'LIVE',
+    observation: {
+      tradeDate: '2026-08-14', session: 'DAY', qualityStatus: 'QUALITY_INSUFFICIENT',
+      promotionState: 'RAW_ONLY',
+      breadth: { raise_count: 823, fall_count: 214, flat_count: 63, limit_up_count: 12, limit_down_count: 1 },
+    },
+  };
+  const result = buildDashboardDw4Evidence({
+    items: [
+      item('ix0001LiveBreadth', { readinessState: 'RAW_VALIDATED_CANDIDATE', quality: 'QUALITY_INSUFFICIENT' }),
+      item('futuresPositioning'), item('soxResearchContext'),
+    ],
+  }, {
+    liveBreadth,
+    snapshot: {
+      futuresInstitutional: { data: { foreignNet: -1000, foreignNetDelta: 0, deltaAvailable: false } },
+      researchDecision: { globalContext: { latest: [
+        { symbol: 'SOX', tradeDate: '2026-08-13', close: 11800.02, returnPct: 0.53 },
+        { symbol: 'NDX', tradeDate: '2026-08-13', returnPct: 0.21 },
+      ] } },
+    },
+  });
+  const breadth = result.evidence.find((entry) => entry.family === 'PARTICIPATION_BREADTH');
+  const futures = result.evidence.find((entry) => entry.family === 'FUTURES_INSTITUTIONAL');
+  const global = result.evidence.find((entry) => entry.family === 'GLOBAL_FX');
+  assert.equal(breadth.promotionState, 'RAW_ONLY');
+  assert.equal(breadth.directionState, 'NOT_ELIGIBLE');
+  assert.equal(breadth.detail.displaySourceLabel, '即時原始資料');
+  assert.deepEqual(breadth.detail.descriptiveValues.map((entry) => entry.value), [823, 214, 63, 12, 1]);
+  assert.equal(futures.detail.descriptiveValues.find((entry) => entry.label === '外資期貨單日變化').value, '無法比較');
+  assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'SOX / 費半').sourceMode, 'EOD_RESEARCH');
+  assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'NDX Proxy').sourceMode, 'PROXY_ONLY');
+  assert.equal(global.detail.descriptiveValues.find((entry) => entry.label === 'True NQ').value, 'UNAVAILABLE');
 });
 
 test('DW-4 UI is three-axis, progressive and contains no magic score or order route', () => {
