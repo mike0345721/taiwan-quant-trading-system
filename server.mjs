@@ -15,7 +15,7 @@ import { V2ResearchService } from './src/v2-research.mjs';
 import { loadPriceConfirmation } from './src/intraday-confirmation.mjs';
 import { listReplayDays, loadCatalogReplay } from './src/intraday-replay-catalog.mjs';
 import { marketFeedReadiness } from './src/market-feed.mjs';
-import { inspectShioajiBridge } from './src/shioaji-bridge-client.mjs';
+import { inspectIx0001Leadership, inspectShioajiBridge } from './src/shioaji-bridge-client.mjs';
 import { costScenarios } from './v2/src/trading-costs.mjs';
 import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
@@ -80,6 +80,7 @@ function readLocalJson(filePath) {
 }
 
 async function decisionWorkspacePayload(snapshot, service) {
+  const indexLeadership = service?.indexLeadership || null;
   const runtimeTruth = await readDashboardRuntimeTruth({
     baseRoot: forwardShadowBaseRoot,
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
@@ -101,12 +102,13 @@ async function decisionWorkspacePayload(snapshot, service) {
     futuresAudit: readLocalJson(futuresAuditPath),
     chart,
     liveBreadth,
+    indexLeadership,
     globalContext,
   });
   const feed = buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
   return buildDecisionWorkspace({
-    snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion,
+    snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
   });
 }
 
@@ -268,6 +270,7 @@ const server = http.createServer(async (req, res) => {
           try { await refreshSnapshot(); } catch { /* status returned below */ }
         }
         const shioaji = await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const indexLeadership = await inspectIx0001Leadership({ bridge: shioaji });
         const clientHistory = latestSnapshot ? await cache.listHistory(400) : [];
         const clientSnapshot = latestSnapshot ? {
           ...latestSnapshot,
@@ -285,6 +288,7 @@ const server = http.createServer(async (req, res) => {
           lastRefreshError,
           prelive: preliveStatus(latestSnapshot, shioaji),
           runtimeVersion,
+          indexLeadership,
         };
         const decisionWorkspace = clientSnapshot
           ? await decisionWorkspacePayload(clientSnapshot, servicePayload)
@@ -294,6 +298,20 @@ const server = http.createServer(async (req, res) => {
           data: clientSnapshot,
           service: servicePayload,
           decisionWorkspace,
+        });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/index-leadership') {
+        const bridge = await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const leadership = await inspectIx0001Leadership({ bridge });
+        sendJson(res, 200, {
+          ok: true,
+          data: leadership,
+          cachePolicy: 'BOUNDED_8790_LATEST_MEMORY',
+          recommendedPollMs: 5_000,
+          executionAuthorized: false,
+          orderRoutesEnabled: false,
         });
         return;
       }

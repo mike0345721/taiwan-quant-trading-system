@@ -161,7 +161,27 @@ test('copy for ChatGPT includes immutable identity and discussion-only boundary'
   assert.match(text, /Trade Date: UNAVAILABLE/);
   assert.match(text, /Current identity: UNAVAILABLE; source=GOVERNED_TX_CHART; reason=CURRENT_CHART_IDENTITY_INCOMPLETE/);
   assert.match(text, /recommendation=false; systemDirectionalSignal=false; formalWeight=0; researchOnly=true; executionAuthorized=false; orderRoutesEnabled=false/);
+  assert.match(text, /descriptiveOnly=true; notPromoted=true; notTradingSignal=true/);
   assert.match(text, /USER QUESTION: 最大反向證據？$/);
+});
+
+test('Copy Snapshot allowlist carries descriptive IX0001 leadership without promotion', () => {
+  const indexLeadership = {
+    state: 'SESSION_CLOSED', sourceMode: 'EOD_CONTEXT', sourceTradeDate: '2026-08-12',
+    lastAvailableAt: '2026-08-12T00:19:00.000Z', quality: 'PASS',
+    indexLeadership: { topPositive: [{ code: '2330', points: 12 }], topNegative: [{ code: '2317', points: -4 }] },
+    industryLeadership: { rows: [{ category: '01', points: 8 }], invariantDelta: 0.01, invariantTolerance: 0.1 },
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), indexLeadership, now });
+  assert.deepEqual(workspace.snapshot.indexLeadership.topPositive, [{ code: '2330', points: 12 }]);
+  assert.deepEqual(workspace.snapshot.industryLeadership.rows, [{ category: '01', points: 8 }]);
+  assert.equal(workspace.snapshot.LEADERSHIP_DESCRIPTIVE_ONLY, true);
+  assert.equal(workspace.snapshot.NOT_PROMOTED, true);
+  assert.equal(workspace.snapshot.NOT_A_TRADING_SIGNAL, true);
+  assert.equal(workspace.snapshot.recommendation, false);
+  assert.equal(workspace.snapshot.systemDirectionalSignal, false);
+  assert.match(workspace.chatGptCopy, /IX0001 Leadership: state=SESSION_CLOSED; mode=EOD_CONTEXT/);
+  assert.doesNotMatch(workspace.chatGptCopy, /D:\\\\|C:\\\\|\.env|apiKey|secretKey/);
 });
 
 test('Copy for ChatGPT preserves descriptive values and separates them from directional eligibility', () => {

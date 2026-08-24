@@ -60,6 +60,10 @@ function record({
   lineage = null,
   sourceAvailability = 'SOURCE_MISSING',
   readinessState = 'QUALITY_INSUFFICIENT',
+  subscriptionState = 'NOT_APPLICABLE',
+  simtradeState = 'NOT_APPLICABLE',
+  restorationState = 'NOT_APPLICABLE',
+  promotionState = 'NOT_PROMOTED',
 }) {
   if (!FRESHNESS_STATES.includes(freshnessState)) throw new Error('DATA_HEALTH_FRESHNESS_INVALID');
   if (!SOURCE_STATES.includes(sourceAvailability)) throw new Error('DATA_HEALTH_SOURCE_AVAILABILITY_INVALID');
@@ -83,6 +87,10 @@ function record({
     lineage,
     sourceAvailability,
     readinessState,
+    subscriptionState,
+    simtradeState,
+    restorationState,
+    promotionState,
   });
 }
 
@@ -221,6 +229,37 @@ function liveBreadthRecord(liveBreadth) {
   });
 }
 
+function indexLeadershipRecord(indexLeadership, key) {
+  const item = indexLeadership?.dataHealth?.[key] || {};
+  const sourceAvailable = item.sourceAvailability === 'SOURCE_AVAILABLE';
+  const restored = item.subscriptionState === 'RESTORED';
+  return record({
+    sourceId: key,
+    sourceType: item.sourceType || (key === 'ix0001IndexContribution'
+      ? 'SHIOAJI_IX0001_INDEX_CONTRIBUTION' : 'SHIOAJI_IX0001_INDUSTRY_CONTRIBUTION'),
+    instrument: 'IX0001',
+    actualContract: 'IX0001',
+    session: 'DAY',
+    sessionState: indexLeadership?.state || 'UNAVAILABLE',
+    receivedAt: item.availableAt || null,
+    availableAt: item.availableAt || null,
+    freshnessState: item.freshnessState || 'UNAVAILABLE',
+    reason: indexLeadership?.reasonCode || (sourceAvailable ? null : 'LIVE_DAY_EVENT_ACCEPTANCE_PENDING'),
+    quality: item.quality || 'UNAVAILABLE',
+    coverage: item.tradeDate ? `${item.tradeDate}:DAY` : null,
+    startup: 'REUSES_EXISTING_8790_CALLBACK',
+    reconnect: item.reconnectState || 'USES_EXISTING_SINGLE_BRIDGE',
+    lineage: key === 'ix0001IndexContribution'
+      ? 'SHIOAJI_INDEX_CONTRIBUTION_IX0001' : 'SHIOAJI_INDUSTRY_CONTRIBUTION_IX0001',
+    sourceAvailability: sourceAvailable ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
+    readinessState: sourceAvailable && restored ? 'RAW_VALIDATED_CANDIDATE' : 'QUALITY_INSUFFICIENT',
+    subscriptionState: item.subscriptionState || 'UNKNOWN',
+    simtradeState: item.simtradeState || 'NO_LIVE_EVENT',
+    restorationState: item.restorationState || 'PENDING',
+    promotionState: 'NOT_PROMOTED',
+  });
+}
+
 function soxResearchContextRecord(globalContext) {
   const sox = globalContext?.latest?.find((row) => row.symbol === 'SOX') || null;
   return record({
@@ -335,7 +374,7 @@ function chartDerivedRecord(sourceId, sourceType, chart, {
 
 export function buildDataHealthContract({
   snapshot = {}, service = {}, runtimeTruth = null, futuresAudit = null, chart = null,
-  liveBreadth = null, globalContext = null, now = new Date(),
+  liveBreadth = null, indexLeadership = null, globalContext = null, now = new Date(),
 } = {}) {
   const actualContract = snapshot?.futuresMarket?.data?.txDay?.contract || null;
   const txCode = futuresAudit?.productFamilies?.TX?.targetCode || null;
@@ -349,6 +388,8 @@ export function buildDataHealthContract({
     continuityRecord(bridge),
     txoCollectionRecord(bridge),
     liveBreadthRecord(liveBreadth),
+    indexLeadershipRecord(indexLeadership, 'ix0001IndexContribution'),
+    indexLeadershipRecord(indexLeadership, 'ix0001IndustryContribution'),
     soxResearchContextRecord(globalContext),
     auditedLiveRecord('txTick', 'tick', 'TX', txCode, actualContract, bridge, futuresAudit, now),
     auditedLiveRecord('txBidAsk', 'bidAsk', 'TX', txCode, actualContract, bridge, futuresAudit, now),

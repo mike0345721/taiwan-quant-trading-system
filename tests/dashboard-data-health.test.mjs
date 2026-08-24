@@ -114,3 +114,33 @@ test('live breadth and SOX expose independent raw/delayed truth without promotio
   assert.equal(sox.coverage, '2026-08-13');
   assert.equal(contract.executionAuthorized, false);
 });
+
+test('IX0001 constituent and industry leadership have independent raw-only health records', () => {
+  const indexLeadership = {
+    state: 'SESSION_CLOSED', reasonCode: 'CURRENT_SESSION_NOT_TWSE_DAY',
+    dataHealth: {
+      ix0001IndexContribution: {
+        sourceType: 'SHIOAJI_IX0001_INDEX_CONTRIBUTION', sourceAvailability: 'SOURCE_AVAILABLE',
+        subscriptionState: 'RESTORED', tradeDate: '2026-08-24', availableAt: '2026-08-24T05:30:00.000Z',
+        freshnessState: 'SESSION_CLOSED', quality: 'PASS', simtradeState: 'LIVE_MATCHING',
+        reconnectState: 'USES_EXISTING_SINGLE_BRIDGE', restorationState: 'RESTORED', promotionState: 'NOT_PROMOTED',
+      },
+      ix0001IndustryContribution: {
+        sourceType: 'SHIOAJI_IX0001_INDUSTRY_CONTRIBUTION', sourceAvailability: 'SOURCE_AVAILABLE',
+        subscriptionState: 'RESTORED', tradeDate: '2026-08-24', availableAt: '2026-08-24T05:30:00.100Z',
+        freshnessState: 'SESSION_CLOSED', quality: 'QUALITY_INSUFFICIENT', simtradeState: 'LIVE_MATCHING',
+        reconnectState: 'USES_EXISTING_SINGLE_BRIDGE', restorationState: 'RESTORED', promotionState: 'NOT_PROMOTED',
+      },
+    },
+  };
+  const contract = buildDataHealthContract({ now, indexLeadership, snapshot: { sources: {} } });
+  const index = contract.items.find((item) => item.sourceId === 'ix0001IndexContribution');
+  const industry = contract.items.find((item) => item.sourceId === 'ix0001IndustryContribution');
+  assert.equal(index.subscriptionState, 'RESTORED');
+  assert.equal(index.readinessState, 'RAW_VALIDATED_CANDIDATE');
+  assert.equal(index.promotionState, 'NOT_PROMOTED');
+  assert.equal(industry.quality, 'QUALITY_INSUFFICIENT');
+  assert.equal(industry.restorationState, 'RESTORED');
+  assert.equal(contract.formalWeight, 0);
+  assert.equal(contract.executionAuthorized, false);
+});

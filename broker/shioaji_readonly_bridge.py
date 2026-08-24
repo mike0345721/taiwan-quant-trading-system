@@ -6,6 +6,7 @@ It contains no order, cancel, position, balance, or certificate operations.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import queue
@@ -16,7 +17,7 @@ import threading
 import traceback
 import ctypes
 from collections.abc import Mapping
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -41,6 +42,11 @@ CREDENTIAL_READER = ROOT / "scripts" / "read-shioaji-credentials.ps1"
 HOST = "127.0.0.1"
 PORT = 8790
 LATEST: dict[str, dict[str, Any]] = {}
+LEADERSHIP_CACHE: dict[str, Any] = {
+    "indexContribution": {},
+    "industryContribution": None,
+    "simulatedMatching": {"indexContribution": {}, "industryContribution": None},
+}
 FUTURES_METADATA: dict[str, dict[str, str]] = {}
 OPTIONS_METADATA: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
@@ -48,6 +54,11 @@ EVENT_LEDGER = LiveEventLedger(ROOT / "data" / "live-events")
 SERVER: ThreadingHTTPServer | None = None
 SINGLE_INSTANCE_MUTEX_NAME = "Local\\TaiwanStockShioajiReadOnlyBridge"
 EVENT_QUEUE_CAPACITY = 50_000
+TAIPEI_TIMEZONE = timezone(timedelta(hours=8))
+INDUSTRY_POINTS_TOLERANCE = 0.1
+LEADERSHIP_COLLECTION_ENABLED = (
+    os.getenv("IX0001_LEADERSHIP_COLLECTION_ENABLED", "").strip().lower() == "true"
+)
 EVENT_QUEUE: queue.Queue[tuple[str, dict[str, Any]] | None] = queue.Queue(
     maxsize=EVENT_QUEUE_CAPACITY
 )
@@ -95,6 +106,31 @@ REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
     "TMF": {"product": "TMF", "subscriptionAlias": "TMFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
     "2330": {"product": "2330", "subscriptionAlias": "2330", "quoteTypes": ["Tick"], "state": "PENDING", "actualContract": "2330", "lastObservedAt": None},
     "IX0001": {"product": "IX0001", "subscriptionAlias": "IX0001", "quoteTypes": ["Quote"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
+}
+LEADERSHIP_REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
+    "IX0001_INDEX_ABS10": {"product": "IX0001_INDEX_ABS10", "subscriptionAlias": "IX0001", "quoteTypes": ["IndexContribution:abs10"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
+    "IX0001_INDEX_POSITIVE25": {"product": "IX0001_INDEX_POSITIVE25", "subscriptionAlias": "IX0001", "quoteTypes": ["IndexContribution:positive25"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
+    "IX0001_INDEX_NEGATIVE25": {"product": "IX0001_INDEX_NEGATIVE25", "subscriptionAlias": "IX0001", "quoteTypes": ["IndexContribution:negative25"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
+    "IX0001_INDUSTRY": {"product": "IX0001_INDUSTRY", "subscriptionAlias": "IX0001", "quoteTypes": ["IndustryContribution"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
+}
+if LEADERSHIP_COLLECTION_ENABLED:
+    REQUIRED_SUBSCRIPTIONS.update(LEADERSHIP_REQUIRED_SUBSCRIPTIONS)
+
+LEADERSHIP_HEALTH: dict[str, dict[str, Any]] = {
+    "ix0001IndexContribution": {
+        "sourceAvailability": "SOURCE_AVAILABLE", "subscriptionState": "PENDING",
+        "tradeDate": None, "session": "DAY", "availableAt": None,
+        "freshnessState": "UNAVAILABLE", "quality": "UNAVAILABLE",
+        "simtradeState": "NO_EVENT", "reconnectState": "PENDING",
+        "restorationState": "PENDING", "promotionState": "NOT_PROMOTED",
+    },
+    "ix0001IndustryContribution": {
+        "sourceAvailability": "SOURCE_AVAILABLE", "subscriptionState": "PENDING",
+        "tradeDate": None, "session": "DAY", "availableAt": None,
+        "freshnessState": "UNAVAILABLE", "quality": "UNAVAILABLE",
+        "simtradeState": "NO_EVENT", "reconnectState": "PENDING",
+        "restorationState": "PENDING", "promotionState": "NOT_PROMOTED",
+    },
 }
 
 
@@ -191,6 +227,205 @@ def safe_value(value: Any) -> Any:
     return str(value)
 
 
+def canonical_json(value: Any) -> str:
+    return json.dumps(
+        safe_value(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
+def provider_event_time(payload: Mapping[str, Any]) -> str | None:
+    raw_date = str(payload.get("date") or "").strip()
+    raw_time = str(payload.get("time") or "").strip()
+    if not raw_date or not raw_time:
+        return None
+    try:
+        parsed = datetime.strptime(
+            f"{raw_date} {raw_time}", "%Y/%m/%d %H:%M:%S.%f"
+        ).replace(tzinfo=TAIPEI_TIMEZONE)
+    except ValueError:
+        try:
+            parsed = datetime.strptime(
+                f"{raw_date} {raw_time}", "%Y/%m/%d %H:%M:%S"
+            ).replace(tzinfo=TAIPEI_TIMEZONE)
+        except ValueError:
+            return None
+    return parsed.isoformat()
+
+
+def trade_date_value(payload: Mapping[str, Any]) -> str | None:
+    raw = str(payload.get("date") or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y/%m/%d").date().isoformat()
+    except ValueError:
+        return None
+
+
+def finite_number(value: Any) -> float | int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        parsed = float(value)
+        if parsed == parsed and parsed not in (float("inf"), float("-inf")):
+            return int(parsed) if parsed.is_integer() and isinstance(value, int) else parsed
+    return None
+
+
+def enriched_provider_dict(data: Any) -> Any:
+    if hasattr(data, "to_dict"):
+        try:
+            return data.to_dict()
+        except TypeError:
+            return data.to_dict(raw=True)
+    return vars(data)
+
+
+def normalize_index_contribution(data: Any, received_at: str | None = None) -> dict[str, Any]:
+    provider_raw = enriched_provider_dict(data)
+    provider = safe_value(provider_raw)
+    if not isinstance(provider, dict):
+        raise TypeError("index contribution payload must be a mapping")
+    received = received_at or datetime.now().astimezone().isoformat()
+    ranking = str(provider.get("ranking") or "").lower()
+    entries = []
+    quality_reasons = []
+    for entry in provider.get("entries") or []:
+        if not isinstance(entry, Mapping):
+            quality_reasons.append("ENTRY_NOT_MAPPING")
+            continue
+        row = safe_value(entry)
+        entries.append({
+            "code": str(row.get("code") or ""),
+            "price": finite_number(row.get("price")),
+            "reference": finite_number(row.get("reference")),
+            "priceChange": finite_number(row.get("price_chg")),
+            "pctChange": finite_number(row.get("pct_chg")),
+            "points": finite_number(row.get("points")),
+        })
+    if str(provider.get("code") or "") != "IX0001":
+        quality_reasons.append("INDEX_CODE_NOT_IX0001")
+    if ranking not in {"abs10", "positive25", "negative25"}:
+        quality_reasons.append("RANKING_NOT_OWNER_APPROVED")
+    if not entries:
+        quality_reasons.append("ENTRIES_EMPTY")
+    if any(not row["code"] or row["points"] is None for row in entries):
+        quality_reasons.append("ENTRY_REQUIRED_FIELD_MISSING")
+    simtrade = provider.get("simtrade") is True
+    return {
+        "recordType": "IX0001_INDEX_CONTRIBUTION_RAW",
+        "tradeDate": trade_date_value(provider),
+        "session": "DAY",
+        "indexCode": str(provider.get("code") or ""),
+        "ranking": ranking,
+        "eventTime": provider_event_time(provider),
+        "receivedAt": received,
+        "availableAt": received,
+        "simtrade": simtrade,
+        "simtradeState": "SIMULATED_MATCHING" if simtrade else "LIVE_MATCHING",
+        "sourceVersion": str(getattr(sj, "__version__", "1.7.2")),
+        "qualityStatus": "PASS" if not quality_reasons else "QUALITY_INSUFFICIENT",
+        "qualityReasons": quality_reasons,
+        "rawPayloadHash": hashlib.sha256(canonical_json(provider).encode("utf-8")).hexdigest(),
+        "entries": entries,
+        "providerPayload": provider,
+        "formalWeight": 0,
+        "researchOnly": True,
+        "executionAuthorized": False,
+        "orderRoutesEnabled": False,
+        "promotionState": "NOT_PROMOTED",
+    }
+
+
+def normalize_industry_contribution(data: Any, received_at: str | None = None) -> dict[str, Any]:
+    provider_raw = enriched_provider_dict(data)
+    provider = safe_value(provider_raw)
+    if not isinstance(provider, dict):
+        raise TypeError("industry contribution payload must be a mapping")
+    received = received_at or datetime.now().astimezone().isoformat()
+    entries = []
+    quality_reasons = []
+    for entry in provider.get("entries") or []:
+        if not isinstance(entry, Mapping):
+            quality_reasons.append("ENTRY_NOT_MAPPING")
+            continue
+        row = safe_value(entry)
+        entries.append({
+            "category": str(row.get("category") or ""),
+            "points": finite_number(row.get("points")),
+        })
+    index_close = finite_number(provider.get("index_close"))
+    index_price_change = finite_number(provider.get("index_price_chg"))
+    points = [row["points"] for row in entries if row["points"] is not None]
+    points_sum = sum(points) if len(points) == len(entries) else None
+    invariant_delta = (
+        abs(float(points_sum) - float(index_price_change))
+        if points_sum is not None and index_price_change is not None else None
+    )
+    if str(provider.get("code") or "") != "IX0001":
+        quality_reasons.append("INDEX_CODE_NOT_IX0001")
+    if not entries:
+        quality_reasons.append("ENTRIES_EMPTY")
+    if any(not row["category"] or row["points"] is None for row in entries):
+        quality_reasons.append("ENTRY_REQUIRED_FIELD_MISSING")
+    if invariant_delta is None:
+        quality_reasons.append("INDUSTRY_SUM_INVARIANT_UNAVAILABLE")
+    elif invariant_delta > INDUSTRY_POINTS_TOLERANCE:
+        quality_reasons.append("INDUSTRY_SUM_INVARIANT_FAILED")
+    simtrade = provider.get("simtrade") is True
+    return {
+        "recordType": "IX0001_INDUSTRY_CONTRIBUTION_RAW",
+        "tradeDate": trade_date_value(provider),
+        "session": "DAY",
+        "indexCode": str(provider.get("code") or ""),
+        "eventTime": provider_event_time(provider),
+        "receivedAt": received,
+        "availableAt": received,
+        "simtrade": simtrade,
+        "simtradeState": "SIMULATED_MATCHING" if simtrade else "LIVE_MATCHING",
+        "sourceVersion": str(getattr(sj, "__version__", "1.7.2")),
+        "qualityStatus": "PASS" if not quality_reasons else "QUALITY_INSUFFICIENT",
+        "qualityReasons": quality_reasons,
+        "rawPayloadHash": hashlib.sha256(canonical_json(provider).encode("utf-8")).hexdigest(),
+        "indexClose": index_close,
+        "indexPriceChange": index_price_change,
+        "industryPointsSum": points_sum,
+        "industryInvariantDelta": invariant_delta,
+        "industryInvariantTolerance": INDUSTRY_POINTS_TOLERANCE,
+        "entries": entries,
+        "providerPayload": provider,
+        "formalWeight": 0,
+        "researchOnly": True,
+        "executionAuthorized": False,
+        "orderRoutesEnabled": False,
+        "promotionState": "NOT_PROMOTED",
+    }
+
+
+def record_index_contribution(data: Any) -> None:
+    try:
+        enqueue("ix0001_index_contribution", normalize_index_contribution(data))
+    except Exception as error:
+        record_callback_error(error)
+
+
+def record_industry_contribution(data: Any) -> None:
+    try:
+        enqueue("ix0001_industry_contribution", normalize_industry_contribution(data))
+    except Exception as error:
+        record_callback_error(error)
+
+
+def record_callback_error(error: Exception) -> None:
+    frame = traceback.extract_tb(error.__traceback__)[-1]
+    with LOCK:
+        QUEUE_STATE["callbackErrors"] += 1
+        QUEUE_STATE["lastCallbackError"] = (
+            f"{type(error).__name__} at {Path(frame.filename).name}:"
+            f"{frame.lineno} {frame.name}: {str(error)[:180]}"
+        )
+
+
 def record(kind: str, data: Any) -> None:
     try:
         payload = data.to_dict(raw=True) if hasattr(data, "to_dict") else vars(data)
@@ -256,7 +491,56 @@ def event_writer() -> None:
             code = str(normalized.get("code") or normalized.get("Code") or kind)
             stored = EVENT_LEDGER.append(kind, normalized)
             with LOCK:
-                LATEST[code] = stored
+                latest_key = code
+                if kind == "ix0001_index_contribution":
+                    latest_key = f"IX0001:index_contribution:{normalized.get('ranking') or 'unknown'}"
+                elif kind == "ix0001_industry_contribution":
+                    latest_key = "IX0001:industry_contribution"
+                LATEST[latest_key] = stored
+                if kind == "ix0001_index_contribution":
+                    simulated = normalized.get("simtrade") is True
+                    bucket = (
+                        LEADERSHIP_CACHE["simulatedMatching"]["indexContribution"]
+                        if simulated
+                        else LEADERSHIP_CACHE["indexContribution"]
+                    )
+                    bucket[str(normalized.get("ranking") or "unknown")] = normalized
+                    health = LEADERSHIP_HEALTH["ix0001IndexContribution"]
+                    if simulated:
+                        health["simtradeState"] = "SIMULATED_MATCHING_PRESENT"
+                    else:
+                        health.update({
+                            "tradeDate": normalized.get("tradeDate"),
+                            "availableAt": normalized.get("availableAt"),
+                            "freshnessState": "LIVE",
+                            "quality": normalized.get("qualityStatus"),
+                            "simtradeState": "LIVE_MATCHING",
+                        })
+                    subscription_key = {
+                        "abs10": "IX0001_INDEX_ABS10",
+                        "positive25": "IX0001_INDEX_POSITIVE25",
+                        "negative25": "IX0001_INDEX_NEGATIVE25",
+                    }.get(str(normalized.get("ranking") or ""))
+                    if subscription_key and not simulated:
+                        LEADERSHIP_REQUIRED_SUBSCRIPTIONS[subscription_key]["lastObservedAt"] = normalized.get("availableAt")
+                elif kind == "ix0001_industry_contribution":
+                    simulated = normalized.get("simtrade") is True
+                    if simulated:
+                        LEADERSHIP_CACHE["simulatedMatching"]["industryContribution"] = normalized
+                    else:
+                        LEADERSHIP_CACHE["industryContribution"] = normalized
+                    health = LEADERSHIP_HEALTH["ix0001IndustryContribution"]
+                    if simulated:
+                        health["simtradeState"] = "SIMULATED_MATCHING_PRESENT"
+                    else:
+                        health.update({
+                            "tradeDate": normalized.get("tradeDate"),
+                            "availableAt": normalized.get("availableAt"),
+                            "freshnessState": "LIVE",
+                            "quality": normalized.get("qualityStatus"),
+                            "simtradeState": "LIVE_MATCHING",
+                        })
+                        LEADERSHIP_REQUIRED_SUBSCRIPTIONS["IX0001_INDUSTRY"]["lastObservedAt"] = normalized.get("availableAt")
                 QUEUE_STATE["written"] += 1
         except Exception as error:  # keep health endpoint alive and fail visibly
             frame = traceback.extract_tb(error.__traceback__)[-1]
@@ -270,6 +554,64 @@ def event_writer() -> None:
             EVENT_QUEUE.task_done()
 
 
+def taipei_day_session(now: datetime | None = None) -> bool:
+    current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
+    return current.weekday() < 5 and time(9, 0) <= current.time() <= time(13, 35)
+
+
+def leadership_payload(now: datetime | None = None) -> dict[str, Any]:
+    current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
+    with LOCK:
+        index_rows = dict(LEADERSHIP_CACHE["indexContribution"])
+        industry = LEADERSHIP_CACHE["industryContribution"]
+        simulated = {
+            "indexContribution": dict(LEADERSHIP_CACHE["simulatedMatching"]["indexContribution"]),
+            "industryContribution": LEADERSHIP_CACHE["simulatedMatching"]["industryContribution"],
+        }
+    available_times = [
+        row.get("availableAt") for row in [*index_rows.values(), industry] if row
+    ]
+    last_available_at = max((value for value in available_times if value), default=None)
+    source_trade_date = max(
+        (row.get("tradeDate") for row in [*index_rows.values(), industry] if row and row.get("tradeDate")),
+        default=None,
+    )
+    live = False
+    if taipei_day_session(current) and last_available_at:
+        try:
+            live = (current - datetime.fromisoformat(last_available_at).astimezone(TAIPEI_TIMEZONE)).total_seconds() <= 10
+        except ValueError:
+            live = False
+    state = "LIVE" if live else "SESSION_CLOSED" if (index_rows or industry) else "UNAVAILABLE"
+    return {
+        "schemaVersion": "ix0001-leadership-raw-v1",
+        "recordType": "IX0001_LEADERSHIP_LATEST",
+        "indexCode": "IX0001",
+        "session": "DAY",
+        "collectionEnabled": LEADERSHIP_COLLECTION_ENABLED,
+        "state": state,
+        "sourceMode": "LIVE_RAW" if live else "EOD_CONTEXT" if (index_rows or industry) else "UNAVAILABLE",
+        "sourceTradeDate": source_trade_date,
+        "lastAvailableAt": last_available_at,
+        "indexContribution": index_rows,
+        "industryContribution": industry,
+        "simulatedMatching": simulated,
+        "concepts": {
+            "REALTIME_INDEX_CONTRIBUTION": "AVAILABLE",
+            "HISTORICAL_EFFECTIVE_WEIGHTS": "SOURCE_GAP",
+        },
+        "LEADERSHIP_DESCRIPTIVE_ONLY": True,
+        "NOT_PROMOTED": True,
+        "NOT_A_TRADING_SIGNAL": True,
+        "recommendation": False,
+        "systemDirectionalSignal": False,
+        "formalWeight": 0,
+        "researchOnly": True,
+        "executionAuthorized": False,
+        "orderRoutesEnabled": False,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ShioajiReadOnly/1.0"
 
@@ -280,6 +622,15 @@ class Handler(BaseHTTPRequestHandler):
                 queue_state = dict(QUEUE_STATE)
                 subscriptions = [dict(item) for item in REQUIRED_SUBSCRIPTIONS.values()]
                 txo_state = dict(TXO_COLLECTION_STATE)
+                leadership_health = {
+                    key: dict(value) for key, value in LEADERSHIP_HEALTH.items()
+                }
+            leadership_state = leadership_payload().get("state")
+            for item in leadership_health.values():
+                if item.get("availableAt"):
+                    item["freshnessState"] = (
+                        "LIVE" if leadership_state == "LIVE" else "SESSION_CLOSED"
+                    )
             ledger_health = EVENT_LEDGER.health()
             writer_state = (
                 "PASS"
@@ -340,6 +691,7 @@ class Handler(BaseHTTPRequestHandler):
                 "subscriptionState": "RESTORED" if subscriptions_ready else "PARTIAL",
                 "writerState": writer_state,
                 "txoCollection": txo_state,
+                "leadership": leadership_health,
                 "nativeSequenceAvailability": "UNAVAILABLE",
                 "dataLossCertainty": "UNKNOWN_NO_NATIVE_SEQUENCE",
                 "timestampLineageState": "QUALITY_INSUFFICIENT",
@@ -350,6 +702,16 @@ class Handler(BaseHTTPRequestHandler):
                 "eventQueueCapacity": EVENT_QUEUE_CAPACITY,
                 **queue_state,
                 **ledger_health,
+            })
+            return
+        if self.path == "/leadership":
+            self.respond(200, {
+                "ok": True,
+                "provider": "shioaji",
+                "mode": "market_data_only",
+                "data": leadership_payload(),
+                "executionAuthorized": False,
+                "orderRoutesEnabled": False,
             })
             return
         if self.path == "/latest":
@@ -425,7 +787,7 @@ def main() -> None:
     with LOCK:
         QUEUE_STATE["writerThreadAlive"] = True
     api: Any = None
-    subscriptions: list[tuple[Any, Any]] = []
+    subscriptions: list[tuple[Any, Any, Any | None]] = []
     stop = threading.Event()
     bridge_started = False
     exit_code = 0
@@ -460,6 +822,8 @@ def main() -> None:
         api.set_on_bidask_fop_v1_callback(
             lambda bidask: record("futures_bidask", bidask)
         )
+        api.set_on_index_contribution_callback(record_index_contribution)
+        api.set_on_industry_contribution_callback(record_industry_contribution)
 
         def on_session_down() -> None:
             nonlocal exit_code
@@ -480,7 +844,7 @@ def main() -> None:
         if contract is None:
             raise LookupError("stock contract not found: 2330")
         api.subscribe(contract, quote_type=sj.QuoteType.Tick)
-        subscriptions.append((contract, sj.QuoteType.Tick))
+        subscriptions.append((contract, sj.QuoteType.Tick, None))
         with LOCK:
             REQUIRED_SUBSCRIPTIONS["2330"]["state"] = "RESTORED"
 
@@ -488,9 +852,43 @@ def main() -> None:
         if index is None:
             raise LookupError("TAIEX index contract not found: IX0001")
         api.subscribe(index, quote_type=sj.QuoteType.Quote)
-        subscriptions.append((index, sj.QuoteType.Quote))
+        subscriptions.append((index, sj.QuoteType.Quote, None))
         with LOCK:
             REQUIRED_SUBSCRIPTIONS["IX0001"]["state"] = "RESTORED"
+
+        if LEADERSHIP_COLLECTION_ENABLED:
+            leadership_rankings = (
+                ("IX0001_INDEX_ABS10", sj.ContributionRanking.Abs10),
+                ("IX0001_INDEX_POSITIVE25", sj.ContributionRanking.Positive25),
+                ("IX0001_INDEX_NEGATIVE25", sj.ContributionRanking.Negative25),
+            )
+            for subscription_key, ranking in leadership_rankings:
+                api.subscribe(
+                    index,
+                    quote_type=sj.QuoteType.IndexContribution,
+                    ranking=ranking,
+                )
+                subscriptions.append((index, sj.QuoteType.IndexContribution, ranking))
+                with LOCK:
+                    REQUIRED_SUBSCRIPTIONS[subscription_key]["state"] = "RESTORED"
+            api.subscribe(index, quote_type=sj.QuoteType.IndustryContribution)
+            subscriptions.append((index, sj.QuoteType.IndustryContribution, None))
+            with LOCK:
+                REQUIRED_SUBSCRIPTIONS["IX0001_INDUSTRY"]["state"] = "RESTORED"
+                for health in LEADERSHIP_HEALTH.values():
+                    health.update({
+                        "subscriptionState": "RESTORED",
+                        "reconnectState": "USES_EXISTING_SINGLE_BRIDGE",
+                        "restorationState": "RESTORED",
+                    })
+        else:
+            with LOCK:
+                for health in LEADERSHIP_HEALTH.values():
+                    health.update({
+                        "subscriptionState": "DEFAULT_OFF",
+                        "reconnectState": "OWNER_ACTIVATION_REQUIRED",
+                        "restorationState": "NOT_REQUESTED",
+                    })
 
         futures_contracts: list[tuple[str, str, Any]] = []
         for product_family, alias in (
@@ -519,9 +917,9 @@ def main() -> None:
 
         for _, _, futures_contract in futures_contracts:
             api.subscribe(futures_contract, quote_type=sj.QuoteType.Tick)
-            subscriptions.append((futures_contract, sj.QuoteType.Tick))
+            subscriptions.append((futures_contract, sj.QuoteType.Tick, None))
             api.subscribe(futures_contract, quote_type=sj.QuoteType.BidAsk)
-            subscriptions.append((futures_contract, sj.QuoteType.BidAsk))
+            subscriptions.append((futures_contract, sj.QuoteType.BidAsk, None))
         with LOCK:
             for product_family, _, _ in futures_contracts:
                 REQUIRED_SUBSCRIPTIONS[product_family]["state"] = "RESTORED"
@@ -549,9 +947,9 @@ def main() -> None:
                 code = str(getattr(option_contract, "code", "") or "")
                 OPTIONS_METADATA[code] = {**contract_metadata(option_contract), "calendar": calendar}
                 api.subscribe(option_contract, quote_type=sj.QuoteType.Tick)
-                subscriptions.append((option_contract, sj.QuoteType.Tick))
+                subscriptions.append((option_contract, sj.QuoteType.Tick, None))
                 api.subscribe(option_contract, quote_type=sj.QuoteType.BidAsk)
-                subscriptions.append((option_contract, sj.QuoteType.BidAsk))
+                subscriptions.append((option_contract, sj.QuoteType.BidAsk, None))
             with LOCK:
                 TXO_COLLECTION_STATE.update({
                     "enabled": True,
@@ -567,6 +965,17 @@ def main() -> None:
             products=[
                 "2330",
                 "IX0001",
+                *([
+                    {
+                        "productFamily": "IX0001_INDEX_CONTRIBUTION",
+                        "rankings": ["abs10", "positive25", "negative25"],
+                        "quoteTypes": ["IndexContribution"],
+                    },
+                    {
+                        "productFamily": "IX0001_INDUSTRY_CONTRIBUTION",
+                        "quoteTypes": ["IndustryContribution"],
+                    },
+                ] if LEADERSHIP_COLLECTION_ENABLED else []),
                 *[
                     {
                         "productFamily": product_family,
@@ -586,7 +995,8 @@ def main() -> None:
         )
 
         print(f"Shioaji read-only quotes: http://{HOST}:{PORT}/health")
-        print("Subscribed: IX0001, 2330, TXFR1, MXFR1, TMFR1; TXO default-off")
+        leadership_status = "enabled" if LEADERSHIP_COLLECTION_ENABLED else "default-off"
+        print(f"Subscribed: IX0001 Quote, 2330, TXFR1, MXFR1, TMFR1; IX0001 Leadership {leadership_status}; TXO default-off")
         print("Order routes: disabled")
         server.serve_forever()
     finally:
@@ -604,9 +1014,12 @@ def main() -> None:
         with LOCK:
             QUEUE_STATE["writerThreadAlive"] = writer.is_alive()
         if api is not None:
-            for contract, quote_type in subscriptions:
+            for contract, quote_type, ranking in subscriptions:
                 try:
-                    api.unsubscribe(contract, quote_type=quote_type)
+                    if ranking is None:
+                        api.unsubscribe(contract, quote_type=quote_type)
+                    else:
+                        api.unsubscribe(contract, quote_type=quote_type, ranking=ranking)
                 except Exception:
                     pass
             try:

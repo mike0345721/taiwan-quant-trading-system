@@ -150,3 +150,22 @@ test('options page exposes same-contract short trends without joining expiries',
   assert.match(css, /\.dealer-map-summary/);
   assert.match(css, /\.dealer-zone-range/);
 });
+
+test('Decision Workspace exposes a compact descriptive IX0001 Leadership module', () => {
+  const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  for (const id of [
+    'dw-leadership-state', 'dw-leadership-bars', 'dw-leadership-positive',
+    'dw-leadership-negative', 'dw-industry-bars', 'dw-industry-invariant',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+    assert.match(app, new RegExp(`['"]${id}['"]`));
+  }
+  assert.match(html, /描述性原始資料 · NOT PROMOTED · NOT A TRADING SIGNAL/);
+  assert.match(app, /\/api\/v1\/index-leadership/);
+  assert.match(app, /BOUNDED|bounded latest cache|never reloads the full ledger/i);
+  assert.match(css, /--leadership-up: #ff6b6b/);
+  assert.match(css, /--leadership-down: #37d67a/);
+  assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
+});
