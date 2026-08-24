@@ -2,8 +2,7 @@ const RANKINGS = Object.freeze(['abs10', 'positive25', 'negative25']);
 const LIVE_FRESHNESS_MS = 10_000;
 
 function finite(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function iso(value) {
@@ -110,7 +109,8 @@ function healthRecord(sourceId, sourceType, source, state, subscriptionState) {
     tradeDate: source?.tradeDate || null,
     session: 'DAY',
     availableAt: source?.availableAt || null,
-    freshnessState: available ? (state === 'LIVE' ? 'LIVE' : 'SESSION_CLOSED') : 'UNAVAILABLE',
+    freshnessState: source && state === 'LIVE' ? 'LIVE'
+      : source && state === 'SESSION_CLOSED' ? 'SESSION_CLOSED' : 'UNAVAILABLE',
     quality: source?.qualityStatus || 'UNAVAILABLE',
     simtradeState: source ? 'LIVE_MATCHING' : 'NO_LIVE_EVENT',
     reconnectState: 'USES_EXISTING_SINGLE_BRIDGE',

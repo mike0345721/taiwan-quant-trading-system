@@ -97,8 +97,37 @@ test('default-off runtime exposes source capability without claiming an active s
   assert.equal(result.dataHealth.ix0001IndexContribution.sourceAvailability, 'SOURCE_AVAILABLE');
   assert.equal(result.dataHealth.ix0001IndexContribution.subscriptionState, 'DEFAULT_OFF');
   assert.equal(result.dataHealth.ix0001IndexContribution.restorationState, 'NOT_REQUESTED');
+  assert.equal(result.dataHealth.ix0001IndexContribution.freshnessState, 'UNAVAILABLE');
+  assert.equal(result.dataHealth.ix0001IndustryContribution.freshnessState, 'UNAVAILABLE');
   assert.equal(result.state, 'UNAVAILABLE');
   assert.equal(result.quality, 'QUALITY_INSUFFICIENT');
+});
+
+test('missing and non-numeric provider fields remain null instead of becoming zero', () => {
+  const raw = fixture();
+  raw.indexContribution.abs10.entries = [{
+    code: '2330', price: null, reference: undefined, priceChange: '', pctChange: false, points: true,
+  }];
+  raw.industryContribution = {
+    ...raw.industryContribution,
+    indexClose: null,
+    indexPriceChange: '',
+    industryPointsSum: false,
+    industryInvariantDelta: true,
+    industryInvariantTolerance: '0.1',
+    entries: [{ category: '01', points: undefined }],
+  };
+
+  const result = buildIndexLeadership(raw, { now: new Date('2026-08-24T01:01:05.000Z') });
+  assert.deepEqual(result.indexLeadership.rankings.abs10.entries[0], {
+    code: '2330', price: null, reference: null, priceChange: null, pctChange: null, points: null,
+  });
+  assert.equal(result.industryLeadership.source.indexClose, null);
+  assert.equal(result.industryLeadership.source.indexPriceChange, null);
+  assert.equal(result.industryLeadership.source.industryPointsSum, null);
+  assert.equal(result.industryLeadership.source.industryInvariantDelta, null);
+  assert.equal(result.industryLeadership.source.industryInvariantTolerance, null);
+  assert.equal(result.industryLeadership.source.entries[0].points, null);
 });
 
 test('partial rankings remain quality-insufficient even when the received event passes validation', () => {
