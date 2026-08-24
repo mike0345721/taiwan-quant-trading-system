@@ -8,10 +8,16 @@ const state = {
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  txChartPalette: 'red-up',
   marketChangeFeed: null,
   indexLeadership: null, indexLeadershipLoading: false,
 };
 const $ = (id) => document.getElementById(id);
+const traderTerminalRoot = $('decision-workspace');
+if (traderTerminalRoot && window.TraderTerminalShell) {
+  window.TraderTerminalShell.mount(traderTerminalRoot);
+  state.txChartPalette = traderTerminalRoot.dataset.candlePalette || 'red-up';
+}
 
 function setDashboardPage(page) {
   const valid = new Set(['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']);
@@ -137,6 +143,8 @@ function fmt(value, digits = 0) {
 }
 
 function finiteNumber(value) {
+  if (value == null || typeof value === 'boolean') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -2602,7 +2610,7 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
   const vwap = levelValue(levels.vwap);
-  dwText('dw-pulse-price', Number.isFinite(Number(chart?.lastPrice)) ? fmt(chart.lastPrice) : 'UNAVAILABLE');
+  dwText('dw-pulse-price', finiteNumber(chart?.lastPrice) == null ? 'UNAVAILABLE' : fmt(chart.lastPrice));
   dwText('dw-pulse-vwap', vwap == null ? 'UNAVAILABLE' : fmt(vwap, 2));
   dwText('dw-pulse-vwap-mode', chart?.vwapSession === 'DAY' ? 'DAY VWAP · 本時段' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP · 本時段' : 'Session VWAP');
   dwText('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
@@ -2627,6 +2635,86 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
     dwText(modeId, truth.join(' · ') || dw4StateLabel(evidence?.availabilityState));
   });
   dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
+  const latestVolume = Array.isArray(chart?.bars) ? finiteNumber(chart.bars.at(-1)?.volume) : null;
+  dwText('dw-pulse-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
+}
+
+function terminalSetTrust(cardKey, evidence) {
+  const availability = evidence?.availabilityState || 'UNAVAILABLE';
+  const quality = evidence?.qualityState || 'UNKNOWN';
+  const promotion = evidence?.promotionState || 'NOT_PROMOTED';
+  const target = $(`tt-${cardKey}-trust`);
+  if (target) {
+    target.textContent = `${availability} · ${quality}`;
+    target.className = `dw-status-pill ${healthTone(availability === 'AVAILABLE' ? quality : availability)}`;
+    target.title = `promotionState=${promotion}`;
+  }
+  return { availability, quality, promotion };
+}
+
+function terminalEvidenceValues(contract, family, limit = 3) {
+  const evidence = dw4FamilyEvidence(contract, family);
+  const values = Array.isArray(evidence?.detail?.descriptiveValues) ? evidence.detail.descriptiveValues.slice(0, limit) : [];
+  return { evidence, values };
+}
+
+function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretation) {
+  const { evidence, values } = terminalEvidenceValues(contract, family);
+  const trust = terminalSetTrust(cardKey, evidence);
+  const main = values.length ? `${values[0].label} ${dw4DescriptiveValue(values[0])}` : trust.availability;
+  dwText(`tt-${cardKey}-main`, main);
+  const visual = $(`tt-${cardKey}-viz`);
+  if (visual) {
+    const rows = values.slice(1).map((entry) => {
+      const row = document.createElement('span');
+      row.textContent = `${entry.label} ${dw4DescriptiveValue(entry)} · ${sourceModeLabel(entry.sourceMode)}`;
+      return row;
+    });
+    visual.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('span'), { textContent: trust.availability })]));
+  }
+  const sourceLabel = evidence?.detail?.displaySourceLabel;
+  dwText(`tt-${cardKey}-interpretation`, sourceLabel
+    ? `${sourceLabel} · descriptive evidence only`
+    : emptyInterpretation);
+}
+
+function renderTerminalShell(workspace, chart = state.txChartPayload) {
+  if (!$('tt-summary-price')) return;
+  const contract = workspace?.evidenceConflict;
+  const decision = workspace?.decisionSummary || {};
+  const currentFacts = workspace?.currentMarketFactSummary || {};
+  const global = workspace?.globalStatus || {};
+  const vwap = levelValue(chart?.levels?.vwap);
+
+  dwText('tt-summary-price', currentFacts.priceStructureFact || 'UNAVAILABLE');
+  dwText('tt-summary-strength', 'RESEARCH_PENDING');
+  dwText('tt-summary-vwap', vwap == null ? 'UNAVAILABLE' : fmt(vwap, 2));
+  dwText('tt-summary-breadth', dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState || 'UNAVAILABLE');
+  dwText('tt-summary-flow', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE');
+  dwText('tt-summary-risk', decision.risk || 'UNAVAILABLE');
+
+  dwText('tt-trend-main', 'RESEARCH_PENDING');
+  dwText('tt-trend-direction', 'Direction · RESEARCH_PENDING');
+  dwText('tt-trend-strength', 'Strength · RESEARCH_PENDING');
+  dwText('tt-trend-change', 'Strength Change · RESEARCH_PENDING');
+  const trendTrust = $('tt-trend-trust');
+  if (trendTrust) {
+    trendTrust.textContent = 'RESEARCH_PENDING';
+    trendTrust.className = 'dw-status-pill is-unavailable';
+  }
+
+  renderTerminalEvidenceCard('futures', contract, 'FUTURES_INSTITUTIONAL', 'Futures context is currently UNAVAILABLE.');
+  renderTerminalEvidenceCard('options', contract, 'OPTIONS_CONTEXT', 'Verified options context is currently UNAVAILABLE.');
+  renderTerminalEvidenceCard('breadth', contract, 'PARTICIPATION_BREADTH', 'Breadth participation is currently UNAVAILABLE.');
+  renderTerminalEvidenceCard('global', contract, 'GLOBAL_FX', 'No governed global source is currently available.');
+
+  const health = global.dataHealth || 'UNAVAILABLE';
+  dwText('tt-health-main', health);
+  const healthTrust = $('tt-health-trust');
+  if (healthTrust) {
+    healthTrust.textContent = health;
+    healthTrust.className = `dw-status-pill ${healthTone(health)}`;
+  }
 }
 
 function leadershipRow(row, maxAbs, { compact = false } = {}) {
@@ -2818,6 +2906,11 @@ function chartEpoch(value) {
   return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null;
 }
 
+function activeCandlePalette() {
+  return window.TraderTerminalShell?.PALETTES?.[state.txChartPalette]
+    || { up: '#ff6b6b', down: '#37d67a', upVolume: 'rgba(255,107,107,.34)', downVolume: 'rgba(55,214,122,.34)' };
+}
+
 function ensureTxChart() {
   if (state.txChartApi) return state.txChartApi;
   const target = $('dw-chart-canvas');
@@ -2837,9 +2930,10 @@ function ensureTxChart() {
     localization: { timeFormatter: (time) => chartTimeLabel(time) },
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
   });
+  const palette = activeCandlePalette();
   const candle = chart.addSeries(L.CandlestickSeries, {
-    upColor: '#55d6be', downColor: '#ef8293', borderVisible: false,
-    wickUpColor: '#55d6be', wickDownColor: '#ef8293', priceLineVisible: true,
+    upColor: palette.up, downColor: palette.down, borderVisible: false,
+    wickUpColor: palette.up, wickDownColor: palette.down, priceLineVisible: true,
   });
   const volume = chart.addSeries(L.HistogramSeries, {
     priceScaleId: 'volume', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false,
@@ -2922,21 +3016,26 @@ function renderTxChartLevels(chart) {
 }
 
 function chartSeriesData(payload) {
+  const palette = activeCandlePalette();
   const candles = (payload.bars || []).map((bar) => ({
-    time: chartEpoch(bar.time), open: Number(bar.open), high: Number(bar.high), low: Number(bar.low), close: Number(bar.close),
-  })).filter((bar) => bar.time != null);
-  const volumes = (payload.bars || []).map((bar) => ({
-    time: chartEpoch(bar.time), value: Number(bar.volume),
-    color: Number(bar.close) >= Number(bar.open) ? 'rgba(85,214,190,.34)' : 'rgba(239,130,147,.34)',
-  })).filter((bar) => bar.time != null && Number.isFinite(bar.value));
-  const vwap = (payload.vwap || []).map((point) => ({ time: chartEpoch(point.time), value: Number(point.value) }))
-    .filter((point) => point.time != null && Number.isFinite(point.value));
+    time: chartEpoch(bar.time), open: finiteNumber(bar.open), high: finiteNumber(bar.high), low: finiteNumber(bar.low), close: finiteNumber(bar.close),
+  })).filter((bar) => bar.time != null && [bar.open, bar.high, bar.low, bar.close].every((value) => value != null));
+  const volumes = (payload.bars || []).map((bar) => {
+    const open = finiteNumber(bar.open);
+    const close = finiteNumber(bar.close);
+    return {
+      time: chartEpoch(bar.time), value: finiteNumber(bar.volume),
+      color: open == null || close == null ? 'rgba(131,145,167,.28)' : close >= open ? palette.upVolume : palette.downVolume,
+    };
+  }).filter((bar) => bar.time != null && bar.value != null);
+  const vwap = (payload.vwap || []).map((point) => ({ time: chartEpoch(point.time), value: finiteNumber(point.value) }))
+    .filter((point) => point.time != null && point.value != null);
   return { candles, volumes, vwap };
 }
 
 function marketChangeMarkerData(feed, timeframe) {
   if (timeframe !== '5m') return [];
-  return (feed?.markers || []).map((marker) => ({
+  return (feed?.markers || []).filter((marker) => !/^(?:時段高|時段低|VWAP\s*[↑↓])$/u.test(String(marker?.text || '').trim())).map((marker) => ({
     time: chartEpoch(marker.time),
     position: marker.position,
     color: marker.color,
@@ -2944,6 +3043,22 @@ function marketChangeMarkerData(feed, timeframe) {
     text: marker.text,
   })).filter((marker) => marker.time != null);
 }
+
+window.addEventListener('trader-terminal:palette', (event) => {
+  state.txChartPalette = event.detail?.name || 'red-up';
+  const palette = activeCandlePalette();
+  state.txChartSeries?.candle?.applyOptions({
+    upColor: palette.up, downColor: palette.down,
+    wickUpColor: palette.up, wickDownColor: palette.down,
+  });
+  if (state.txChartSeries?.volume && state.txChartPayload) {
+    state.txChartSeries.volume.setData(chartSeriesData(state.txChartPayload).volumes);
+  }
+});
+
+window.addEventListener('trader-terminal:chart-layout', () => {
+  window.setTimeout(() => state.txChartApi?.timeScale().fitContent(), 0);
+});
 
 function marketChangeFactText(fact = {}) {
   const values = [];
@@ -3122,6 +3237,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   const chart = ensureTxChart();
   renderTxChartLevels(payload);
   renderMarketPulse(state.decisionWorkspace, payload);
+  renderTerminalShell(state.decisionWorkspace, payload);
 
   const visualizable = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
   $('dw-chart-empty').classList.toggle('hidden', visualizable);
@@ -3203,6 +3319,7 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-now-trust-fact', `完整度：${dw4SummaryLabel(currentFacts.coverageState || 'INSUFFICIENT')} · 資料信任：${dw4SummaryLabel(currentFacts.dataTrustState || 'BLOCKED')}`);
   renderDw4Evidence(workspace?.evidenceConflict);
   renderMarketPulse(workspace, state.txChartPayload || chart);
+  renderTerminalShell(workspace, state.txChartPayload || chart);
   renderIndexLeadership(workspace?.indexLeadership);
 
   const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
