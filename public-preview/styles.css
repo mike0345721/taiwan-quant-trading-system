@@ -19,23 +19,14 @@ body.tt-preview-body {
   overflow-x: hidden;
   background: radial-gradient(circle at 45% -25%, #14304e 0, var(--bg) 48%);
   color: var(--text);
-  font: 13px/1.45 Inter, "Noto Sans TC", "Segoe UI", sans-serif;
+  font: 12px/1.4 Inter, "Noto Sans TC", "Segoe UI", sans-serif;
 }
 
 .tt-preview-body #decision-workspace {
   display: block;
-  width: min(100%, 1920px);
+  width: 100%;
   margin: 0 auto;
-  padding: 12px;
-}
-
-.tt-preview-body .dw-page-heading {
-  margin-bottom: 9px;
-}
-
-.tt-preview-body .dw-page-heading h1 {
-  margin: 2px 0 0;
-  font-size: 18px;
+  padding: 6px 8px 8px;
 }
 
 .tt-preview-body .dw-price-region,
@@ -78,6 +69,8 @@ body.tt-preview-body {
   cursor: pointer;
 }
 
+.tt-preview-body .tt-terminal-frame { min-height: calc(100vh - 22px); }
+
 .tt-preview-body .dw-leadership p,
 .tt-preview-body .dw-gpt-panel p,
 .tt-preview-body .dw-conflict-monitor small {
@@ -86,6 +79,6 @@ body.tt-preview-body {
 
 @media (max-width: 720px) {
   .tt-preview-body #decision-workspace {
-    padding: 7px;
+    padding: 5px;
   }
 }

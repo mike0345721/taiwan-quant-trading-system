@@ -32,7 +32,10 @@ test('isolated preview runner accepts an explicit read-only chart bundle path', 
 test('Trader Terminal shell provides hierarchy, chart expansion, palette and detail drawer', () => {
   const shell = read('public', 'trader-terminal-shell.js');
   const styles = read('public', 'trader-terminal-shell.css');
-  for (const token of ['tt-summary-line', 'tt-primary-grid', 'tt-tier-one-grid', 'tt-tier-two-grid', 'tt-tier-three-grid', 'tt-drawer']) {
+  for (const token of [
+    'tt-terminal-nav', 'tt-terminal-layout', 'tt-terminal-topbar', 'tt-summary-line', 'tt-primary-grid',
+    'tt-tier-one-grid', 'tt-tier-two-grid', 'tt-tier-three-grid', 'tt-drawer',
+  ]) {
     assert.match(shell, new RegExp(token));
   }
   assert.match(shell, /red-up/);
@@ -44,11 +47,19 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /tt-participation-bar/);
   assert.match(shell, /tt-global-tiles/);
   assert.match(shell, /tt-contribution-placeholder/);
+  assert.match(shell, /tt-health-layout/);
+  assert.match(shell, /tt-gpt-visual/);
+  assert.match(shell, /index <= 6/);
+  assert.match(shell, /正貢獻 TOP 5/);
+  assert.match(shell, /負貢獻 TOP 5/);
+  assert.match(shell, /index <= 5/);
   assert.match(styles, /--trust-live/);
   assert.match(styles, /--candle-up/);
   assert.match(styles, /overflow-x:\s*clip/);
-  assert.match(styles, /height:\s*350px/);
-  assert.match(styles, /height:\s*182px/);
+  assert.match(styles, /height:\s*435px/);
+  assert.match(styles, /height:\s*230px/);
+  assert.match(styles, /height:\s*190px/);
+  assert.match(styles, /grid-template-columns:\s*64px/);
 });
 
 test('UI-1 renders only governed descriptive states and suppresses repetitive chart markers', () => {
@@ -56,6 +67,9 @@ test('UI-1 renders only governed descriptive states and suppresses repetitive ch
   assert.match(app, /tt-summary-strength', 'RESEARCH_PENDING'/);
   assert.match(app, /tt-trend-direction', '—'/);
   assert.match(app, /tt-trend-price-track', 'RESEARCH_PENDING'/);
+  assert.match(app, /tt-top-change', 'UNAVAILABLE'/);
+  assert.match(app, /tt-top-oi', 'UNAVAILABLE'/);
+  assert.match(app, /tt-pulse-rvol', 'UNAVAILABLE'/);
   assert.match(app, /時段高\|時段低\|VWAP/);
   assert.match(app, /typeof value === 'boolean'/);
   assert.doesNotMatch(read('public', 'trader-terminal-shell.js'), /executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/);

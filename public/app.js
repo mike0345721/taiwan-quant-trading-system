@@ -2685,6 +2685,19 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   const currentFacts = workspace?.currentMarketFactSummary || {};
   const global = workspace?.globalStatus || {};
   const vwap = levelValue(chart?.levels?.vwap);
+  const lastPrice = finiteNumber(chart?.lastPrice);
+  const latestVolume = Array.isArray(chart?.bars) ? finiteNumber(chart.bars.at(-1)?.volume) : null;
+
+  dwText('tt-top-contract', chart?.actualContract ? `台指期貨 ${chart.actualContract}` : '台指期貨');
+  dwText('tt-top-price', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
+  dwText('tt-top-change', 'UNAVAILABLE');
+  dwText('tt-top-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
+  dwText('tt-top-oi', 'UNAVAILABLE');
+  dwText('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || 'UNAVAILABLE');
+  dwText('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : '更新 UNAVAILABLE');
+  dwText('tt-top-trust', chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE');
+  const topTrust = $('tt-top-trust');
+  if (topTrust) topTrust.className = `dw-status-pill ${healthTone(chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE')}`;
 
   dwText('tt-summary-price', currentFacts.priceStructureFact || 'UNAVAILABLE');
   dwText('tt-summary-strength', 'RESEARCH_PENDING');
@@ -2693,7 +2706,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   dwText('tt-summary-flow', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE');
   dwText('tt-summary-risk', decision.risk || 'UNAVAILABLE');
 
-  dwText('tt-trend-main', '—');
+  dwText('tt-trend-main', 'UNAVAILABLE');
   dwText('tt-trend-direction', '—');
   dwText('tt-trend-strength', '—');
   dwText('tt-trend-change', '—');
@@ -2701,7 +2714,6 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     ['tt-trend-price-track', 'RESEARCH_PENDING'],
     ['tt-trend-vwap-track', 'RESEARCH_PENDING'],
     ['tt-trend-path-track', 'RESEARCH_PENDING'],
-    ['tt-trend-pullback-track', 'RESEARCH_PENDING'],
     ['tt-trend-breadth-track', dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState || 'UNAVAILABLE'],
     ['tt-trend-leadership-track', 'NOT_REQUESTED'],
     ['tt-trend-futures-track', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE'],
@@ -2719,6 +2731,9 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   renderTerminalEvidenceCard('options', contract, 'OPTIONS_CONTEXT', 'Verified options context is currently UNAVAILABLE.');
   renderTerminalEvidenceCard('breadth', contract, 'PARTICIPATION_BREADTH', 'Breadth participation is currently UNAVAILABLE.');
   renderTerminalEvidenceCard('global', contract, 'GLOBAL_FX', 'No governed global source is currently available.');
+
+  dwText('tt-pulse-rvol', 'UNAVAILABLE');
+  dwText('tt-pulse-basis', 'UNAVAILABLE');
 
   const health = global.dataHealth || 'UNAVAILABLE';
   dwText('tt-health-main', health);
