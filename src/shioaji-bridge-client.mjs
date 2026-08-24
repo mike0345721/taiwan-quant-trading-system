@@ -1,3 +1,5 @@
+import { buildIndexLeadership } from './index-leadership.mjs';
+
 const DEFAULT_URL = 'http://127.0.0.1:8790';
 
 async function getJson(path, { baseUrl = DEFAULT_URL, timeoutMs = 1200 } = {}) {
@@ -94,6 +96,8 @@ export async function inspectShioajiBridge(options = {}) {
         nativeSequenceAvailability: health?.nativeSequenceAvailability === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE',
         dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
       },
+      requiredSubscriptions,
+      leadershipHealth: health?.leadership && typeof health.leadership === 'object' ? health.leadership : null,
       txoCollection,
       executionAuthorized: false,
       orderRoutesEnabled: false,
@@ -129,6 +133,8 @@ export async function inspectShioajiBridge(options = {}) {
         dataTrust: runtime?.dataTrust === 'QUALITY_INSUFFICIENT' ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
         nativeSequenceAvailability: 'UNAVAILABLE', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
       },
+      requiredSubscriptions: [],
+      leadershipHealth: null,
       txoCollection: {
         enabled: false, collectorState: 'UNAVAILABLE', subscriptionCount: 0,
         expectedSubscriptionCount: 0, restoredSubscriptionCount: 0, lastQuoteAt: null,
@@ -143,5 +149,38 @@ export async function inspectShioajiBridge(options = {}) {
       checkedAt: new Date().toISOString(),
       error: error?.name === 'AbortError' ? 'bridge_timeout' : 'bridge_unreachable',
     };
+  }
+}
+
+function subscriptionState(bridge, prefix) {
+  const rows = bridge?.requiredSubscriptions || bridge?.continuity?.requiredSubscriptions || [];
+  const matching = rows.filter((row) => row.product === prefix || row.product?.startsWith(`${prefix}_`));
+  return matching.length && matching.every((row) => row.state === 'RESTORED') ? 'RESTORED' : 'UNKNOWN';
+}
+
+export async function inspectIx0001Leadership(options = {}) {
+  const bridge = options.bridge || await inspectShioajiBridge(options);
+  try {
+    const response = await getJson('/leadership', options);
+    const safe = response?.mode === 'market_data_only'
+      && response?.executionAuthorized === false
+      && response?.orderRoutesEnabled === false
+      && response?.data?.executionAuthorized === false
+      && response?.data?.orderRoutesEnabled === false;
+    if (!safe) throw new Error('unsafe_leadership_response');
+    return buildIndexLeadership(response.data, {
+      now: options.now || new Date(),
+      indexSubscriptionState: bridge?.leadershipHealth?.ix0001IndexContribution?.subscriptionState || subscriptionState(bridge, 'IX0001_INDEX'),
+      industrySubscriptionState: bridge?.leadershipHealth?.ix0001IndustryContribution?.subscriptionState || subscriptionState(bridge, 'IX0001_INDUSTRY'),
+    });
+  } catch (error) {
+    return Object.freeze({
+      ...buildIndexLeadership({}, {
+        now: options.now || new Date(),
+        indexSubscriptionState: bridge?.leadershipHealth?.ix0001IndexContribution?.subscriptionState || subscriptionState(bridge, 'IX0001_INDEX'),
+        industrySubscriptionState: bridge?.leadershipHealth?.ix0001IndustryContribution?.subscriptionState || subscriptionState(bridge, 'IX0001_INDUSTRY'),
+      }),
+      reasonCode: error?.name === 'AbortError' ? 'LEADERSHIP_BRIDGE_TIMEOUT' : 'LEADERSHIP_BRIDGE_UNAVAILABLE',
+    });
   }
 }

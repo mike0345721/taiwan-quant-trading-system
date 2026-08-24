@@ -9,6 +9,7 @@ const state = {
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
   marketChangeFeed: null,
+  indexLeadership: null, indexLeadershipLoading: false,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -2628,6 +2629,62 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
 }
 
+function leadershipRow(row, maxAbs, { compact = false } = {}) {
+  const item = document.createElement('div');
+  const points = Number(row?.points);
+  const tone = points > 0 ? 'is-positive' : points < 0 ? 'is-negative' : '';
+  item.className = `dw-leadership-row ${tone}`;
+  const label = document.createElement('strong'); label.textContent = row?.code || row?.category || 'UNKNOWN';
+  if (!compact) {
+    const track = document.createElement('div'); track.className = 'dw-leadership-track';
+    const fill = document.createElement('i'); fill.className = 'dw-leadership-fill';
+    fill.style.setProperty('--magnitude', maxAbs > 0 && Number.isFinite(points) ? Math.min(1, Math.abs(points) / maxAbs) : 0);
+    track.append(fill); item.append(label, track);
+  } else item.append(label);
+  const value = document.createElement('output'); value.textContent = Number.isFinite(points) ? signed(points, ' 點', 2) : '—';
+  item.append(value); return item;
+}
+
+function renderLeadershipList(id, rows, limit, { compact = false } = {}) {
+  const target = $(id);
+  if (!target) return;
+  const selected = (Array.isArray(rows) ? rows : []).slice(0, limit);
+  if (!selected.length) {
+    const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '等待 DAY 原始事件';
+    target.replaceChildren(empty); return;
+  }
+  const maxAbs = Math.max(...selected.map((row) => Math.abs(Number(row?.points) || 0)), 0);
+  target.replaceChildren(...selected.map((row) => leadershipRow(row, maxAbs, { compact })));
+}
+
+function renderIndexLeadership(leadership) {
+  state.indexLeadership = leadership || null;
+  const value = leadership || {};
+  dwText('dw-leadership-state', value.state || 'UNAVAILABLE');
+  $('dw-leadership-state').className = `dw-status-pill ${value.state === 'LIVE' ? 'is-ready' : 'is-unavailable'}`;
+  dwText('dw-leadership-mode', `${value.sourceMode || 'UNAVAILABLE'} · IX0001 DAY`);
+  dwText('dw-leadership-time', value.lastAvailableAt
+    ? `資料日 ${value.sourceTradeDate || '—'} · ${timeLabel(value.lastAvailableAt)}` : 'LIVE DAY EVENT ACCEPTANCE PENDING');
+  dwText('dw-leadership-quality', value.quality || 'QUALITY_INSUFFICIENT');
+  renderLeadershipList('dw-leadership-bars', value.indexLeadership?.topAbsolute, 7);
+  renderLeadershipList('dw-leadership-positive', value.indexLeadership?.topPositive, 4, { compact: true });
+  renderLeadershipList('dw-leadership-negative', value.indexLeadership?.topNegative, 4, { compact: true });
+  renderLeadershipList('dw-industry-bars', value.industryLeadership?.rows, 6);
+  const invariant = value.industryLeadership || {};
+  dwText('dw-industry-invariant', invariant.invariantDelta == null
+    ? '總和檢核等待資料'
+    : `Σ ${signed(invariant.pointsSum, ' 點', 2)} · 指數 ${signed(invariant.indexPriceChange, ' 點', 2)} · Δ ${fmt(invariant.invariantDelta, 3)} / 容許 ${fmt(invariant.invariantTolerance, 3)}`);
+}
+
+async function loadIndexLeadership() {
+  if (state.indexLeadershipLoading) return;
+  state.indexLeadershipLoading = true;
+  try {
+    const payload = await api('/api/v1/index-leadership');
+    renderIndexLeadership(payload.data);
+  } finally { state.indexLeadershipLoading = false; }
+}
+
 function renderRuntimeVersion(version = {}) {
   const product = version.productVersion || 'DW V1.1';
   const runtime = version.runtimeCommit || null;
@@ -3146,6 +3203,7 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-now-trust-fact', `完整度：${dw4SummaryLabel(currentFacts.coverageState || 'INSUFFICIENT')} · 資料信任：${dw4SummaryLabel(currentFacts.dataTrustState || 'BLOCKED')}`);
   renderDw4Evidence(workspace?.evidenceConflict);
   renderMarketPulse(workspace, state.txChartPayload || chart);
+  renderIndexLeadership(workspace?.indexLeadership);
 
   const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
   $('dw-focus-mode')?.classList.toggle('is-capability-limited', compactCapabilityValues.every((value) => !value || ['UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(value)));
@@ -3221,6 +3279,7 @@ async function loadDashboard() {
   })]);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
+  await loadIndexLeadership().catch(() => {});
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
   await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
@@ -3515,4 +3574,9 @@ setInterval(() => {
 // This consumes the existing read-only ledger; it never starts a collector.
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) loadTxDecisionChart().catch(() => {});
+}, 5_000);
+
+// IX0001 Leadership consumes the bounded latest cache only; it never reloads the full ledger.
+setInterval(() => {
+  if (!$('dashboard-view').classList.contains('hidden')) loadIndexLeadership().catch(() => {});
 }, 5_000);

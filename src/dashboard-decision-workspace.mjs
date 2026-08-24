@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { buildDashboardDw4Evidence } from './dashboard-dw4-evidence.mjs';
+import { leadershipCopyAllowlist } from './index-leadership.mjs';
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -191,6 +192,7 @@ export function buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict
 export function createDecisionSnapshot({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
   marketChangeFeed = null, currentMarketFactSummary = null, liveBreadth = null,
+  indexLeadership = null,
   decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
 } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
@@ -204,6 +206,7 @@ export function createDecisionSnapshot({
     ...Object.values(chart?.levels || {}).map((level) => level?.availableAt),
   ].filter(Boolean);
   if (chartAvailableTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_FUTURE_CHART_EVIDENCE');
+  if (indexLeadership?.lastAvailableAt && Date.parse(indexLeadership.lastAvailableAt) > parsedSnapshotTime) throw new Error('DECISION_SNAPSHOT_FUTURE_LEADERSHIP_EVIDENCE');
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
   const marketState = safeMarketState(runtimeTruth);
@@ -273,6 +276,7 @@ export function createDecisionSnapshot({
     decisionReadiness,
     evidenceConflict: evidenceConflict || buildDashboardDw4Evidence(dataHealth),
     currentMarketFactSummary,
+    ...leadershipCopyAllowlist(indexLeadership),
     governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
       eventId: event.eventId || null,
       eventType: event.eventType || null,
@@ -297,7 +301,8 @@ export function createDecisionSnapshot({
 
 export function validateDecisionSnapshot(snapshot) {
   if (snapshot?.schemaVersion !== 'manual-decision-snapshot-v1') throw new Error('DECISION_SNAPSHOT_SCHEMA_INVALID');
-  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.recommendation !== false || snapshot.systemDirectionalSignal !== false || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false) {
+  if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.recommendation !== false || snapshot.systemDirectionalSignal !== false || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false
+    || snapshot.LEADERSHIP_DESCRIPTIVE_ONLY !== true || snapshot.NOT_PROMOTED !== true || snapshot.NOT_A_TRADING_SIGNAL !== true) {
     throw new Error('DECISION_SNAPSHOT_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
@@ -335,6 +340,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Market State: direction=${snapshot.marketState.direction}; global=${snapshot.marketState.globalAlignment}; risk=${snapshot.marketState.risk}`,
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
+    `IX0001 Leadership: state=${snapshot.leadershipSource?.state || 'UNAVAILABLE'}; mode=${snapshot.leadershipSource?.sourceMode || 'UNAVAILABLE'}; tradeDate=${snapshot.leadershipSource?.sourceTradeDate || 'UNAVAILABLE'}; quality=${snapshot.leadershipSource?.quality || 'QUALITY_INSUFFICIENT'}; descriptiveOnly=${snapshot.LEADERSHIP_DESCRIPTIVE_ONLY}; notPromoted=${snapshot.NOT_PROMOTED}; notTradingSignal=${snapshot.NOT_A_TRADING_SIGNAL}`,
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
@@ -418,6 +424,12 @@ export function discussionSnapshot(snapshot) {
     },
     governedMarketChanges: snapshot.governedMarketChanges,
     currentMarketFactSummary: snapshot.currentMarketFactSummary,
+    indexLeadership: snapshot.indexLeadership,
+    industryLeadership: snapshot.industryLeadership,
+    leadershipSource: snapshot.leadershipSource,
+    LEADERSHIP_DESCRIPTIVE_ONLY: true,
+    NOT_PROMOTED: true,
+    NOT_A_TRADING_SIGNAL: true,
     dataHealthWarnings: (snapshot.dataHealth?.items || []).filter((item) => (
       item.freshnessState === 'UNAVAILABLE' || item.freshnessState === 'STALE'
       || item.quality === 'QUALITY_INSUFFICIENT'
@@ -441,7 +453,7 @@ export function discussionSnapshot(snapshot) {
 
 export function buildDecisionWorkspace({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null,
-  dw4EvidenceObservations = null, liveBreadth = null, runtimeVersion = null, now = new Date(),
+  dw4EvidenceObservations = null, liveBreadth = null, indexLeadership = null, runtimeVersion = null, now = new Date(),
 } = {}) {
   const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
     observations: dw4EvidenceObservations,
@@ -462,6 +474,7 @@ export function buildDecisionWorkspace({
     marketChangeFeed,
     currentMarketFactSummary,
     liveBreadth,
+    indexLeadership,
     decisionReadiness: decisionSummary.readiness,
     snapshotTime: now.toISOString(),
   });
@@ -488,6 +501,7 @@ export function buildDecisionWorkspace({
     runtimeVersion,
     decisionSummary,
     currentMarketFactSummary,
+    indexLeadership,
     evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',
