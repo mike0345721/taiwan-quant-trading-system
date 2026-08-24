@@ -445,7 +445,11 @@ def main() -> None:
         simulation = not bool(credentials.get("production", False))
 
         api = sj.Shioaji(simulation=simulation)
-        api.login(api_key=api_key, secret_key=secret_key)
+        api.login(
+            api_key=api_key,
+            secret_key=secret_key,
+            subscribe_trade=False,
+        )
         bridge_started = True
         BRIDGE_STARTED_AT = datetime.now().astimezone().isoformat()
         record_lifecycle("bridge_started", simulation=simulation, processId=os.getpid())
