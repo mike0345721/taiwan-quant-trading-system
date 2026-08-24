@@ -54,14 +54,18 @@
     const line = element('section', 'tt-summary-line');
     line.setAttribute('aria-label', '市場摘要 Market Summary');
     const labels = [
-      ['價格結構', 'Price Structure', 'tt-summary-price'],
+      ['價格', 'Price', 'tt-summary-price'],
       ['趨勢強度', 'Strength', 'tt-summary-strength'],
-      ['VWAP 控制', 'VWAP', 'tt-summary-vwap'],
+      ['VWAP', 'VWAP', 'tt-summary-vwap'],
       ['市場參與', 'Breadth', 'tt-summary-breadth'],
       ['期貨流向', 'Flow', 'tt-summary-flow'],
       ['風險衝突', 'Risk', 'tt-summary-risk'],
     ];
-    labels.forEach(([label, subtitle, id]) => appendMetric(line, label, id, label === '趨勢強度' ? 'RESEARCH_PENDING' : 'UNAVAILABLE', subtitle));
+    labels.forEach(([label, subtitle, id], index) => {
+      const metric = appendMetric(line, label, id, label === '趨勢強度' ? 'RESEARCH_PENDING' : 'UNAVAILABLE', subtitle);
+      metric.classList.add('tt-ribbon-item');
+      metric.dataset.ribbonIndex = String(index);
+    });
     return line;
   }
 
@@ -77,7 +81,7 @@
     );
     const facts = element('div', 'tt-top-facts');
     for (const [label, id] of [
-      ['成交量', 'tt-top-volume'], ['未平倉量', 'tt-top-oi'], ['到期 / 時段', 'tt-top-session'],
+      ['成交量', 'tt-top-volume'], ['OI', 'tt-top-oi'], ['基差', 'tt-top-basis'], ['Session', 'tt-top-session'],
     ]) facts.append(compactMetric(label, id));
     const status = element('div', 'tt-top-status');
     status.append(
@@ -136,6 +140,14 @@
     return metric;
   }
 
+  function metricGroup(title, className = '') {
+    const group = element('section', `tt-metric-group ${className}`.trim());
+    group.append(element('h4', '', title));
+    const body = element('div', 'tt-metric-group-body');
+    group.append(body);
+    return { group, body };
+  }
+
   function trackRow(label, id, state = 'UNAVAILABLE') {
     const row = element('article', 'tt-track-row');
     row.id = id;
@@ -153,6 +165,26 @@
     chart.setAttribute('aria-hidden', 'true');
     for (let index = 0; index < 14; index += 1) chart.append(element('i'));
     return chart;
+  }
+
+  function miniSeries(id, className = '') {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = id;
+    svg.classList.add('tt-mini-series');
+    if (className) className.split(/\s+/).filter(Boolean).forEach((name) => svg.classList.add(name));
+    svg.setAttribute('viewBox', '0 0 100 34');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    const baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    baseline.setAttribute('class', 'tt-series-baseline');
+    baseline.setAttribute('x1', '0'); baseline.setAttribute('x2', '100');
+    baseline.setAttribute('y1', '27'); baseline.setAttribute('y2', '27');
+    const area = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    area.setAttribute('class', 'tt-series-area');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    line.setAttribute('class', 'tt-series-line');
+    svg.append(baseline, area, line);
+    return svg;
   }
 
   function buildTrendVisual(cardNode) {
@@ -178,16 +210,23 @@
   }
 
   function buildFuturesVisual(cardNode) {
-    const metrics = element('div', 'tt-compact-metrics tt-futures-context');
-    metrics.append(compactMetric('基差', 'tt-futures-basis'), compactMetric('未平倉量', 'tt-futures-oi'));
-    const institutions = element('div', 'tt-compact-metrics tt-futures-institutions');
-    institutions.append(
+    const price = metricGroup('PRICE', 'tt-futures-price-group');
+    price.body.append(
+      compactMetric('TX', 'tt-futures-tx'),
+      compactMetric('VWAP 關係', 'tt-futures-vwap'),
+      compactMetric('基差', 'tt-futures-basis'),
+    );
+    const positions = metricGroup('POSITION / CONTEXT', 'tt-futures-position-group');
+    positions.body.append(
       compactMetric('外資', 'tt-futures-foreign'),
       compactMetric('自營商', 'tt-futures-dealer'),
-      compactMetric('投信', 'tt-futures-trust'),
+      compactMetric('投信', 'tt-futures-trust-position'),
     );
-    insertVisual(cardNode, metrics);
-    insertVisual(cardNode, institutions);
+    const oi = metricGroup('OI', 'tt-futures-oi-group');
+    oi.body.append(compactMetric('未平倉量', 'tt-futures-oi'), compactMetric('OI 變化', 'tt-futures-oi-change'));
+    insertVisual(cardNode, price.group);
+    insertVisual(cardNode, positions.group);
+    insertVisual(cardNode, oi.group);
     insertVisual(cardNode, miniBars('tt-futures-bars'));
   }
 
@@ -201,7 +240,7 @@
     for (const [label, id] of [['Call Wall', 'tt-options-call'], ['Put Wall', 'tt-options-put'], ['Max Pain', 'tt-options-max-pain'], ['OI Context', 'tt-options-oi']]) {
       metrics.append(compactMetric(label, id));
     }
-    layout.append(ring, metrics);
+    layout.append(metrics, ring);
     insertVisual(cardNode, layout);
   }
 
@@ -213,12 +252,12 @@
     participation.append(element('i', 'is-up'), element('i', 'is-flat'), element('i', 'is-down'));
     const context = element('div', 'tt-compact-metrics tt-breadth-context');
     context.append(compactMetric('漲跌比', 'tt-breadth-ratio'), compactMetric('參與強度', 'tt-breadth-strength'));
-    const series = miniBars('tt-breadth-series');
-    series.append(element('span', '', 'MINI SERIES · UNAVAILABLE'));
+    const seriesWrap = element('div', 'tt-series-block tt-breadth-series-block');
+    seriesWrap.append(element('span', '', '盤中參與趨勢'), miniSeries('tt-breadth-series', 'is-unavailable'));
     insertVisual(cardNode, metrics);
     insertVisual(cardNode, participation);
     insertVisual(cardNode, context);
-    insertVisual(cardNode, series);
+    insertVisual(cardNode, seriesWrap);
   }
 
   function buildGlobalVisual(cardNode) {
@@ -229,7 +268,7 @@
         Object.assign(element('span', '', `來源 ${index}`), { id: `tt-global-name-${index}` }),
         Object.assign(element('strong', '', '—'), { id: `tt-global-price-${index}` }),
         Object.assign(element('small', '', 'UNAVAILABLE'), { id: `tt-global-change-${index}` }),
-        miniBars('tt-global-mini'),
+        miniSeries(`tt-global-series-${index}`, 'tt-global-mini is-unavailable'),
       );
       tiles.append(tile);
     }
@@ -244,13 +283,18 @@
     center.append(Object.assign(element('strong', '', '—'), { id: 'tt-risk-ring-value' }), Object.assign(element('span', '', 'UNAVAILABLE'), { id: 'tt-risk-ring-state' }));
     ring.append(center);
     const states = element('div', 'tt-risk-states');
-    states.append(
-      compactMetric('波動風險', 'tt-risk-volatility'),
-      compactMetric('流動性風險', 'tt-risk-liquidity'),
-      compactMetric('事件風險', 'tt-risk-event'),
-      compactMetric('廣度壓力', 'tt-risk-breadth'),
-    );
-    layout.append(ring, states, miniBars('tt-risk-trend'));
+    for (const [label, id] of [
+      ['波動風險', 'tt-risk-volatility'], ['流動性風險', 'tt-risk-liquidity'],
+      ['事件風險', 'tt-risk-event'], ['市場廣度壓力', 'tt-risk-breadth'],
+    ]) {
+      const metric = compactMetric(label, id);
+      metric.classList.add('tt-risk-metric');
+      metric.append(element('i', 'tt-risk-indicator'));
+      states.append(metric);
+    }
+    const trend = element('div', 'tt-series-block tt-risk-series-block');
+    trend.append(element('span', '', 'Risk Trend'), miniSeries('tt-risk-series', 'tt-risk-trend is-unavailable'));
+    layout.append(ring, states, trend);
     const axis = node.querySelector('.dw-conflict-axis-grid');
     if (axis) node.insertBefore(layout, axis);
     else node.append(layout);
@@ -268,6 +312,9 @@
       }
       layout.append(group);
     }
+    const net = element('div', 'tt-contribution-net');
+    net.append(element('span', '', '淨貢獻'), Object.assign(element('strong', '', 'UNAVAILABLE'), { id: 'tt-contribution-net' }));
+    layout.append(net);
     const bars = node.querySelector('.dw-leadership-bars');
     if (bars) bars.replaceWith(layout);
     else node.append(layout);
@@ -302,8 +349,22 @@
     const expand = element('button', 'tt-expand-chart', '⛶ 放大圖表');
     expand.type = 'button';
     expand.id = 'tt-chart-expand';
-    actions.append(palettes, expand);
+    const levels = element('button', 'tt-level-toggle', '顯示參考線');
+    levels.type = 'button';
+    levels.id = 'tt-level-toggle';
+    levels.setAttribute('aria-pressed', 'false');
+    actions.append(palettes, levels, expand);
     toolbar.append(actions);
+    for (const id of ['dw-prior-levels', 'dw-or-state']) {
+      root.querySelector(`#${id}`)?.closest('article')?.classList.add('tt-optional-level');
+    }
+    const stage = root.querySelector('.dw-chart-stage');
+    if (stage && !root.querySelector('#dw-chart-crosshair')) {
+      const crosshair = element('div', 'dw-chart-crosshair tt-chart-legend', '移到 K 棒查看 Time / OHLCV / VWAP / Distance');
+      crosshair.id = 'dw-chart-crosshair';
+      crosshair.setAttribute('aria-live', 'polite');
+      stage.append(crosshair);
+    }
   }
 
   function removePulseDuplicates(root) {
@@ -317,6 +378,8 @@
     }
     const session = root.querySelector('#dw-pulse-session')?.closest('article');
     if (session) session.hidden = true;
+    const vwapLabel = root.querySelector('#dw-pulse-vwap')?.closest('article')?.querySelector('span');
+    if (vwapLabel) vwapLabel.textContent = 'VWAP / 距離';
     if (grid && !root.querySelector('#tt-pulse-rvol')) {
       appendMetric(grid, '相對量', 'tt-pulse-rvol', 'UNAVAILABLE', 'RVOL');
       appendMetric(grid, '基差', 'tt-pulse-basis', 'UNAVAILABLE', 'Basis');
@@ -351,14 +414,19 @@
     if (!node || node.querySelector('.tt-gpt-visual')) return;
     const visual = element('div', 'tt-gpt-visual');
     const prompts = element('div', 'tt-gpt-prompts');
-    for (const prompt of ['台指目前趨勢如何？', '最大反向證據？', '為何趨勢減弱？', '目前最大風險？']) {
+    const disabledState = element('strong', 'tt-gpt-disabled-state', 'UI SHELL · DISABLED');
+    disabledState.id = 'tt-gpt-disabled-state';
+    visual.append(disabledState);
+    for (const prompt of ['最大反向證據？', '為何趨勢開始減弱？', '現在有什麼證據衝突？', '多單 thesis 何時失效？']) {
       const chip = element('button', '', prompt);
       chip.type = 'button';
       chip.disabled = true;
       prompts.append(chip);
     }
     const input = element('div', 'tt-gpt-input');
-    input.append(element('span', '', '輸入你的問題…'), element('b', '', '➤'));
+    input.setAttribute('role', 'textbox');
+    input.setAttribute('aria-disabled', 'true');
+    input.append(element('span', '', '問目前市場…'), element('b', '', '➤'));
     visual.append(prompts, input);
     const copy = node.querySelector('#copy-gpt');
     if (copy) node.insertBefore(visual, copy);
@@ -468,6 +536,13 @@
       global.dispatchEvent(new CustomEvent('trader-terminal:chart-layout', { detail: { expanded } }));
     });
     root.querySelectorAll('[data-candle-palette]').forEach((button) => button.addEventListener('click', () => applyPalette(root, button.dataset.candlePalette)));
+    const levels = root.querySelector('#tt-level-toggle');
+    levels?.addEventListener('click', () => {
+      const visible = root.classList.toggle('show-optional-levels');
+      levels.textContent = visible ? '隱藏參考線' : '顯示參考線';
+      levels.setAttribute('aria-pressed', String(visible));
+      global.dispatchEvent(new CustomEvent('trader-terminal:levels', { detail: { optional: visible } }));
+    });
     applyPalette(root, readPalette(), false);
   }
 

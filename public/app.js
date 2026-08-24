@@ -2693,6 +2693,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   dwText('tt-top-change', 'UNAVAILABLE');
   dwText('tt-top-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
   dwText('tt-top-oi', 'UNAVAILABLE');
+  dwText('tt-top-basis', 'UNAVAILABLE');
   dwText('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || 'UNAVAILABLE');
   dwText('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : '更新 UNAVAILABLE');
   dwText('tt-top-trust', chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE');
@@ -2734,6 +2735,11 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
 
   dwText('tt-pulse-rvol', 'UNAVAILABLE');
   dwText('tt-pulse-basis', 'UNAVAILABLE');
+  dwText('tt-futures-tx', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
+  dwText('tt-futures-vwap', 'UNAVAILABLE');
+  dwText('tt-futures-oi-change', 'UNAVAILABLE');
+  dwText('tt-contribution-net', 'NOT_REQUESTED');
+  dwText('tt-gpt-disabled-state', 'UI SHELL · DISABLED');
 
   const health = global.dataHealth || 'UNAVAILABLE';
   dwText('tt-health-main', health);
@@ -2986,7 +2992,10 @@ function ensureTxChart() {
     const openingRangeText = openingRangeKnown
       ? `OR H ${fmt(openingRange.high)} L ${fmt(openingRange.low)}`
       : 'OR UNAVAILABLE_AT_SELECTED_TIME';
-    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · O ${fmt(bar.open)} H ${fmt(bar.high)} L ${fmt(bar.low)} C ${fmt(bar.close)} · V ${fmt(volumePoint?.value)} · VWAP ${fmt(vwapPoint?.value, 2)} · ${openingRangeText}`);
+    const close = finiteNumber(bar.close);
+    const selectedVwap = finiteNumber(vwapPoint?.value);
+    const distance = close == null || selectedVwap == null ? 'UNAVAILABLE' : signed(close - selectedVwap, '', 2);
+    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · O ${fmt(bar.open)} H ${fmt(bar.high)} L ${fmt(bar.low)} C ${fmt(bar.close)} · V ${fmt(volumePoint?.value)} · VWAP ${fmt(selectedVwap, 2)} · ΔVWAP ${distance} · ${openingRangeText}`);
   });
   state.txChartApi = chart;
   state.txChartSeries = { candle, volume, vwap };
@@ -3031,15 +3040,16 @@ function renderTxChartLevels(chart) {
   dwText('dw-chart-quality', chart?.qualityStatus || 'UNAVAILABLE');
 
   clearTxChartLevels();
-  addTxChartLevel(levels.openingRangeHigh, 'OR H', '#8aa7ff');
-  addTxChartLevel(levels.openingRangeLow, 'OR L', '#8aa7ff');
-  addTxChartLevel(levels.previousDayHigh, '前一日盤高', '#77869c');
-  addTxChartLevel(levels.previousDayLow, '前一日盤低', '#77869c');
-  addTxChartLevel(levels.previousClose, '前一日盤收', '#a1aec0');
-  addTxChartLevel(levels.currentDayHigh, 'DAY H', '#55d6be');
-  addTxChartLevel(levels.currentDayLow, 'DAY L', '#ef8293');
-  addTxChartLevel(levels.nightHigh, 'NIGHT H', '#55d6be');
-  addTxChartLevel(levels.nightLow, 'NIGHT L', '#ef8293');
+  if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
+    addTxChartLevel(levels.openingRangeHigh, 'OR H', '#8aa7ff');
+    addTxChartLevel(levels.openingRangeLow, 'OR L', '#8aa7ff');
+    addTxChartLevel(levels.previousDayHigh, '前一日盤高', '#77869c');
+    addTxChartLevel(levels.previousDayLow, '前一日盤低', '#77869c');
+    addTxChartLevel(levels.previousClose, '前一日盤收', '#a1aec0');
+  }
+  const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;
+  addTxChartLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', '#55d6be');
+  addTxChartLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', '#ef8293');
 }
 
 function chartSeriesData(payload) {
@@ -3085,6 +3095,10 @@ window.addEventListener('trader-terminal:palette', (event) => {
 
 window.addEventListener('trader-terminal:chart-layout', () => {
   window.setTimeout(() => state.txChartApi?.timeScale().fitContent(), 0);
+});
+
+window.addEventListener('trader-terminal:levels', () => {
+  if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
 });
 
 function marketChangeFactText(fact = {}) {

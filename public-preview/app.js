@@ -40,7 +40,64 @@ function setTrack(id, state, level = null) {
 
 function setTrust(cardKey, value) {
   const node = $(`tt-${cardKey}-trust`);
-  if (node) node.textContent = value;
+  if (!node) return;
+  node.textContent = value;
+  const normalized = String(value || 'UNAVAILABLE').toUpperCase();
+  const tone = normalized === 'LIVE' || normalized === 'READY'
+    ? 'is-ready'
+    : normalized.includes('SIMULATED') || normalized.includes('DELAYED') || normalized.includes('STALE')
+      ? 'is-warning'
+      : 'is-unavailable';
+  node.className = `dw-status-pill ${tone}`;
+}
+
+function setLeadershipTrust(value, tone = 'is-unavailable') {
+  const node = document.querySelector('.dw-leadership > header .dw-status-pill');
+  if (!node) return;
+  node.textContent = value;
+  node.className = `dw-status-pill ${tone}`;
+}
+
+function setSeries(id, values, tone = 'positive') {
+  const node = $(id);
+  if (!node) return;
+  const finiteValues = Array.isArray(values) ? values.map(finite).filter((value) => value != null) : [];
+  node.classList.toggle('is-unavailable', finiteValues.length < 2);
+  node.classList.toggle('is-negative', tone === 'negative');
+  node.classList.toggle('is-warning', tone === 'warning');
+  const lineNode = node.querySelector('polyline');
+  const areaNode = node.querySelector('polygon');
+  if (!lineNode || !areaNode || finiteValues.length < 2) {
+    lineNode?.removeAttribute('points');
+    areaNode?.removeAttribute('points');
+    return;
+  }
+  const low = Math.min(...finiteValues);
+  const high = Math.max(...finiteValues);
+  const spread = high - low || 1;
+  const points = finiteValues.map((value, index) => {
+    const x = (index / (finiteValues.length - 1)) * 100;
+    const y = 29 - ((value - low) / spread) * 23;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+  lineNode.setAttribute('points', points);
+  areaNode.setAttribute('points', `0,34 ${points} 100,34`);
+}
+
+function setRiskMetric(id, value, level = null, tone = 'warning') {
+  setText(id, value, '—');
+  const metric = $(id)?.closest('.tt-risk-metric');
+  if (!metric) return;
+  const normalized = finite(level);
+  if (normalized == null) {
+    delete metric.dataset.level;
+    metric.style.removeProperty('--risk-level');
+  } else {
+    const bounded = Math.max(0, Math.min(100, normalized));
+    metric.dataset.level = String(bounded);
+    metric.style.setProperty('--risk-level', `${bounded}%`);
+  }
+  metric.dataset.tone = tone;
 }
 
 async function publicGet(url) {
@@ -88,6 +145,19 @@ function ensureChart() {
   volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume' });
   chart.priceScale('volume').applyOptions({ scaleMargins: { top: .78, bottom: 0 } });
   vwapSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#f5c86b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true });
+  chart.subscribeCrosshairMove((parameter) => {
+    const bar = parameter.seriesData?.get(candleSeries);
+    if (!bar || parameter.time == null) {
+      setText('dw-chart-crosshair', '移到 K 棒查看 Time / OHLC / Volume / VWAP / 距離');
+      return;
+    }
+    const volumePoint = parameter.seriesData?.get(volumeSeries);
+    const vwapPoint = parameter.seriesData?.get(vwapSeries);
+    const close = finite(bar.close);
+    const vwap = finite(vwapPoint?.value);
+    const distance = close == null || vwap == null ? 'UNAVAILABLE' : `${close - vwap >= 0 ? '+' : ''}${format(close - vwap, 2)}`;
+    setText('dw-chart-crosshair', `${new Date(Number(parameter.time) * 1000).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · O ${format(bar.open)} H ${format(bar.high)} L ${format(bar.low)} C ${format(bar.close)} · V ${format(volumePoint?.value)} · VWAP ${format(vwap, 2)} · 距離 ${distance}`);
+  });
   new ResizeObserver(() => chart?.applyOptions({ width: host.clientWidth, height: host.clientHeight })).observe(host);
 }
 
@@ -125,11 +195,13 @@ function renderChart(data) {
     };
   }).filter((bar) => bar.time != null && bar.value != null));
   vwapSeries.setData((data.vwap || []).map(({ time, value }) => ({ time: chartEpoch(time), value: finite(value) })).filter((point) => point.time != null && point.value != null));
-  line(candleSeries, data.levels?.openingRangeHigh, 'OR H', '#8aa7ff');
-  line(candleSeries, data.levels?.openingRangeLow, 'OR L', '#8aa7ff');
-  line(candleSeries, data.levels?.previousDayHigh, 'Previous H', '#77869c', 3);
-  line(candleSeries, data.levels?.previousDayLow, 'Previous L', '#77869c', 3);
-  line(candleSeries, data.levels?.previousClose, 'Previous C', '#a1aec0', 3);
+  if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
+    line(candleSeries, data.levels?.openingRangeHigh, 'OR H', '#8aa7ff');
+    line(candleSeries, data.levels?.openingRangeLow, 'OR L', '#8aa7ff');
+    line(candleSeries, data.levels?.previousDayHigh, 'Previous H', '#77869c', 3);
+    line(candleSeries, data.levels?.previousDayLow, 'Previous L', '#77869c', 3);
+    line(candleSeries, data.levels?.previousClose, 'Previous C', '#a1aec0', 3);
+  }
   line(candleSeries, data.levels?.currentDayHigh, 'DAY H', '#77869c', 3);
   line(candleSeries, data.levels?.currentDayLow, 'DAY L', '#77869c', 3);
   chart.timeScale().fitContent();
@@ -150,7 +222,12 @@ function renderChart(data) {
   setText('dw-pulse-price', format(data.lastPrice));
   const vwap = available(data.levels?.vwap);
   setText('dw-pulse-vwap', vwap == null ? 'UNAVAILABLE' : format(vwap, 2));
-  setText('dw-pulse-vwap-mode', isFixture ? 'SIMULATED' : data.vwapSession ? `${data.vwapSession} VWAP · FROZEN` : 'UNAVAILABLE');
+  const lastPrice = finite(data.lastPrice);
+  const vwapDistance = lastPrice == null || vwap == null ? null : lastPrice - vwap;
+  const vwapDistancePct = lastPrice == null || vwap == null || vwap === 0 ? null : (vwapDistance / vwap) * 100;
+  setText('dw-pulse-vwap-mode', isFixture && vwapDistance != null && vwapDistancePct != null
+    ? `${vwapDistance >= 0 ? '+' : ''}${format(vwapDistance, 2)} (${vwapDistancePct >= 0 ? '+' : ''}${format(vwapDistancePct, 2)}%) · SIMULATED`
+    : data.vwapSession ? `${data.vwapSession} VWAP · FROZEN` : 'UNAVAILABLE');
   const sessionHigh = available(data.levels?.currentDayHigh);
   const sessionLow = available(data.levels?.currentDayLow);
   setText('dw-pulse-session', sessionHigh != null && sessionLow != null ? `${format(sessionHigh)} / ${format(sessionLow)}` : 'UNAVAILABLE');
@@ -158,8 +235,8 @@ function renderChart(data) {
   setText('dw-pulse-volume', latestVolume == null ? 'UNAVAILABLE' : format(latestVolume));
   setText('tt-pulse-rvol', isFixture ? '1.26' : 'UNAVAILABLE');
   setText('tt-pulse-basis', isFixture ? '+26.0' : 'UNAVAILABLE');
-  setText('tt-summary-price', finite(data.lastPrice) == null ? 'UNAVAILABLE' : `${data.actualContract || 'TX'} ${format(data.lastPrice)}`);
-  setText('tt-summary-vwap', vwap == null ? 'UNAVAILABLE' : format(vwap, 2));
+  setText('tt-summary-price', isFixture ? '偏多 · SIMULATED' : finite(data.lastPrice) == null ? 'UNAVAILABLE' : `${data.actualContract || 'TX'} ${format(data.lastPrice)}`);
+  setText('tt-summary-vwap', isFixture ? 'VWAP 上方 · SIMULATED' : vwap == null ? 'UNAVAILABLE' : format(vwap, 2));
   setText('tt-health-main', data.qualityStatus || 'UNAVAILABLE');
   setTrust('health', data.qualityStatus || 'UNAVAILABLE');
   setText('tt-top-contract', `台指期貨 ${data.actualContract || 'TX'}`);
@@ -167,9 +244,12 @@ function renderChart(data) {
   setText('tt-top-change', isFixture ? '▲ +112 (+0.50%)' : 'UNAVAILABLE');
   setText('tt-top-volume', latestVolume == null ? 'UNAVAILABLE' : format(latestVolume));
   setText('tt-top-oi', isFixture ? '89,512' : 'UNAVAILABLE');
+  setText('tt-top-basis', isFixture ? '+26.0' : 'UNAVAILABLE');
   setText('tt-top-session', isFixture ? '2026/09 · 日盤' : `${data.tradeDate || 'UNAVAILABLE'} · ${data.session || 'UNAVAILABLE'}`);
   setText('tt-top-updated', isFixture ? '更新 15:30:10' : `快照 ${data.tradeDate || 'UNAVAILABLE'}`);
   setText('tt-top-trust', isFixture ? 'SIMULATED' : data.qualityStatus || 'UNAVAILABLE');
+  setText('tt-futures-tx', isFixture ? format(data.lastPrice) : 'UNAVAILABLE');
+  setText('tt-futures-vwap', isFixture ? `上方 ${format(Math.abs(vwapDistance), 2)}` : 'UNAVAILABLE');
   renderLevels(data);
 }
 
@@ -244,6 +324,7 @@ function renderGovernedWorkspace(value) {
   setText('dw-chart-status', 'FROZEN');
   setText('dw-pulse-status', 'FROZEN');
   setText('dw-conflict-status', 'UNAVAILABLE');
+  setLeadershipTrust('NOT_REQUESTED');
   setText('tt-trend-main', '—');
   setText('tt-trend-direction', '—');
   setText('tt-trend-strength', '—');
@@ -255,7 +336,8 @@ function renderGovernedWorkspace(value) {
     ['tt-trend-futures-track', 'UNAVAILABLE'],
   ]) setTrack(id, state);
   for (const id of [
-    'tt-futures-basis', 'tt-futures-oi', 'tt-futures-foreign', 'tt-futures-dealer', 'tt-futures-trust',
+    'tt-futures-tx', 'tt-futures-vwap', 'tt-futures-basis', 'tt-futures-oi', 'tt-futures-oi-change',
+    'tt-futures-foreign', 'tt-futures-dealer', 'tt-futures-trust-position',
     'tt-options-ring-value', 'tt-options-call', 'tt-options-put', 'tt-options-max-pain', 'tt-options-oi',
     'tt-breadth-up', 'tt-breadth-flat', 'tt-breadth-down', 'tt-breadth-ratio', 'tt-breadth-strength',
     'tt-risk-ring-value', 'tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth',
@@ -266,14 +348,22 @@ function renderGovernedWorkspace(value) {
     setTrust(key, 'UNAVAILABLE');
   }
   setText('tt-risk-ring-state', 'UNAVAILABLE');
+  for (const id of ['tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth']) setRiskMetric(id, '—');
+  setSeries('tt-breadth-series', []);
+  setSeries('tt-risk-series', []);
   for (let index = 1; index <= 6; index += 1) {
     setText(`tt-global-name-${index}`, `來源 ${index}`);
     setText(`tt-global-price-${index}`, '—', '—');
     setText(`tt-global-change-${index}`, 'UNAVAILABLE');
+    const tile = $(`tt-global-change-${index}`)?.closest('.tt-global-tile');
+    tile?.classList.remove('is-positive', 'is-negative');
+    setSeries(`tt-global-series-${index}`, []);
   }
   for (const side of ['positive', 'negative']) {
     for (let index = 1; index <= 5; index += 1) setTrack(`tt-contribution-${side}-${index}`, '—');
   }
+  setText('tt-contribution-net', 'NOT_REQUESTED');
+  setText('tt-gpt-disabled-state', 'UI SHELL · DISABLED');
   setText('health-items', (value.dataHealth?.items || []).map((item) => `${item.sourceId}: ${item.freshnessState} · ${item.quality}`).join(' · '));
   setText('dw-pulse-change', '治理凍結快照 · 無即時市場解讀');
 }
@@ -290,13 +380,16 @@ function renderFixtureWorkspace() {
   setText('dw-global-alignment', 'SIMULATED');
   setText('dw-risk', 'SIMULATED');
   setText('dw-entry-quality', 'SIMULATED_FIXTURE');
+  setText('tt-summary-price', '偏多 · SIMULATED');
   setText('tt-summary-strength', '強度 68 ↓ · SIMULATED');
-  setText('tt-summary-breadth', '擴張 · SIMULATED');
-  setText('tt-summary-flow', '支持 · SIMULATED');
-  setText('tt-summary-risk', '有衝突 · SIMULATED');
+  setText('tt-summary-vwap', 'VWAP 上方 · SIMULATED');
+  setText('tt-summary-breadth', '參與擴張 · SIMULATED');
+  setText('tt-summary-flow', 'Flow 支持 · SIMULATED');
+  setText('tt-summary-risk', 'Risk 中低 · SIMULATED');
   setText('dw-chart-status', 'SIMULATED');
   setText('dw-pulse-status', 'SIMULATED');
   setText('dw-conflict-status', 'SIMULATED');
+  setLeadershipTrust('SIMULATED', 'is-warning');
   setText('tt-trend-main', '偏多');
   setTrust('trend', 'SIMULATED');
   setText('tt-trend-direction', '偏多');
@@ -308,20 +401,23 @@ function renderFixtureWorkspace() {
     ['tt-trend-breadth-track', '參與擴張', 6], ['tt-trend-leadership-track', '貢獻集中', 5],
     ['tt-trend-futures-track', '期貨支持', 5],
   ]) setTrack(id, `${label} · 模擬`, level);
-  setText('tt-futures-main', '淨部位（口）· 模擬');
+  setText('tt-futures-main', '支持價格 · 模擬');
   setTrust('futures', 'SIMULATED');
-  setText('tt-futures-basis', '+18');
-  setText('tt-futures-oi', '86,420');
-  setText('tt-futures-foreign', '+4,812');
-  setText('tt-futures-dealer', '+1,256');
-  setText('tt-futures-trust', '-342');
+  setText('tt-futures-tx', '22,495');
+  setText('tt-futures-vwap', '上方 · SIMULATED');
+  setText('tt-futures-basis', '+26.0');
+  setText('tt-futures-oi', '89,512');
+  setText('tt-futures-oi-change', '+1,204');
+  setText('tt-futures-foreign', '+4,812 · EOD');
+  setText('tt-futures-dealer', '+1,256 · EOD');
+  setText('tt-futures-trust-position', '-342 · EOD');
   setText('tt-options-main', 'PCR 0.82 · 模擬');
   setTrust('options', 'SIMULATED');
   setText('tt-options-ring-value', '總 OI');
   setText('tt-options-call', '22,600');
   setText('tt-options-put', '22,200');
   setText('tt-options-max-pain', '22,400');
-  setText('tt-options-oi', 'SIMULATED');
+  setText('tt-options-oi', 'FIXTURE');
   setText('tt-breadth-main', '參與擴張 · 模擬');
   setTrust('breadth', 'SIMULATED');
   setText('tt-breadth-up', '1,102 · 62%');
@@ -331,25 +427,34 @@ function renderFixtureWorkspace() {
   setText('tt-breadth-strength', '強');
   setText('tt-risk-ring-value', '42');
   setText('tt-risk-ring-state', 'SIMULATED');
-  setText('tt-risk-volatility', '低 · 32');
-  setText('tt-risk-liquidity', '低 · 28');
-  setText('tt-risk-event', '中 · 45');
-  setText('tt-risk-breadth', '中 · 52');
+  setRiskMetric('tt-risk-volatility', '低 · 32', 32, 'positive');
+  setRiskMetric('tt-risk-liquidity', '低 · 28', 28, 'positive');
+  setRiskMetric('tt-risk-event', '中 · 45', 45, 'warning');
+  setRiskMetric('tt-risk-breadth', '中 · 52', 52, 'warning');
+  setSeries('tt-risk-series', [38, 36, 39, 41, 40, 44, 43, 46, 42, 44, 41, 42], 'warning');
+  setSeries('tt-breadth-series', [41, 43, 46, 44, 49, 54, 58, 56, 61, 65, 68, 66, 70, 74, 78, 82]);
   const globals = [
-    ['小納期貨', '19,674', '+0.63%'], ['費城半導體', '5,032', '+0.81%'],
-    ['日經 225', '38,256', '+0.28%'], ['韓股 KOSPI', '2,676', '-0.17%'],
-    ['USD / TWD', '32.205', '+0.04%'], ['VIX', '19.82', '-2.04%'],
+    ['小納期貨', '19,674', '+0.63%', [44, 45, 47, 46, 49, 51, 50, 54, 57, 60, 62, 66]],
+    ['費城半導體', '5,032', '+0.81%', [42, 47, 45, 51, 49, 56, 54, 60, 57, 63, 61, 68]],
+    ['日經 225', '38,256', '+0.28%', [50, 52, 49, 53, 55, 52, 56, 54, 58, 57, 60, 61]],
+    ['韓股 KOSPI', '2,676', '-0.17%', [62, 60, 61, 57, 59, 55, 54, 56, 52, 50, 51, 48]],
+    ['USD / TWD', '32.205', '-0.04%', [53, 52, 52, 51, 52, 50, 51, 49, 49, 48, 49, 47]],
+    ['VIX', '19.82', '-2.04%', [70, 68, 66, 67, 62, 60, 58, 59, 54, 51, 48, 45]],
   ];
   setText('tt-global-main', '跨市場背景 · 模擬');
   setTrust('global', 'SIMULATED');
-  globals.forEach(([name, price, change], index) => {
+  globals.forEach(([name, price, change, series], index) => {
     setText(`tt-global-name-${index + 1}`, name);
     setText(`tt-global-price-${index + 1}`, price);
     setText(`tt-global-change-${index + 1}`, `${change} · SIMULATED`);
+    const tile = $(`tt-global-change-${index + 1}`)?.closest('.tt-global-tile');
+    tile?.classList.toggle('is-positive', change.startsWith('+'));
+    tile?.classList.toggle('is-negative', change.startsWith('-'));
+    setSeries(`tt-global-series-${index + 1}`, series, change.startsWith('-') ? 'negative' : 'positive');
   });
   const contribution = {
-    positive: [['模擬台積電', '+233.45 點 · +1.12%'], ['模擬聯發科', '+78.21 點 · +1.85%'], ['模擬鴻海', '+56.34 點 · +0.97%'], ['模擬廣達', '+41.78 點 · +1.33%'], ['模擬台達電', '+28.64 點 · +0.88%']],
-    negative: [['模擬日月光', '-18.72 點 · -0.84%'], ['模擬中信金', '-12.45 點 · -0.61%'], ['模擬國泰金', '-9.88 點 · -0.72%'], ['模擬台塑化', '-7.35 點 · -0.66%'], ['模擬統一', '-5.24 點 · -0.18%']],
+    positive: [['台積電', '+42.8 點'], ['聯發科', '+18.7 點'], ['鴻海', '+15.3 點'], ['廣達', '+9.4 點'], ['中華電', '+7.1 點']],
+    negative: [['台塑化', '-12.6 點'], ['長榮', '-8.9 點'], ['中信金', '-6.7 點'], ['日月光', '-5.4 點'], ['統一', '-4.8 點']],
   };
   for (const [side, rows] of Object.entries(contribution)) {
     rows.forEach(([name, points], index) => {
@@ -358,6 +463,7 @@ function renderFixtureWorkspace() {
       setTrack(`tt-contribution-${side}-${index + 1}`, points, Math.max(2, 7 - index));
     });
   }
+  setText('tt-contribution-net', '+53.2 點 · SIMULATED');
   setText('tt-health-main', '98% · 模擬');
   setTrust('health', 'SIMULATED');
   setText('tt-health-ring-value', '98%');
@@ -367,6 +473,7 @@ function renderFixtureWorkspace() {
   setText('tt-health-options', 'LIVE');
   setText('tt-health-global', 'DELAYED');
   setText('health-items', 'LOCAL_FIXTURE: SIMULATED · NOT MARKET DATA · NO EVIDENCE USE');
+  setText('tt-gpt-disabled-state', 'FIXTURE · DISABLED');
   setText('dw-pulse-change', '視覺 Fixture · 數值為虛構且不得用於市場判斷');
 }
 
@@ -444,6 +551,10 @@ window.addEventListener('trader-terminal:palette', (event) => {
 
 window.addEventListener('trader-terminal:chart-layout', () => {
   window.setTimeout(() => chart?.timeScale().fitContent(), 0);
+});
+
+window.addEventListener('trader-terminal:levels', () => {
+  if (activeChart) renderChart(activeChart);
 });
 
 boot().catch((error) => {
