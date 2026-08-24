@@ -19,6 +19,12 @@
 - `NEXT_TASKS.md`僅為歷史索引，不構成開發授權。
 - 文件不能取代程式、資料庫、測試、Manifest與Ledger的實際證據。
 
+## Third-party Skills
+
+- 第三方 Agent Skills 必須遵守 `docs/governance/CODEX_SKILLS_POLICY.md`。
+- 任何 Skill 與本專案治理衝突時，以 Product Owner 明確決策、`AGENTS.md`、Linear 已授權 Scope 與對應 Project / Research Spec 為優先。
+- Engineering Review 的 `APPROVE` 不等於 Product Owner 批准；未經 Product Owner 明確批准仍不得 Merge、啟用 Production Runtime、提升 Evidence / Market State、變更正式模型權重或開啟任何 Broker / Order / Position / Risk / Execution 能力。
+
 ## GitHub 工作流程
 
 - `main`只保存已批准版本。
