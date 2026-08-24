@@ -15,45 +15,54 @@
 <body class="tt-preview-body">
   <header class="tt-preview-identity" aria-label="Preview identity">
     <strong>PREVIEW · NOT MAIN</strong>
-    <span>Branch <code id="tt-preview-branch">UNAVAILABLE</code></span>
-    <span>Commit <code id="tt-preview-commit">UNAVAILABLE</code></span>
-    <span>Data mode <code id="tt-preview-mode">UNAVAILABLE</code></span>
-    <span>Snapshot/generated <code id="tt-preview-generated">UNAVAILABLE</code></span>
-    <span class="tt-preview-data-label">FROZEN GOVERNED SNAPSHOT · NOT LIVE MARKET DATA</span>
-    <span>NOT A TRADING SIGNAL</span>
+    <div class="tt-preview-meta">
+      <span>Branch <code id="tt-preview-branch">UNAVAILABLE</code></span>
+      <span>Commit <code id="tt-preview-commit">UNAVAILABLE</code></span>
+      <span>Data mode <code id="tt-preview-mode">UNAVAILABLE</code></span>
+      <span>Snapshot/generated <code id="tt-preview-generated">UNAVAILABLE</code></span>
+    </div>
+    <div class="tt-preview-mode-switch" role="group" aria-label="Preview data mode">
+      <button type="button" data-preview-mode="governed" class="is-selected" aria-pressed="true">治理快照</button>
+      <button type="button" data-preview-mode="fixture" aria-pressed="false">視覺 Fixture</button>
+    </div>
+    <div class="tt-preview-banner" role="status">
+      <span id="tt-preview-data-label">FROZEN GOVERNED SNAPSHOT</span>
+      <span id="tt-preview-safety-label">NOT LIVE MARKET DATA</span>
+      <span id="tt-preview-purpose-label">NOT A TRADING SIGNAL</span>
+    </div>
   </header>
 
   <main id="decision-workspace" class="dashboard-page is-active-page" aria-live="polite">
     <header class="dw-page-heading">
-      <div><p class="eyebrow">TRADER TERMINAL V1 · UI-1</p><h1>Desktop Decision Workspace</h1></div>
+      <div><p class="eyebrow">TRADER TERMINAL V1 · UI-1</p><h1>交易決策工作台 <small>Desktop Decision Workspace</small></h1></div>
       <span class="dw-status-pill is-unavailable">MANUAL_REVIEW_ONLY</span>
     </header>
 
     <section id="dw-focus-mode" class="dw-mode-panel">
       <section class="dw-now-summary">
-        <div><p class="eyebrow">CURRENT MARKET FACT</p><strong id="dw-now-price-fact">UNAVAILABLE</strong></div>
-        <div><p class="eyebrow">EVIDENCE ELIGIBILITY</p><span id="dw-now-evidence-fact">FROZEN SNAPSHOT · UI REVIEW ONLY</span></div>
-        <div><p class="eyebrow">DATA TRUST</p><span id="dw-now-trust-fact">FROZEN_REPLAY</span></div>
+        <div><p class="eyebrow">即時市場狀態 <small>Current Market Fact</small></p><strong id="dw-now-price-fact">UNAVAILABLE</strong></div>
+        <div><p class="eyebrow">證據可用性 <small>Evidence Eligibility</small></p><span id="dw-now-evidence-fact">FROZEN SNAPSHOT · UI REVIEW ONLY</span></div>
+        <div><p class="eyebrow">資料信任 <small>Data Trust</small></p><span id="dw-now-trust-fact">FROZEN_REPLAY</span></div>
       </section>
 
       <section class="dw-decision-bar">
-        <div><p>Readiness</p><strong id="dw-readiness">NOT_READY</strong><small id="dw-no-trade-reason">FROZEN_PREVIEW_NOT_DECISION_ELIGIBLE</small></div>
-        <div><p>Direction</p><strong id="dw-direction">UNAVAILABLE</strong></div>
-        <div><p>Global Alignment</p><strong id="dw-global-alignment">UNAVAILABLE</strong></div>
-        <div><p>Risk</p><strong id="dw-risk">UNAVAILABLE</strong></div>
-        <div><p>Data Health</p><strong id="dw-entry-quality">UNAVAILABLE</strong></div>
+        <div><p>準備度 <small>Readiness</small></p><strong id="dw-readiness">NOT_READY</strong><small id="dw-no-trade-reason">FROZEN_PREVIEW_NOT_DECISION_ELIGIBLE</small></div>
+        <div><p>方向 <small>Direction</small></p><strong id="dw-direction">UNAVAILABLE</strong></div>
+        <div><p>全球一致性 <small>Global Alignment</small></p><strong id="dw-global-alignment">UNAVAILABLE</strong></div>
+        <div><p>風險 <small>Risk</small></p><strong id="dw-risk">UNAVAILABLE</strong></div>
+        <div><p>資料健康 <small>Data Health</small></p><strong id="dw-entry-quality">UNAVAILABLE</strong></div>
       </section>
 
       <section class="dw-conflict-monitor">
-        <header><div><p class="eyebrow">CONFLICT FIRST</p><h2>Risk / Conflict</h2></div><span class="dw-status-pill is-unavailable">UNAVAILABLE</span></header>
-        <div class="dw-conflict-axis-grid"><article><span>Primary conflict</span><strong>UNAVAILABLE</strong><small>Frozen preview does not derive risk semantics.</small></article></div>
+        <header><div><p class="eyebrow">CONFLICT FIRST</p><h2>風險 / 衝突</h2></div><span id="dw-conflict-status" class="dw-status-pill is-unavailable">UNAVAILABLE</span></header>
+        <div class="dw-conflict-axis-grid"><article><span>主要衝突</span><strong>UNAVAILABLE</strong><small>Frozen preview does not derive risk semantics.</small></article></div>
       </section>
 
       <div class="dw-main-grid">
         <section class="dw-price-region">
           <div class="dw-section-heading">
-            <div><p class="eyebrow">PRICE · STRUCTURE · VWAP</p><h2>Decision Price Chart</h2></div>
-            <div class="dw-chart-heading-status"><span id="dw-chart-contract" class="dw-chart-context">TX · FROZEN REPLAY</span><span class="dw-status-pill is-unavailable">FROZEN</span></div>
+            <div><p class="eyebrow">PRICE · STRUCTURE · VWAP</p><h2>決策價格圖 <small>Decision Price Chart</small></h2></div>
+            <div class="dw-chart-heading-status"><span id="dw-chart-contract" class="dw-chart-context">TX · FROZEN REPLAY</span><span id="dw-chart-status" class="dw-status-pill is-unavailable">FROZEN</span></div>
           </div>
           <div class="dw-chart-toolbar">
             <div id="timeframes" class="dw-timeframe-switch" role="group" aria-label="K line timeframe"></div>
@@ -63,51 +72,51 @@
             <div id="dw-chart-canvas" class="dw-chart-canvas" role="img" aria-label="TX candlestick chart, volume, VWAP, opening range and governed levels"></div>
           </div>
           <div class="dw-level-grid">
-            <article><span>Previous H / L / C</span><strong id="dw-prior-levels">UNAVAILABLE</strong></article>
-            <article><span>Session H / L</span><strong id="dw-session-levels">UNAVAILABLE</strong></article>
-            <article><span>DAY OR</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
+            <article><span>前日 高 / 低 / 收</span><strong id="dw-prior-levels">UNAVAILABLE</strong></article>
+            <article><span>時段 高 / 低</span><strong id="dw-session-levels">UNAVAILABLE</strong></article>
+            <article><span>開盤區間</span><strong id="dw-or-state">UNAVAILABLE</strong></article>
             <article><span>VWAP</span><strong id="dw-vwap-state">UNAVAILABLE</strong></article>
-            <article><span>Quality</span><strong id="dw-chart-quality">UNAVAILABLE</strong></article>
+            <article><span>品質</span><strong id="dw-chart-quality">UNAVAILABLE</strong></article>
           </div>
         </section>
 
         <aside class="dw-side-stack">
           <section class="dw-card dw-market-pulse">
-            <header><div><p class="eyebrow">PRICE NOW</p><h2>Market Pulse</h2></div><span class="dw-status-pill is-unavailable">FROZEN</span></header>
+            <header><div><p class="eyebrow">PRICE NOW</p><h2>即時盤況</h2></div><span id="dw-pulse-status" class="dw-status-pill is-unavailable">FROZEN</span></header>
             <div class="dw-pulse-grid">
-              <article><span>TX Price</span><strong id="dw-pulse-price">UNAVAILABLE</strong></article>
+              <article><span>TX 最新價</span><strong id="dw-pulse-price">UNAVAILABLE</strong></article>
               <article><span>VWAP</span><strong id="dw-pulse-vwap">UNAVAILABLE</strong><small id="dw-pulse-vwap-mode">UNAVAILABLE</small></article>
-              <article><span>Session H / L</span><strong id="dw-pulse-session">UNAVAILABLE</strong></article>
-              <article><span>Breadth</span><strong id="dw-pulse-breadth">UNAVAILABLE</strong><small id="dw-pulse-breadth-mode">UNAVAILABLE</small></article>
-              <article><span>Futures</span><strong id="dw-pulse-futures">UNAVAILABLE</strong><small id="dw-pulse-futures-mode">UNAVAILABLE</small></article>
-              <article><span>Options</span><strong id="dw-pulse-options">UNAVAILABLE</strong><small id="dw-pulse-options-mode">UNAVAILABLE</small></article>
-              <article><span>Global</span><strong id="dw-pulse-global">UNAVAILABLE</strong><small id="dw-pulse-global-mode">UNAVAILABLE</small></article>
+              <article><span>時段高 / 低</span><strong id="dw-pulse-session">UNAVAILABLE</strong></article>
+              <article><span>市場參與</span><strong id="dw-pulse-breadth">UNAVAILABLE</strong><small id="dw-pulse-breadth-mode">UNAVAILABLE</small></article>
+              <article><span>期貨</span><strong id="dw-pulse-futures">UNAVAILABLE</strong><small id="dw-pulse-futures-mode">UNAVAILABLE</small></article>
+              <article><span>選擇權</span><strong id="dw-pulse-options">UNAVAILABLE</strong><small id="dw-pulse-options-mode">UNAVAILABLE</small></article>
+              <article><span>全球市場</span><strong id="dw-pulse-global">UNAVAILABLE</strong><small id="dw-pulse-global-mode">UNAVAILABLE</small></article>
             </div>
-            <p id="dw-pulse-change">Frozen snapshot · no live interpretation</p>
+            <p id="dw-pulse-change">治理快照 · 無即時解讀</p>
           </section>
 
           <section class="dw-card dw-leadership">
-            <header><div><p class="eyebrow">SPOT / INDEX CONTRIBUTION</p><h2>Leadership</h2></div><span class="dw-status-pill is-unavailable">NOT_REQUESTED</span></header>
+            <header><div><p class="eyebrow">SPOT / INDEX CONTRIBUTION</p><h2>指數貢獻</h2></div><span class="dw-status-pill is-unavailable">NOT_REQUESTED</span></header>
             <p>Production Leadership subscription remains DEFAULT_OFF / NOT_REQUESTED.</p>
             <div class="dw-leadership-bars"><p class="is-empty">UNAVAILABLE</p></div>
           </section>
 
-          <section class="dw-card dw-against-panel"><h2>Contrary Evidence</h2><p>UNAVAILABLE · no preview derivation</p></section>
+          <section class="dw-card dw-against-panel"><h2>反向證據 <small>Contrary Evidence</small></h2><p>UNAVAILABLE · no preview derivation</p></section>
           <section class="dw-card dw-gpt-panel">
-            <header><div><p class="eyebrow">ASK GPT</p><h2>Snapshot discussion</h2></div><span class="dw-status-pill is-unavailable">NOT AN AUTHORIZATION</span></header>
-            <button id="copy-gpt" type="button">Copy Snapshot</button>
-            <p>Copies the governed frozen snapshot to the browser clipboard only.</p>
+            <header><div><p class="eyebrow">ASK GPT</p><h2>快照討論</h2></div><span class="dw-status-pill is-unavailable">NOT AN AUTHORIZATION</span></header>
+            <button id="copy-gpt" type="button">複製治理快照</button>
+            <p id="tt-gpt-preview-note">只會將治理凍結快照複製到瀏覽器剪貼簿。</p>
           </section>
         </aside>
       </div>
 
-      <section class="dw-family-strip"><h2>Evidence Detail</h2><p>Frozen preview contains chart evidence only. Other families remain UNAVAILABLE.</p></section>
-      <section class="dw-change-strip"><h2>Market Change Feed</h2><p>Preserved in the production renderer; frozen preview does not generate events.</p></section>
+      <section class="dw-family-strip"><h2>證據明細 <small>Evidence Detail</small></h2><p>Frozen preview contains chart evidence only. Other families remain UNAVAILABLE.</p></section>
+      <section class="dw-change-strip"><h2>市場變化 <small>Market Change Feed</small></h2><p>Preserved in the production renderer; frozen preview does not generate events.</p></section>
       <section class="dw-data-health hidden" id="dw-data-health-panel">
-        <header><h2>Data Health Detail</h2><button id="dw-health-toggle" type="button">Close</button></header>
+        <header><h2>資料健康明細</h2><button id="dw-health-toggle" type="button">關閉</button></header>
         <div id="health-items">UNAVAILABLE</div>
       </section>
-      <section class="dw-journal-bar"><h2>Manual Decision Journal</h2><p>Preserved in production. Disabled in read-only preview.</p></section>
+      <section class="dw-journal-bar"><h2>人工決策日誌 <small>Manual Decision Journal</small></h2><p>Preserved in production. Disabled in read-only preview.</p></section>
     </section>
   </main>
 </body>

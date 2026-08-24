@@ -2663,7 +2663,7 @@ function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretati
   const trust = terminalSetTrust(cardKey, evidence);
   const main = values.length ? `${values[0].label} ${dw4DescriptiveValue(values[0])}` : trust.availability;
   dwText(`tt-${cardKey}-main`, main);
-  const visual = $(`tt-${cardKey}-viz`);
+  const visual = $(`tt-${cardKey}-values`);
   if (visual) {
     const rows = values.slice(1).map((entry) => {
       const row = document.createElement('span');
@@ -2693,10 +2693,22 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   dwText('tt-summary-flow', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE');
   dwText('tt-summary-risk', decision.risk || 'UNAVAILABLE');
 
-  dwText('tt-trend-main', 'RESEARCH_PENDING');
-  dwText('tt-trend-direction', 'Direction · RESEARCH_PENDING');
-  dwText('tt-trend-strength', 'Strength · RESEARCH_PENDING');
-  dwText('tt-trend-change', 'Strength Change · RESEARCH_PENDING');
+  dwText('tt-trend-main', '—');
+  dwText('tt-trend-direction', '—');
+  dwText('tt-trend-strength', '—');
+  dwText('tt-trend-change', '—');
+  for (const [id, value] of [
+    ['tt-trend-price-track', 'RESEARCH_PENDING'],
+    ['tt-trend-vwap-track', 'RESEARCH_PENDING'],
+    ['tt-trend-path-track', 'RESEARCH_PENDING'],
+    ['tt-trend-pullback-track', 'RESEARCH_PENDING'],
+    ['tt-trend-breadth-track', dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState || 'UNAVAILABLE'],
+    ['tt-trend-leadership-track', 'NOT_REQUESTED'],
+    ['tt-trend-futures-track', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE'],
+  ]) {
+    const target = $(id)?.querySelector('header strong');
+    if (target) target.textContent = value;
+  }
   const trendTrust = $('tt-trend-trust');
   if (trendTrust) {
     trendTrust.textContent = 'RESEARCH_PENDING';

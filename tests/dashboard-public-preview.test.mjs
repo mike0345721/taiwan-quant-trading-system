@@ -141,7 +141,10 @@ test('public frontend uses only public preview APIs, has seven timeframes and pr
   const html = fs.readFileSync(path.join(projectRoot, 'public-preview', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(projectRoot, 'public-preview', 'app.js'), 'utf8');
   assert.match(html, /PREVIEW · NOT MAIN/);
-  assert.match(html, /FROZEN GOVERNED SNAPSHOT · NOT LIVE MARKET DATA/);
+  assert.match(html, /FROZEN GOVERNED SNAPSHOT/);
+  assert.match(html, /NOT LIVE MARKET DATA/);
+  assert.match(app, /SIMULATED UI FIXTURE/);
+  assert.match(app, /FOR VISUAL REVIEW ONLY/);
   assert.match(html, /READ ONLY/);
   assert.match(html, /NOT A TRADING SIGNAL/);
   assert.match(html, /MANUAL_REVIEW_ONLY/);
@@ -150,11 +153,13 @@ test('public frontend uses only public preview APIs, has seven timeframes and pr
   assert.match(html, /trader-terminal-shell\.js/);
   assert.match(app, /api\/public-preview\/workspace/);
   assert.match(app, /api\/public-preview\/tx-chart/);
-  assert.match(app, /\['1m','5m','15m','30m','1h','4h','1D'\]/);
+  assert.match(app, /\['1m', '5m', '15m', '30m', '1h', '4h', '1D'\]/);
   assert.match(app, /function chartEpoch[\s\S]*Date\.parse/);
   assert.match(app, /time:\s*chartEpoch\(bar\.time\)/);
   assert.doesNotMatch(app, /\/api\/v[12]\//);
   assert.doesNotMatch(app, /decision-journal|daily-update|forward-shadow/i);
   assert.match(app, /navigator\.clipboard\.writeText/);
+  assert.match(app, /previewMode !== 'governed'/);
+  assert.match(app, /copyButton\.disabled = fixture/);
   assert.match(app, /TraderTerminalShell\?\.mount/);
 });
