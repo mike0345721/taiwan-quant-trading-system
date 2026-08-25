@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { clearTxChartLedgerCache, loadTxDecisionChart } from '../src/dashboard-tx-chart-source.mjs';
@@ -58,7 +59,7 @@ export function selectPreviewTradeDate({ calendar, dataRoot, cacheRoot, explicit
   throw new Error('PUBLIC_PREVIEW_NO_LEGAL_TX_DATA');
 }
 
-export function buildPreviewArtifact({ calendar, dataRoot, cacheRoot, outputDir, tradeDate = null, asOf = null }) {
+export function buildPreviewArtifact({ calendar, dataRoot, cacheRoot, outputDir, tradeDate = null, asOf = null, previewIdentity = {} }) {
   const selected = selectPreviewTradeDate({ calendar, dataRoot, cacheRoot, explicitTradeDate: tradeDate, asOf });
   const session = sessionFor(selected.chart);
   const charts = Object.fromEntries(PUBLIC_PREVIEW_TIMEFRAMES.map((timeframe) => [timeframe,
@@ -69,7 +70,7 @@ export function buildPreviewArtifact({ calendar, dataRoot, cacheRoot, outputDir,
         session, actualContract: selected.chart.actualContract, asOf: selected.asOf,
       }),
   ]));
-  const snapshot = createPublicPreviewSnapshot({ charts, generatedAt: selected.asOf });
+  const snapshot = createPublicPreviewSnapshot({ charts, generatedAt: selected.asOf, previewIdentity });
   const files = writePublicPreviewSnapshot(path.join(outputDir, snapshot.snapshotId), snapshot);
   return Object.freeze({ selected, snapshot, files });
 }
@@ -80,6 +81,10 @@ async function main() {
   const calendarPath = path.resolve(option('--calendar', path.join(root, 'config', 'taifex-official-calendar-2026.json')));
   if (!fs.existsSync(dataRoot)) throw new Error('PUBLIC_PREVIEW_DATA_ROOT_MISSING');
   const calendar = loadGovernedTradingCalendar(calendarPath);
+  const previewIdentity = {
+    branch: execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(),
+    commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(),
+  };
   const result = buildPreviewArtifact({
     calendar,
     dataRoot,
@@ -87,6 +92,7 @@ async function main() {
     outputDir,
     tradeDate: option('--trade-date'),
     asOf: option('--as-of'),
+    previewIdentity,
   });
   clearTxChartLedgerCache();
   process.stdout.write(`${JSON.stringify({

@@ -22,12 +22,19 @@ export function previewSha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+function strictNumeric(value) {
+  if (value == null || typeof value === 'boolean') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function publicLevel(level) {
   if (!level || typeof level !== 'object') return null;
   return {
     name: level.name || null,
     availability: level.availability || 'UNAVAILABLE',
-    value: Number.isFinite(Number(level.value)) ? Number(level.value) : null,
+    value: strictNumeric(level.value),
     reason: level.reason || null,
     tradeDate: level.tradeDate || null,
     session: level.session || null,
@@ -43,7 +50,7 @@ function publicCoverage(coverage, session) {
   const row = coverage || {};
   return {
     session,
-    eventCount: Number(row.eventCount) || 0,
+    eventCount: strictNumeric(row.eventCount),
     firstEventTime: row.firstEventTime || null,
     lastEventTime: row.lastEventTime || null,
     availableAt: row.availableAt || null,
@@ -68,7 +75,7 @@ export function sanitizePreviewChart(chart) {
     status: chart?.status || 'UNAVAILABLE',
     reason: chart?.reason || null,
     asOf: chart?.asOf || null,
-    lastPrice: Number.isFinite(Number(chart?.lastPrice)) ? Number(chart.lastPrice) : null,
+    lastPrice: strictNumeric(chart?.lastPrice),
     lastEventTime: chart?.lastEventTime || null,
     availableAt: chart?.availableAt || null,
     windowState: chart?.windowState || null,
@@ -76,10 +83,10 @@ export function sanitizePreviewChart(chart) {
     contractConsistencyState: chart?.contractConsistencyState || null,
     qualityStatus: chart?.qualityStatus || 'UNAVAILABLE',
     qualityReasons: Object.freeze([...(chart?.qualityReasons || [])]),
-    sequenceGapEventCount: Number(chart?.sequenceGapEventCount) || 0,
-    sequenceGapSize: Number(chart?.sequenceGapSize) || 0,
-    timeLineageViolationCount: Number(chart?.timeLineageViolationCount) || 0,
-    futureDataViolations: Number(chart?.futureDataViolations) || 0,
+    sequenceGapEventCount: strictNumeric(chart?.sequenceGapEventCount),
+    sequenceGapSize: strictNumeric(chart?.sequenceGapSize),
+    timeLineageViolationCount: strictNumeric(chart?.timeLineageViolationCount),
+    futureDataViolations: strictNumeric(chart?.futureDataViolations),
     vwapSession: chart?.vwapSession || null,
     bars: Object.freeze((chart?.bars || []).map((bar) => Object.freeze({
       time: bar.time,
@@ -88,7 +95,7 @@ export function sanitizePreviewChart(chart) {
       session: bar.session,
       sessionId: bar.sessionId,
       actualContract: bar.actualContract,
-      open: Number(bar.open), high: Number(bar.high), low: Number(bar.low), close: Number(bar.close), volume: Number(bar.volume),
+      open: strictNumeric(bar.open), high: strictNumeric(bar.high), low: strictNumeric(bar.low), close: strictNumeric(bar.close), volume: strictNumeric(bar.volume),
       firstEventTime: bar.firstEventTime,
       lastEventTime: bar.lastEventTime,
       availableAt: bar.availableAt,
@@ -99,14 +106,14 @@ export function sanitizePreviewChart(chart) {
     }))),
     vwap: Object.freeze((chart?.vwap || []).map((point) => Object.freeze({
       time: point.time,
-      value: Number(point.value),
+      value: strictNumeric(point.value),
       availableAt: point.availableAt,
       vwapSession: point.vwapSession || chart?.vwapSession || null,
     }))),
     openingRange: Object.freeze({
       status: chart?.openingRange?.status || 'UNAVAILABLE',
-      high: Number.isFinite(Number(chart?.openingRange?.high)) ? Number(chart.openingRange.high) : null,
-      low: Number.isFinite(Number(chart?.openingRange?.low)) ? Number(chart.openingRange.low) : null,
+      high: strictNumeric(chart?.openingRange?.high),
+      low: strictNumeric(chart?.openingRange?.low),
       reason: chart?.openingRange?.reason || null,
       availableAt: chart?.openingRange?.availableAt || null,
       qualityStatus: chart?.openingRange?.qualityStatus || null,
@@ -130,13 +137,17 @@ export function sanitizePreviewChart(chart) {
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   });
 }
 
-function previewWorkspace(chart) {
+function previewWorkspace(chart, previewIdentity) {
+  const lineageCount = strictNumeric(chart.timeLineageViolationCount);
+  const lineageState = lineageCount == null ? 'UNKNOWN' : lineageCount > 0 ? 'QUALITY_INSUFFICIENT' : 'PASS';
   return Object.freeze({
     schemaVersion: 'dw2-public-workspace-v1',
-    previewLabels: Object.freeze(['PUBLIC PREVIEW', 'READ ONLY', 'PREVIEW / REPLAY DATA', 'NOT A TRADING SIGNAL']),
+    previewLabels: Object.freeze(['PREVIEW · NOT MAIN', 'FROZEN GOVERNED SNAPSHOT · NOT LIVE MARKET DATA', 'READ ONLY', 'NOT A TRADING SIGNAL']),
+    previewIdentity: Object.freeze({ ...previewIdentity }),
     globalStatus: Object.freeze({
       mode: 'FROZEN_SNAPSHOT',
       actualContract: chart.actualContract,
@@ -145,9 +156,9 @@ function previewWorkspace(chart) {
       dataHealth: chart.qualityStatus,
     }),
     decisionSummary: Object.freeze({
-      posture: 'NO_TRADE',
+      posture: 'MANUAL_REVIEW_ONLY',
       readiness: 'NOT_READY',
-      noTradeReason: 'PUBLIC_PREVIEW_REPLAY_DATA',
+      noTradeReason: 'FROZEN_PREVIEW_NOT_DECISION_ELIGIBLE',
       direction: 'UNAVAILABLE',
       globalAlignment: 'UNAVAILABLE',
       risk: 'UNAVAILABLE',
@@ -169,19 +180,21 @@ function previewWorkspace(chart) {
       overall: chart.qualityStatus,
       items: Object.freeze([
         Object.freeze({ sourceId: 'txChart', freshnessState: 'FROZEN_REPLAY', quality: chart.qualityStatus, reason: chart.reason }),
-        Object.freeze({ sourceId: 'timestampLineage', freshnessState: chart.timeLineageViolationCount ? 'QUALITY_INSUFFICIENT' : 'PASS', quality: chart.timeLineageViolationCount ? 'QUALITY_INSUFFICIENT' : 'PASS', reason: chart.timeLineageViolationCount ? 'TIMESTAMP_LINEAGE_INSUFFICIENT' : null }),
+        Object.freeze({ sourceId: 'timestampLineage', freshnessState: lineageState, quality: lineageState, reason: lineageState === 'QUALITY_INSUFFICIENT' ? 'TIMESTAMP_LINEAGE_INSUFFICIENT' : lineageState === 'UNKNOWN' ? 'TIMESTAMP_LINEAGE_UNAVAILABLE' : null }),
         Object.freeze({ sourceId: 'sequenceEvidence', freshnessState: 'UNAVAILABLE', quality: 'UNKNOWN', reason: 'UNKNOWN_NO_NATIVE_SEQUENCE' }),
       ]),
     }),
     writeControlsEnabled: false,
     copyForChatGptEnabled: true,
+    leadershipSubscription: Object.freeze({ subscriptionState: 'DEFAULT_OFF', restorationState: 'NOT_REQUESTED' }),
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   });
 }
 
-export function createPublicPreviewSnapshot({ charts, generatedAt }) {
+export function createPublicPreviewSnapshot({ charts, generatedAt, previewIdentity = {} }) {
   if (!charts || typeof charts !== 'object') throw new Error('PUBLIC_PREVIEW_CHARTS_REQUIRED');
   if (!generatedAt || Number.isNaN(Date.parse(generatedAt))) throw new Error('PUBLIC_PREVIEW_GENERATED_AT_INVALID');
   const sanitizedCharts = Object.fromEntries(PUBLIC_PREVIEW_TIMEFRAMES.map((timeframe) => {
@@ -189,6 +202,12 @@ export function createPublicPreviewSnapshot({ charts, generatedAt }) {
     return [timeframe, sanitizePreviewChart(charts[timeframe])];
   }));
   const reference = sanitizedCharts['1D'];
+  const identity = Object.freeze({
+    branch: previewIdentity.branch || 'UNAVAILABLE',
+    commit: previewIdentity.commit || 'UNAVAILABLE',
+    dataMode: 'FROZEN_SNAPSHOT',
+    generatedAt: new Date(generatedAt).toISOString(),
+  });
   const core = {
     schemaVersion: 'dw2-public-preview-snapshot-v1',
     PREVIEW_DATA_MODE: 'FROZEN_SNAPSHOT',
@@ -197,7 +216,8 @@ export function createPublicPreviewSnapshot({ charts, generatedAt }) {
     asOf: reference.asOf,
     actualContract: reference.actualContract,
     allowedTimeframes: PUBLIC_PREVIEW_TIMEFRAMES,
-    workspace: previewWorkspace(sanitizedCharts['5m']),
+    previewIdentity: identity,
+    workspace: previewWorkspace(sanitizedCharts['5m'], identity),
     charts: sanitizedCharts,
     LIVE_MARKET_DATA_PUBLICLY_EXPOSED: false,
     RAW_MARKET_DATA_PUBLICLY_EXPOSED: false,
@@ -207,6 +227,7 @@ export function createPublicPreviewSnapshot({ charts, generatedAt }) {
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   };
   const contentHash = previewSha256(stablePreviewJson(core));
   return Object.freeze({
@@ -236,6 +257,7 @@ export function writePublicPreviewSnapshot(outputDir, snapshot) {
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   };
   const manifest = { ...manifestBody, manifestContentHash: previewSha256(stablePreviewJson(manifestBody)) };
   const manifestBytes = Buffer.from(stablePreviewJson(manifest), 'utf8');
@@ -260,7 +282,8 @@ export function loadPublicPreviewArtifact(manifestPath) {
   if (manifest.schemaVersion !== 'dw2-public-preview-manifest-v1'
     || previewSha256(stablePreviewJson(manifestBody)) !== manifestContentHash) throw new Error('PUBLIC_PREVIEW_MANIFEST_HASH_INVALID');
   if (manifest.publicPreviewMode !== 'SAFE_READ_ONLY' || manifest.PREVIEW_DATA_MODE !== 'FROZEN_SNAPSHOT'
-    || manifest.formalWeight !== 0 || manifest.researchOnly !== true || manifest.executionAuthorized !== false) {
+    || manifest.formalWeight !== 0 || manifest.researchOnly !== true || manifest.executionAuthorized !== false
+    || manifest.orderRoutesEnabled !== false) {
     throw new Error('PUBLIC_PREVIEW_MANIFEST_GOVERNANCE_INVALID');
   }
   const snapshotPath = path.join(path.dirname(path.resolve(manifestPath)), 'preview-snapshot.json');
@@ -281,7 +304,8 @@ export function loadPublicPreviewArtifact(manifestPath) {
     || snapshot.PUBLIC_PREVIEW_FORWARD_SHADOW_WRITE !== false
     || snapshot.PUBLIC_PREVIEW_COLLECTOR_ACCESS !== false
     || snapshot.PUBLIC_PREVIEW_SQLITE_ACCESS !== false
-    || snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.executionAuthorized !== false) {
+    || snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.executionAuthorized !== false
+    || snapshot.orderRoutesEnabled !== false) {
     throw new Error('PUBLIC_PREVIEW_SNAPSHOT_GOVERNANCE_INVALID');
   }
   return Object.freeze({ manifest: Object.freeze(manifest), snapshot: Object.freeze(snapshot), snapshotPath, manifestPath: path.resolve(manifestPath) });
@@ -306,6 +330,7 @@ function send(res, status, body, contentType = 'application/json; charset=utf-8'
 export function createPublicPreviewServer({
   manifestPath,
   publicDir,
+  sharedPublicDir,
   lightweightChartsPath,
   host = '127.0.0.1',
   port = 8798,
@@ -321,6 +346,11 @@ export function createPublicPreviewServer({
     ['/assets/styles.css', [path.join(publicDir, 'styles.css'), 'text/css; charset=utf-8']],
     ['/vendor/lightweight-charts.js', [lightweightChartsPath, 'text/javascript; charset=utf-8']],
   ]);
+  if (sharedPublicDir) {
+    staticFiles.set('/assets/dashboard-styles.css', [path.join(sharedPublicDir, 'styles.css'), 'text/css; charset=utf-8']);
+    staticFiles.set('/assets/trader-terminal-shell.css', [path.join(sharedPublicDir, 'trader-terminal-shell.css'), 'text/css; charset=utf-8']);
+    staticFiles.set('/assets/trader-terminal-shell.js', [path.join(sharedPublicDir, 'trader-terminal-shell.js'), 'text/javascript; charset=utf-8']);
+  }
   const server = http.createServer((req, res) => {
     securityHeaders(res);
     const url = new URL(req.url || '/', 'http://127.0.0.1');
@@ -329,7 +359,7 @@ export function createPublicPreviewServer({
       return;
     }
     if (url.pathname === '/healthz') {
-      send(res, 200, { ok: true, service: 'dw2-public-preview', PREVIEW_DATA_MODE: 'FROZEN_SNAPSHOT', executionAuthorized: false });
+      send(res, 200, { ok: true, service: 'dw2-public-preview', PREVIEW_DATA_MODE: 'FROZEN_SNAPSHOT', executionAuthorized: false, orderRoutesEnabled: false });
       return;
     }
     if (url.pathname === '/api/public-preview/workspace') {

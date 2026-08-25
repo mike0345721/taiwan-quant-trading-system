@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createPublicPreviewServer } from '../src/dashboard-public-preview.mjs';
 
@@ -12,11 +13,14 @@ function option(name, fallback = null) {
 if (process.env.PUBLIC_PREVIEW_MODE !== 'true') throw new Error('PUBLIC_PREVIEW_MODE_NOT_ENABLED');
 const manifestPath = option('--manifest');
 if (!manifestPath) throw new Error('PUBLIC_PREVIEW_MANIFEST_REQUIRED');
+const lightweightChartsPath = path.resolve(option('--lightweight-charts', path.join(root, 'node_modules', 'lightweight-charts', 'dist', 'lightweight-charts.standalone.production.js')));
+if (!fs.existsSync(lightweightChartsPath)) throw new Error('PUBLIC_PREVIEW_LIGHTWEIGHT_CHARTS_MISSING');
 
 const { server, host, port, artifact } = createPublicPreviewServer({
   manifestPath: path.resolve(manifestPath),
   publicDir: path.join(root, 'public-preview'),
-  lightweightChartsPath: path.join(root, 'node_modules', 'lightweight-charts', 'dist', 'lightweight-charts.standalone.production.js'),
+  sharedPublicDir: path.join(root, 'public'),
+  lightweightChartsPath,
   host: '127.0.0.1',
   port: 8798,
   publicPreviewMode: true,
