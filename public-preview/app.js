@@ -11,6 +11,8 @@ let activeChart;
 let activeTimeframe = '5m';
 let paletteName = 'red-up';
 let previewMode = 'governed';
+let previewRequestGeneration = 0;
+let governedCopyReady = false;
 
 function finite(value) {
   if (value == null || typeof value === 'boolean') return null;
@@ -318,6 +320,7 @@ function renderGovernedWorkspace(value) {
   setText('dw-risk', value.decisionSummary?.risk);
   setText('dw-entry-quality', value.globalStatus?.dataHealth);
   setText('tt-summary-strength', 'RESEARCH_PENDING');
+  setTrust('trend', 'RESEARCH_PENDING');
   setText('tt-summary-breadth', 'UNAVAILABLE');
   setText('tt-summary-flow', 'UNAVAILABLE');
   setText('tt-summary-risk', value.decisionSummary?.risk);
@@ -494,7 +497,7 @@ function applyPreviewIdentity(mode) {
   });
   const copyButton = $('copy-gpt');
   if (copyButton) {
-    copyButton.disabled = fixture;
+    copyButton.disabled = fixture || !governedCopyReady || activeChart?.source === 'SIMULATED_UI_FIXTURE';
     copyButton.textContent = fixture ? 'Fixture 不可複製為證據' : '複製治理快照';
   }
   setText('tt-gpt-preview-note', fixture
@@ -502,25 +505,36 @@ function applyPreviewIdentity(mode) {
     : '只會將治理凍結快照複製到瀏覽器剪貼簿。');
 }
 
-async function selectTimeframe(timeframe) {
+async function selectTimeframe(timeframe, generation = ++previewRequestGeneration) {
   activeTimeframe = timeframe;
-  const data = previewMode === 'fixture'
+  const requestedMode = previewMode;
+  governedCopyReady = false;
+  activeChart = undefined;
+  applyPreviewIdentity(requestedMode);
+  const data = requestedMode === 'fixture'
     ? fixtureChart(timeframe)
     : (await publicGet(`/api/public-preview/tx-chart?timeframe=${encodeURIComponent(timeframe)}`)).data;
+  if (generation !== previewRequestGeneration || requestedMode !== previewMode || timeframe !== activeTimeframe) return false;
   renderChart(data);
   document.querySelectorAll('[data-chart-timeframe]').forEach((button) => {
     const selected = button.dataset.chartTimeframe === timeframe;
     button.classList.toggle('is-selected', selected);
     button.setAttribute('aria-pressed', String(selected));
   });
+  governedCopyReady = requestedMode === 'governed';
+  applyPreviewIdentity(requestedMode);
+  return true;
 }
 
 async function setPreviewMode(mode) {
+  const generation = ++previewRequestGeneration;
   previewMode = mode === 'fixture' ? 'fixture' : 'governed';
+  governedCopyReady = false;
+  activeChart = undefined;
   applyPreviewIdentity(previewMode);
   if (previewMode === 'fixture') renderFixtureWorkspace();
   else renderGovernedWorkspace(workspace);
-  await selectTimeframe(activeTimeframe);
+  await selectTimeframe(activeTimeframe, generation);
 }
 
 async function boot() {
@@ -540,7 +554,7 @@ async function boot() {
   workspace = (await publicGet('/api/public-preview/workspace')).data;
   document.querySelectorAll('[data-preview-mode]').forEach((button) => button.addEventListener('click', () => setPreviewMode(button.dataset.previewMode)));
   $('copy-gpt').addEventListener('click', async () => {
-    if (previewMode !== 'governed') return;
+    if (previewMode !== 'governed' || !governedCopyReady || activeChart?.source === 'SIMULATED_UI_FIXTURE') return;
     const summary = { preview: true, snapshotMode: 'FROZEN_SNAPSHOT', workspace, chart: activeChart };
     await navigator.clipboard.writeText(JSON.stringify(summary, null, 2));
   });

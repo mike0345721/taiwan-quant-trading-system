@@ -2752,7 +2752,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
 
 function leadershipRow(row, maxAbs, { compact = false } = {}) {
   const item = document.createElement('div');
-  const points = Number(row?.points);
+  const points = finiteNumber(row?.points);
   const tone = points > 0 ? 'is-positive' : points < 0 ? 'is-negative' : '';
   item.className = `dw-leadership-row ${tone}`;
   const label = document.createElement('strong'); label.textContent = row?.code || row?.category || 'UNKNOWN';
@@ -2774,7 +2774,7 @@ function renderLeadershipList(id, rows, limit, { compact = false } = {}) {
     const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '等待 DAY 原始事件';
     target.replaceChildren(empty); return;
   }
-  const maxAbs = Math.max(...selected.map((row) => Math.abs(Number(row?.points) || 0)), 0);
+  const maxAbs = Math.max(...selected.map((row) => Math.abs(finiteNumber(row?.points) ?? 0)), 0);
   target.replaceChildren(...selected.map((row) => leadershipRow(row, maxAbs, { compact })));
 }
 

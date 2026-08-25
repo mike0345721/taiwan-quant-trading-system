@@ -59,6 +59,11 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /最大反向證據？/);
   assert.match(shell, /多單 thesis 何時失效？/);
   assert.match(shell, /aria-disabled/);
+  assert.match(shell, /button\.disabled = index !== 0/);
+  assert.match(shell, /shell\.returnFocus = trigger/);
+  assert.match(shell, /returnFocus\?\.isConnected/);
+  assert.match(shell, /event\.key !== 'Tab'/);
+  assert.match(shell, /aria-labelledby/);
   assert.match(shell, /index <= 6/);
   assert.match(shell, /正貢獻 TOP 5/);
   assert.match(shell, /負貢獻 TOP 5/);
@@ -104,7 +109,7 @@ test('isolated fixture is explicit, local, and excluded from evidence copy', () 
   const preview = read('public-preview', 'app.js');
   assert.match(preview, /SIMULATED_UI_FIXTURE/);
   assert.match(preview, /SIM-TX/);
-  assert.match(preview, /if \(previewMode !== 'governed'\) return/);
+  assert.match(preview, /if \(previewMode !== 'governed'/);
   assert.match(preview, /copyButton\.disabled = fixture/);
   assert.match(preview, /setSeries\('tt-breadth-series'/);
   assert.match(preview, /setSeries\('tt-risk-series'/);
@@ -116,4 +121,30 @@ test('isolated fixture is explicit, local, and excluded from evidence copy', () 
   assert.match(preview, /if \(\$\('decision-workspace'\)\?\.classList\.contains\('show-optional-levels'\)\)/);
   assert.doesNotMatch(production, /SIMULATED_UI_FIXTURE|SIM-TX|模擬 A 公司/);
   assert.doesNotMatch(preview, /fetch\([^\n]+method:\s*'(?:POST|PUT|PATCH|DELETE)'/);
+});
+
+test('preview mode transitions reject stale chart loads and gate evidence copy', () => {
+  const preview = read('public-preview', 'app.js');
+  assert.match(preview, /previewRequestGeneration/);
+  assert.match(preview, /generation !== previewRequestGeneration/);
+  assert.match(preview, /requestedMode !== previewMode/);
+  assert.match(preview, /governedCopyReady = false/);
+  assert.match(preview, /governedCopyReady = requestedMode === 'governed'/);
+  assert.match(preview, /activeChart\?\.source === 'SIMULATED_UI_FIXTURE'/);
+  assert.match(preview, /setTrust\('trend', 'RESEARCH_PENDING'\)/);
+});
+
+test('Leadership presentation preserves missing points instead of coercing them to zero', () => {
+  const app = read('public', 'app.js');
+  const finiteSource = app.match(/function finiteNumber\(value\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(finiteSource);
+  const normalize = Function(`return (${finiteSource})`)();
+  for (const value of [null, undefined, '', '   ', true, false, 'not-a-number', Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(normalize(value), null);
+  }
+  assert.equal(normalize('12.5'), 12.5);
+  assert.equal(normalize(-3), -3);
+  const leadershipSource = app.slice(app.indexOf('function leadershipRow'), app.indexOf('function renderIndexLeadership'));
+  assert.match(leadershipSource, /const points = finiteNumber\(row\?\.points\)/);
+  assert.doesNotMatch(leadershipSource, /(?:^|[^A-Za-z])Number\(row\?\.points\)/);
 });

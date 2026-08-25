@@ -119,6 +119,7 @@
       button.type = 'button';
       button.setAttribute('aria-label', label);
       button.setAttribute('aria-disabled', index === 0 ? 'false' : 'true');
+      button.disabled = index !== 0;
       button.append(element('span', '', icon), element('b', '', label));
       nav.append(button);
     });
@@ -451,6 +452,7 @@
     const panel = element('section', 'tt-drawer-panel');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'tt-drawer-title');
     const heading = element('header', 'tt-drawer-heading');
     const title = element('h2', '', 'Detail');
     title.id = 'tt-drawer-title';
@@ -463,9 +465,12 @@
     root.append(shell);
 
     const closeDrawer = () => {
+      const returnFocus = shell.returnFocus;
+      shell.returnFocus = null;
       shell.hidden = true;
       shell.setAttribute('aria-hidden', 'true');
       root.classList.remove('is-drawer-open');
+      if (returnFocus?.isConnected) returnFocus.focus();
     };
     close.addEventListener('click', closeDrawer);
     scrim.addEventListener('click', closeDrawer);
@@ -496,13 +501,33 @@
       if (!source) return;
       shell.querySelector('#tt-drawer-title').textContent = trigger.dataset.terminalDrawerTitle || 'Detail';
       shell.querySelector('.tt-drawer-body').replaceChildren(sanitizedClone(source));
+      shell.returnFocus = trigger;
       shell.hidden = false;
       shell.setAttribute('aria-hidden', 'false');
       root.classList.add('is-drawer-open');
       shell.querySelector('.tt-drawer-close').focus();
     });
     root.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !shell.hidden) shell.closeDrawer();
+      if (shell.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        shell.closeDrawer();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(shell.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((node) => !node.closest('[hidden]'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     });
   }
 
