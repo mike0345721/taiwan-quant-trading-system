@@ -263,11 +263,16 @@
   function buildGlobalVisual(cardNode) {
     const tiles = element('div', 'tt-global-tiles');
     for (let index = 1; index <= 6; index += 1) {
-      const tile = element('article');
+      const tile = element('article', 'tt-global-tile');
+      const change = element('div', 'tt-global-change-row');
+      change.append(
+        Object.assign(element('small', '', 'UNAVAILABLE'), { id: `tt-global-change-${index}` }),
+        element('em', 'tt-global-data-kind', 'LATEST VALUE ONLY'),
+      );
       tile.append(
         Object.assign(element('span', '', `來源 ${index}`), { id: `tt-global-name-${index}` }),
         Object.assign(element('strong', '', '—'), { id: `tt-global-price-${index}` }),
-        Object.assign(element('small', '', 'UNAVAILABLE'), { id: `tt-global-change-${index}` }),
+        change,
         miniSeries(`tt-global-series-${index}`, 'tt-global-mini is-unavailable'),
       );
       tiles.append(tile);

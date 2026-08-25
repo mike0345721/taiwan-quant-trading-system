@@ -46,6 +46,9 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /tt-ring/);
   assert.match(shell, /tt-participation-bar/);
   assert.match(shell, /tt-global-tiles/);
+  assert.match(shell, /tt-global-tile/);
+  assert.match(shell, /tt-global-change-row/);
+  assert.match(shell, /LATEST VALUE ONLY/);
   assert.match(shell, /tt-contribution-placeholder/);
   assert.match(shell, /tt-health-layout/);
   assert.match(shell, /tt-gpt-visual/);
@@ -65,6 +68,11 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /--tt-space-md/);
   assert.match(styles, /--tt-font-card-title/);
   assert.match(styles, /--tt-border-card/);
+  assert.match(styles, /--tt-global-positive/);
+  assert.match(styles, /--tt-global-negative/);
+  assert.match(styles, /--tt-global-chart-height/);
+  assert.match(styles, /\.tt-global-tile\.is-positive/);
+  assert.match(styles, /\.tt-global-tile\.is-negative/);
   assert.match(styles, /overflow-x:\s*clip/);
   assert.match(styles, /height:\s*clamp\(360px,\s*42vh,\s*470px\)/);
   assert.match(styles, /height:\s*clamp\(268px,\s*25vh,\s*280px\)/);
@@ -100,6 +108,9 @@ test('isolated fixture is explicit, local, and excluded from evidence copy', () 
   assert.match(preview, /setSeries\('tt-breadth-series'/);
   assert.match(preview, /setSeries\('tt-risk-series'/);
   assert.match(preview, /tt-global-series-/);
+  assert.match(preview, /node\.textContent = fixture \? 'SIMULATED' : 'LATEST VALUE ONLY'/);
+  assert.match(preview, /\['VIX', '19\.82', '-2\.04%'/);
+  assert.match(preview, /change\.startsWith\('-'\) \? 'negative' : 'positive'/);
   assert.match(preview, /FIXTURE · DISABLED/);
   assert.match(preview, /if \(\$\('decision-workspace'\)\?\.classList\.contains\('show-optional-levels'\)\)/);
   assert.doesNotMatch(production, /SIMULATED_UI_FIXTURE|SIM-TX|模擬 A 公司/);

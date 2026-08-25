@@ -446,7 +446,7 @@ function renderFixtureWorkspace() {
   globals.forEach(([name, price, change, series], index) => {
     setText(`tt-global-name-${index + 1}`, name);
     setText(`tt-global-price-${index + 1}`, price);
-    setText(`tt-global-change-${index + 1}`, `${change} · SIMULATED`);
+    setText(`tt-global-change-${index + 1}`, change);
     const tile = $(`tt-global-change-${index + 1}`)?.closest('.tt-global-tile');
     tile?.classList.toggle('is-positive', change.startsWith('+'));
     tile?.classList.toggle('is-negative', change.startsWith('-'));
@@ -484,6 +484,9 @@ function applyPreviewIdentity(mode) {
   setText('tt-preview-data-label', fixture ? 'SIMULATED UI FIXTURE' : 'FROZEN GOVERNED SNAPSHOT');
   setText('tt-preview-safety-label', fixture ? 'NOT MARKET DATA' : 'NOT LIVE MARKET DATA');
   setText('tt-preview-purpose-label', fixture ? 'FOR VISUAL REVIEW ONLY' : 'NOT A TRADING SIGNAL');
+  document.querySelectorAll('.tt-global-data-kind').forEach((node) => {
+    node.textContent = fixture ? 'SIMULATED' : 'LATEST VALUE ONLY';
+  });
   document.querySelectorAll('[data-preview-mode]').forEach((button) => {
     const selected = button.dataset.previewMode === mode;
     button.classList.toggle('is-selected', selected);
