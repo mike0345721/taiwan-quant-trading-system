@@ -73,6 +73,7 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /--tt-global-chart-height/);
   assert.match(styles, /\.tt-global-tile\.is-positive/);
   assert.match(styles, /\.tt-global-tile\.is-negative/);
+  assert.match(styles, /\.tt-global-change-row \{ display: grid/);
   assert.match(styles, /overflow-x:\s*clip/);
   assert.match(styles, /height:\s*clamp\(360px,\s*42vh,\s*470px\)/);
   assert.match(styles, /height:\s*clamp\(268px,\s*25vh,\s*280px\)/);
