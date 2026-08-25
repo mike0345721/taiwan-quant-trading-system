@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -17,116 +16,95 @@ function browserBinary() {
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
-function startProductionServer({ omitChangeMetric = false } = {}) {
-  let sessionRequests = 0;
-  const server = http.createServer((request, response) => {
-    const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
-    if (pathname === '/api/session') {
-      sessionRequests += 1;
-      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify({ authenticated: false }));
-      return;
-    }
-    if (pathname === '/vendor/lightweight-charts.js') {
-      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
-      response.end('window.LightweightCharts = Object.freeze({});');
-      return;
-    }
-    const files = new Map([
-      ['/', ['public/index.html', 'text/html; charset=utf-8']],
-      ['/index.html', ['public/index.html', 'text/html; charset=utf-8']],
-      ['/styles.css', ['public/styles.css', 'text/css; charset=utf-8']],
-      ['/trader-terminal-shell.css', ['public/trader-terminal-shell.css', 'text/css; charset=utf-8']],
-      ['/trader-terminal-shell.js', ['public/trader-terminal-shell.js', 'text/javascript; charset=utf-8']],
-      ['/app.js', ['public/app.js', 'text/javascript; charset=utf-8']],
-    ]);
-    const entry = files.get(pathname);
-    if (!entry) {
-      response.writeHead(404).end();
-      return;
-    }
-    let body = fs.readFileSync(path.join(root, entry[0]), 'utf8');
-    if (omitChangeMetric && pathname === '/') {
-      body = body.replace(/\s*<article><span>[^<]*<\/span><strong id="dw-pulse-change">[\s\S]*?<\/article>/, '');
-    }
-    response.writeHead(200, { 'content-type': entry[1], 'cache-control': 'no-store' });
-    response.end(body);
-  });
-  return { server, sessionRequestCount: () => sessionRequests };
+function inlineScript(source) {
+  return `<script>${source.replaceAll('</script', '<\\/script')}</script>`;
 }
 
-async function devtoolsEndpoint(child) {
-  child.stderr.setEncoding('utf8');
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('BROWSER_DEVTOOLS_TIMEOUT')), 10_000);
-    let stderr = '';
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
-      const match = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-      if (!match) return;
-      clearTimeout(timeout);
-      resolve(match[1]);
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`BROWSER_EXITED_BEFORE_DEVTOOLS:${code}:${stderr}`));
-    });
-  });
+function productionDocument({ omitChangeMetric = false } = {}) {
+  let html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  if (omitChangeMetric) {
+    html = html.replace(/\s*<article><span>[^<]*<\/span><strong id="dw-pulse-change">[\s\S]*?<\/article>/, '');
+  }
+  html = html
+    .replace(/\s*<link[^>]+rel="stylesheet"[^>]*>/g, '')
+    .replace(/\s*<script[^>]+src="[^"]+"[^>]*><\/script>/g, '');
+  const scripts = [
+    'window.LightweightCharts = Object.freeze({});',
+    fs.readFileSync(path.join(root, 'public', 'trader-terminal-shell.js'), 'utf8'),
+    fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8'),
+  ].map(inlineScript).join('\n');
+  return html.replace('</body>', `${scripts}\n</body>`);
 }
 
-async function pageWebSocket(browserEndpoint) {
-  const endpoint = new URL(browserEndpoint);
-  const response = await fetch(`http://${endpoint.host}/json/list`);
-  const targets = await response.json();
-  const page = targets.find((target) => target.type === 'page');
-  if (!page?.webSocketDebuggerUrl) throw new Error('BROWSER_PAGE_TARGET_MISSING');
-  return page.webSocketDebuggerUrl;
-}
-
-async function connectCdp(webSocketUrl) {
-  const socket = new WebSocket(webSocketUrl);
-  await new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true });
-    socket.addEventListener('error', reject, { once: true });
-  });
+function connectPipeCdp(child) {
+  const input = child.stdio[3];
+  const output = child.stdio[4];
+  assert.ok(input && output, 'Chrome DevTools pipe was not created');
   let sequence = 0;
+  let buffer = Buffer.alloc(0);
   const pending = new Map();
   const listeners = new Map();
-  socket.addEventListener('message', (event) => {
-    const message = JSON.parse(event.data);
-    if (message.id) {
-      const handler = pending.get(message.id);
-      pending.delete(message.id);
-      if (message.error) handler?.reject(new Error(message.error.message));
-      else handler?.resolve(message.result);
-      return;
+  const listenerKey = (sessionId, method) => `${sessionId || ''}:${method}`;
+
+  output.on('data', (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    let boundary = buffer.indexOf(0);
+    while (boundary >= 0) {
+      const packet = buffer.subarray(0, boundary).toString('utf8');
+      buffer = buffer.subarray(boundary + 1);
+      boundary = buffer.indexOf(0);
+      if (!packet) continue;
+      const message = JSON.parse(packet);
+      if (message.id != null) {
+        const handler = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.error) handler?.reject(new Error(message.error.message));
+        else handler?.resolve(message.result);
+        continue;
+      }
+      for (const listener of listeners.get(listenerKey(message.sessionId, message.method)) || []) {
+        listener(message.params);
+      }
     }
-    for (const listener of listeners.get(message.method) || []) listener(message.params);
   });
+  child.once('exit', (code) => {
+    for (const handler of pending.values()) handler.reject(new Error(`BROWSER_PIPE_CLOSED:${code}`));
+    pending.clear();
+  });
+
   return {
-    command(method, params = {}) {
+    command(method, params = {}, sessionId = null) {
       const id = ++sequence;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        socket.send(JSON.stringify({ id, method, params }));
+        input.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
       });
     },
-    on(method, listener) {
-      const current = listeners.get(method) || [];
+    on(method, listener, sessionId = null) {
+      const key = listenerKey(sessionId, method);
+      const current = listeners.get(key) || [];
       current.push(listener);
-      listeners.set(method, current);
+      listeners.set(key, current);
     },
-    close() { socket.close(); },
+    close() { input.end(); },
   };
 }
 
-async function waitForPageState(cdp, expression, sessionRequestCount) {
+function sessionClient(pipe, sessionId) {
+  return {
+    command(method, params = {}) { return pipe.command(method, params, sessionId); },
+    on(method, listener) { pipe.on(method, listener, sessionId); },
+  };
+}
+
+async function waitForPageState(cdp, expression) {
   const deadline = Date.now() + 10_000;
   let lastState = null;
   while (Date.now() < deadline) {
@@ -134,7 +112,7 @@ async function waitForPageState(cdp, expression, sessionRequestCount) {
     if (result.exceptionDetails) throw new Error(`PAGE_STATE_EVALUATION_FAILED:${JSON.stringify(result.exceptionDetails)}`);
     lastState = result.result.value;
     if (lastState?.rootPresent && lastState.readyState !== 'loading'
-      && ((sessionRequestCount() > 0 && lastState.loginVisible) || lastState.runtimeErrors.length > 0)) return lastState;
+      && ((lastState.sessionRequests > 0 && lastState.loginVisible) || lastState.runtimeErrors.length > 0)) return lastState;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`BROWSER_PAGE_TIMEOUT:${JSON.stringify(lastState)}`);
@@ -143,33 +121,41 @@ async function waitForPageState(cdp, expression, sessionRequestCount) {
 async function runProductionDom(options = {}) {
   const binary = browserBinary();
   assert.ok(binary, 'Chrome or Edge is required for the production DOM integration test');
-  const { server, sessionRequestCount } = startProductionServer(options);
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const address = server.address();
-  const origin = `http://127.0.0.1:${address.port}`;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ui1-production-dom-'));
   const browser = spawn(binary, [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-extensions',
     '--disable-background-networking', '--no-first-run', '--no-default-browser-check',
-    '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
-  let cdp;
+    '--remote-debugging-pipe', `--user-data-dir=${profile}`, 'about:blank',
+  ], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], windowsHide: true });
+  const pipe = connectPipeCdp(browser);
   try {
-    const endpoint = await devtoolsEndpoint(browser);
-    cdp = await connectCdp(await pageWebSocket(endpoint));
+    const { targetId } = await pipe.command('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await pipe.command('Target.attachToTarget', { targetId, flatten: true });
+    const cdp = sessionClient(pipe, sessionId);
     const exceptions = [];
     cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => exceptions.push(exceptionDetails));
     await cdp.command('Runtime.enable');
     await cdp.command('Page.enable');
-    await cdp.command('Page.addScriptToEvaluateOnNewDocument', {
-      source: `window.__ui1RuntimeErrors = [];
+    await cdp.command('Runtime.evaluate', {
+      expression: `window.__ui1SessionRequests = 0;
+        window.__ui1RuntimeErrors = [];
         window.addEventListener('error', (event) => {
           window.__ui1RuntimeErrors.push({ message: event.message, stack: event.error?.stack || '' });
-        });`,
+        });
+        window.fetch = async (input) => {
+          if (String(input) !== '/api/session') throw new Error('UNEXPECTED_FETCH:' + input);
+          window.__ui1SessionRequests += 1;
+          return new Response(JSON.stringify({ authenticated: false }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        };`,
     });
-    const navigation = await cdp.command('Page.navigate', { url: origin });
-    if (navigation.errorText) throw new Error(`PAGE_NAVIGATION_FAILED:${JSON.stringify(navigation)}`);
+    const frameTree = await cdp.command('Page.getFrameTree');
+    await cdp.command('Page.setDocumentContent', {
+      frameId: frameTree.frameTree.frame.id,
+      html: productionDocument(options),
+    });
     const pageStateExpression = `(() => {
       const root = document.getElementById('decision-workspace');
       const pulse = document.querySelector('.dw-market-pulse');
@@ -179,7 +165,6 @@ async function runProductionDom(options = {}) {
       const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
       const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
       return {
-        url: location.href,
         readyState: document.readyState,
         rootPresent: Boolean(root),
         mounted: root?.dataset.terminalMounted === 'true',
@@ -191,13 +176,14 @@ async function runProductionDom(options = {}) {
         duplicateIds: [...new Set(duplicates)],
         loginPresent: Boolean(document.getElementById('login-view')),
         loginVisible: !document.getElementById('login-view')?.classList.contains('hidden'),
+        sessionRequests: window.__ui1SessionRequests || 0,
         runtimeErrors: window.__ui1RuntimeErrors || [],
       };
     })()`;
-    const pageState = await waitForPageState(cdp, pageStateExpression, sessionRequestCount);
-    return { pageState, exceptions: [...exceptions, ...pageState.runtimeErrors], sessionRequests: sessionRequestCount() };
+    const pageState = await waitForPageState(cdp, pageStateExpression);
+    return { pageState, exceptions: [...exceptions, ...pageState.runtimeErrors] };
   } finally {
-    cdp?.close();
+    pipe.close();
     if (browser.exitCode === null) {
       browser.kill();
       await Promise.race([
@@ -205,7 +191,6 @@ async function runProductionDom(options = {}) {
         new Promise((resolve) => setTimeout(resolve, 5_000)),
       ]);
     }
-    await new Promise((resolve) => server.close(resolve));
     fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
@@ -213,7 +198,7 @@ async function runProductionDom(options = {}) {
 test('production DOM mounts Trader Terminal and reaches session initialization without blocking exceptions', async () => {
   const result = await runProductionDom();
   assert.deepEqual(result.exceptions, []);
-  assert.equal(result.sessionRequests, 1, JSON.stringify(result));
+  assert.equal(result.pageState.sessionRequests, 1, JSON.stringify(result));
   assert.equal(result.pageState.mounted, true);
   assert.equal(result.pageState.trendCount, 1);
   assert.equal(result.pageState.changeCount, 1);
@@ -228,7 +213,7 @@ test('production DOM mounts Trader Terminal and reaches session initialization w
 test('missing optional pulse change metric fails soft and still reaches session initialization', async () => {
   const result = await runProductionDom({ omitChangeMetric: true });
   assert.deepEqual(result.exceptions, []);
-  assert.equal(result.sessionRequests, 1, JSON.stringify(result));
+  assert.equal(result.pageState.sessionRequests, 1, JSON.stringify(result));
   assert.equal(result.pageState.mounted, true);
   assert.equal(result.pageState.trendCount, 0);
   assert.equal(result.pageState.changeCount, 0);
