@@ -172,6 +172,10 @@ async function runProductionDom(options = {}) {
     if (navigation.errorText) throw new Error(`PAGE_NAVIGATION_FAILED:${JSON.stringify(navigation)}`);
     const pageStateExpression = `(() => {
       const root = document.getElementById('decision-workspace');
+      const pulse = document.querySelector('.dw-market-pulse');
+      const trend = pulse?.querySelector('.tt-pulse-trend');
+      const change = document.getElementById('dw-pulse-change');
+      const changeMetric = change?.closest('article') ?? change;
       const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
       const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
       return {
@@ -179,9 +183,11 @@ async function runProductionDom(options = {}) {
         readyState: document.readyState,
         rootPresent: Boolean(root),
         mounted: root?.dataset.terminalMounted === 'true',
-        trendCount: document.querySelectorAll('.dw-market-pulse .tt-pulse-trend').length,
+        trendCount: pulse?.querySelectorAll('.tt-pulse-trend').length ?? 0,
         changeCount: document.querySelectorAll('#dw-pulse-change').length,
-        changeInsideGrid: Boolean(document.querySelector('.dw-pulse-grid')?.contains(document.getElementById('dw-pulse-change'))),
+        changeInsideGrid: Boolean(document.querySelector('.dw-pulse-grid')?.contains(change)),
+        trendSharesChangeParent: Boolean(trend && trend.parentElement === changeMetric?.parentElement),
+        trendImmediatelyBeforeChange: Boolean(trend && changeMetric?.previousElementSibling === trend),
         duplicateIds: [...new Set(duplicates)],
         loginPresent: Boolean(document.getElementById('login-view')),
         loginVisible: !document.getElementById('login-view')?.classList.contains('hidden'),
@@ -212,6 +218,8 @@ test('production DOM mounts Trader Terminal and reaches session initialization w
   assert.equal(result.pageState.trendCount, 1);
   assert.equal(result.pageState.changeCount, 1);
   assert.equal(result.pageState.changeInsideGrid, true);
+  assert.equal(result.pageState.trendSharesChangeParent, true);
+  assert.equal(result.pageState.trendImmediatelyBeforeChange, true);
   assert.deepEqual(result.pageState.duplicateIds, []);
   assert.equal(result.pageState.loginPresent, true);
   assert.equal(result.pageState.loginVisible, true);
