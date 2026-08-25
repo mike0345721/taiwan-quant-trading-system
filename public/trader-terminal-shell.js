@@ -391,9 +391,11 @@
       appendMetric(grid, '基差', 'tt-pulse-basis', 'UNAVAILABLE', 'Basis');
     }
     const pulse = root.querySelector('.dw-market-pulse');
-    if (pulse && !pulse.querySelector('.tt-pulse-trend')) {
+    const change = pulse?.querySelector('#dw-pulse-change');
+    const changeMetric = change?.closest('article') ?? change;
+    if (changeMetric?.parentElement && pulse.contains(changeMetric) && !pulse.querySelector('.tt-pulse-trend')) {
       const trend = miniBars('tt-pulse-trend');
-      pulse.insertBefore(trend, pulse.querySelector('#dw-pulse-change'));
+      changeMetric.parentElement.insertBefore(trend, changeMetric);
     }
   }
 
