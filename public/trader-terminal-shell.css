@@ -179,14 +179,14 @@
 /* Main dashboard proportions follow the chosen terminal reference. */
 .tt-primary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 59fr) minmax(620px, 41fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(720px, .85fr);
   gap: var(--tt-space-sm);
   height: clamp(360px, 42vh, 470px);
 }
 .tt-primary-grid > .dw-price-region {
   display: grid;
   grid-template-rows: auto auto minmax(230px, 1fr) auto;
-  height: clamp(360px, 42vh, 470px);
+  height: 100%;
   min-height: 0;
   padding: var(--tt-space-md);
 }
@@ -197,7 +197,7 @@
 .tt-primary-grid .dw-chart-toolbar { gap: var(--tt-space-sm); margin-top: 2px; }
 .tt-primary-grid .dw-chart-mode { overflow: hidden; max-width: 230px; color: #66788e; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .tt-primary-grid .dw-chart-stage,
-.tt-primary-grid .dw-chart-canvas { height: 100%; min-height: 230px; }
+.tt-primary-grid .dw-chart-canvas { height: 100%; min-height: 0; }
 .tt-primary-grid .dw-chart-stage { margin-top: 3px; border-color: var(--tt-border-row); border-radius: 5px; }
 .tt-primary-grid .dw-chart-crosshair { bottom: 6px; max-width: calc(100% - 110px); padding: 5px 8px; border-color: var(--tt-border-section); background: rgba(3, 12, 21, .9); color: #c1cddd; font-size: 9px; }
 .tt-primary-grid .dw-chart-attribution { right: 6px; bottom: 6px; }
@@ -211,7 +211,7 @@
 
 .tt-tier-one-grid {
   display: grid;
-  grid-template-columns: .78fr 1.05fr 1.35fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--tt-space-sm);
   height: clamp(360px, 42vh, 470px);
 }
@@ -417,8 +417,9 @@
 .tt-contribution-net span { color: #75899f; font-size: 9px; }
 .tt-contribution-net strong { color: var(--tt-accent); font-size: 14px; }
 
-.tt-global-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; height: 100%; }
+.tt-global-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0; height: 100%; }
 .tt-global-tile { display: grid; grid-template-rows: auto auto auto minmax(54px, 1fr); row-gap: 2px; min-width: 0; padding: 7px 11px; border-right: 1px solid var(--tt-border-section); background: transparent; }
+.tt-global-tile[hidden] { display: none; }
 .tt-global-tile:last-child { border-right: 0; }
 .tt-global-tile > span { overflow: hidden; color: #aab9c9; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .tt-global-tile > strong { margin-top: 3px; color: #eef4fa; font-size: var(--tt-global-price-size); font-weight: 780; line-height: 1.08; letter-spacing: -.015em; }
@@ -512,20 +513,21 @@
 .is-fixture-mode .tt-preview-identity { border-color: rgba(255, 107, 125, .55); background: #21141a; }
 .is-fixture-mode .tt-preview-banner { color: #ff8998; }
 
-.trader-terminal.is-chart-expanded .tt-primary-grid { grid-template-columns: minmax(0, 9fr) minmax(210px, 1fr); height: auto; }
+.trader-terminal.is-chart-expanded { --tt-expanded-chart-height: clamp(560px, calc(100dvh - 96px), 960px); }
+.trader-terminal.is-chart-expanded .tt-primary-grid { grid-template-columns: minmax(0, 9fr) minmax(210px, 1fr); height: var(--tt-expanded-chart-height); }
 .trader-terminal.is-chart-expanded .tt-tier-one-grid {
   grid-template-columns: 1fr;
   grid-template-rows: minmax(0, 1fr) 190px;
-  height: calc(100vh - 115px);
+  height: 100%;
   overflow: hidden;
 }
 .trader-terminal.is-chart-expanded .tt-card-futures,
 .trader-terminal.is-chart-expanded .tt-tier-two-grid,
 .trader-terminal.is-chart-expanded .tt-tier-three-grid,
 .trader-terminal.is-chart-expanded .tt-progressive { display: none; }
-.trader-terminal.is-chart-expanded .tt-primary-grid > .dw-price-region { height: auto; min-height: calc(100vh - 115px); }
+.trader-terminal.is-chart-expanded .tt-primary-grid > .dw-price-region { height: 100%; min-height: 0; }
 .trader-terminal.is-chart-expanded .tt-primary-grid .dw-chart-stage,
-.trader-terminal.is-chart-expanded .tt-primary-grid .dw-chart-canvas { min-height: calc(100vh - 240px); }
+.trader-terminal.is-chart-expanded .tt-primary-grid .dw-chart-canvas { height: 100%; min-height: 0; }
 .trader-terminal.is-chart-expanded .tt-card-trend .tt-trend-factors,
 .trader-terminal.is-chart-expanded .tt-card-trend .tt-interpretation,
 .trader-terminal.is-chart-expanded .tt-card-trend .tt-more { display: none; }
@@ -550,9 +552,14 @@
   .tt-progressive > summary { padding: 5px 8px; }
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1600px) {
   .tt-terminal-frame { grid-template-columns: 54px minmax(0, 1fr); }
-  .tt-primary-grid { grid-template-columns: minmax(0, 1.15fr) minmax(540px, .85fr); }
+  .tt-primary-grid,
+  .trader-terminal.is-chart-expanded .tt-primary-grid { grid-template-columns: 1fr; height: auto; }
+  .tt-primary-grid > .dw-price-region { height: clamp(380px, 50vh, 470px); }
+  .trader-terminal.is-chart-expanded .tt-primary-grid > .dw-price-region { height: var(--tt-expanded-chart-height); }
+  .tt-tier-one-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); height: clamp(280px, 34vh, 340px); }
+  .trader-terminal.is-chart-expanded .tt-tier-one-grid { display: none; }
   .tt-tier-two-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; }
   .tt-tier-three-grid { grid-template-columns: 1.5fr 1fr; height: auto; }
   .tt-tier-three-grid > :last-child { grid-column: 1 / -1; }

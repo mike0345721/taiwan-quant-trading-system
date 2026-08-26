@@ -13,18 +13,48 @@ const state = {
   indexLeadership: null, indexLeadershipLoading: false,
 };
 const $ = (id) => document.getElementById(id);
-const traderTerminalRoot = $('decision-workspace');
-if (traderTerminalRoot && window.TraderTerminalShell) {
-  window.TraderTerminalShell.mount(traderTerminalRoot);
-  state.txChartPalette = traderTerminalRoot.dataset.candlePalette || 'red-up';
+
+function normalizeDashboardPageFragments() {
+  const host = document.querySelector('.dashboard-pages');
+  if (!host || host.dataset.pagesNormalized === 'true') return;
+  host.dataset.pagesNormalized = 'true';
+  for (const page of ['today', 'market', 'options', 'intraday', 'research', 'quality']) {
+    const fragments = Array.from(host.children).filter((node) => node.dataset?.page === page);
+    if (!fragments.length) continue;
+    const group = document.createElement('div');
+    group.id = `dashboard-page-${page}`;
+    group.className = 'dashboard-page-group';
+    group.dataset.page = page;
+    const nav = document.querySelector(`[data-dashboard-page="${page}"]`);
+    group.setAttribute('aria-label', nav?.title || page);
+    fragments[0].before(group);
+    fragments.forEach((node) => {
+      node.classList.remove('is-active-page');
+      node.removeAttribute('data-page');
+      group.append(node);
+    });
+    group.querySelectorAll(`[data-page="${page}"]`).forEach((node) => {
+      node.classList.remove('is-active-page');
+      node.removeAttribute('data-page');
+    });
+  }
 }
 
-function setDashboardPage(page) {
+function setDashboardPage(page, { scroll = true } = {}) {
   const valid = new Set(['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']);
   const selected = valid.has(page) ? page : 'workspace';
   document.querySelectorAll('[data-page]').forEach((element) => element.classList.toggle('is-active-page', element.dataset.page === selected));
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+normalizeDashboardPageFragments();
+setDashboardPage('workspace', { scroll: false });
+
+const traderTerminalRoot = $('decision-workspace');
+if (traderTerminalRoot && window.TraderTerminalShell) {
+  window.TraderTerminalShell.mount(traderTerminalRoot);
+  state.txChartPalette = traderTerminalRoot.dataset.candlePalette || 'red-up';
 }
 
 const FIELD_HELP = {
@@ -95,6 +125,7 @@ const FIELD_HELP = {
 function show(view) {
   for (const id of ['loading-view', 'login-view', 'dashboard-view']) $(id).classList.add('hidden');
   $(view).classList.remove('hidden');
+  $('app')?.classList.toggle('is-dashboard-shell', view === 'dashboard-view');
 }
 
 async function api(path, options = {}) {
@@ -2645,9 +2676,9 @@ function terminalSetTrust(cardKey, evidence) {
   const promotion = evidence?.promotionState || 'NOT_PROMOTED';
   const target = $(`tt-${cardKey}-trust`);
   if (target) {
-    target.textContent = `${availability} · ${quality}`;
+    target.textContent = `${cardKey === 'global' ? 'FAMILY ' : ''}${availability} · ${quality}`;
     target.className = `dw-status-pill ${healthTone(availability === 'AVAILABLE' ? quality : availability)}`;
-    target.title = `promotionState=${promotion}`;
+    target.title = `${cardKey === 'global' ? 'cardLayer=GLOBAL_FX_FAMILY; ' : ''}promotionState=${promotion}`;
   }
   return { availability, quality, promotion };
 }
@@ -2665,17 +2696,45 @@ function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretati
   dwText(`tt-${cardKey}-main`, main);
   const visual = $(`tt-${cardKey}-values`);
   if (visual) {
-    const rows = values.slice(1).map((entry) => {
-      const row = document.createElement('span');
-      row.textContent = `${entry.label} ${dw4DescriptiveValue(entry)} · ${sourceModeLabel(entry.sourceMode)}`;
-      return row;
-    });
-    visual.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('span'), { textContent: trust.availability })]));
+    if (cardKey === 'global') {
+      visual.replaceChildren();
+    } else {
+      const rows = values.slice(1).map((entry) => {
+        const row = document.createElement('span');
+        row.textContent = `${entry.label} ${dw4DescriptiveValue(entry)} · ${sourceModeLabel(entry.sourceMode)}`;
+        return row;
+      });
+      visual.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('span'), { textContent: trust.availability })]));
+    }
   }
   const sourceLabel = evidence?.detail?.displaySourceLabel;
   dwText(`tt-${cardKey}-interpretation`, sourceLabel
     ? `${sourceLabel} · descriptive evidence only`
     : emptyInterpretation);
+}
+
+function renderGlobalTiles(evidence) {
+  const values = Array.isArray(evidence?.detail?.descriptiveValues) ? evidence.detail.descriptiveValues.slice(0, 6) : [];
+  for (let index = 1; index <= 6; index += 1) {
+    const entry = values[index - 1] || null;
+    const available = Boolean(entry && entry.value != null && entry.value !== '' && entry.value !== 'UNAVAILABLE');
+    const tile = $(`tt-global-name-${index}`)?.closest('.tt-global-tile');
+    if (tile) tile.hidden = !entry;
+    dwText(`tt-global-name-${index}`, entry?.label || `來源 ${index}`);
+    dwText(`tt-global-price-${index}`, available ? dw4DescriptiveValue(entry) : '—', '—');
+    dwText(`tt-global-change-${index}`, available ? 'AVAILABLE' : 'UNAVAILABLE');
+    const kind = tile?.querySelector('.tt-global-data-kind');
+    if (kind) kind.textContent = entry?.sourceMode ? sourceModeLabel(entry.sourceMode) : 'SOURCE UNAVAILABLE';
+    tile?.classList.remove('is-positive', 'is-negative');
+    const numeric = finiteNumber(entry?.value);
+    const directionalContext = entry?.unit === '%' || /變化|Proxy/u.test(entry?.label || '');
+    if (available && directionalContext && numeric != null) {
+      tile?.classList.toggle('is-positive', numeric > 0);
+      tile?.classList.toggle('is-negative', numeric < 0);
+    }
+    tile?.setAttribute('aria-label', `${entry?.label || `來源 ${index}`}：${available ? dw4DescriptiveValue(entry) : 'UNAVAILABLE'}；${entry?.sourceMode ? sourceModeLabel(entry.sourceMode) : '來源目前無法取得'}`);
+    $(`tt-global-series-${index}`)?.classList.add('is-unavailable');
+  }
 }
 
 function renderTerminalShell(workspace, chart = state.txChartPayload) {
@@ -2732,6 +2791,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   renderTerminalEvidenceCard('options', contract, 'OPTIONS_CONTEXT', 'Verified options context is currently UNAVAILABLE.');
   renderTerminalEvidenceCard('breadth', contract, 'PARTICIPATION_BREADTH', 'Breadth participation is currently UNAVAILABLE.');
   renderTerminalEvidenceCard('global', contract, 'GLOBAL_FX', 'No governed global source is currently available.');
+  renderGlobalTiles(dw4FamilyEvidence(contract, 'GLOBAL_FX'));
 
   dwText('tt-pulse-rvol', 'UNAVAILABLE');
   dwText('tt-pulse-basis', 'UNAVAILABLE');
@@ -3494,8 +3554,8 @@ document.querySelectorAll('[data-gpt-question]').forEach((button) => button.addE
   state.gptQuestion = button.dataset.gptQuestion;
   document.querySelectorAll('[data-gpt-question]').forEach((item) => item.classList.toggle('is-selected', item === button));
 }));
-$('dw-health-toggle').addEventListener('click', () => $('dw-data-health-panel').classList.remove('hidden'));
-$('dw-health-close').addEventListener('click', () => $('dw-data-health-panel').classList.add('hidden'));
+$('dw-health-toggle')?.addEventListener('click', () => $('dw-data-health-panel').classList.remove('hidden'));
+$('dw-health-close')?.addEventListener('click', () => $('dw-data-health-panel').classList.add('hidden'));
 $('dw-lock-snapshot').addEventListener('click', () => {
   const snapshot = state.decisionWorkspace?.snapshot;
   if (!snapshot) { dwText('dw-snapshot-status', 'Snapshot UNAVAILABLE'); return; }

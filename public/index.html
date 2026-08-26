@@ -37,11 +37,11 @@
     </section>
 
     <section id="dashboard-view" class="dashboard hidden">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">TW MARKET INTELLIGENCE</p>
-        <h1>台股決策雷達 <span>V3.9.8</span></h1>
-          <p id="as-of" class="muted"></p>
+      <header class="topbar" aria-label="Global App Bar">
+        <div class="global-app-identity">
+          <strong>台股決策雷達</strong>
+          <span>V3.9.8</span>
+          <small id="as-of"></small>
         </div>
         <div class="top-actions">
           <div class="security-pill"><span></span> 私人・只讀・無券商憑證</div>
@@ -65,33 +65,6 @@
         <div class="dashboard-pages">
 
       <section id="decision-workspace" class="decision-workspace is-active-page" data-page="workspace" aria-labelledby="dw-title">
-        <div id="dw-global-strip" class="dw-global-strip" aria-label="即時狀態摘要">
-          <div class="dw-brand-lockup">
-            <span class="dw-live-dot" aria-hidden="true"></span>
-            <strong id="dw-global-mode">RUNTIME UNAVAILABLE</strong>
-          </div>
-          <span id="dw-global-contract">CONTRACT —</span>
-          <span id="dw-global-session">SESSION —</span>
-          <span id="dw-global-trade-date">交易日 —</span>
-          <span id="dw-global-time">截至 —</span>
-          <strong id="dw-global-posture" class="dw-manual-posture">僅供人工判讀</strong>
-          <span id="dw-global-readiness" class="dw-status-pill is-blocked">NOT_READY</span>
-          <span id="dw-global-trust" class="dw-status-pill is-unavailable">資料信任 UNAVAILABLE</span>
-          <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
-          <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
-          <details id="dw-runtime-version" class="dw-runtime-version">
-            <summary id="dw-runtime-badge">DW V1.1 · UNKNOWN · UNKNOWN</summary>
-            <div>
-              <span>Product Version <code id="dw-version-product">DW V1.1</code></span>
-              <span>Local/Main Commit <code id="dw-version-main">UNKNOWN</code></span>
-              <span>Runtime Commit <code id="dw-version-runtime">UNKNOWN</code></span>
-              <span>Runtime Started At <code id="dw-version-started">UNKNOWN</code></span>
-              <span>Sync State <code id="dw-version-sync">UNKNOWN</code></span>
-            </div>
-          </details>
-          <button id="dw-health-toggle" class="dw-link-button" type="button">資料健康度</button>
-        </div>
-
         <details id="dw-forward-status" class="dw-technical-detail">
           <summary>Forward Shadow｜歷史研究狀態：<strong id="dw-forward-status-value">UNKNOWN</strong></summary>
           <div class="dw-health-row">
@@ -325,6 +298,31 @@
 
           <section id="dw-data-health-panel" class="dw-data-health hidden" aria-labelledby="dw-health-title">
             <div class="dw-section-heading"><div><p class="eyebrow">資料來源與技術詳情</p><h3 id="dw-health-title">資料健康度</h3></div><button id="dw-health-close" class="ghost" type="button">關閉</button></div>
+            <section id="dw-global-strip" class="dw-runtime-detail" aria-label="Runtime 與資料信任詳情">
+              <header>
+                <div class="dw-brand-lockup">
+                  <span class="dw-live-dot" aria-hidden="true"></span>
+                  <strong id="dw-global-mode">RUNTIME UNAVAILABLE</strong>
+                </div>
+                <span id="dw-global-readiness" class="dw-status-pill is-blocked">NOT_READY</span>
+              </header>
+              <div class="dw-runtime-summary">
+                <strong id="dw-global-posture" class="dw-manual-posture">僅供人工判讀</strong>
+                <span id="dw-global-trust" class="dw-status-pill is-unavailable">資料信任 UNAVAILABLE</span>
+                <span id="dw-global-health" class="dw-status-pill is-unavailable">DATA UNAVAILABLE</span>
+                <span id="dw-global-counts">0 STALE · 0 UNAVAILABLE</span>
+              </div>
+              <details id="dw-runtime-version" class="dw-runtime-version">
+                <summary id="dw-runtime-badge">DW V1.1 · UNKNOWN · UNKNOWN</summary>
+                <div>
+                  <span>Product Version <code id="dw-version-product">DW V1.1</code></span>
+                  <span>Local/Main Commit <code id="dw-version-main">UNKNOWN</code></span>
+                  <span>Runtime Commit <code id="dw-version-runtime">UNKNOWN</code></span>
+                  <span>Runtime Started At <code id="dw-version-started">UNKNOWN</code></span>
+                  <span>Sync State <code id="dw-version-sync">UNKNOWN</code></span>
+                </div>
+              </details>
+            </section>
             <div id="dw-health-list" class="dw-health-list"></div>
           </section>
 
@@ -358,7 +356,7 @@
 
       <section id="alert-area" data-page="today"></section>
 
-      <section class="decision-cockpit is-active-page" data-page="today" aria-labelledby="cockpit-title">
+      <section class="decision-cockpit" data-page="today" aria-labelledby="cockpit-title">
         <div class="cockpit-heading">
           <div>
             <p class="eyebrow">V3.9 決策總覽</p>
@@ -416,11 +414,11 @@
         </details>
       </section>
 
-      <details class="today-deep-dive is-active-page" data-page="today">
+      <details class="today-deep-dive" data-page="today">
         <summary><span>展開完整研究雷達與四道閘門</span><small>VIX、IV、風險群組、AUC與研究細節</small></summary>
         <div class="today-deep-dive-body">
 
-      <section class="v362-briefing is-active-page" data-page="today" aria-labelledby="v362-title">
+      <section class="v362-briefing" data-page="today" aria-labelledby="v362-title">
         <div class="v362-heading">
           <div>
             <p class="eyebrow">V3.6.2 每日風險摘要</p>
@@ -457,7 +455,7 @@
         </div>
       </section>
 
-      <section class="hero-grid legacy-hero-grid is-active-page" data-page="today" aria-label="舊版研究摘要">
+      <section class="hero-grid legacy-hero-grid" data-page="today" aria-label="舊版研究摘要">
         <article class="hero-card"><div class="metric-heading"><p>市場狀態</p><button class="info-toggle" type="button" aria-label="查看市場狀態說明" aria-expanded="false" aria-controls="help-regime">?</button></div><strong id="regime">—</strong><small id="regime-note">等待資料</small><div id="help-regime" class="metric-help hidden">歷史不足時使用單日暫行模型：指數漲跌超過±0.8%，且市場廣度超過±10%，標示單日偏多或偏空。累積21個有效交易日後自動切換20日模型：20日報酬超過+3%且站上20日均價為多頭趨勢；低於-3%且跌破20日均價為空頭趨勢；20日年化實現波動率≥30%為高波動；其餘為震盪。門檻日後仍需回測驗證。</div></article>
         <article class="hero-card"><div class="metric-heading"><p>籌碼偏向</p><button class="info-toggle" type="button" aria-label="查看籌碼偏向說明" aria-expanded="false" aria-controls="help-bias">?</button></div><strong id="bias">—</strong><small id="score">研究方向分數 —</small><div id="help-bias" class="metric-help hidden">目前權重為現貨法人30%、期貨30%、選擇權20%、市場寬度20%。這是尚待前推驗證的研究方向分數，不是勝率或預期報酬；缺少分項時會重新正規化有效權重。</div></article>
         <article class="hero-card"><div class="metric-heading"><p>波動／跳空風險</p><button class="info-toggle" type="button" aria-label="查看波動風險說明" aria-expanded="false" aria-controls="help-risk-scores">?</button></div><strong id="risk-scores">—</strong><small id="risk-score-note">等待資料</small><div id="help-risk-scores" class="metric-help hidden">波動風險以臺指VIX為主；跳空風險暫以夜盤漲跌幅與美國VIX估算。兩者都是0至100的風險尺，不是發生機率，尚需歷史校準。</div></article>
@@ -466,7 +464,7 @@
         <article class="hero-card"><div class="metric-heading"><p>價格確認</p><button class="info-toggle" type="button" aria-label="查看價格確認說明" aria-expanded="false" aria-controls="help-price-confirmation">?</button></div><strong id="price-confirmation">未確認</strong><small id="price-confirmation-note">分鐘行情尚未接入</small><div id="help-price-confirmation" class="metric-help hidden">V3介面要求至少6根已完成且10分鐘內的5分鐘K棒；突破15分鐘開盤區間、位於VWAP同側且最新量比至少1.2才標示確認。即使確認也不授權下單。</div></article>
       </section>
 
-      <section class="command-deck is-active-page" data-page="today" aria-label="V3風險決策中心">
+      <section class="command-deck" data-page="today" aria-label="V3風險決策中心">
         <article class="radar-panel">
           <div class="radar-heading">
             <div><p class="eyebrow">V3 RISK RADAR</p><h2>今日風險溫度</h2></div>
@@ -500,7 +498,7 @@
         </article>
       </section>
 
-      <section class="research-pulse is-active-page" data-page="today" aria-label="已驗證研究脈搏">
+      <section class="research-pulse" data-page="today" aria-label="已驗證研究脈搏">
         <article><span>大行情風險</span><strong id="v3-large-move">—</strong><small id="v3-large-evidence">Holdout AUC —</small></article>
         <article><span>隔夜跳空風險</span><strong id="v3-gap-risk">—</strong><small id="v3-gap-evidence">Holdout AUC —</small></article>
         <article><span>低權重方向候選</span><strong id="v3-direction">—</strong><small id="v3-direction-note">不是正式交易訊號</small></article>
@@ -509,7 +507,7 @@
         </div>
       </details>
 
-      <section class="section-block daily-playbook is-active-page" data-page="today">
+      <section class="section-block daily-playbook" data-page="today">
         <div class="section-heading"><div><p class="eyebrow">TODAY'S PLAN</p><h2>今日盤面操作參考</h2></div><span id="advice-action" class="source-badge warn">等待價格確認</span></div>
         <div class="decision-grid">
           <article><span>結論</span><strong id="decision-conclusion">等待資料</strong></article>
