@@ -618,6 +618,7 @@ export function buildTxDecisionChart(records, {
       formalWeight: 0,
       researchOnly: true,
       executionAuthorized: false,
+      orderRoutesEnabled: false,
     });
   }
   const available = base.ticks.filter((tick) => (!tradeDate || tick.tradeDate === tradeDate) && (!session || tick.session === session));
@@ -709,5 +710,6 @@ export function buildTxDecisionChart(records, {
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,
+    orderRoutesEnabled: false,
   });
 }

@@ -37,6 +37,9 @@ from txo_live_chain import (
 
 
 ROOT = Path(__file__).resolve().parent.parent
+TX_TRADING_CALENDAR = load_governed_calendar(
+    ROOT / "config" / "taifex-official-calendar-2026.json"
+)
 CREDENTIAL_PATH = ROOT / ".shioaji.credentials.json"
 CREDENTIAL_READER = ROOT / "scripts" / "read-shioaji-credentials.ps1"
 HOST = "127.0.0.1"
@@ -56,6 +59,17 @@ SINGLE_INSTANCE_MUTEX_NAME = "Local\\TaiwanStockShioajiReadOnlyBridge"
 EVENT_QUEUE_CAPACITY = 50_000
 TAIPEI_TIMEZONE = timezone(timedelta(hours=8))
 INDUSTRY_POINTS_TOLERANCE = 0.1
+QUOTE_DELIVERY_GRACE_SECONDS = 30
+QUOTE_STALE_SECONDS = 300
+QUOTE_RESUBSCRIBE_DELAYS_SECONDS = (0, 5, 20)
+RECONNECT_REPLAY_LOCK = threading.Lock()
+SUBSCRIPTION_RECOVERY_LOCK = threading.Lock()
+RECONNECT_REPLAY_STATE: dict[str, Any] = {
+    "providerGeneration": 0,
+    "inFlightGeneration": None,
+    "lastCompletedGeneration": 0,
+    "pendingReplays": [],
+}
 LEADERSHIP_COLLECTION_ENABLED = (
     os.getenv("IX0001_LEADERSHIP_COLLECTION_ENABLED", "").strip().lower() == "true"
 )
@@ -73,6 +87,7 @@ QUEUE_STATE: dict[str, Any] = {
     "sessionDown": False,
     "subscriptionGeneration": 0,
     "writerThreadAlive": False,
+    "lastProviderEvent": None,
 }
 BRIDGE_STARTED_AT: str | None = None
 LAST_HEALTHY_AT: str | None = None
@@ -101,12 +116,27 @@ TXO_COLLECTION_STATE: dict[str, Any] = {
     "productionActivationApproved": False,
 }
 REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
-    "TX": {"product": "TX", "subscriptionAlias": "TXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
-    "MTX": {"product": "MTX", "subscriptionAlias": "MXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
-    "TMF": {"product": "TMF", "subscriptionAlias": "TMFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None},
+    "TX": {"product": "TX", "subscriptionAlias": "TXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None, "quoteTypeHealth": {}},
+    "MTX": {"product": "MTX", "subscriptionAlias": "MXFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None, "quoteTypeHealth": {}},
+    "TMF": {"product": "TMF", "subscriptionAlias": "TMFR1", "quoteTypes": ["Tick", "BidAsk"], "state": "PENDING", "actualContract": None, "lastObservedAt": None, "quoteTypeHealth": {}},
     "2330": {"product": "2330", "subscriptionAlias": "2330", "quoteTypes": ["Tick"], "state": "PENDING", "actualContract": "2330", "lastObservedAt": None},
     "IX0001": {"product": "IX0001", "subscriptionAlias": "IX0001", "quoteTypes": ["Quote"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
 }
+for _product in ("TX", "MTX", "TMF"):
+    REQUIRED_SUBSCRIPTIONS[_product]["quoteTypeHealth"] = {
+        quote_type: {
+            "quoteType": quote_type,
+            "subscriptionState": "PENDING",
+            "deliveryState": "PENDING",
+            "freshnessState": "UNAVAILABLE",
+            "subscribedAt": None,
+            "lastObservedAt": None,
+            "lastResubscribeAt": None,
+            "resubscribeAttempts": 0,
+            "recoveryState": "NOT_REQUIRED",
+        }
+        for quote_type in ("Tick", "BidAsk")
+    }
 LEADERSHIP_REQUIRED_SUBSCRIPTIONS: dict[str, dict[str, Any]] = {
     "IX0001_INDEX_ABS10": {"product": "IX0001_INDEX_ABS10", "subscriptionAlias": "IX0001", "quoteTypes": ["IndexContribution:abs10"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
     "IX0001_INDEX_POSITIVE25": {"product": "IX0001_INDEX_POSITIVE25", "subscriptionAlias": "IX0001", "quoteTypes": ["IndexContribution:positive25"], "state": "PENDING", "actualContract": "IX0001", "lastObservedAt": None},
@@ -225,6 +255,319 @@ def safe_value(value: Any) -> Any:
     if hasattr(value, "__dict__"):
         return safe_value(vars(value))
     return str(value)
+
+
+def _iso_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+    except (TypeError, ValueError):
+        return None
+
+
+def tx_market_data_expected(now: datetime | None = None) -> bool:
+    try:
+        resolve_session_trade_date(
+            (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE),
+            TX_TRADING_CALENDAR,
+        )
+        return True
+    except RuntimeError:
+        return False
+
+
+def mark_quote_subscribed(
+    product: str,
+    quote_type: str,
+    now: datetime | None = None,
+    reset_delivery: bool = False,
+) -> None:
+    observed_at = (now or datetime.now().astimezone()).isoformat()
+    with LOCK:
+        subscription = REQUIRED_SUBSCRIPTIONS[product]
+        capability = subscription["quoteTypeHealth"][quote_type]
+        capability["subscriptionState"] = "RESTORED"
+        capability["subscribedAt"] = observed_at
+        if reset_delivery:
+            capability["previousLastObservedAt"] = capability.get("lastObservedAt")
+            capability["lastObservedAt"] = None
+            capability["deliveryState"] = "PENDING"
+            capability["freshnessState"] = "UNAVAILABLE"
+            capability["recoveryState"] = "WAITING_FOR_DELIVERY"
+        subscription["state"] = "RESTORED"
+
+
+def mark_quote_delivery(product: str, quote_type: str, observed_at: str) -> None:
+    with LOCK:
+        subscription = REQUIRED_SUBSCRIPTIONS.get(product)
+        capability = subscription and subscription.get("quoteTypeHealth", {}).get(quote_type)
+        if capability is None:
+            if subscription is not None:
+                subscription["lastObservedAt"] = observed_at
+            return
+        capability.update({
+            "deliveryState": "LIVE",
+            "freshnessState": "LIVE",
+            "lastObservedAt": observed_at,
+            "recoveryState": "DELIVERY_OBSERVED",
+        })
+        subscription["lastObservedAt"] = observed_at
+
+
+def quote_delivery_snapshot(
+    now: datetime | None = None,
+    market_should_be_active: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Return quote-type delivery truth without treating subscribe return as delivery."""
+    current = now or datetime.now().astimezone()
+    active_session = (
+        tx_market_data_expected(current)
+        if market_should_be_active is None
+        else market_should_be_active
+    )
+    with LOCK:
+        snapshot = json.loads(json.dumps(list(REQUIRED_SUBSCRIPTIONS.values())))
+    for subscription in snapshot:
+        capabilities = subscription.get("quoteTypeHealth") or {}
+        if not capabilities:
+            continue
+        delivery_failure = False
+        for capability in capabilities.values():
+            last_observed = _iso_datetime(capability.get("lastObservedAt"))
+            subscribed_at = _iso_datetime(capability.get("subscribedAt"))
+            if (
+                capability.get("subscriptionState") == "FAILED"
+                or capability.get("deliveryState") == "FAILED"
+            ):
+                capability["deliveryState"] = "FAILED"
+                capability["freshnessState"] = "UNAVAILABLE"
+                delivery_failure = True
+                continue
+            if last_observed:
+                age_seconds = (current - last_observed.astimezone(current.tzinfo)).total_seconds()
+                capability["freshnessState"] = (
+                    "LIVE"
+                    if age_seconds <= QUOTE_STALE_SECONDS
+                    else "STALE"
+                    if active_session
+                    else "SESSION_CLOSED"
+                )
+                if active_session and age_seconds > QUOTE_STALE_SECONDS:
+                    capability["deliveryState"] = "STALE"
+                    delivery_failure = True
+                elif capability.get("deliveryState") != "LIVE":
+                    capability["deliveryState"] = "LIVE"
+            elif (
+                capability.get("subscriptionState") == "RESTORED"
+                and active_session
+                and subscribed_at
+                and (current - subscribed_at.astimezone(current.tzinfo)).total_seconds()
+                >= QUOTE_DELIVERY_GRACE_SECONDS
+            ):
+                capability["deliveryState"] = "MISSING"
+                capability["freshnessState"] = "UNAVAILABLE"
+                delivery_failure = True
+            else:
+                capability["deliveryState"] = "PENDING"
+                capability["freshnessState"] = "UNAVAILABLE"
+        if delivery_failure:
+            subscription["state"] = "PARTIAL"
+        elif any(
+            capability.get("deliveryState") != "LIVE"
+            for capability in capabilities.values()
+        ):
+            subscription["state"] = "PENDING"
+        else:
+            subscription["state"] = "RESTORED"
+    return snapshot
+
+
+def _recover_missing_quote_types_locked(
+    api: Any,
+    futures_contracts: Mapping[str, Any],
+    now: datetime | None = None,
+    market_should_be_active: bool | None = None,
+) -> int:
+    """Retry only silently missing futures quote types, with a bounded budget."""
+    current = now or datetime.now().astimezone()
+    recovered = 0
+    for subscription in quote_delivery_snapshot(current, market_should_be_active):
+        product = subscription["product"]
+        contract = futures_contracts.get(product)
+        if contract is None:
+            continue
+        for quote_type, capability in (subscription.get("quoteTypeHealth") or {}).items():
+            if capability.get("deliveryState") not in {"MISSING", "STALE", "FAILED"}:
+                continue
+            attempts = int(capability.get("resubscribeAttempts") or 0)
+            if attempts >= len(QUOTE_RESUBSCRIBE_DELAYS_SECONDS):
+                with LOCK:
+                    REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"][quote_type]["recoveryState"] = "EXHAUSTED"
+                continue
+            last_retry = _iso_datetime(capability.get("lastResubscribeAt"))
+            delay = QUOTE_RESUBSCRIBE_DELAYS_SECONDS[attempts]
+            if last_retry and (current - last_retry.astimezone(current.tzinfo)).total_seconds() < delay:
+                continue
+            provider_quote_type = sj.QuoteType.Tick if quote_type == "Tick" else sj.QuoteType.BidAsk
+            retry_at = current.isoformat()
+            with LOCK:
+                live = REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"][quote_type]
+                live["resubscribeAttempts"] = attempts + 1
+                live["lastResubscribeAt"] = retry_at
+                live["recoveryState"] = "RETRYING"
+            try:
+                api.subscribe(contract, quote_type=provider_quote_type)
+                recovered += 1
+                with LOCK:
+                    live = REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"][quote_type]
+                    live["subscriptionState"] = "RESTORED"
+                    live["subscribedAt"] = retry_at
+                    live["previousLastObservedAt"] = live.get("lastObservedAt")
+                    live["lastObservedAt"] = None
+                    live["deliveryState"] = "PENDING"
+                    live["freshnessState"] = "UNAVAILABLE"
+                    live["recoveryState"] = "WAITING_FOR_DELIVERY"
+                record_lifecycle(
+                    "quote_type_resubscribe",
+                    product=product,
+                    quoteType=quote_type,
+                    attempt=attempts + 1,
+                    actualContract=subscription.get("actualContract"),
+                )
+            except Exception as error:
+                with LOCK:
+                    live = REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"][quote_type]
+                    live["subscriptionState"] = "FAILED"
+                    live["deliveryState"] = "FAILED"
+                    live["recoveryState"] = "FAILED"
+                    live["lastRecoveryError"] = f"{type(error).__name__}: {str(error)[:180]}"
+    return recovered
+
+
+def recover_missing_quote_types(
+    api: Any,
+    futures_contracts: Mapping[str, Any],
+    now: datetime | None = None,
+    market_should_be_active: bool | None = None,
+) -> int:
+    with SUBSCRIPTION_RECOVERY_LOCK:
+        return _recover_missing_quote_types_locked(
+            api, futures_contracts, now, market_should_be_active
+        )
+
+
+def quote_delivery_watchdog(api: Any, futures_contracts: Mapping[str, Any], stop: threading.Event) -> None:
+    while not stop.wait(5):
+        recover_missing_quote_types(api, futures_contracts)
+
+
+def _resubscribe_futures_after_reconnect_locked(api: Any, futures_contracts: Mapping[str, Any]) -> None:
+    """Restore both independent FOP capabilities after an SDK session reconnect."""
+    if not futures_contracts:
+        return
+    with LOCK:
+        QUEUE_STATE["subscriptionGeneration"] += 1
+        subscription_generation = QUEUE_STATE["subscriptionGeneration"]
+        for product in futures_contracts:
+            for capability in REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"].values():
+                capability["resubscribeAttempts"] = 0
+                capability["lastResubscribeAt"] = None
+                capability["lastRecoveryError"] = None
+                capability["recoveryState"] = "WAITING_FOR_DELIVERY"
+    record_lifecycle(
+        "futures_reconnect_resubscribe_started",
+        subscriptionGeneration=subscription_generation,
+        products=sorted(futures_contracts),
+    )
+    for product, contract in futures_contracts.items():
+        for quote_type, provider_quote_type in (
+            ("Tick", sj.QuoteType.Tick),
+            ("BidAsk", sj.QuoteType.BidAsk),
+        ):
+            mark_quote_subscribed(product, quote_type, reset_delivery=True)
+            try:
+                api.subscribe(contract, quote_type=provider_quote_type)
+                record_lifecycle(
+                    "quote_type_reconnect_resubscribe",
+                    product=product,
+                    quoteType=quote_type,
+                    actualContract=REQUIRED_SUBSCRIPTIONS[product].get("actualContract"),
+                    subscriptionGeneration=subscription_generation,
+                )
+            except Exception as error:
+                with LOCK:
+                    capability = REQUIRED_SUBSCRIPTIONS[product]["quoteTypeHealth"][quote_type]
+                    capability["subscriptionState"] = "FAILED"
+                    capability["deliveryState"] = "FAILED"
+                    capability["recoveryState"] = "FAILED"
+                    capability["lastRecoveryError"] = f"{type(error).__name__}: {str(error)[:180]}"
+
+
+def resubscribe_futures_after_reconnect(api: Any, futures_contracts: Mapping[str, Any]) -> None:
+    with SUBSCRIPTION_RECOVERY_LOCK:
+        _resubscribe_futures_after_reconnect_locked(api, futures_contracts)
+
+
+def note_provider_reconnecting() -> int:
+    with RECONNECT_REPLAY_LOCK:
+        RECONNECT_REPLAY_STATE["providerGeneration"] += 1
+        generation = RECONNECT_REPLAY_STATE["providerGeneration"]
+    with LOCK:
+        QUEUE_STATE["providerReconnectGeneration"] = generation
+    return generation
+
+
+def schedule_futures_resubscribe_after_reconnect(
+    api: Any,
+    futures_contracts: Mapping[str, Any],
+    provider_generation: int | None = None,
+) -> bool:
+    """Replay once per provider 12->13 generation; queue overlapping generations."""
+    with RECONNECT_REPLAY_LOCK:
+        requested = int(provider_generation or RECONNECT_REPLAY_STATE["providerGeneration"])
+        if requested <= 0:
+            RECONNECT_REPLAY_STATE["providerGeneration"] = 1
+            requested = 1
+        pending = RECONNECT_REPLAY_STATE["pendingReplays"]
+        if (
+            requested <= RECONNECT_REPLAY_STATE["lastCompletedGeneration"]
+            or requested == RECONNECT_REPLAY_STATE["inFlightGeneration"]
+            or any(item[0] == requested for item in pending)
+        ):
+            return False
+        request = (requested, api, dict(futures_contracts))
+        if RECONNECT_REPLAY_STATE["inFlightGeneration"] is not None:
+            pending.append(request)
+            return True
+        RECONNECT_REPLAY_STATE["inFlightGeneration"] = requested
+
+    def replay() -> None:
+        active_request = request
+        while True:
+            generation, active_api, active_contracts = active_request
+            try:
+                resubscribe_futures_after_reconnect(active_api, active_contracts)
+            except Exception as error:
+                record_callback_error(error)
+            with RECONNECT_REPLAY_LOCK:
+                RECONNECT_REPLAY_STATE["lastCompletedGeneration"] = max(
+                    RECONNECT_REPLAY_STATE["lastCompletedGeneration"], generation
+                )
+                pending_replays = RECONNECT_REPLAY_STATE["pendingReplays"]
+                if not pending_replays:
+                    RECONNECT_REPLAY_STATE["inFlightGeneration"] = None
+                    break
+                active_request = pending_replays.pop(0)
+                RECONNECT_REPLAY_STATE["inFlightGeneration"] = active_request[0]
+
+    threading.Thread(
+        target=replay,
+        name="futures-reconnect-resubscribe",
+        daemon=True,
+    ).start()
+    return True
 
 
 def canonical_json(value: Any) -> str:
@@ -426,6 +769,22 @@ def record_callback_error(error: Exception) -> None:
         )
 
 
+def validate_futures_executed_tick(payload: Mapping[str, Any]) -> None:
+    if not str(payload.get("productFamily") or "").strip():
+        raise ValueError("FOP_TICK_PRODUCT_FAMILY_MISSING")
+    if not str(payload.get("actualContract") or "").strip():
+        raise ValueError("FOP_TICK_ACTUAL_CONTRACT_MISSING")
+    if _iso_datetime(payload.get("eventTime")) is None:
+        raise ValueError("FOP_TICK_EVENT_TIME_INVALID")
+    for field in ("price", "executedVolume"):
+        try:
+            value = Decimal(str(payload.get(field)))
+        except Exception as error:
+            raise ValueError(f"FOP_TICK_{field.upper()}_INVALID") from error
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"FOP_TICK_{field.upper()}_INVALID")
+
+
 def record(kind: str, data: Any) -> None:
     try:
         payload = data.to_dict(raw=True) if hasattr(data, "to_dict") else vars(data)
@@ -461,24 +820,24 @@ def record(kind: str, data: Any) -> None:
                 TXO_COLLECTION_STATE["latestReceivedAt"] = normalized["_received_at"]
                 TXO_COLLECTION_STATE["latestEventTime"] = str(event_raw) if event_raw else None
         futures_metadata = FUTURES_METADATA.get(code)
+        if kind == "futures_tick" and futures_metadata is None:
+            raise ValueError("FOP_TICK_CONTRACT_NOT_GOVERNED")
         if futures_metadata:
             normalized["_product_family"] = futures_metadata["productFamily"]
             normalized["_subscription_alias"] = futures_metadata["subscriptionAlias"]
             normalized["_target_code"] = futures_metadata["targetCode"]
-        product = futures_metadata["productFamily"] if futures_metadata else code
-        with LOCK:
-            subscription = REQUIRED_SUBSCRIPTIONS.get(product)
-            if subscription is not None:
-                subscription["lastObservedAt"] = normalized["_received_at"]
+            normalized["productFamily"] = futures_metadata["productFamily"]
+            normalized["subscriptionAlias"] = futures_metadata["subscriptionAlias"]
+            normalized["targetCode"] = futures_metadata["targetCode"]
+            normalized["actualContract"] = futures_metadata["targetCode"]
+            if kind == "futures_tick":
+                normalized["eventTime"] = normalized.get("datetime") or normalized.get("timestamp")
+                normalized["price"] = normalized.get("close")
+                normalized["executedVolume"] = normalized.get("volume")
+                validate_futures_executed_tick(normalized)
         enqueue(kind, normalized)
     except Exception as error:
-        frame = traceback.extract_tb(error.__traceback__)[-1]
-        with LOCK:
-            QUEUE_STATE["callbackErrors"] += 1
-            QUEUE_STATE["lastCallbackError"] = (
-                f"{type(error).__name__} at {Path(frame.filename).name}:"
-                f"{frame.lineno} {frame.name}: {str(error)[:180]}"
-            )
+        record_callback_error(error)
 
 
 def event_writer() -> None:
@@ -490,6 +849,15 @@ def event_writer() -> None:
             kind, normalized = item
             code = str(normalized.get("code") or normalized.get("Code") or kind)
             stored = EVENT_LEDGER.append(kind, normalized)
+            quote_type = {
+                "futures_tick": "Tick",
+                "futures_bidask": "BidAsk",
+                "stock_tick": "Tick",
+                "index_quote": "Quote",
+            }.get(kind)
+            if quote_type:
+                product = str(normalized.get("_product_family") or code)
+                mark_quote_delivery(product, quote_type, normalized["_received_at"])
             with LOCK:
                 latest_key = code
                 if kind == "ix0001_index_contribution":
@@ -559,6 +927,20 @@ def taipei_day_session(now: datetime | None = None) -> bool:
     return current.weekday() < 5 and time(9, 0) <= current.time() <= time(13, 35)
 
 
+def writer_health_state(
+    queue_state: Mapping[str, Any], ledger_health: Mapping[str, Any]
+) -> str:
+    return (
+        "PASS"
+        if queue_state.get("writerThreadAlive") is True
+        and int(queue_state.get("writerErrors") or 0) == 0
+        and int(queue_state.get("dropped") or 0) == 0
+        and int(queue_state.get("callbackErrors") or 0) == 0
+        and ledger_health.get("lowDisk") is not True
+        else "FAIL"
+    )
+
+
 def leadership_payload(now: datetime | None = None) -> dict[str, Any]:
     current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
     with LOCK:
@@ -620,11 +1002,11 @@ class Handler(BaseHTTPRequestHandler):
             global LAST_HEALTHY_AT
             with LOCK:
                 queue_state = dict(QUEUE_STATE)
-                subscriptions = [dict(item) for item in REQUIRED_SUBSCRIPTIONS.values()]
                 txo_state = dict(TXO_COLLECTION_STATE)
                 leadership_health = {
                     key: dict(value) for key, value in LEADERSHIP_HEALTH.items()
                 }
+            subscriptions = quote_delivery_snapshot()
             leadership_state = leadership_payload().get("state")
             for item in leadership_health.values():
                 if item.get("availableAt"):
@@ -632,13 +1014,7 @@ class Handler(BaseHTTPRequestHandler):
                         "LIVE" if leadership_state == "LIVE" else "SESSION_CLOSED"
                     )
             ledger_health = EVENT_LEDGER.health()
-            writer_state = (
-                "PASS"
-                if queue_state["writerThreadAlive"]
-                and queue_state["writerErrors"] == 0
-                and not ledger_health.get("lowDisk", False)
-                else "FAIL"
-            )
+            writer_state = writer_health_state(queue_state, ledger_health)
             txo_state.update({
                 "writerState": writer_state,
                 "queueDepth": EVENT_QUEUE.qsize(),
@@ -655,13 +1031,26 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 txo_state["collectorState"] = "DEGRADED"
             subscriptions_ready = all(item["state"] == "RESTORED" for item in subscriptions)
+            subscriptions_pending = any(item["state"] == "PENDING" for item in subscriptions)
+            missing_quote_type = any(
+                capability.get("deliveryState") in {"MISSING", "STALE", "FAILED"}
+                for item in subscriptions
+                for capability in (item.get("quoteTypeHealth") or {}).values()
+            )
+            quote_types_pending = any(
+                capability.get("deliveryState") != "LIVE"
+                for item in subscriptions
+                for capability in (item.get("quoteTypeHealth") or {}).values()
+            )
             txo_ready = not txo_state["enabled"] or (
                 txo_state["collectorState"] == "HEALTHY"
                 and txo_state["restoredSubscriptionCount"] == txo_state["expectedSubscriptionCount"]
             )
             bridge_state = (
                 "DEGRADED"
-                if queue_state["sessionDown"] or writer_state != "PASS" or not subscriptions_ready or not txo_ready
+                if queue_state["sessionDown"] or writer_state != "PASS" or missing_quote_type or not txo_ready
+                else "STARTING"
+                if subscriptions_pending or not subscriptions_ready
                 else "HEALTHY"
             )
             reason_code = (
@@ -669,6 +1058,10 @@ class Handler(BaseHTTPRequestHandler):
                 if queue_state["sessionDown"]
                 else "WRITER_UNAVAILABLE"
                 if writer_state != "PASS"
+                else "MISSING_REQUIRED_QUOTE_TYPE"
+                if missing_quote_type
+                else "DATA_RESUME_NOT_OBSERVED"
+                if subscriptions_pending
                 else "SUBSCRIPTION_RESTORE_FAILED"
                 if not subscriptions_ready
                 else "SUBSCRIPTION_RESTORE_FAILED"
@@ -681,6 +1074,8 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "provider": "shioaji",
                 "mode": "market_data_only",
+                "formalWeight": 0,
+                "researchOnly": True,
                 "executionAuthorized": False,
                 "orderRoutesEnabled": False,
                 "bridgeState": bridge_state,
@@ -688,7 +1083,14 @@ class Handler(BaseHTTPRequestHandler):
                 "bridgeStartedAt": BRIDGE_STARTED_AT,
                 "lastHealthyAt": LAST_HEALTHY_AT,
                 "requiredSubscriptions": subscriptions,
-                "subscriptionState": "RESTORED" if subscriptions_ready else "PARTIAL",
+                "subscriptionState": "RESTORED" if subscriptions_ready else "PENDING" if subscriptions_pending else "PARTIAL",
+                "quoteTypeDeliveryState": (
+                    "PARTIAL"
+                    if missing_quote_type
+                    else "PENDING"
+                    if quote_types_pending
+                    else "PASS"
+                ),
                 "writerState": writer_state,
                 "txoCollection": txo_state,
                 "leadership": leadership_health,
@@ -788,7 +1190,9 @@ def main() -> None:
         QUEUE_STATE["writerThreadAlive"] = True
     api: Any = None
     subscriptions: list[tuple[Any, Any, Any | None]] = []
+    futures_contract_map: dict[str, Any] = {}
     stop = threading.Event()
+    watchdog: threading.Thread | None = None
     bridge_started = False
     exit_code = 0
 
@@ -824,6 +1228,34 @@ def main() -> None:
         )
         api.set_on_index_contribution_callback(record_index_contribution)
         api.set_on_industry_contribution_callback(record_industry_contribution)
+
+        def on_provider_event(response_code: int, event_code: int, info: str, event: str) -> None:
+            try:
+                observed_at = datetime.now().astimezone().isoformat()
+                provider_event = {
+                    "responseCode": int(response_code),
+                    "eventCode": int(event_code),
+                    "info": str(info)[:300],
+                    "event": str(event)[:300],
+                    "observedAt": observed_at,
+                }
+                with LOCK:
+                    QUEUE_STATE["lastProviderEvent"] = provider_event
+                record_lifecycle("provider_event", **provider_event)
+                if event_code == 12 or "reconnecting" in str(event).lower():
+                    note_provider_reconnecting()
+                if (
+                    not stop.is_set()
+                    and (event_code == 13 or "reconnected" in str(event).lower())
+                ):
+                    schedule_futures_resubscribe_after_reconnect(
+                        api,
+                        dict(futures_contract_map),
+                    )
+            except Exception as error:
+                record_callback_error(error)
+
+        api.set_event_callback(on_provider_event)
 
         def on_session_down() -> None:
             nonlocal exit_code
@@ -915,11 +1347,17 @@ def main() -> None:
             with LOCK:
                 REQUIRED_SUBSCRIPTIONS[product_family]["actualContract"] = target_code
 
-        for _, _, futures_contract in futures_contracts:
+        futures_contract_map.update({
+            product_family: contract
+            for product_family, _, contract in futures_contracts
+        })
+        for product_family, _, futures_contract in futures_contracts:
             api.subscribe(futures_contract, quote_type=sj.QuoteType.Tick)
             subscriptions.append((futures_contract, sj.QuoteType.Tick, None))
+            mark_quote_subscribed(product_family, "Tick")
             api.subscribe(futures_contract, quote_type=sj.QuoteType.BidAsk)
             subscriptions.append((futures_contract, sj.QuoteType.BidAsk, None))
+            mark_quote_subscribed(product_family, "BidAsk")
         with LOCK:
             for product_family, _, _ in futures_contracts:
                 REQUIRED_SUBSCRIPTIONS[product_family]["state"] = "RESTORED"
@@ -993,6 +1431,13 @@ def main() -> None:
             subscriptionGeneration=subscription_generation,
             processId=os.getpid(),
         )
+        watchdog = threading.Thread(
+            target=quote_delivery_watchdog,
+            args=(api, futures_contract_map, stop),
+            name="quote-delivery-watchdog",
+            daemon=True,
+        )
+        watchdog.start()
 
         print(f"Shioaji read-only quotes: http://{HOST}:{PORT}/health")
         leadership_status = "enabled" if LEADERSHIP_COLLECTION_ENABLED else "default-off"
@@ -1000,6 +1445,9 @@ def main() -> None:
         print("Order routes: disabled")
         server.serve_forever()
     finally:
+        stop.set()
+        if watchdog is not None:
+            watchdog.join(timeout=5)
         if bridge_started:
             with LOCK:
                 stop_counters = {
