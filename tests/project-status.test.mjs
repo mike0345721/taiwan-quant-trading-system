@@ -28,12 +28,14 @@ test('Shioaji status separates governed expectation from observed safe runtime a
   assert.equal((await inspectDashboard(unavailable)).availability, 'UNAVAILABLE');
   const unavailableResult = await inspectShioaji(unavailable);
   assert.equal(unavailableResult.availability, 'UNAVAILABLE');
-  assert.deepEqual(unavailableResult.observedRuntime, { executionAuthorized: null, orderRoutesEnabled: null });
+  assert.deepEqual(unavailableResult.observedRuntime, { formalWeight: null, researchOnly: null, executionAuthorized: null, orderRoutesEnabled: null });
 
   const safeHealth = async () => ({ statusCode: 200, payload: {
     ok: true,
     provider: 'shioaji',
     mode: 'market_data_only',
+    formalWeight: 0,
+    researchOnly: true,
     executionAuthorized: false,
     orderRoutesEnabled: false,
     writerErrors: 3,
@@ -49,41 +51,41 @@ test('Shioaji status separates governed expectation from observed safe runtime a
   const rendered = JSON.stringify(result);
   assert.equal(result.availability, 'AVAILABLE');
   assert.equal(result.safetyState, 'PASS');
-  assert.deepEqual(result.expectedSafety, { mode: 'market_data_only', executionAuthorized: false, orderRoutesEnabled: false });
-  assert.deepEqual(result.observedRuntime, { executionAuthorized: false, orderRoutesEnabled: false });
+  assert.deepEqual(result.expectedSafety, { mode: 'market_data_only', formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false });
+  assert.deepEqual(result.observedRuntime, { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false });
   assert.equal(result.continuity.txoCollection.collectorState, 'STOPPED_EXPECTED');
   assert.equal(result.continuity.txoCollection.productionActivationApproved, false);
   assert.doesNotMatch(rendered, /must-never|nestedPrivateValue|untrustedExtra/);
 });
 
 test('Shioaji status fails closed while preserving unsafe or missing observed safety values', async () => {
-  const health = (payload) => async () => ({ statusCode: 200, payload: { ok: true, provider: 'shioaji', mode: 'market_data_only', ...payload } });
+  const health = (payload) => async () => ({ statusCode: 200, payload: { ok: true, provider: 'shioaji', mode: 'market_data_only', formalWeight: 0, researchOnly: true, ...payload } });
 
   const executionEnabled = await inspectShioaji(health({ executionAuthorized: true, orderRoutesEnabled: false }));
   assert.equal(executionEnabled.availability, 'UNAVAILABLE');
   assert.equal(executionEnabled.safetyState, 'FAIL_CLOSED_UNSAFE_RESPONSE');
-  assert.deepEqual(executionEnabled.observedRuntime, { executionAuthorized: true, orderRoutesEnabled: false });
+  assert.deepEqual(executionEnabled.observedRuntime, { formalWeight: 0, researchOnly: true, executionAuthorized: true, orderRoutesEnabled: false });
   assert.match(JSON.stringify(executionEnabled), /"executionAuthorized":true/);
 
   const ordersEnabled = await inspectShioaji(health({ executionAuthorized: false, orderRoutesEnabled: true }));
   assert.equal(ordersEnabled.availability, 'UNAVAILABLE');
   assert.equal(ordersEnabled.safetyState, 'FAIL_CLOSED_UNSAFE_RESPONSE');
-  assert.deepEqual(ordersEnabled.observedRuntime, { executionAuthorized: false, orderRoutesEnabled: true });
+  assert.deepEqual(ordersEnabled.observedRuntime, { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: true });
 
   const executionMissing = await inspectShioaji(health({ orderRoutesEnabled: false }));
   assert.equal(executionMissing.availability, 'UNAVAILABLE');
-  assert.deepEqual(executionMissing.observedRuntime, { executionAuthorized: null, orderRoutesEnabled: false });
+  assert.deepEqual(executionMissing.observedRuntime, { formalWeight: 0, researchOnly: true, executionAuthorized: null, orderRoutesEnabled: false });
 
   const routesMissing = await inspectShioaji(health({ executionAuthorized: false }));
   assert.equal(routesMissing.availability, 'UNAVAILABLE');
-  assert.deepEqual(routesMissing.observedRuntime, { executionAuthorized: false, orderRoutesEnabled: null });
+  assert.deepEqual(routesMissing.observedRuntime, { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: null });
 
   const root = temporaryRoot();
   const report = await collectProjectStatus({
     root,
     request: async (url) => (url.endsWith('/healthz')
       ? { statusCode: 200, payload: { ok: true, service: 'dashboard' } }
-      : { statusCode: 200, payload: { ok: true, provider: 'shioaji', mode: 'market_data_only', executionAuthorized: true, orderRoutesEnabled: false } }),
+      : { statusCode: 200, payload: { ok: true, provider: 'shioaji', mode: 'market_data_only', formalWeight: 0, researchOnly: true, executionAuthorized: true, orderRoutesEnabled: false } }),
     gitProbe: () => ({ availability: 'UNAVAILABLE', reason: 'TEST_FIXTURE' }),
   });
   const human = formatHumanStatus(report);

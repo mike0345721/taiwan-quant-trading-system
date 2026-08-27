@@ -1,6 +1,20 @@
 import { buildIndexLeadership } from './index-leadership.mjs';
 
 const DEFAULT_URL = 'http://127.0.0.1:8790';
+function sanitizeQuoteTypeHealth(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).map(([quoteType, item]) => [quoteType, {
+    quoteType,
+    subscriptionState: item?.subscriptionState === 'RESTORED' ? 'RESTORED' : item?.subscriptionState === 'FAILED' ? 'FAILED' : 'PENDING',
+    deliveryState: typeof item?.deliveryState === 'string' ? item.deliveryState : 'UNKNOWN',
+    freshnessState: typeof item?.freshnessState === 'string' ? item.freshnessState : 'UNAVAILABLE',
+    subscribedAt: typeof item?.subscribedAt === 'string' ? item.subscribedAt : null,
+    lastObservedAt: typeof item?.lastObservedAt === 'string' ? item.lastObservedAt : null,
+    lastResubscribeAt: typeof item?.lastResubscribeAt === 'string' ? item.lastResubscribeAt : null,
+    resubscribeAttempts: Number(item?.resubscribeAttempts) || 0,
+    recoveryState: typeof item?.recoveryState === 'string' ? item.recoveryState : 'UNKNOWN',
+  }]));
+}
 
 async function getJson(path, { baseUrl = DEFAULT_URL, timeoutMs = 1200 } = {}) {
   const controller = new AbortController();
@@ -25,6 +39,8 @@ export async function inspectShioajiBridge(options = {}) {
   try {
     const health = await getJson('/health', options);
     const safe = health?.mode === 'market_data_only'
+      && health?.formalWeight === 0
+      && health?.researchOnly === true
       && health?.executionAuthorized === false
       && health?.orderRoutesEnabled === false;
     const bridgeState = typeof health?.bridgeState === 'string'
@@ -32,16 +48,25 @@ export async function inspectShioajiBridge(options = {}) {
     const requiredSubscriptions = Array.isArray(health?.requiredSubscriptions)
       ? health.requiredSubscriptions.map((item) => ({
         product: typeof item?.product === 'string' ? item.product : 'UNKNOWN',
-        state: item?.state === 'RESTORED' ? 'RESTORED' : item?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+        state: ['RESTORED', 'PARTIAL', 'FAILED', 'PENDING'].includes(item?.state) ? item.state : 'UNKNOWN',
         quoteTypes: Array.isArray(item?.quoteTypes) ? item.quoteTypes.filter((value) => typeof value === 'string') : [],
         actualContract: typeof item?.actualContract === 'string' ? item.actualContract : null,
         lastObservedAt: typeof item?.lastObservedAt === 'string' ? item.lastObservedAt : null,
+        quoteTypeHealth: sanitizeQuoteTypeHealth(item?.quoteTypeHealth),
       })) : [];
     const writerState = health?.writerState === 'PASS'
       ? 'PASS' : health?.writerState === 'FAIL' ? 'FAIL' : Number(health?.writerErrors || 0) === 0 && health?.lowDisk !== true ? 'PASS' : 'FAIL';
     const operationallyHealthy = bridgeState === 'HEALTHY'
       && writerState === 'PASS'
-      && (requiredSubscriptions.length === 0 || requiredSubscriptions.every((item) => item.state === 'RESTORED'));
+      && requiredSubscriptions.length > 0
+      && requiredSubscriptions.every((item) => {
+        if (item.state !== 'RESTORED') return false;
+        if (!['TX', 'MTX', 'TMF'].includes(item.product)) return true;
+        return item.quoteTypes.every((quoteType) => {
+          const delivery = item.quoteTypeHealth[quoteType]?.deliveryState;
+          return delivery === 'LIVE';
+        });
+      });
     const txoCollection = {
       enabled: health?.txoCollection?.enabled === true,
       collectorState: typeof health?.txoCollection?.collectorState === 'string'
@@ -101,6 +126,8 @@ export async function inspectShioajiBridge(options = {}) {
       txoCollection,
       executionAuthorized: false,
       orderRoutesEnabled: false,
+      formalWeight: 0,
+      researchOnly: true,
       safetyVerified: safe,
       checkedAt: new Date().toISOString(),
       error: !safe ? 'unsafe_bridge_response' : operationallyHealthy ? null : (health?.reasonCode || 'bridge_degraded'),
@@ -145,6 +172,8 @@ export async function inspectShioajiBridge(options = {}) {
       },
       executionAuthorized: false,
       orderRoutesEnabled: false,
+      formalWeight: 0,
+      researchOnly: true,
       safetyVerified: false,
       checkedAt: new Date().toISOString(),
       error: error?.name === 'AbortError' ? 'bridge_timeout' : 'bridge_unreachable',

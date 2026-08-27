@@ -61,6 +61,7 @@ function record({
   sourceAvailability = 'SOURCE_MISSING',
   readinessState = 'QUALITY_INSUFFICIENT',
   subscriptionState = 'NOT_APPLICABLE',
+  deliveryState = 'NOT_APPLICABLE',
   simtradeState = 'NOT_APPLICABLE',
   restorationState = 'NOT_APPLICABLE',
   promotionState = 'NOT_PROMOTED',
@@ -88,6 +89,7 @@ function record({
     sourceAvailability,
     readinessState,
     subscriptionState,
+    deliveryState,
     simtradeState,
     restorationState,
     promotionState,
@@ -121,25 +123,39 @@ function batchRecord(sourceId, sourceType, source, now, options = {}) {
 function auditedLiveRecord(sourceId, kind, instrument, auditContract, actualContract, bridge, audit, now) {
   const kindCount = Number(audit?.acceptance?.requiredKindCounts?.[auditContract]?.[kind] || 0);
   const capabilityAvailable = audit?.acceptance?.status === 'PASS' && kindCount > 0;
-  const connected = bridge?.connected === true && bridge?.safetyVerified === true;
-  const lastReceivedAt = iso(bridge?.latestReceivedAt);
+  const quoteType = kind === 'tick' ? 'Tick' : 'BidAsk';
+  const subscriptions = bridge?.requiredSubscriptions || bridge?.continuity?.requiredSubscriptions || [];
+  const subscription = subscriptions.find((item) => item?.product === instrument);
+  const quoteHealth = subscription?.quoteTypeHealth?.[quoteType] || null;
+  const deliveryState = quoteHealth?.deliveryState || null;
+  const connected = bridge?.safetyVerified === true && (quoteHealth
+    ? deliveryState === 'LIVE'
+    : bridge?.connected === true);
+  const lastReceivedAt = iso(quoteHealth?.lastObservedAt || (quoteHealth ? null : bridge?.latestReceivedAt));
   const ageMs = lastReceivedAt ? now.getTime() - Date.parse(lastReceivedAt) : Infinity;
-  const freshnessState = connected
+  const quoteFreshness = deliveryState === 'LIVE'
+    && DATA_HEALTH_ENUMS.freshnessState.includes(quoteHealth?.freshnessState)
+    ? quoteHealth.freshnessState : null;
+  const freshnessState = quoteFreshness || (connected
     ? (ageMs <= 60_000 ? 'LIVE' : ageMs <= 5 * 60_000 ? 'DELAYED' : 'STALE')
-    : 'UNAVAILABLE';
+    : deliveryState === 'STALE' ? 'STALE' : 'UNAVAILABLE');
+  const sessionState = bridge?.marketSession?.state
+    || (quoteFreshness === 'SESSION_CLOSED' ? 'SESSION_CLOSED' : 'UNAVAILABLE');
   const continuity = bridge?.continuity || {};
   const dataTrustReady = continuity.dataTrust === 'PASS';
   return record({
     sourceId,
     sourceType: kind === 'tick' ? 'EXECUTED_TRADE_EVENTS' : 'BIDASK_EVENTS',
     instrument,
-    actualContract: actualContract || auditContract || null,
+    actualContract: subscription?.actualContract || actualContract || auditContract || null,
     session: bridge?.marketSession?.state || null,
-    sessionState: bridge?.marketSession?.state || 'UNAVAILABLE',
+    sessionState,
     receivedAt: lastReceivedAt,
     availableAt: lastReceivedAt,
     freshnessState,
-    reason: connected ? (dataTrustReady ? null : 'TIMESTAMP_LINEAGE_INSUFFICIENT') : (continuity.reasonCode || bridge?.error || 'LIVE_BRIDGE_NOT_CONNECTED'),
+    reason: ['MISSING', 'STALE', 'FAILED'].includes(deliveryState)
+      ? 'MISSING_REQUIRED_QUOTE_TYPE'
+      : connected ? (dataTrustReady ? null : 'TIMESTAMP_LINEAGE_INSUFFICIENT') : (continuity.reasonCode || bridge?.error || 'LIVE_BRIDGE_NOT_CONNECTED'),
     quality: connected ? (dataTrustReady ? 'PASS' : 'QUALITY_INSUFFICIENT') : capabilityAvailable ? 'HISTORICAL_CAPABILITY_ONLY' : 'UNAVAILABLE',
     coverage: capabilityAvailable ? `${kindCount} accepted audit events` : null,
     startup: 'AUTO_START',
@@ -149,6 +165,8 @@ function auditedLiveRecord(sourceId, kind, instrument, auditContract, actualCont
     lineage: audit?.ledgerFile || 'Shioaji market-data-only bridge',
     sourceAvailability: capabilityAvailable ? 'SOURCE_AVAILABLE' : 'SOURCE_MISSING',
     readinessState: connected && dataTrustReady ? 'READY' : 'QUALITY_INSUFFICIENT',
+    subscriptionState: quoteHealth?.subscriptionState || subscription?.state || 'UNKNOWN',
+    deliveryState: deliveryState || 'UNKNOWN',
   });
 }
 
@@ -167,7 +185,11 @@ function continuityRecord(bridge) {
     reason: healthy ? (trustReady ? null : 'TIMESTAMP_LINEAGE_INSUFFICIENT') : continuity.reasonCode || bridge?.error || 'BRIDGE_HEALTH_UNAVAILABLE',
     quality: continuity.dataTrust || 'UNAVAILABLE',
     coverage: Array.isArray(continuity.requiredSubscriptions)
-      ? continuity.requiredSubscriptions.map((item) => `${item.product}:${item.state}`).join(', ')
+      ? continuity.requiredSubscriptions.map((item) => {
+        const capabilities = Object.values(item.quoteTypeHealth || {})
+          .map((capability) => `${capability.quoteType}:${capability.deliveryState}`).join('|');
+        return `${item.product}:${item.state}${capabilities ? `[${capabilities}]` : ''}`;
+      }).join(', ')
       : null,
     startup: continuity.recoveryLimit ? 'AUTO_START' : 'UNKNOWN',
     reconnect: continuity.state === 'RECOVERING' ? 'RECOVERING' : continuity.recoveryResult === 'RECOVERED' ? 'AUTO_RECONNECT' : 'UNKNOWN',

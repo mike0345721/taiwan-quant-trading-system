@@ -41,6 +41,73 @@ test('data health keeps source availability separate from unimplemented derivati
   assert.equal(estimatedCvd.freshnessState, 'UNAVAILABLE');
   assert.equal(health.executionAuthorized, false);
 });
+
+test('TX Tick health is unavailable while independently delivered BidAsk remains visible', () => {
+  const bridge = {
+    connected: false,
+    safetyVerified: true,
+    continuity: { state: 'DEGRADED', reasonCode: 'MISSING_REQUIRED_QUOTE_TYPE', dataTrust: 'QUALITY_INSUFFICIENT' },
+    requiredSubscriptions: [{
+      product: 'TX', state: 'PARTIAL', actualContract: 'TXFI6', quoteTypes: ['Tick', 'BidAsk'],
+      quoteTypeHealth: {
+        Tick: { quoteType: 'Tick', subscriptionState: 'RESTORED', deliveryState: 'MISSING', freshnessState: 'UNAVAILABLE', lastObservedAt: null },
+        BidAsk: { quoteType: 'BidAsk', subscriptionState: 'RESTORED', deliveryState: 'LIVE', freshnessState: 'LIVE', lastObservedAt: '2026-08-12T02:14:45.000Z' },
+      },
+    }],
+  };
+  const contract = buildDataHealthContract({ now, snapshot: { sources: {} }, service: { brokerMarketData: bridge } });
+  const txTick = contract.items.find((item) => item.sourceId === 'txTick');
+  const txBidAsk = contract.items.find((item) => item.sourceId === 'txBidAsk');
+  assert.equal(txTick.freshnessState, 'UNAVAILABLE');
+  assert.equal(txTick.reason, 'MISSING_REQUIRED_QUOTE_TYPE');
+  assert.equal(txTick.deliveryState, 'MISSING');
+  assert.equal(txBidAsk.freshnessState, 'LIVE');
+  assert.equal(txBidAsk.deliveryState, 'LIVE');
+  assert.equal(txBidAsk.reason, 'TIMESTAMP_LINEAGE_INSUFFICIENT');
+});
+
+test('off-session quote freshness remains SESSION_CLOSED instead of aging into false STALE', () => {
+  const bridge = {
+    connected: true,
+    safetyVerified: true,
+    continuity: { state: 'HEALTHY', dataTrust: 'QUALITY_INSUFFICIENT' },
+    requiredSubscriptions: [{
+      product: 'TX', state: 'RESTORED', actualContract: 'TXFI6', quoteTypes: ['Tick', 'BidAsk'],
+      quoteTypeHealth: {
+        Tick: { subscriptionState: 'RESTORED', deliveryState: 'LIVE', freshnessState: 'SESSION_CLOSED', lastObservedAt: '2026-08-11T05:45:00.000Z' },
+        BidAsk: { subscriptionState: 'RESTORED', deliveryState: 'LIVE', freshnessState: 'SESSION_CLOSED', lastObservedAt: '2026-08-11T05:45:00.000Z' },
+      },
+    }],
+  };
+  const contract = buildDataHealthContract({ now, snapshot: { sources: {} }, service: { brokerMarketData: bridge } });
+  for (const sourceId of ['txTick', 'txBidAsk']) {
+    const item = contract.items.find((candidate) => candidate.sourceId === sourceId);
+    assert.equal(item.freshnessState, 'SESSION_CLOSED', sourceId);
+    assert.equal(item.sessionState, 'SESSION_CLOSED', sourceId);
+  }
+});
+
+test('unproven PENDING delivery cannot promote allowlisted LIVE freshness', () => {
+  const bridge = {
+    connected: false,
+    safetyVerified: true,
+    continuity: { state: 'STARTING', reasonCode: 'DATA_RESUME_NOT_OBSERVED', dataTrust: 'QUALITY_INSUFFICIENT' },
+    requiredSubscriptions: [{
+      product: 'TX', state: 'PENDING', actualContract: 'TXFI6', quoteTypes: ['Tick', 'BidAsk'],
+      quoteTypeHealth: {
+        Tick: { subscriptionState: 'RESTORED', deliveryState: 'PENDING', freshnessState: 'LIVE', lastObservedAt: null },
+        BidAsk: { subscriptionState: 'RESTORED', deliveryState: 'PENDING', freshnessState: 'LIVE', lastObservedAt: null },
+      },
+    }],
+  };
+  const contract = buildDataHealthContract({ now, snapshot: { sources: {} }, service: { brokerMarketData: bridge } });
+  for (const sourceId of ['txTick', 'txBidAsk']) {
+    const item = contract.items.find((candidate) => candidate.sourceId === sourceId);
+    assert.equal(item.freshnessState, 'UNAVAILABLE', sourceId);
+    assert.equal(item.readinessState, 'QUALITY_INSUFFICIENT', sourceId);
+    assert.equal(item.deliveryState, 'PENDING', sourceId);
+  }
+});
 test('data health vocabulary is frozen and does not invent numeric defaults', () => {
   assert.deepEqual(DATA_HEALTH_ENUMS.freshnessState, ['LIVE', 'FRESH', 'DELAYED', 'STALE', 'SESSION_CLOSED', 'UNAVAILABLE']);
   assert.ok(DATA_HEALTH_ENUMS.sourceAvailability.includes('SOURCE_MISSING'));

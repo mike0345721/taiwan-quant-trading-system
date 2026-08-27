@@ -20,6 +20,7 @@ export const CONTINUITY_REASONS = Object.freeze([
   'AUTH_OR_TOKEN_FAILURE',
   'NETWORK_UNAVAILABLE',
   'SUBSCRIPTION_RESTORE_FAILED',
+  'MISSING_REQUIRED_QUOTE_TYPE',
   'WRITER_UNAVAILABLE',
   'PORT_OCCUPIED_HEALTHY',
   'PORT_OCCUPIED_UNHEALTHY',
@@ -70,12 +71,29 @@ function subscriptionMap(value) {
     .map((item) => [item.product, item]));
 }
 
+function quoteTypeHealthMap(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function hasMissingRequiredQuoteType(value) {
+  const observed = subscriptionMap(value);
+  return CORE_MARKET_DATA_SUBSCRIPTIONS
+    .filter((required) => ['TX', 'MTX', 'TMF'].includes(required.product))
+    .some((required) => {
+      const health = quoteTypeHealthMap(observed.get(required.product)?.quoteTypeHealth);
+      return required.quoteTypes.some((quoteType) => ['MISSING', 'STALE', 'FAILED'].includes(health[quoteType]?.deliveryState));
+    });
+}
+
 function subscriptionsRestored(value) {
   const observed = subscriptionMap(value);
   return CORE_MARKET_DATA_SUBSCRIPTIONS.every((required) => {
     const item = observed.get(required.product);
     if (!item || item.state !== 'RESTORED' || !Array.isArray(item.quoteTypes)) return false;
-    return required.quoteTypes.every((quoteType) => item.quoteTypes.includes(quoteType));
+    if (!required.quoteTypes.every((quoteType) => item.quoteTypes.includes(quoteType))) return false;
+    if (!['TX', 'MTX', 'TMF'].includes(required.product)) return true;
+    const health = quoteTypeHealthMap(item.quoteTypeHealth);
+    return required.quoteTypes.every((quoteType) => health[quoteType]?.deliveryState === 'LIVE');
   });
 }
 
@@ -94,6 +112,8 @@ export function evaluateBridgeContinuity(payload, {
     });
   }
   const safe = payload.mode === 'market_data_only'
+    && payload.formalWeight === 0
+    && payload.researchOnly === true
     && payload.executionAuthorized === false
     && payload.orderRoutesEnabled === false;
   if (!safe) {
@@ -118,6 +138,19 @@ export function evaluateBridgeContinuity(payload, {
   if (writerStatus !== 'PASS') {
     return Object.freeze({
       state: 'DEGRADED', reasonCode: 'WRITER_UNAVAILABLE', subscriptionStatus: 'UNKNOWN', writerStatus,
+      dataTrust: 'QUALITY_INSUFFICIENT', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+    });
+  }
+  const missingQuoteType = hasMissingRequiredQuoteType(payload.requiredSubscriptions);
+  if (missingQuoteType) {
+    return Object.freeze({
+      state: 'DEGRADED', reasonCode: 'MISSING_REQUIRED_QUOTE_TYPE', subscriptionStatus: 'PARTIAL', writerStatus,
+      dataTrust: 'QUALITY_INSUFFICIENT', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+    });
+  }
+  if (payload.bridgeState === 'STARTING' && payload.reasonCode === 'DATA_RESUME_NOT_OBSERVED') {
+    return Object.freeze({
+      state: 'STARTING', reasonCode: 'DATA_RESUME_NOT_OBSERVED', subscriptionStatus: 'PENDING', writerStatus,
       dataTrust: 'QUALITY_INSUFFICIENT', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
     });
   }
@@ -209,10 +242,24 @@ export function buildContinuityStatus(input = {}) {
     const observed = subscriptionMap(input.requiredSubscriptions).get(required.product);
     return Object.freeze({
       product: required.product,
-      state: observed?.state === 'RESTORED' ? 'RESTORED' : observed?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+      state: ['RESTORED', 'PARTIAL', 'PENDING', 'FAILED'].includes(observed?.state) ? observed.state : 'UNKNOWN',
       quoteTypes: required.quoteTypes,
       actualContract: typeof observed?.actualContract === 'string' ? observed.actualContract : null,
       lastObservedAt: isoOrNull(observed?.lastObservedAt),
+      quoteTypeHealth: Object.freeze(Object.fromEntries(required.quoteTypes.map((quoteType) => {
+        const capability = quoteTypeHealthMap(observed?.quoteTypeHealth)[quoteType] || {};
+        return [quoteType, Object.freeze({
+          quoteType,
+          subscriptionState: capability.subscriptionState === 'RESTORED' ? 'RESTORED' : capability.subscriptionState === 'FAILED' ? 'FAILED' : 'PENDING',
+          deliveryState: typeof capability.deliveryState === 'string' ? capability.deliveryState : 'UNKNOWN',
+          freshnessState: typeof capability.freshnessState === 'string' ? capability.freshnessState : 'UNAVAILABLE',
+          subscribedAt: isoOrNull(capability.subscribedAt),
+          lastObservedAt: isoOrNull(capability.lastObservedAt),
+          lastResubscribeAt: isoOrNull(capability.lastResubscribeAt),
+          resubscribeAttempts: Math.max(0, Number(capability.resubscribeAttempts) || 0),
+          recoveryState: typeof capability.recoveryState === 'string' ? capability.recoveryState : 'UNKNOWN',
+        })];
+      }))),
     });
   });
   return Object.freeze({

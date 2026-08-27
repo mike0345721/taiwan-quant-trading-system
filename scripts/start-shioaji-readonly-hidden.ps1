@@ -9,6 +9,8 @@ try {
   $response = Invoke-RestMethod -Uri $health -TimeoutSec 2
   if ($response.ok -and
       $response.mode -eq 'market_data_only' -and
+      $response.formalWeight -eq 0 -and
+      $response.researchOnly -eq $true -and
       -not $response.executionAuthorized -and
       -not $response.orderRoutesEnabled) { exit 0 }
 } catch { }

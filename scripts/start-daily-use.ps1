@@ -66,13 +66,16 @@ function Get-BridgeStatus {
     $health = Invoke-RestMethod -Uri $bridgeHealthUrl -TimeoutSec 2
     $safe = ($health.ok -eq $true) -and
       ($health.mode -eq 'market_data_only') -and
+      ($health.formalWeight -eq 0) -and
+      ($health.researchOnly -eq $true) -and
       ($health.executionAuthorized -eq $false) -and
       ($health.orderRoutesEnabled -eq $false)
     if (-not $safe) {
       return [pscustomobject]@{ State = 'UNSAFE_OR_INVALID'; Detail = 'The market-data-only safety check did not pass.'; Health = $health }
     }
     $degraded = ([int]$health.callbackErrors -gt 0) -or ([int]$health.writerErrors -gt 0) -or
-      ([int]$health.dropped -gt 0) -or ($health.sessionDown -eq $true)
+      ([int]$health.dropped -gt 0) -or ($health.sessionDown -eq $true) -or
+      ($health.bridgeState -ne 'HEALTHY') -or ($health.quoteTypeDeliveryState -eq 'PARTIAL')
     $state = if ($degraded) { 'DEGRADED' } else { 'CONNECTED' }
     $detail = if ($degraded) { 'Read-only market data is connected with health warnings; the dashboard can use current legal data.' } else { 'Read-only market data is connected.' }
     return [pscustomobject]@{ State = $state; Detail = $detail; Health = $health }
