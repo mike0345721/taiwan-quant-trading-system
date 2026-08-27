@@ -79,15 +79,26 @@ ChatGPT then reads the real PR diff and CI state directly instead of relying on 
 
 ## PR / CI Contract
 
-Every non-trivial implementation should use a branch and PR. The baseline PR CI runs:
+Every non-trivial implementation should use a branch and PR. The PR CI baseline runs:
 
 - `npm ci`
 - `npm run security:scan`
-- `npm test`
+- `npm run test:ci`
 
-A failing full repository suite must stay visible. Missing local/frozen artifacts may explain a failure, but CI must not silently convert the failure into PASS. Follow-up work may split hermetic and local-artifact suites only through an explicitly reviewed change.
+`test:ci` is the required hermetic/default lane. Every `tests/*.test.mjs` file is included in CI unless it is explicitly classified in `tests/test-lanes.json`. New test files therefore enter CI by default instead of silently escaping the gate.
 
-Branch protection is intentionally deferred until CI behavior is observed and stable; a broken new CI rule must not lock the Owner out of `main`.
+Non-hermetic suites remain visible and separately executable:
+
+- `npm run test:windows` — Windows, PowerShell, or governed D-drive semantics;
+- `npm run test:artifacts` — local-only frozen/research artifacts excluded by `data/**` governance;
+- `npm run test:runtime` — browser/runtime integration pending a separately stabilized gate;
+- `npm test` — the historical full repository suite, retained for broad local verification.
+
+An excluded lane is **not** counted as CI PASS. Classification explains where the test must run; it does not waive the test. Missing local/frozen artifacts, platform requirements, or browser runtime behavior must remain explicit in review evidence.
+
+The initial unclassified full-suite baseline on GitHub Actions produced 516 tests with 478 pass, 36 fail, and 2 skip. Failures clustered in Windows/D-drive assumptions, intentionally untracked local research artifacts, and one browser-runtime cleanup failure. This observation is the reason for explicit lane separation rather than `continue-on-error` or blanket suppression.
+
+Branch protection remains intentionally deferred until the hermetic CI lane is observed stable; a broken new CI rule must not lock the Owner out of `main`.
 
 ## Local Diagnostics Contract
 
@@ -121,4 +132,4 @@ CRU-28 does not change Market State logic, Dealer logic, research conclusions, m
 
 ## Follow-up (not in CRU-28)
 
-After this loop is stable, a separate Owner-authorized work package may add Playwright / browser screenshots / console-network capture as PR artifacts. Multi-Agent orchestration and game-like control-center UI remain future work and are not part of this stabilization slice.
+After this loop is stable, a separate Owner-authorized work package may promote selected Windows/artifact/runtime lanes into additional required checks once their environments are reproducible. Playwright / browser screenshots / console-network capture as PR artifacts also remain separate future work. Multi-Agent orchestration and game-like control-center UI are not part of this stabilization slice.
