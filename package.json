@@ -11,6 +11,7 @@
     "start": "node server.mjs",
     "dev": "NODE_ENV=development node --watch server.mjs",
     "test": "node --test tests/*.test.mjs",
+    "diagnostics": "node scripts/collect-development-diagnostics.mjs",
     "password:hash": "node scripts/hash-password.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
     "history:backfill": "node scripts/backfill-history.mjs",
