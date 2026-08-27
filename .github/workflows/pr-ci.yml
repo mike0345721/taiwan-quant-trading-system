@@ -35,5 +35,5 @@ jobs:
       - name: Secret scan
         run: npm run security:scan
 
-      - name: Repository test suite
-        run: npm test
+      - name: Hermetic PR gate
+        run: npm run test:ci
