@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "development-test-lanes-v1",
+  "policy": {
+    "ciDefault": "hermetic",
+    "newTestFilesDefaultToCi": true,
+    "excludedFilesMustBeExplicit": true
+  },
+  "lanes": {
+    "windows": {
+      "description": "Tests that encode Windows, PowerShell, or governed D-drive runtime semantics and must be verified on the Owner's Windows environment.",
+      "files": [
+        "daily-use-bootstrap.test.mjs",
+        "market-state-forward-shadow-governance.test.mjs",
+        "market-state-forward-shadow-runtime.test.mjs",
+        "market-state-forward-shadow-scheduler.test.mjs",
+        "runtime-identity.test.mjs"
+      ]
+    },
+    "artifacts": {
+      "description": "Tests that require local-only frozen/research artifacts intentionally excluded from GitHub by data/** governance.",
+      "files": [
+        "f3-governance-sidecar.test.mjs",
+        "intraday-factor-impact.test.mjs",
+        "intraday-factor-robustness.test.mjs",
+        "p0-paper-trading.test.mjs",
+        "t0-final-gate-output.test.mjs",
+        "t0-h0-runner.test.mjs",
+        "v310-forward-operations.test.mjs"
+      ]
+    },
+    "runtime": {
+      "description": "Browser/runtime integration tests that need a separately stabilized runtime lane before becoming a required PR gate.",
+      "files": [
+        "trader-terminal-production-dom.test.mjs"
+      ]
+    }
+  }
+}
