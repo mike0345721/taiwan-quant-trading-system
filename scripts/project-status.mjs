@@ -21,6 +21,8 @@ const SAFETY = Object.freeze({
 });
 const SHIOAJI_EXPECTED_SAFETY = Object.freeze({
   mode: 'market_data_only',
+  formalWeight: 0,
+  researchOnly: true,
   executionAuthorized: false,
   orderRoutesEnabled: false,
 });
@@ -53,6 +55,7 @@ export function inspectContinuityStatus(root) {
   try {
     const payload = readJson(filePath);
     if (payload?.schemaVersion !== 'shioaji-market-data-continuity-v1'
+        || payload?.formalWeight !== 0 || payload?.researchOnly !== true
         || payload?.executionAuthorized !== false || payload?.orderRoutesEnabled !== false
         || payload?.runtimeMode !== 'market_data_only') {
       return Object.freeze({ availability: 'UNAVAILABLE', state: 'UNAVAILABLE', reasonCode: 'CONTINUITY_STATUS_UNSAFE_OR_INVALID' });
@@ -69,7 +72,12 @@ export function inspectContinuityStatus(root) {
       recoveryResult: typeof payload.recoveryResult === 'string' ? payload.recoveryResult : null,
       subscriptionStatus: Array.isArray(payload.requiredSubscriptions) ? payload.requiredSubscriptions.map((item) => Object.freeze({
         product: typeof item?.product === 'string' ? item.product : 'UNKNOWN',
-        state: item?.state === 'RESTORED' ? 'RESTORED' : item?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+        state: ['RESTORED', 'PARTIAL', 'PENDING', 'FAILED'].includes(item?.state) ? item.state : 'UNKNOWN',
+        quoteTypeHealth: item?.quoteTypeHealth && typeof item.quoteTypeHealth === 'object'
+          ? Object.fromEntries(Object.entries(item.quoteTypeHealth).map(([quoteType, capability]) => [quoteType, Object.freeze({
+            deliveryState: typeof capability?.deliveryState === 'string' ? capability.deliveryState : 'UNKNOWN',
+            lastObservedAt: isoOrNull(capability?.lastObservedAt),
+          })])) : Object.freeze({}),
       })) : Object.freeze([]),
       writerStatus: ['PASS', 'FAIL', 'UNKNOWN'].includes(payload.writerStatus) ? payload.writerStatus : 'UNKNOWN',
       dataTrust: payload.dataTrust === 'PASS' ? 'PASS' : payload.dataTrust === 'QUALITY_INSUFFICIENT' ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
@@ -158,10 +166,14 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
   try {
     const { payload } = await request(`${baseUrl}/health`);
     const observedRuntime = Object.freeze({
+      formalWeight: payload?.formalWeight === 0 ? 0 : null,
+      researchOnly: booleanOrNull(payload?.researchOnly),
       executionAuthorized: booleanOrNull(payload?.executionAuthorized),
       orderRoutesEnabled: booleanOrNull(payload?.orderRoutesEnabled),
     });
     const safe = payload?.mode === SHIOAJI_EXPECTED_SAFETY.mode
+      && observedRuntime.formalWeight === SHIOAJI_EXPECTED_SAFETY.formalWeight
+      && observedRuntime.researchOnly === SHIOAJI_EXPECTED_SAFETY.researchOnly
       && observedRuntime.executionAuthorized === SHIOAJI_EXPECTED_SAFETY.executionAuthorized
       && observedRuntime.orderRoutesEnabled === SHIOAJI_EXPECTED_SAFETY.orderRoutesEnabled;
     if (!safe) {
@@ -194,7 +206,12 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
         writerStatus: payload.writerState === 'PASS' ? 'PASS' : payload.writerState === 'FAIL' ? 'FAIL' : 'UNKNOWN',
         subscriptionStatus: Array.isArray(payload.requiredSubscriptions) ? payload.requiredSubscriptions.map((item) => Object.freeze({
           product: typeof item?.product === 'string' ? item.product : 'UNKNOWN',
-          state: item?.state === 'RESTORED' ? 'RESTORED' : item?.state === 'FAILED' ? 'FAILED' : 'UNKNOWN',
+          state: ['RESTORED', 'PARTIAL', 'PENDING', 'FAILED'].includes(item?.state) ? item.state : 'UNKNOWN',
+          quoteTypeHealth: item?.quoteTypeHealth && typeof item.quoteTypeHealth === 'object'
+            ? Object.fromEntries(Object.entries(item.quoteTypeHealth).map(([quoteType, capability]) => [quoteType, Object.freeze({
+              deliveryState: typeof capability?.deliveryState === 'string' ? capability.deliveryState : 'UNKNOWN',
+              lastObservedAt: isoOrNull(capability?.lastObservedAt),
+            })])) : Object.freeze({}),
         })) : Object.freeze([]),
         dataTrust: payload.timestampLineageState === 'PASS' ? 'PASS' : 'QUALITY_INSUFFICIENT',
         dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
@@ -232,7 +249,7 @@ export async function inspectShioaji(request = fetchJson, baseUrl = 'http://127.
       provider: 'shioaji',
       mode: 'UNKNOWN',
       expectedSafety: SHIOAJI_EXPECTED_SAFETY,
-      observedRuntime: Object.freeze({ executionAuthorized: null, orderRoutesEnabled: null }),
+      observedRuntime: Object.freeze({ formalWeight: null, researchOnly: null, executionAuthorized: null, orderRoutesEnabled: null }),
       reason: error?.name === 'AbortError' ? 'TIMEOUT' : 'UNREACHABLE',
     });
   }

@@ -107,6 +107,8 @@ class LiveEventLedger:
             "duplicate": duplicate,
             "sequenceGap": sequence_gap,
             "clockSkewMs": clock_skew_ms,
+            "formalWeight": 0,
+            "researchOnly": True,
             "executionAuthorized": False,
             "orderRoutesEnabled": False,
             "payload": payload,
@@ -143,5 +145,8 @@ class LiveEventLedger:
             "latestReceivedAt": self.latest_received_at,
             "freeBytes": usage.free,
             "lowDisk": usage.free < 2 * 1024 * 1024 * 1024,
+            "formalWeight": 0,
+            "researchOnly": True,
             "executionAuthorized": False,
+            "orderRoutesEnabled": False,
         }

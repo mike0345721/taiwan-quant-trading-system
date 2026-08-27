@@ -23,10 +23,18 @@ import { acquireSupervisorPort, governedMarketSession, runContinuitySupervisor }
 import { inspectContinuityStatus } from '../scripts/project-status.mjs';
 import { buildDataHealthContract } from '../src/dashboard-data-health.mjs';
 
+function delivered(...quoteTypes) {
+  return Object.fromEntries(quoteTypes.map((quoteType) => [quoteType, {
+    quoteType, subscriptionState: 'RESTORED', deliveryState: 'LIVE', freshnessState: 'LIVE',
+    subscribedAt: '2026-08-14T01:00:00.000Z', lastObservedAt: '2026-08-14T01:00:01.000Z',
+    lastResubscribeAt: null, resubscribeAttempts: 0, recoveryState: 'DELIVERY_OBSERVED',
+  }]));
+}
+
 const subscriptions = [
-  { product: 'TX', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'TXFH6' },
-  { product: 'MTX', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'MXFH6' },
-  { product: 'TMF', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'TMFH6' },
+  { product: 'TX', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'TXFH6', quoteTypeHealth: delivered('Tick', 'BidAsk') },
+  { product: 'MTX', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'MXFH6', quoteTypeHealth: delivered('Tick', 'BidAsk') },
+  { product: 'TMF', state: 'RESTORED', quoteTypes: ['Tick', 'BidAsk'], actualContract: 'TMFH6', quoteTypeHealth: delivered('Tick', 'BidAsk') },
   { product: '2330', state: 'RESTORED', quoteTypes: ['Tick'], actualContract: '2330' },
   { product: 'IX0001', state: 'RESTORED', quoteTypes: ['Quote'], actualContract: 'IX0001' },
 ];
@@ -36,6 +44,8 @@ function health(overrides = {}) {
     ok: true,
     provider: 'shioaji',
     mode: 'market_data_only',
+    formalWeight: 0,
+    researchOnly: true,
     executionAuthorized: false,
     orderRoutesEnabled: false,
     bridgeState: 'HEALTHY',
@@ -65,6 +75,7 @@ test('bounded state and reason contracts include every Owner-approved continuity
   for (const reason of [
     'BRIDGE_NOT_RUNNING', 'BRIDGE_HEALTH_UNAVAILABLE', 'SESSION_TERMINATED', 'LOGIN_FAILED',
     'AUTH_OR_TOKEN_FAILURE', 'NETWORK_UNAVAILABLE', 'SUBSCRIPTION_RESTORE_FAILED',
+    'MISSING_REQUIRED_QUOTE_TYPE',
     'WRITER_UNAVAILABLE', 'PORT_OCCUPIED_HEALTHY', 'PORT_OCCUPIED_UNHEALTHY',
     'DUPLICATE_INSTANCE_DETECTED', 'RECOVERY_BUDGET_EXHAUSTED', 'EXPECTED_STOP',
     'UNKNOWN_INSUFFICIENT_EVIDENCE',
@@ -139,6 +150,60 @@ test('all required subscriptions and writer PASS are required for HEALTHY', () =
   });
   assert.equal(evaluateBridgeContinuity(health({ writerState: 'FAIL', writerErrors: 1 })).reasonCode, 'WRITER_UNAVAILABLE');
   assert.equal(evaluateBridgeContinuity(null).reasonCode, 'BRIDGE_HEALTH_UNAVAILABLE');
+});
+
+test('BidAsk-only delivery cannot make the bridge or TX Tick capability healthy', () => {
+  const bidAskOnly = subscriptions.map((item) => item.product === 'TX' ? {
+    ...item,
+    state: 'PARTIAL',
+    quoteTypeHealth: {
+      ...item.quoteTypeHealth,
+      Tick: { ...item.quoteTypeHealth.Tick, deliveryState: 'MISSING', freshnessState: 'UNAVAILABLE', lastObservedAt: null },
+    },
+  } : item);
+  assert.deepEqual(evaluateBridgeContinuity(health({
+    bridgeState: 'DEGRADED', reasonCode: 'MISSING_REQUIRED_QUOTE_TYPE', requiredSubscriptions: bidAskOnly,
+  })), {
+    state: 'DEGRADED', reasonCode: 'MISSING_REQUIRED_QUOTE_TYPE', subscriptionStatus: 'PARTIAL', writerStatus: 'PASS',
+    dataTrust: 'QUALITY_INSUFFICIENT', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+  });
+  const status = buildContinuityStatus({
+    state: 'DEGRADED', reasonCode: 'MISSING_REQUIRED_QUOTE_TYPE', requiredSubscriptions: bidAskOnly,
+  });
+  assert.equal(status.requiredSubscriptions.find((item) => item.product === 'TX').quoteTypeHealth.Tick.deliveryState, 'MISSING');
+});
+
+test('subscribe acknowledgement remains STARTING until quote-type delivery is observed', () => {
+  const pending = subscriptions.map((item) => ['TX', 'MTX', 'TMF'].includes(item.product) ? {
+    ...item, state: 'PENDING',
+    quoteTypeHealth: Object.fromEntries(Object.entries(item.quoteTypeHealth).map(([quoteType, capability]) => [quoteType, {
+      ...capability, deliveryState: 'PENDING', freshnessState: 'UNAVAILABLE', lastObservedAt: null,
+    }])),
+  } : item);
+  assert.deepEqual(evaluateBridgeContinuity(health({
+    bridgeState: 'STARTING', reasonCode: 'DATA_RESUME_NOT_OBSERVED', requiredSubscriptions: pending,
+  })), {
+    state: 'STARTING', reasonCode: 'DATA_RESUME_NOT_OBSERVED', subscriptionStatus: 'PENDING', writerStatus: 'PASS',
+    dataTrust: 'QUALITY_INSUFFICIENT', dataLossCertainty: 'UNKNOWN_NO_NATIVE_SEQUENCE',
+  });
+});
+
+test('forged RESTORED state cannot make PENDING or UNKNOWN quote delivery healthy', () => {
+  for (const deliveryState of ['PENDING', 'UNKNOWN']) {
+    const unproven = subscriptions.map((item) => item.product === 'TX' ? {
+      ...item,
+      state: 'RESTORED',
+      quoteTypeHealth: {
+        ...item.quoteTypeHealth,
+        Tick: { ...item.quoteTypeHealth.Tick, deliveryState, freshnessState: 'UNAVAILABLE', lastObservedAt: null },
+      },
+    } : item);
+    const result = evaluateBridgeContinuity(health({
+      bridgeState: 'HEALTHY', requiredSubscriptions: unproven,
+    }));
+    assert.equal(result.state, 'DEGRADED', deliveryState);
+    assert.equal(result.reasonCode, 'SUBSCRIPTION_RESTORE_FAILED', deliveryState);
+  }
 });
 
 test('writer failure on an occupied bridge port fails closed without spawning a restart storm', async () => {
