@@ -3686,6 +3686,16 @@ async function loadDashboard() {
   if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
 }
 
+function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
+  const message = error?.message || 'UNKNOWN_DASHBOARD_API_FAILURE';
+  const box = document.createElement('div');
+  box.className = 'alert bad';
+  box.dataset.dashboardLoadError = 'true';
+  box.textContent = `Dashboard data unavailable · ${context} · ${message}`;
+  $('alert-area')?.replaceChildren(box);
+  console.error(`[${context}] ${message}`);
+}
+
 document.querySelectorAll('#v2-range-controls button').forEach((button) => button.addEventListener('click', async () => {
   state.v2Days = Number(button.dataset.days) || 60;
   document.querySelectorAll('#v2-range-controls button').forEach((item) => item.classList.toggle('is-selected', item === button));
@@ -3954,20 +3964,25 @@ $('logout-button').addEventListener('click', async () => {
 });
 
 (async function boot() {
+  let authenticated = false;
   try {
     const session = await api('/api/session');
     if (!session.authenticated) { show('login-view'); return; }
+    authenticated = true;
     state.csrfToken = session.csrfToken;
     show('dashboard-view');
     await loadDashboard();
-  } catch {
-    show('login-view');
+  } catch (error) {
+    if (!authenticated) { show('login-view'); return; }
+    reportDashboardLoadError(error, 'INITIAL_DASHBOARD_LOAD');
   }
 })();
 
 // Keep an open dashboard current without storing credentials in JavaScript.
 setInterval(() => {
-  if (!$('dashboard-view').classList.contains('hidden')) loadDashboard().catch(() => {});
+  if (!$('dashboard-view').classList.contains('hidden')) {
+    loadDashboard().catch((error) => reportDashboardLoadError(error, 'DASHBOARD_REFRESH'));
+  }
 }, 300_000);
 
 // Only the current candle/last point is updated when identity is unchanged.
