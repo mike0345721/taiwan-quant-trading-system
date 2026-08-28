@@ -2689,6 +2689,66 @@ function terminalEvidenceValues(contract, family, limit = 3) {
   return { evidence, values };
 }
 
+function terminalUnavailable(reason = 'SOURCE_UNAVAILABLE') {
+  return `UNAVAILABLE · ${reason || 'SOURCE_UNAVAILABLE'}`;
+}
+
+function terminalHealthItem(workspace, sourceId) {
+  return (workspace?.snapshot?.dataHealth?.items || []).find((item) => item.sourceId === sourceId) || null;
+}
+
+function terminalHealthUsable(item) {
+  return Boolean(item && item.sourceAvailability !== 'SOURCE_MISSING' && item.freshnessState !== 'UNAVAILABLE');
+}
+
+function terminalSourceMode(item, baseMode = null) {
+  const freshness = item?.freshnessState;
+  return [baseMode, freshness && !['FRESH', 'SESSION_CLOSED'].includes(freshness) ? freshness : null].filter(Boolean).join(' · ');
+}
+
+function terminalSourceContext(item, { tradeDate = null, contract = null, sourceId = null } = {}) {
+  return [sourceId || item?.sourceId, tradeDate, contract, item?.freshnessState, item?.availableAt].filter(Boolean).join(' · ');
+}
+
+function terminalWrite(id, value, { reason = 'SOURCE_UNAVAILABLE', title = null } = {}) {
+  const node = $(id);
+  if (!node) return;
+  const available = value != null && value !== '' && value !== '—';
+  node.textContent = available ? String(value) : terminalUnavailable(reason);
+  node.classList.toggle('is-unavailable', !available);
+  const context = title || (available ? String(value) : reason);
+  node.title = context;
+  node.setAttribute('aria-label', context);
+}
+
+function terminalHealthSummary(workspace, sourceIds) {
+  const rank = { UNAVAILABLE: 6, STALE: 5, DELAYED: 4, SESSION_CLOSED: 3, FRESH: 2, LIVE: 1 };
+  const items = sourceIds.map((sourceId) => terminalHealthItem(workspace, sourceId)).filter(Boolean);
+  if (!items.length) return { value: null, reason: 'SOURCE_NOT_REPORTED', title: sourceIds.join(' / ') };
+  const worst = [...items].sort((left, right) => (rank[right.freshnessState] || 7) - (rank[left.freshnessState] || 7))[0];
+  const title = items.map((item) => terminalSourceContext(item)).join(' | ');
+  if (!terminalHealthUsable(worst)) {
+    return { value: null, reason: worst.reason || worst.readinessState || worst.freshnessState || 'SOURCE_UNAVAILABLE', title };
+  }
+  return { value: worst.freshnessState, reason: null, title };
+}
+
+function terminalBreadthCounts(data) {
+  const direct = {
+    up: finiteNumber(data?.raise_count ?? data?.raiseCount),
+    flat: finiteNumber(data?.flat_count ?? data?.flatCount),
+    down: finiteNumber(data?.fall_count ?? data?.fallCount),
+  };
+  if (Object.values(direct).every((value) => value != null)) return direct;
+  const listed = data?.listed || {};
+  const otc = data?.otc || {};
+  const rows = [listed, otc].map((row) => ({
+    up: finiteNumber(row.advance), flat: finiteNumber(row.unchanged), down: finiteNumber(row.decline),
+  }));
+  if (!rows.every((row) => Object.values(row).every((value) => value != null))) return null;
+  return rows.reduce((total, row) => ({ up: total.up + row.up, flat: total.flat + row.flat, down: total.down + row.down }), { up: 0, flat: 0, down: 0 });
+}
+
 function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretation) {
   const { evidence, values } = terminalEvidenceValues(contract, family);
   const trust = terminalSetTrust(cardKey, evidence);
@@ -2743,16 +2803,46 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   const decision = workspace?.decisionSummary || {};
   const currentFacts = workspace?.currentMarketFactSummary || {};
   const global = workspace?.globalStatus || {};
+  const snapshot = state.snapshot || {};
+  const txDay = snapshot?.futuresMarket?.data?.txDay || {};
+  const derived = snapshot?.derived || {};
+  const futuresPositioning = snapshot?.futuresInstitutional?.data || {};
+  const options = snapshot?.options?.data || {};
   const vwap = levelValue(chart?.levels?.vwap);
   const lastPrice = finiteNumber(chart?.lastPrice);
   const latestVolume = Array.isArray(chart?.bars) ? finiteNumber(chart.bars.at(-1)?.volume) : null;
+  const previousClose = levelValue(chart?.levels?.previousClose);
+  const chartContract = chart?.actualContract || null;
+  const snapshotContract = txDay.contract || null;
+  const futuresTradeDate = snapshot?.futuresMarket?.dataDate || snapshot?.futuresMarket?.sourceDataDate || null;
+  const marketTradeDate = snapshot?.marketOverview?.dataDate || snapshot?.marketOverview?.sourceDataDate || null;
+  const futuresMarketHealth = terminalHealthItem(workspace, 'futuresMarket');
+  const marketOverviewHealth = terminalHealthItem(workspace, 'marketOverview');
+  const positioningHealth = terminalHealthItem(workspace, 'futuresPositioning');
+  const optionsHealth = terminalHealthItem(workspace, 'optionsEod');
+  const contractCompatible = Boolean(chartContract && snapshotContract && chartContract === snapshotContract);
+  const futuresMarketUsable = snapshot?.futuresMarket?.ok === true && terminalHealthUsable(futuresMarketHealth) && contractCompatible;
+  const basisIdentityCompatible = futuresMarketUsable && snapshot?.marketOverview?.ok === true
+    && terminalHealthUsable(marketOverviewHealth) && Boolean(futuresTradeDate && marketTradeDate && futuresTradeDate === marketTradeDate);
+  const batchMode = (item) => terminalSourceMode(item, 'EOD');
+  const futuresContext = terminalSourceContext(futuresMarketHealth, { tradeDate: futuresTradeDate, contract: snapshotContract });
+  const basisContext = `${futuresContext} | ${terminalSourceContext(marketOverviewHealth, { tradeDate: marketTradeDate })}`;
 
   dwText('tt-top-contract', chart?.actualContract ? `台指期貨 ${chart.actualContract}` : '台指期貨');
   dwText('tt-top-price', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
-  dwText('tt-top-change', 'UNAVAILABLE');
+  terminalWrite('tt-top-change', lastPrice != null && previousClose != null ? signed(lastPrice - previousClose, ' 點', 2) : null, {
+    reason: chart?.levels?.previousClose?.reason || 'PREVIOUS_CLOSE_UNAVAILABLE',
+    title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.previousClose?.source || chart?.source }),
+  });
   dwText('tt-top-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
-  dwText('tt-top-oi', 'UNAVAILABLE');
-  dwText('tt-top-basis', 'UNAVAILABLE');
+  const marketOi = futuresMarketUsable && finiteNumber(txDay.openInterest) > 0 ? finiteNumber(txDay.openInterest) : null;
+  terminalWrite('tt-top-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : futuresMarketHealth?.reason || 'OPEN_INTEREST_UNAVAILABLE', title: futuresContext,
+  });
+  const basis = basisIdentityCompatible ? finiteNumber(derived?.market?.basis) : null;
+  terminalWrite('tt-top-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+  });
   dwText('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || 'UNAVAILABLE');
   dwText('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : '更新 UNAVAILABLE');
   dwText('tt-top-trust', chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE');
@@ -2766,10 +2856,10 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   dwText('tt-summary-flow', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE');
   dwText('tt-summary-risk', decision.risk || 'UNAVAILABLE');
 
-  dwText('tt-trend-main', 'UNAVAILABLE');
-  dwText('tt-trend-direction', '—');
-  dwText('tt-trend-strength', '—');
-  dwText('tt-trend-change', '—');
+  dwText('tt-trend-main', 'RESEARCH_PENDING');
+  dwText('tt-trend-direction', 'RESEARCH_PENDING');
+  dwText('tt-trend-strength', 'RESEARCH_PENDING');
+  dwText('tt-trend-change', 'RESEARCH_PENDING');
   for (const [id, value] of [
     ['tt-trend-price-track', 'RESEARCH_PENDING'],
     ['tt-trend-vwap-track', 'RESEARCH_PENDING'],
@@ -2793,21 +2883,113 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   renderTerminalEvidenceCard('global', contract, 'GLOBAL_FX', 'No governed global source is currently available.');
   renderGlobalTiles(dw4FamilyEvidence(contract, 'GLOBAL_FX'));
 
-  dwText('tt-pulse-rvol', 'UNAVAILABLE');
-  dwText('tt-pulse-basis', 'UNAVAILABLE');
+  dwText('tt-pulse-rvol', terminalUnavailable('DERIVATION_NOT_IMPLEMENTED'));
+  terminalWrite('tt-pulse-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+  });
   dwText('tt-futures-tx', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
-  dwText('tt-futures-vwap', 'UNAVAILABLE');
-  dwText('tt-futures-oi-change', 'UNAVAILABLE');
+  const vwapDelta = lastPrice != null && vwap != null ? lastPrice - vwap : null;
+  terminalWrite('tt-futures-vwap', vwapDelta == null ? null : `${vwapDelta > 0 ? '上方' : vwapDelta < 0 ? '下方' : '貼近'} ${signed(vwapDelta, ' 點', 2)}`, {
+    reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE', title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.vwap?.source || chart?.source }),
+  });
+  terminalWrite('tt-futures-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+  });
+  const positioningUsable = snapshot?.futuresInstitutional?.ok === true && terminalHealthUsable(positioningHealth);
+  const positioningDate = snapshot?.futuresInstitutional?.dataDate || snapshot?.futuresInstitutional?.sourceDataDate || null;
+  const positioningContext = terminalSourceContext(positioningHealth, { tradeDate: positioningDate, sourceId: 'futuresPositioning' });
+  for (const [id, value] of [
+    ['tt-futures-foreign', futuresPositioning.foreignNet],
+    ['tt-futures-dealer', futuresPositioning.dealerNet],
+    ['tt-futures-trust-position', futuresPositioning.trustNet],
+  ]) {
+    const numeric = positioningUsable ? finiteNumber(value) : null;
+    terminalWrite(id, numeric == null ? null : `${signed(numeric, ' 口')} · ${batchMode(positioningHealth)}`, {
+      reason: positioningHealth?.reason || 'POSITIONING_UNAVAILABLE', title: positioningContext,
+    });
+  }
+  terminalWrite('tt-futures-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : futuresMarketHealth?.reason || 'OPEN_INTEREST_UNAVAILABLE', title: futuresContext,
+  });
+  const oiDelta = futuresMarketUsable ? finiteNumber(derived?.futures?.openInterestDelta) : null;
+  terminalWrite('tt-futures-oi-change', oiDelta == null ? null : `${signed(oiDelta, ' 口')} · ${batchMode(futuresMarketHealth)}`, {
+    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : 'COMPARISON_UNAVAILABLE', title: futuresContext,
+  });
+
+  const optionsUsable = snapshot?.options?.ok === true && terminalHealthUsable(optionsHealth);
+  const optionsDate = snapshot?.options?.dataDate || snapshot?.options?.sourceDataDate || null;
+  const optionsContext = terminalSourceContext(optionsHealth, { tradeDate: optionsDate, contract: options.contract, sourceId: 'optionsEod' });
+  for (const [id, value, suffix] of [
+    ['tt-options-call', options.callWall?.strike, ''],
+    ['tt-options-put', options.putWall?.strike, ''],
+    ['tt-options-max-pain', options.maxPain, ''],
+    ['tt-options-oi', options.oiPcRatio, ' P/C'],
+    ['tt-options-ring-value', options.oiPcRatio, ''],
+  ]) {
+    const numeric = optionsUsable ? finiteNumber(value) : null;
+    terminalWrite(id, numeric == null ? null : `${fmt(numeric, id.includes('oi') || id.includes('ring') ? 2 : 0)}${suffix} · ${batchMode(optionsHealth)}`, {
+      reason: optionsHealth?.reason || 'OPTIONS_EOD_UNAVAILABLE', title: optionsContext,
+    });
+  }
+
+  const breadthField = workspace?.snapshot?.breadth;
+  const breadthAvailable = breadthField?.availability === 'AVAILABLE';
+  const breadthCounts = breadthAvailable ? terminalBreadthCounts(breadthField.value) : null;
+  const breadthTitle = terminalSourceContext(terminalHealthItem(workspace, breadthField?.source || 'breadth'), {
+    tradeDate: breadthField?.value?.tradeDate, sourceId: breadthField?.source || 'breadth',
+  });
+  for (const [id, key] of [['tt-breadth-up', 'up'], ['tt-breadth-flat', 'flat'], ['tt-breadth-down', 'down']]) {
+    terminalWrite(id, breadthCounts ? fmt(breadthCounts[key]) : null, { reason: breadthField?.reason || 'BREADTH_COUNTS_UNAVAILABLE', title: breadthTitle });
+  }
+  const breadthRatio = breadthCounts && breadthCounts.down > 0 ? breadthCounts.up / breadthCounts.down : null;
+  terminalWrite('tt-breadth-ratio', breadthRatio == null ? null : `${fmt(breadthRatio, 2)} 上／下`, {
+    reason: breadthCounts ? 'DECLINE_DENOMINATOR_UNAVAILABLE' : breadthField?.reason || 'BREADTH_COUNTS_UNAVAILABLE', title: breadthTitle,
+  });
+  dwText('tt-breadth-strength', 'RESEARCH_PENDING');
+  const breadthTotal = breadthCounts ? breadthCounts.up + breadthCounts.flat + breadthCounts.down : null;
+  const participation = document.querySelector('.tt-participation-bar');
+  if (participation) {
+    for (const [selector, value] of [['.is-up', breadthCounts?.up], ['.is-flat', breadthCounts?.flat], ['.is-down', breadthCounts?.down]]) {
+      const segment = participation.querySelector(selector);
+      if (segment) segment.style.width = breadthTotal > 0 ? `${value / breadthTotal * 100}%` : '0';
+    }
+    participation.setAttribute('aria-label', breadthTotal > 0
+      ? `市場參與度：上漲 ${breadthCounts.up}，平盤 ${breadthCounts.flat}，下跌 ${breadthCounts.down}；${breadthTitle}`
+      : terminalUnavailable(breadthField?.reason || 'BREADTH_COUNTS_UNAVAILABLE'));
+  }
+  const breadthSeriesLabel = $('tt-breadth-series')?.previousElementSibling;
+  if (breadthSeriesLabel) breadthSeriesLabel.textContent = '盤中參與趨勢 · RESEARCH_PENDING';
+
   dwText('tt-contribution-net', 'NOT_REQUESTED');
   dwText('tt-gpt-disabled-state', 'UI SHELL · DISABLED');
 
   const health = global.dataHealth || 'UNAVAILABLE';
   dwText('tt-health-main', health);
+  terminalWrite('tt-health-ring-value', health === 'UNAVAILABLE' ? null : health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health}` });
+  for (const [id, sourceIds] of [
+    ['tt-health-market', ['chartBar', 'txTick', 'marketOverview']],
+    ['tt-health-institutional', ['cashInstitutional', 'futuresPositioning']],
+    ['tt-health-futures', ['futuresMarket', 'txTick']],
+    ['tt-health-options', ['optionsEod']],
+    ['tt-health-global', ['soxResearchContext', 'marketOverview', 'taiwanVix']],
+  ]) {
+    const summary = terminalHealthSummary(workspace, sourceIds);
+    terminalWrite(id, summary.value, { reason: summary.reason || 'SOURCE_UNAVAILABLE', title: summary.title });
+  }
   const healthTrust = $('tt-health-trust');
   if (healthTrust) {
     healthTrust.textContent = health;
     healthTrust.className = `dw-status-pill ${healthTone(health)}`;
   }
+
+  const risk = decision.risk && decision.risk !== 'UNAVAILABLE' ? decision.risk : null;
+  terminalWrite('tt-risk-ring-value', risk, { reason: 'RISK_STATUS_UNAVAILABLE', title: 'Existing decisionSummary.risk status only' });
+  dwText('tt-risk-ring-state', risk ? 'EXISTING STATUS' : terminalUnavailable('RISK_STATUS_UNAVAILABLE'));
+  for (const id of ['tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth']) {
+    terminalWrite(id, null, { reason: 'BREAKDOWN_NOT_IMPLEMENTED', title: 'No approved component risk contract; no value inferred.' });
+  }
+  const riskSeriesLabel = $('tt-risk-series')?.previousElementSibling;
+  if (riskSeriesLabel) riskSeriesLabel.textContent = 'Risk Trend · RESEARCH_PENDING';
 }
 
 function leadershipRow(row, maxAbs, { compact = false } = {}) {
