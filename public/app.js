@@ -2723,8 +2723,13 @@ function terminalWrite(id, value, { reason = 'SOURCE_UNAVAILABLE', title = null 
 
 function terminalHealthSummary(workspace, sourceIds) {
   const rank = { UNAVAILABLE: 6, STALE: 5, DELAYED: 4, SESSION_CLOSED: 3, FRESH: 2, LIVE: 1 };
-  const items = sourceIds.map((sourceId) => terminalHealthItem(workspace, sourceId)).filter(Boolean);
-  if (!items.length) return { value: null, reason: 'SOURCE_NOT_REPORTED', title: sourceIds.join(' / ') };
+  const resolved = sourceIds.map((sourceId) => ({ sourceId, item: terminalHealthItem(workspace, sourceId) }));
+  const missing = resolved.filter(({ item }) => !item).map(({ sourceId }) => sourceId);
+  const items = resolved.map(({ item }) => item).filter(Boolean);
+  if (missing.length) {
+    const present = items.map((item) => terminalSourceContext(item)).join(' | ');
+    return { value: null, reason: 'SOURCE_NOT_REPORTED', title: [`missing=${missing.join(',')}`, present].filter(Boolean).join(' | ') };
+  }
   const worst = [...items].sort((left, right) => (rank[right.freshnessState] || 7) - (rank[left.freshnessState] || 7))[0];
   const title = items.map((item) => terminalSourceContext(item)).join(' | ');
   if (!terminalHealthUsable(worst)) {

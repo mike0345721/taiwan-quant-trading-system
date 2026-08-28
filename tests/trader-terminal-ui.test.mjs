@@ -147,6 +147,30 @@ test('Trader Terminal breadth normalization preserves zero and rejects partial i
   assert.equal(counts(null), null);
 });
 
+test('Trader Terminal grouped health fails closed when any expected source is not reported', () => {
+  const app = read('public', 'app.js');
+  const helpersStart = app.indexOf('function terminalHealthItem');
+  const helpersEnd = app.indexOf('function terminalBreadthCounts', helpersStart);
+  const helpers = app.slice(helpersStart, helpersEnd).trim();
+  assert.ok(helpersStart >= 0 && helpersEnd > helpersStart);
+  const summarize = Function(`${helpers}\nreturn terminalHealthSummary;`)();
+  const result = summarize({
+    snapshot: {
+      dataHealth: {
+        items: [{
+          sourceId: 'futuresMarket', sourceAvailability: 'SOURCE_AVAILABLE',
+          readinessState: 'READY', freshnessState: 'FRESH', availableAt: '2026-08-28T05:45:00.000Z',
+        }],
+      },
+    },
+  }, ['futuresMarket', 'txTick']);
+  assert.deepEqual(result, {
+    value: null,
+    reason: 'SOURCE_NOT_REPORTED',
+    title: 'missing=txTick | futuresMarket · FRESH · 2026-08-28T05:45:00.000Z',
+  });
+});
+
 test('isolated fixture is explicit, local, and excluded from evidence copy', () => {
   const production = read('public', 'app.js');
   const preview = read('public-preview', 'app.js');

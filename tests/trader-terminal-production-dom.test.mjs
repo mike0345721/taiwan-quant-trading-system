@@ -215,7 +215,7 @@ const layoutMeasurementExpression = `(() => {
   const round = (value) => Math.round(value * 100) / 100;
   const coreSelectors = [
     '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis',
-    '#tt-market-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid',
+    '#tt-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid',
   ];
   const clippedCore = coreSelectors.flatMap((selector) => [...document.querySelectorAll(selector)]
     .filter((node) => {
