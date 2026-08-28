@@ -86,15 +86,40 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /grid-template-columns:\s*64px/);
 });
 
-test('UI-1 renders only governed descriptive states and suppresses repetitive chart markers', () => {
+test('Trader Terminal formal typography has an 11px floor', () => {
+  const styles = read('public', 'trader-terminal-shell.css');
+  const explicitSizes = [...styles.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+  const tokenSizes = [...styles.matchAll(/--tt-font-[\w-]+:\s*(\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+  const shorthandSizes = [...styles.matchAll(/font:\s*(?:\d+\s+)?(\d+(?:\.\d+)?)px\//g)].map((match) => Number(match[1]));
+  assert.ok(explicitSizes.length > 0 && tokenSizes.length > 0 && shorthandSizes.length > 0);
+  assert.deepEqual([...explicitSizes, ...tokenSizes, ...shorthandSizes].filter((size) => size < 11), []);
+  assert.match(styles, /--tt-font-card-title:\s*15px/);
+  assert.match(styles, /--tt-font-number-md:\s*14px/);
+  assert.match(styles, /\.tt-main-answer[^}]*font-size:\s*clamp\(18px,/);
+});
+
+test('Trader Terminal wires only governed descriptive values and preserves unavailable reasons', () => {
   const app = read('public', 'app.js');
+  const terminalSource = app.slice(app.indexOf('function terminalUnavailable'), app.indexOf('function leadershipRow'));
   assert.match(app, /tt-summary-strength', 'RESEARCH_PENDING'/);
-  assert.match(app, /tt-trend-direction', '—'/);
+  assert.match(app, /tt-trend-direction', 'RESEARCH_PENDING'/);
   assert.match(app, /tt-trend-price-track', 'RESEARCH_PENDING'/);
-  assert.match(app, /tt-top-change', 'UNAVAILABLE'/);
-  assert.match(app, /tt-top-oi', 'UNAVAILABLE'/);
-  assert.match(app, /tt-top-basis', 'UNAVAILABLE'/);
-  assert.match(app, /tt-pulse-rvol', 'UNAVAILABLE'/);
+  assert.match(terminalSource, /levels\?\.previousClose/);
+  assert.match(terminalSource, /txDay\.openInterest/);
+  assert.match(terminalSource, /derived\?\.market\?\.basis/);
+  assert.match(terminalSource, /futuresPositioning\.foreignNet/);
+  assert.match(terminalSource, /futuresPositioning\.dealerNet/);
+  assert.match(terminalSource, /futuresPositioning\.trustNet/);
+  assert.match(terminalSource, /options\.callWall\?\.strike/);
+  assert.match(terminalSource, /options\.putWall\?\.strike/);
+  assert.match(terminalSource, /options\.maxPain/);
+  assert.match(terminalSource, /terminalBreadthCounts/);
+  assert.match(terminalSource, /terminalHealthSummary/);
+  assert.match(terminalSource, /ACTUAL_CONTRACT_MISMATCH/);
+  assert.match(terminalSource, /TRADE_DATE_OR_SOURCE_MISMATCH/);
+  assert.match(terminalSource, /DERIVATION_NOT_IMPLEMENTED/);
+  assert.match(terminalSource, /BREAKDOWN_NOT_IMPLEMENTED/);
+  assert.doesNotMatch(terminalSource, /tt-top-(?:change|oi|basis)',\s*'UNAVAILABLE'/);
   assert.match(app, /show-optional-levels/);
   assert.match(app, /const hasDayLevels =/);
   assert.match(app, /trader-terminal:levels/);
@@ -102,6 +127,48 @@ test('UI-1 renders only governed descriptive states and suppresses repetitive ch
   assert.match(app, /時段高\|時段低\|VWAP/);
   assert.match(app, /typeof value === 'boolean'/);
   assert.doesNotMatch(read('public', 'trader-terminal-shell.js'), /executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/);
+});
+
+test('Trader Terminal breadth normalization preserves zero and rejects partial input', () => {
+  const app = read('public', 'app.js');
+  const finiteSource = app.match(/function finiteNumber\(value\) \{[\s\S]*?\n\}/)?.[0];
+  const breadthStart = app.indexOf('function terminalBreadthCounts');
+  const breadthEnd = app.indexOf('function renderTerminalEvidenceCard', breadthStart);
+  const breadthSource = app.slice(breadthStart, breadthEnd).trim();
+  assert.ok(finiteSource);
+  assert.ok(breadthStart >= 0 && breadthEnd > breadthStart);
+  const counts = Function(`${finiteSource}\n${breadthSource}\nreturn terminalBreadthCounts;`)();
+  assert.deepEqual(counts({ raise_count: 10, flat_count: 0, fall_count: 5 }), { up: 10, flat: 0, down: 5 });
+  assert.deepEqual(counts({
+    listed: { advance: 6, unchanged: 1, decline: 3 },
+    otc: { advance: 4, unchanged: 0, decline: 2 },
+  }), { up: 10, flat: 1, down: 5 });
+  assert.equal(counts({ listed: { advance: 6, decline: 3 }, otc: { advance: 4, unchanged: 0, decline: 2 } }), null);
+  assert.equal(counts(null), null);
+});
+
+test('Trader Terminal grouped health fails closed when any expected source is not reported', () => {
+  const app = read('public', 'app.js');
+  const helpersStart = app.indexOf('function terminalHealthItem');
+  const helpersEnd = app.indexOf('function terminalBreadthCounts', helpersStart);
+  const helpers = app.slice(helpersStart, helpersEnd).trim();
+  assert.ok(helpersStart >= 0 && helpersEnd > helpersStart);
+  const summarize = Function(`${helpers}\nreturn terminalHealthSummary;`)();
+  const result = summarize({
+    snapshot: {
+      dataHealth: {
+        items: [{
+          sourceId: 'futuresMarket', sourceAvailability: 'SOURCE_AVAILABLE',
+          readinessState: 'READY', freshnessState: 'FRESH', availableAt: '2026-08-28T05:45:00.000Z',
+        }],
+      },
+    },
+  }, ['futuresMarket', 'txTick']);
+  assert.deepEqual(result, {
+    value: null,
+    reason: 'SOURCE_NOT_REPORTED',
+    title: 'missing=txTick | futuresMarket · FRESH · 2026-08-28T05:45:00.000Z',
+  });
 });
 
 test('isolated fixture is explicit, local, and excluded from evidence copy', () => {

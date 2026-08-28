@@ -134,7 +134,8 @@ async function waitForPageState(cdp, expression) {
     if (result.exceptionDetails) throw new Error(`PAGE_STATE_EVALUATION_FAILED:${JSON.stringify(result.exceptionDetails)}`);
     lastState = result.result.value;
     if (lastState?.rootPresent && lastState.readyState !== 'loading'
-      && ((lastState.sessionRequests > 0 && lastState.loginVisible) || lastState.runtimeErrors.length > 0)) return lastState;
+      && ((lastState.sessionRequests > 0 && (lastState.loginVisible || lastState.loadErrorVisible))
+        || lastState.runtimeErrors.length > 0)) return lastState;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`BROWSER_PAGE_TIMEOUT:${JSON.stringify(lastState)}`);
@@ -212,6 +213,34 @@ const layoutMeasurementExpression = `(() => {
   const stage = root?.querySelector('.dw-chart-stage');
   const host = root?.querySelector('.dw-chart-canvas');
   const round = (value) => Math.round(value * 100) / 100;
+  const coreSelectors = [
+    '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis',
+    '#tt-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid',
+  ];
+  const clippedCore = coreSelectors.flatMap((selector) => [...document.querySelectorAll(selector)]
+    .filter((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0
+        && (rect.left < -1 || rect.right > innerWidth + 1);
+    })
+    .map(() => selector));
+  const subElevenPixelText = [...(root?.querySelectorAll('*') || [])]
+    .filter((node) => {
+      if (['CANVAS', 'PATH', 'SCRIPT', 'STYLE'].includes(node.tagName)) return false;
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      const hasDirectText = [...node.childNodes]
+        .some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim());
+      return hasDirectText && style.display !== 'none' && style.visibility !== 'hidden'
+        && rect.width > 0 && rect.height > 0
+        && Number.parseFloat(style.fontSize) < 11;
+    })
+    .map((node) => ({
+      tag: node.tagName,
+      id: node.id,
+      className: typeof node.className === 'string' ? node.className : '',
+      fontSize: getComputedStyle(node).fontSize,
+    }));
   return {
     expanded: root?.classList.contains('is-chart-expanded') ?? false,
     ownerHeight: round(owner?.getBoundingClientRect().height || 0),
@@ -219,6 +248,10 @@ const layoutMeasurementExpression = `(() => {
     hostHeight: round(host?.getBoundingClientRect().height || 0),
     canvasHeights: [...(host?.querySelectorAll('canvas') || [])].map((canvas) => round(canvas.getBoundingClientRect().height)),
     documentHeight: document.documentElement.scrollHeight,
+    documentWidth: document.documentElement.scrollWidth,
+    horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+    clippedCore,
+    subElevenPixelText,
     viewport: [innerWidth, innerHeight],
   };
 })()`;
@@ -243,6 +276,9 @@ function assertExpandedLayoutBounded(sample) {
   assert.ok(sample.hostHeight > 0 && sample.hostHeight <= sample.stageHeight + 1, JSON.stringify(sample));
   assert.ok(sample.canvasHeights.length > 0, JSON.stringify(sample));
   assert.ok(sample.canvasHeights.every((height) => height > 0 && height <= sample.hostHeight + 1), JSON.stringify(sample));
+  assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
+  assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
+  assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
 }
 
 async function runProductionDom(options = {}) {
@@ -260,7 +296,12 @@ async function runProductionDom(options = {}) {
     const { sessionId } = await pipe.command('Target.attachToTarget', { targetId, flatten: true });
     const cdp = sessionClient(pipe, sessionId);
     const exceptions = [];
+    const blockingConsoleErrors = [];
     cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => exceptions.push(exceptionDetails));
+    cdp.on('Runtime.consoleAPICalled', ({ type, args }) => {
+      if (!['error', 'assert'].includes(type)) return;
+      blockingConsoleErrors.push(args.map((arg) => arg.value ?? arg.description ?? arg.type).join(' '));
+    });
     await cdp.command('Runtime.enable');
     await cdp.command('Page.enable');
     await cdp.command('Runtime.evaluate', {
@@ -270,9 +311,21 @@ async function runProductionDom(options = {}) {
           window.__ui1RuntimeErrors.push({ message: event.message, stack: event.error?.stack || '' });
         });
         window.fetch = async (input) => {
-          if (String(input) !== '/api/session') throw new Error('UNEXPECTED_FETCH:' + input);
-          window.__ui1SessionRequests += 1;
-          return new Response(JSON.stringify({ authenticated: false }), {
+          const url = new URL(String(input), 'http://ui1.test');
+          if (url.pathname === '/api/session') {
+            window.__ui1SessionRequests += 1;
+            return new Response(JSON.stringify({ authenticated: ${options.dashboardFailure ? 'true' : 'false'}, csrfToken: '' }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          if (${options.dashboardFailure ? 'true' : 'false'} && url.pathname === '/api/v1/dashboard') {
+            return new Response(JSON.stringify({ ok: false, error: 'GOVERNED_DASHBOARD_FIXTURE_FAILURE' }), {
+              status: 503,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          return new Response(JSON.stringify({ data: [] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
           });
@@ -303,12 +356,15 @@ async function runProductionDom(options = {}) {
         duplicateIds: [...new Set(duplicates)],
         loginPresent: Boolean(document.getElementById('login-view')),
         loginVisible: !document.getElementById('login-view')?.classList.contains('hidden'),
+        dashboardVisible: !document.getElementById('dashboard-view')?.classList.contains('hidden'),
+        loadErrorVisible: Boolean(document.querySelector('[data-dashboard-load-error="true"]')),
+        loadErrorText: document.querySelector('[data-dashboard-load-error="true"]')?.textContent || '',
         sessionRequests: window.__ui1SessionRequests || 0,
         runtimeErrors: window.__ui1RuntimeErrors || [],
       };
     })()`;
     const pageState = await waitForPageState(cdp, pageStateExpression);
-    return { pageState, exceptions: [...exceptions, ...pageState.runtimeErrors] };
+    return { pageState, exceptions: [...exceptions, ...pageState.runtimeErrors], blockingConsoleErrors };
   } finally {
     pipe.close();
     if (browser.exitCode === null) {
@@ -395,6 +451,75 @@ async function runProductionInteractionRegression() {
       'PRODUCTION_CHART_MOUNT_TIMEOUT',
     );
 
+    const wiringEvidence = await evaluate(cdp, `(() => {
+      const availableAt = '2026-08-28T05:45:00.000Z';
+      const health = (sourceId, freshnessState) => ({
+        sourceId, sourceAvailability: 'SOURCE_AVAILABLE', readinessState: 'READY',
+        freshnessState, availableAt,
+      });
+      state.snapshot = {
+        futuresMarket: {
+          ok: true, dataDate: '2026-08-28', fetchedAt: availableAt,
+          data: { txDay: { contract: '202608', openInterest: 83520 } },
+        },
+        marketOverview: { ok: true, dataDate: '2026-08-28', fetchedAt: availableAt, data: {} },
+        futuresInstitutional: {
+          ok: true, dataDate: '2026-08-28', fetchedAt: availableAt,
+          data: { foreignNet: -31890, dealerNet: 2140, trustNet: 0 },
+        },
+        options: {
+          ok: true, dataDate: '2026-08-28', fetchedAt: availableAt,
+          data: {
+            contract: '202608W4', oiPcRatio: 1.25,
+            callWall: { strike: 24200 }, putWall: { strike: 23400 }, maxPain: 23800,
+          },
+        },
+        derived: { market: { basis: 12.5 }, futures: { openInterestDelta: -400 } },
+      };
+      const workspace = {
+        globalStatus: { dataHealth: 'DELAYED' },
+        decisionSummary: { risk: 'ELEVATED' },
+        currentMarketFactSummary: {},
+        evidenceConflict: { evidence: [] },
+        snapshot: {
+          dataHealth: { items: [
+            health('chartBar', 'LIVE'), health('txTick', 'LIVE'), health('marketOverview', 'FRESH'),
+            health('cashInstitutional', 'DELAYED'), health('futuresPositioning', 'DELAYED'),
+            health('futuresMarket', 'DELAYED'), health('optionsEod', 'STALE'),
+            health('soxResearchContext', 'DELAYED'), health('taiwanVix', 'STALE'),
+          ] },
+          breadth: {
+            availability: 'AVAILABLE', source: 'breadth', availableAt,
+            value: { raise_count: 904, flat_count: 163, fall_count: 711, tradeDate: '2026-08-28' },
+          },
+        },
+      };
+      const chart = {
+        status: 'READY', source: 'GOVERNED_TX_CHART_FIXTURE', actualContract: '202608',
+        tradeDate: '2026-08-28', session: 'DAY', availableAt, qualityStatus: 'PASS',
+        lastPrice: 24000, bars: [{ volume: 1200 }],
+        levels: {
+          previousClose: { availability: 'AVAILABLE', value: 23950, source: 'PREVIOUS_DAY_CLOSE' },
+          vwap: { availability: 'AVAILABLE', value: 23980, source: 'SESSION_EXACT_TX_TICK_VWAP' },
+        },
+      };
+      renderTerminalShell(workspace, chart);
+      const ids = [
+        'tt-top-change', 'tt-top-oi', 'tt-top-basis', 'tt-pulse-basis',
+        'tt-futures-vwap', 'tt-futures-basis', 'tt-futures-foreign', 'tt-futures-dealer',
+        'tt-futures-trust-position', 'tt-futures-oi', 'tt-futures-oi-change',
+        'tt-options-call', 'tt-options-put', 'tt-options-max-pain', 'tt-options-oi',
+        'tt-breadth-up', 'tt-breadth-flat', 'tt-breadth-down', 'tt-breadth-ratio',
+        'tt-health-market', 'tt-health-institutional', 'tt-health-futures', 'tt-health-options',
+        'tt-health-global', 'tt-risk-ring-value', 'tt-risk-volatility', 'tt-risk-liquidity',
+        'tt-risk-event', 'tt-risk-breadth',
+      ];
+      return Object.fromEntries(ids.map((id) => {
+        const node = document.getElementById(id);
+        return [id, { text: node?.textContent || '', title: node?.title || '' }];
+      }));
+    })()`);
+
     const routeStates = [];
     for (const route of ['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']) {
       await clickSelector(cdp, `[data-dashboard-page="${route}"]`);
@@ -421,7 +546,7 @@ async function runProductionInteractionRegression() {
       'CHART_EXPAND_FAILED',
     );
     const viewportEvidence = [];
-    for (const [width, height] of [[1536, 864], [1920, 1080], [2048, 1018]]) {
+    for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
       await setViewport(cdp, width, height);
       viewportEvidence.push({ width, height, samples: await stableLayoutSamples(cdp, 6) });
     }
@@ -448,6 +573,7 @@ async function runProductionInteractionRegression() {
     const apiRequests = await evaluate(cdp, 'window.__ui1ApiRequests || []');
     return {
       initialState,
+      wiringEvidence,
       routeStates,
       viewportEvidence,
       cycleEvidence,
@@ -472,6 +598,7 @@ async function runProductionInteractionRegression() {
 test('production DOM mounts Trader Terminal and reaches session initialization without blocking exceptions', async () => {
   const result = await runProductionDom();
   assert.deepEqual(result.exceptions, []);
+  assert.deepEqual(result.blockingConsoleErrors, []);
   assert.equal(result.pageState.sessionRequests, 1, JSON.stringify(result));
   assert.equal(result.pageState.mounted, true);
   assert.equal(result.pageState.trendCount, 1);
@@ -487,6 +614,7 @@ test('production DOM mounts Trader Terminal and reaches session initialization w
 test('missing optional pulse change metric fails soft and still reaches session initialization', async () => {
   const result = await runProductionDom({ omitChangeMetric: true });
   assert.deepEqual(result.exceptions, []);
+  assert.deepEqual(result.blockingConsoleErrors, []);
   assert.equal(result.pageState.sessionRequests, 1, JSON.stringify(result));
   assert.equal(result.pageState.mounted, true);
   assert.equal(result.pageState.trendCount, 0);
@@ -494,6 +622,20 @@ test('missing optional pulse change metric fails soft and still reaches session 
   assert.deepEqual(result.pageState.duplicateIds, []);
   assert.equal(result.pageState.loginPresent, true);
   assert.equal(result.pageState.loginVisible, true);
+});
+
+test('authenticated dashboard API failure remains visible and is not misreported as logout', async () => {
+  const result = await runProductionDom({ dashboardFailure: true });
+  assert.deepEqual(result.exceptions, []);
+  assert.equal(result.pageState.sessionRequests, 1, JSON.stringify(result));
+  assert.equal(result.pageState.mounted, true);
+  assert.equal(result.pageState.dashboardVisible, true);
+  assert.equal(result.pageState.loginVisible, false);
+  assert.equal(result.pageState.loadErrorVisible, true);
+  assert.match(result.pageState.loadErrorText, /INITIAL_DASHBOARD_LOAD/);
+  assert.match(result.pageState.loadErrorText, /GOVERNED_DASHBOARD_FIXTURE_FAILURE/);
+  assert.equal(result.blockingConsoleErrors.length, 1, JSON.stringify(result.blockingConsoleErrors));
+  assert.match(result.blockingConsoleErrors[0], /INITIAL_DASHBOARD_LOAD/);
 });
 
 test('authenticated Production DOM navigation and chart layout remain isolated and bounded', { timeout: 120_000 }, async () => {
@@ -506,6 +648,20 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.ok(result.initialState.chartCanvasCount > 0);
   assert.deepEqual(result.initialState.duplicateIds, []);
 
+  for (const [id, evidence] of Object.entries(result.wiringEvidence)) {
+    assert.ok(evidence.text && evidence.text !== '—', `${id}:${JSON.stringify(evidence)}`);
+    if (evidence.text.startsWith('UNAVAILABLE')) {
+      assert.match(evidence.text, /^UNAVAILABLE · [A-Z0-9_]+$/, `${id}:${JSON.stringify(evidence)}`);
+    }
+  }
+  assert.match(result.wiringEvidence['tt-top-change'].text, /50\.00/);
+  assert.match(result.wiringEvidence['tt-top-oi'].text, /83,520 口 · EOD · DELAYED/);
+  assert.match(result.wiringEvidence['tt-options-oi'].text, /1\.25 P\/C · EOD · STALE/);
+  assert.equal(result.wiringEvidence['tt-futures-trust-position'].text, '0 口 · EOD · DELAYED');
+  assert.match(result.wiringEvidence['tt-breadth-flat'].text, /163/);
+  assert.equal(result.wiringEvidence['tt-risk-ring-value'].text, 'ELEVATED');
+  assert.equal(result.wiringEvidence['tt-risk-volatility'].text, 'UNAVAILABLE · BREAKDOWN_NOT_IMPLEMENTED');
+
   assert.equal(result.routeStates.length, 7);
   result.routeStates.forEach((state, index) => {
     assert.deepEqual(state.activePages, [['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality'][index]]);
@@ -513,7 +669,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   });
 
   assert.deepEqual(result.viewportEvidence.map(({ width, height }) => [width, height]), [
-    [1536, 864], [1920, 1080], [2048, 1018],
+    [1920, 1080], [1536, 864], [1366, 768],
   ]);
   for (const evidence of result.viewportEvidence) {
     evidence.samples.forEach(assertExpandedLayoutBounded);
