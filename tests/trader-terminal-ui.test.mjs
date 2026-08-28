@@ -86,6 +86,18 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /grid-template-columns:\s*64px/);
 });
 
+test('Trader Terminal formal typography has an 11px floor', () => {
+  const styles = read('public', 'trader-terminal-shell.css');
+  const explicitSizes = [...styles.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+  const tokenSizes = [...styles.matchAll(/--tt-font-[\w-]+:\s*(\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+  const shorthandSizes = [...styles.matchAll(/font:\s*(?:\d+\s+)?(\d+(?:\.\d+)?)px\//g)].map((match) => Number(match[1]));
+  assert.ok(explicitSizes.length > 0 && tokenSizes.length > 0 && shorthandSizes.length > 0);
+  assert.deepEqual([...explicitSizes, ...tokenSizes, ...shorthandSizes].filter((size) => size < 11), []);
+  assert.match(styles, /--tt-font-card-title:\s*15px/);
+  assert.match(styles, /--tt-font-number-md:\s*14px/);
+  assert.match(styles, /\.tt-main-answer[^}]*font-size:\s*clamp\(18px,/);
+});
+
 test('Trader Terminal wires only governed descriptive values and preserves unavailable reasons', () => {
   const app = read('public', 'app.js');
   const terminalSource = app.slice(app.indexOf('function terminalUnavailable'), app.indexOf('function leadershipRow'));

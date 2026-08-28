@@ -212,6 +212,34 @@ const layoutMeasurementExpression = `(() => {
   const stage = root?.querySelector('.dw-chart-stage');
   const host = root?.querySelector('.dw-chart-canvas');
   const round = (value) => Math.round(value * 100) / 100;
+  const coreSelectors = [
+    '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis',
+    '#tt-market-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid',
+  ];
+  const clippedCore = coreSelectors.flatMap((selector) => [...document.querySelectorAll(selector)]
+    .filter((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0
+        && (rect.left < -1 || rect.right > innerWidth + 1);
+    })
+    .map(() => selector));
+  const subElevenPixelText = [...(root?.querySelectorAll('*') || [])]
+    .filter((node) => {
+      if (['CANVAS', 'PATH', 'SCRIPT', 'STYLE'].includes(node.tagName)) return false;
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      const hasDirectText = [...node.childNodes]
+        .some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim());
+      return hasDirectText && style.display !== 'none' && style.visibility !== 'hidden'
+        && rect.width > 0 && rect.height > 0
+        && Number.parseFloat(style.fontSize) < 11;
+    })
+    .map((node) => ({
+      tag: node.tagName,
+      id: node.id,
+      className: typeof node.className === 'string' ? node.className : '',
+      fontSize: getComputedStyle(node).fontSize,
+    }));
   return {
     expanded: root?.classList.contains('is-chart-expanded') ?? false,
     ownerHeight: round(owner?.getBoundingClientRect().height || 0),
@@ -219,6 +247,10 @@ const layoutMeasurementExpression = `(() => {
     hostHeight: round(host?.getBoundingClientRect().height || 0),
     canvasHeights: [...(host?.querySelectorAll('canvas') || [])].map((canvas) => round(canvas.getBoundingClientRect().height)),
     documentHeight: document.documentElement.scrollHeight,
+    documentWidth: document.documentElement.scrollWidth,
+    horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+    clippedCore,
+    subElevenPixelText,
     viewport: [innerWidth, innerHeight],
   };
 })()`;
@@ -243,6 +275,9 @@ function assertExpandedLayoutBounded(sample) {
   assert.ok(sample.hostHeight > 0 && sample.hostHeight <= sample.stageHeight + 1, JSON.stringify(sample));
   assert.ok(sample.canvasHeights.length > 0, JSON.stringify(sample));
   assert.ok(sample.canvasHeights.every((height) => height > 0 && height <= sample.hostHeight + 1), JSON.stringify(sample));
+  assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
+  assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
+  assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
 }
 
 async function runProductionDom(options = {}) {
@@ -421,7 +456,7 @@ async function runProductionInteractionRegression() {
       'CHART_EXPAND_FAILED',
     );
     const viewportEvidence = [];
-    for (const [width, height] of [[1536, 864], [1920, 1080], [2048, 1018]]) {
+    for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
       await setViewport(cdp, width, height);
       viewportEvidence.push({ width, height, samples: await stableLayoutSamples(cdp, 6) });
     }
@@ -513,7 +548,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   });
 
   assert.deepEqual(result.viewportEvidence.map(({ width, height }) => [width, height]), [
-    [1536, 864], [1920, 1080], [2048, 1018],
+    [1920, 1080], [1536, 864], [1366, 768],
   ]);
   for (const evidence of result.viewportEvidence) {
     evidence.samples.forEach(assertExpandedLayoutBounded);
