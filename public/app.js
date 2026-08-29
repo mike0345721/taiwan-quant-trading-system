@@ -2616,7 +2616,7 @@ function sourceModeLabel(value) {
 }
 
 function dw4DescriptiveValue(entry) {
-  if (!entry || entry.value == null || entry.value === '') return 'UNAVAILABLE';
+  if (!entry || entry.value == null || entry.value === '') return terminalUnavailable(entry?.reason || 'DESCRIPTIVE_VALUE_UNAVAILABLE');
   const raw = typeof entry.value === 'number' ? fmt(entry.value, Number.isInteger(entry.value) ? 0 : 2) : entry.value;
   return `${raw}${entry.unit || ''}`;
 }
@@ -2641,10 +2641,10 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
   const vwap = levelValue(levels.vwap);
-  dwText('dw-pulse-price', finiteNumber(chart?.lastPrice) == null ? 'UNAVAILABLE' : fmt(chart.lastPrice));
-  dwText('dw-pulse-vwap', vwap == null ? 'UNAVAILABLE' : fmt(vwap, 2));
+  terminalWrite('dw-pulse-price', finiteNumber(chart?.lastPrice) == null ? null : fmt(chart.lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
+  terminalWrite('dw-pulse-vwap', vwap == null ? null : fmt(vwap, 2), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
   dwText('dw-pulse-vwap-mode', chart?.vwapSession === 'DAY' ? 'DAY VWAP · 本時段' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP · 本時段' : 'Session VWAP');
-  dwText('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
+  terminalWrite('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
 
   const mappings = [
     ['PARTICIPATION_BREADTH', 'dw-pulse-breadth', 'dw-pulse-breadth-mode'],
@@ -2655,7 +2655,9 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   mappings.forEach(([family, valueId, modeId]) => {
     const evidence = dw4FamilyEvidence(contract, family);
     const values = dw4PulseValues(contract, family, family === 'PARTICIPATION_BREADTH' ? 5 : 2);
-    dwText(valueId, values.length ? values.map((entry) => `${entry.label} ${dw4DescriptiveValue(entry)}`).join(' · ') : 'UNAVAILABLE');
+    terminalWrite(valueId, values.length ? values.map((entry) => `${entry.label} ${dw4DescriptiveValue(entry)}`).join(' · ') : null, {
+      reason: evidence?.reason || `${family}_UNAVAILABLE`,
+    });
     const modes = [...new Set(values.map((entry) => sourceModeLabel(entry.sourceMode)).filter(Boolean))];
     const truth = family === 'PARTICIPATION_BREADTH'
       ? [evidence?.detail?.displaySourceLabel, evidence?.detail?.sourceTradeDate,
@@ -2667,7 +2669,7 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   });
   dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
   const latestVolume = Array.isArray(chart?.bars) ? finiteNumber(chart.bars.at(-1)?.volume) : null;
-  dwText('dw-pulse-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
+  terminalWrite('dw-pulse-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
 }
 
 function terminalSetTrust(cardKey, evidence) {
@@ -2676,7 +2678,9 @@ function terminalSetTrust(cardKey, evidence) {
   const promotion = evidence?.promotionState || 'NOT_PROMOTED';
   const target = $(`tt-${cardKey}-trust`);
   if (target) {
-    target.textContent = `${cardKey === 'global' ? 'FAMILY ' : ''}${availability} · ${quality}`;
+    target.textContent = availability === 'UNAVAILABLE'
+      ? terminalUnavailable(evidence?.reason || `${cardKey.toUpperCase()}_FAMILY_UNAVAILABLE`)
+      : `${cardKey === 'global' ? 'FAMILY ' : ''}${availability} · ${quality}`;
     target.className = `dw-status-pill ${healthTone(availability === 'AVAILABLE' ? quality : availability)}`;
     target.title = `${cardKey === 'global' ? 'cardLayer=GLOBAL_FX_FAMILY; ' : ''}promotionState=${promotion}`;
   }
@@ -2713,7 +2717,7 @@ function terminalSourceContext(item, { tradeDate = null, contract = null, source
 function terminalWrite(id, value, { reason = 'SOURCE_UNAVAILABLE', title = null } = {}) {
   const node = $(id);
   if (!node) return;
-  const available = value != null && value !== '' && value !== '—';
+  const available = value != null && value !== '' && value !== '—' && value !== 'UNAVAILABLE';
   node.textContent = available ? String(value) : terminalUnavailable(reason);
   node.classList.toggle('is-unavailable', !available);
   const context = title || (available ? String(value) : reason);
@@ -2757,7 +2761,8 @@ function terminalBreadthCounts(data) {
 function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretation) {
   const { evidence, values } = terminalEvidenceValues(contract, family);
   const trust = terminalSetTrust(cardKey, evidence);
-  const main = values.length ? `${values[0].label} ${dw4DescriptiveValue(values[0])}` : trust.availability;
+  const unavailable = terminalUnavailable(evidence?.reason || `${family}_UNAVAILABLE`);
+  const main = values.length ? `${values[0].label} ${dw4DescriptiveValue(values[0])}` : unavailable;
   dwText(`tt-${cardKey}-main`, main);
   const visual = $(`tt-${cardKey}-values`);
   if (visual) {
@@ -2769,7 +2774,7 @@ function renderTerminalEvidenceCard(cardKey, contract, family, emptyInterpretati
         row.textContent = `${entry.label} ${dw4DescriptiveValue(entry)} · ${sourceModeLabel(entry.sourceMode)}`;
         return row;
       });
-      visual.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('span'), { textContent: trust.availability })]));
+      visual.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('span'), { textContent: unavailable })]));
     }
   }
   const sourceLabel = evidence?.detail?.displaySourceLabel;
@@ -2786,8 +2791,9 @@ function renderGlobalTiles(evidence) {
     const tile = $(`tt-global-name-${index}`)?.closest('.tt-global-tile');
     if (tile) tile.hidden = !entry;
     dwText(`tt-global-name-${index}`, entry?.label || `來源 ${index}`);
-    dwText(`tt-global-price-${index}`, available ? dw4DescriptiveValue(entry) : '—', '—');
-    dwText(`tt-global-change-${index}`, available ? 'AVAILABLE' : 'UNAVAILABLE');
+    const unavailableReason = entry?.reason || evidence?.reason || 'GLOBAL_VALUE_UNAVAILABLE';
+    terminalWrite(`tt-global-price-${index}`, available ? dw4DescriptiveValue(entry) : null, { reason: unavailableReason });
+    terminalWrite(`tt-global-change-${index}`, available ? 'AVAILABLE' : null, { reason: unavailableReason });
     const kind = tile?.querySelector('.tt-global-data-kind');
     if (kind) kind.textContent = entry?.sourceMode ? sourceModeLabel(entry.sourceMode) : 'SOURCE UNAVAILABLE';
     tile?.classList.remove('is-positive', 'is-negative');
@@ -2797,7 +2803,7 @@ function renderGlobalTiles(evidence) {
       tile?.classList.toggle('is-positive', numeric > 0);
       tile?.classList.toggle('is-negative', numeric < 0);
     }
-    tile?.setAttribute('aria-label', `${entry?.label || `來源 ${index}`}：${available ? dw4DescriptiveValue(entry) : 'UNAVAILABLE'}；${entry?.sourceMode ? sourceModeLabel(entry.sourceMode) : '來源目前無法取得'}`);
+    tile?.setAttribute('aria-label', `${entry?.label || `來源 ${index}`}：${available ? dw4DescriptiveValue(entry) : terminalUnavailable(unavailableReason)}；${entry?.sourceMode ? sourceModeLabel(entry.sourceMode) : '來源目前無法取得'}`);
     $(`tt-global-series-${index}`)?.classList.add('is-unavailable');
   }
 }
@@ -2833,13 +2839,15 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   const futuresContext = terminalSourceContext(futuresMarketHealth, { tradeDate: futuresTradeDate, contract: snapshotContract });
   const basisContext = `${futuresContext} | ${terminalSourceContext(marketOverviewHealth, { tradeDate: marketTradeDate })}`;
 
-  dwText('tt-top-contract', chart?.actualContract ? `台指期貨 ${chart.actualContract}` : '台指期貨');
-  dwText('tt-top-price', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
+  dwText('tt-top-contract', chart?.actualContract
+    ? `台指期貨 ${chart.actualContract}`
+    : `台指期貨 · ${terminalUnavailable('ACTUAL_CONTRACT_NOT_REPORTED')}`);
+  terminalWrite('tt-top-price', lastPrice == null ? null : fmt(lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
   terminalWrite('tt-top-change', lastPrice != null && previousClose != null ? signed(lastPrice - previousClose, ' 點', 2) : null, {
     reason: chart?.levels?.previousClose?.reason || 'PREVIOUS_CLOSE_UNAVAILABLE',
     title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.previousClose?.source || chart?.source }),
   });
-  dwText('tt-top-volume', latestVolume == null ? 'UNAVAILABLE' : fmt(latestVolume));
+  terminalWrite('tt-top-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
   const marketOi = futuresMarketUsable && finiteNumber(txDay.openInterest) > 0 ? finiteNumber(txDay.openInterest) : null;
   terminalWrite('tt-top-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
     reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : futuresMarketHealth?.reason || 'OPEN_INTEREST_UNAVAILABLE', title: futuresContext,
@@ -2848,30 +2856,36 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-top-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
     reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
   });
-  dwText('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || 'UNAVAILABLE');
-  dwText('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : '更新 UNAVAILABLE');
-  dwText('tt-top-trust', chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE');
+  terminalWrite('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || null, { reason: 'TRADE_DATE_OR_SESSION_UNAVAILABLE' });
+  terminalWrite('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
+  terminalWrite('tt-top-trust', chart?.qualityStatus || global.dataHealth || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
   const topTrust = $('tt-top-trust');
   if (topTrust) topTrust.className = `dw-status-pill ${healthTone(chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE')}`;
 
-  dwText('tt-summary-price', currentFacts.priceStructureFact || 'UNAVAILABLE');
+  terminalWrite('tt-summary-price', currentFacts.priceStructureFact || null, { reason: 'PRICE_STRUCTURE_FACT_UNAVAILABLE' });
   dwText('tt-summary-strength', 'RESEARCH_PENDING');
-  dwText('tt-summary-vwap', vwap == null ? 'UNAVAILABLE' : fmt(vwap, 2));
-  dwText('tt-summary-breadth', dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState || 'UNAVAILABLE');
-  dwText('tt-summary-flow', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE');
-  dwText('tt-summary-risk', decision.risk || 'UNAVAILABLE');
+  terminalWrite('tt-summary-vwap', vwap == null ? null : fmt(vwap, 2), { reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  const breadthAvailability = dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState;
+  const flowAvailability = dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState;
+  terminalWrite('tt-summary-breadth', breadthAvailability && breadthAvailability !== 'UNAVAILABLE' ? breadthAvailability : null, { reason: 'PARTICIPATION_BREADTH_UNAVAILABLE' });
+  terminalWrite('tt-summary-flow', flowAvailability && flowAvailability !== 'UNAVAILABLE' ? flowAvailability : null, { reason: 'FUTURES_INSTITUTIONAL_UNAVAILABLE' });
+  terminalWrite('tt-summary-risk', decision.risk && decision.risk !== 'UNAVAILABLE' ? decision.risk : null, { reason: 'RISK_STATUS_UNAVAILABLE' });
 
   dwText('tt-trend-main', 'RESEARCH_PENDING');
   dwText('tt-trend-direction', 'RESEARCH_PENDING');
   dwText('tt-trend-strength', 'RESEARCH_PENDING');
   dwText('tt-trend-change', 'RESEARCH_PENDING');
+  const trendBreadthAvailability = dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState;
+  const trendFuturesAvailability = dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState;
   for (const [id, value] of [
     ['tt-trend-price-track', 'RESEARCH_PENDING'],
     ['tt-trend-vwap-track', 'RESEARCH_PENDING'],
     ['tt-trend-path-track', 'RESEARCH_PENDING'],
-    ['tt-trend-breadth-track', dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState || 'UNAVAILABLE'],
+    ['tt-trend-breadth-track', trendBreadthAvailability && trendBreadthAvailability !== 'UNAVAILABLE'
+      ? trendBreadthAvailability : terminalUnavailable('PARTICIPATION_BREADTH_UNAVAILABLE')],
     ['tt-trend-leadership-track', 'NOT_REQUESTED'],
-    ['tt-trend-futures-track', dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState || 'UNAVAILABLE'],
+    ['tt-trend-futures-track', trendFuturesAvailability && trendFuturesAvailability !== 'UNAVAILABLE'
+      ? trendFuturesAvailability : terminalUnavailable('FUTURES_INSTITUTIONAL_UNAVAILABLE')],
   ]) {
     const target = $(id)?.querySelector('header strong');
     if (target) target.textContent = value;
@@ -2892,7 +2906,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-pulse-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
     reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
   });
-  dwText('tt-futures-tx', lastPrice == null ? 'UNAVAILABLE' : fmt(lastPrice));
+  terminalWrite('tt-futures-tx', lastPrice == null ? null : fmt(lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
   const vwapDelta = lastPrice != null && vwap != null ? lastPrice - vwap : null;
   terminalWrite('tt-futures-vwap', vwapDelta == null ? null : `${vwapDelta > 0 ? '上方' : vwapDelta < 0 ? '下方' : '貼近'} ${signed(vwapDelta, ' 點', 2)}`, {
     reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE', title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.vwap?.source || chart?.source }),
@@ -2966,11 +2980,29 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   if (breadthSeriesLabel) breadthSeriesLabel.textContent = '盤中參與趨勢 · RESEARCH_PENDING';
 
   dwText('tt-contribution-net', 'NOT_REQUESTED');
-  dwText('tt-gpt-disabled-state', 'UI SHELL · DISABLED');
+  const copyContextReady = typeof workspace?.chatGptCopy === 'string' && workspace.chatGptCopy.trim().length > 0;
+  for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
+    const button = $(id);
+    if (!button) continue;
+    button.disabled = !copyContextReady;
+    button.setAttribute('aria-disabled', String(!copyContextReady));
+  }
+  terminalWrite('tt-gpt-disabled-state', copyContextReady ? 'COPY SNAPSHOT · READY' : null, {
+    reason: 'COPY_CONTEXT_UNAVAILABLE',
+    title: copyContextReady
+      ? 'Manual question + immutable snapshot copy is available; no direct GPT API is connected.'
+      : 'The dashboard copy context has not loaded; no direct GPT API is connected.',
+  });
 
-  const health = global.dataHealth || 'UNAVAILABLE';
-  dwText('tt-health-main', health);
-  terminalWrite('tt-health-ring-value', health === 'UNAVAILABLE' ? null : health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health}` });
+  const health = global.dataHealth && global.dataHealth !== 'UNAVAILABLE' ? global.dataHealth : null;
+  terminalWrite('tt-health-main', health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health || 'UNAVAILABLE'}` });
+  if (health) terminalWrite('tt-health-ring-value', health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health}` });
+  else {
+    dwText('tt-health-ring-value', 'N/A');
+    const healthRingValue = $('tt-health-ring-value');
+    healthRingValue?.setAttribute('title', 'DATA_HEALTH_UNAVAILABLE');
+    healthRingValue?.setAttribute('aria-label', 'DATA_HEALTH_UNAVAILABLE');
+  }
   for (const [id, sourceIds] of [
     ['tt-health-market', ['chartBar', 'txTick', 'marketOverview']],
     ['tt-health-institutional', ['cashInstitutional', 'futuresPositioning']],
@@ -2983,18 +3015,69 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   }
   const healthTrust = $('tt-health-trust');
   if (healthTrust) {
-    healthTrust.textContent = health;
-    healthTrust.className = `dw-status-pill ${healthTone(health)}`;
+    healthTrust.textContent = health || terminalUnavailable('DATA_HEALTH_UNAVAILABLE');
+    healthTrust.className = `dw-status-pill ${healthTone(health || 'UNAVAILABLE')}`;
   }
 
   const risk = decision.risk && decision.risk !== 'UNAVAILABLE' ? decision.risk : null;
-  terminalWrite('tt-risk-ring-value', risk, { reason: 'RISK_STATUS_UNAVAILABLE', title: 'Existing decisionSummary.risk status only' });
+  if (risk) terminalWrite('tt-risk-ring-value', risk, { reason: 'RISK_STATUS_UNAVAILABLE', title: 'Existing decisionSummary.risk status only' });
+  else dwText('tt-risk-ring-value', 'N/A');
   dwText('tt-risk-ring-state', risk ? 'EXISTING STATUS' : terminalUnavailable('RISK_STATUS_UNAVAILABLE'));
+  $('tt-risk-ring-value')?.closest('.tt-risk-layout')?.classList.toggle('is-unavailable', !risk);
   for (const id of ['tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth']) {
     terminalWrite(id, null, { reason: 'BREAKDOWN_NOT_IMPLEMENTED', title: 'No approved component risk contract; no value inferred.' });
   }
   const riskSeriesLabel = $('tt-risk-series')?.previousElementSibling;
   if (riskSeriesLabel) riskSeriesLabel.textContent = 'Risk Trend · RESEARCH_PENDING';
+}
+
+function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
+  const root = $('decision-workspace');
+  if (!root) return;
+  const unavailable = terminalUnavailable(reason);
+  root.setAttribute('data-dashboard-load-state', 'UNAVAILABLE');
+  root.setAttribute('aria-busy', 'false');
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const value = node.nodeValue.trim();
+    if (['—', 'LOADING', 'UNAVAILABLE'].includes(value)) node.nodeValue = node.nodeValue.replace(value, unavailable);
+    else if (value === '更新 LOADING') node.nodeValue = node.nodeValue.replace(value, `更新 ${unavailable}`);
+    else if (value.length <= 80 && value.includes('—')) node.nodeValue = node.nodeValue.replace(value, unavailable);
+    else if (/^0 \/ \d+ evidence families$/u.test(value) || /^0 STALE · 0 UNAVAILABLE$/u.test(value)) {
+      node.nodeValue = node.nodeValue.replace(value, unavailable);
+    }
+  }
+  for (const node of root.querySelectorAll('[id^="tt-"]')) {
+    if (!['B', 'STRONG', 'SPAN', 'SMALL'].includes(node.tagName)) continue;
+    const current = node.textContent.trim();
+    if (current === 'RESEARCH_PENDING' || current === 'NOT_REQUESTED' || current.startsWith('UNAVAILABLE ·')) continue;
+    node.textContent = unavailable;
+    node.classList.add('is-unavailable');
+    node.title = reason;
+    node.setAttribute('aria-label', reason);
+  }
+  dwText('tt-top-contract', '台指期貨 · DATA UNAVAILABLE');
+  dwText('tt-top-trust', unavailable);
+  const topTrust = $('tt-top-trust');
+  if (topTrust) topTrust.className = 'dw-status-pill is-unavailable';
+  for (const id of [
+    'dw-pulse-price', 'dw-pulse-vwap', 'dw-pulse-session', 'dw-pulse-breadth',
+    'dw-pulse-futures', 'dw-pulse-options', 'dw-pulse-global', 'dw-pulse-change',
+    'dw-pulse-volume', 'dw-pulse-vwap-mode', 'dw-pulse-breadth-mode',
+    'dw-pulse-futures-mode', 'dw-pulse-options-mode', 'dw-pulse-global-mode',
+  ]) terminalWrite(id, null, { reason });
+  for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
+    const button = $(id);
+    if (!button) continue;
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+  }
+  terminalWrite('tt-gpt-disabled-state', null, {
+    reason: 'COPY_CONTEXT_UNAVAILABLE',
+    title: `Dashboard source unavailable: ${reason}`,
+  });
 }
 
 function leadershipRow(row, maxAbs, { compact = false } = {}) {
@@ -3009,16 +3092,21 @@ function leadershipRow(row, maxAbs, { compact = false } = {}) {
     fill.style.setProperty('--magnitude', maxAbs > 0 && Number.isFinite(points) ? Math.min(1, Math.abs(points) / maxAbs) : 0);
     track.append(fill); item.append(label, track);
   } else item.append(label);
-  const value = document.createElement('output'); value.textContent = Number.isFinite(points) ? signed(points, ' 點', 2) : '—';
+  const value = document.createElement('output'); value.textContent = Number.isFinite(points)
+    ? signed(points, ' 點', 2)
+    : terminalUnavailable('CONTRIBUTION_POINTS_UNAVAILABLE');
   item.append(value); return item;
 }
 
-function renderLeadershipList(id, rows, limit, { compact = false } = {}) {
+function renderLeadershipList(id, rows, limit, {
+  compact = false,
+  reason = 'INDEX_LEADERSHIP_ROWS_UNAVAILABLE',
+} = {}) {
   const target = $(id);
   if (!target) return;
   const selected = (Array.isArray(rows) ? rows : []).slice(0, limit);
   if (!selected.length) {
-    const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = '等待 DAY 原始事件';
+    const empty = document.createElement('p'); empty.className = 'is-empty'; empty.textContent = terminalUnavailable(reason);
     target.replaceChildren(empty); return;
   }
   const maxAbs = Math.max(...selected.map((row) => Math.abs(finiteNumber(row?.points) ?? 0)), 0);
@@ -3034,10 +3122,18 @@ function renderIndexLeadership(leadership) {
   dwText('dw-leadership-time', value.lastAvailableAt
     ? `資料日 ${value.sourceTradeDate || '—'} · ${timeLabel(value.lastAvailableAt)}` : 'LIVE DAY EVENT ACCEPTANCE PENDING');
   dwText('dw-leadership-quality', value.quality || 'QUALITY_INSUFFICIENT');
-  renderLeadershipList('dw-leadership-bars', value.indexLeadership?.topAbsolute, 7);
-  renderLeadershipList('dw-leadership-positive', value.indexLeadership?.topPositive, 4, { compact: true });
-  renderLeadershipList('dw-leadership-negative', value.indexLeadership?.topNegative, 4, { compact: true });
-  renderLeadershipList('dw-industry-bars', value.industryLeadership?.rows, 6);
+  const leadershipReason = value.reason || 'INDEX_LEADERSHIP_UNAVAILABLE';
+  const leadershipState = value.state && value.state !== 'UNAVAILABLE' ? value.state : null;
+  terminalWrite('dw-leadership-state', leadershipState, { reason: leadershipReason });
+  terminalWrite('dw-leadership-mode', value.sourceMode ? `${value.sourceMode} · IX0001 DAY` : null, { reason: leadershipReason });
+  terminalWrite('dw-leadership-time', value.lastAvailableAt
+    ? `資料日 ${value.sourceTradeDate || 'DATE_NOT_REPORTED'} · ${timeLabel(value.lastAvailableAt)}` : null, {
+    reason: value.state === 'LIVE' ? 'AVAILABLE_AT_NOT_REPORTED' : leadershipReason,
+  });
+  renderLeadershipList('dw-leadership-bars', value.indexLeadership?.topAbsolute, 7, { reason: leadershipReason });
+  renderLeadershipList('dw-leadership-positive', value.indexLeadership?.topPositive, 4, { compact: true, reason: leadershipReason });
+  renderLeadershipList('dw-leadership-negative', value.indexLeadership?.topNegative, 4, { compact: true, reason: leadershipReason });
+  renderLeadershipList('dw-industry-bars', value.industryLeadership?.rows, 6, { reason: leadershipReason });
   const invariant = value.industryLeadership || {};
   dwText('dw-industry-invariant', invariant.invariantDelta == null
     ? '總和檢核等待資料'
@@ -3051,6 +3147,14 @@ async function loadIndexLeadership() {
     const payload = await api('/api/v1/index-leadership');
     renderIndexLeadership(payload.data);
   } finally { state.indexLeadershipLoading = false; }
+}
+
+function renderIndexLeadershipFailure(error) {
+  renderIndexLeadership({
+    state: 'UNAVAILABLE',
+    reason: `INDEX_LEADERSHIP_API_UNAVAILABLE:${error?.message || 'UNKNOWN_FAILURE'}`,
+    quality: 'QUALITY_INSUFFICIENT',
+  });
 }
 
 function renderRuntimeVersion(version = {}) {
@@ -3275,16 +3379,16 @@ function addTxChartLevel(level, title, color, style = null) {
 function renderTxChartLevels(chart) {
   const levels = chart?.levels || {};
   const prior = [levelValue(levels.previousDayHigh), levelValue(levels.previousDayLow), levelValue(levels.previousClose)];
-  dwText('dw-prior-levels', prior.every((value) => value != null) ? prior.map((value) => fmt(value)).join(' / ') : dwHumanize(levels.previousClose?.reason || 'UNAVAILABLE'));
+  terminalWrite('dw-prior-levels', prior.every((value) => value != null) ? prior.map((value) => fmt(value)).join(' / ') : null, { reason: levels.previousClose?.reason || 'PRIOR_LEVELS_UNAVAILABLE' });
   const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
-  dwText('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : 'UNAVAILABLE');
-  const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : dwHumanize(chart?.openingRange?.reason || 'UNAVAILABLE');
-  dwText('dw-or-state', orText);
+  terminalWrite('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
+  const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : null;
+  terminalWrite('dw-or-state', orText, { reason: chart?.openingRange?.reason || 'OPENING_RANGE_UNAVAILABLE' });
   dwText('dw-vwap-label', chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP');
-  dwText('dw-vwap-state', levelValue(levels.vwap) == null ? dwHumanize(levels.vwap?.reason || 'UNAVAILABLE') : fmt(levels.vwap.value, 2));
-  dwText('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : 'UNAVAILABLE');
-  dwText('dw-chart-quality', chart?.qualityStatus || 'UNAVAILABLE');
+  terminalWrite('dw-vwap-state', levelValue(levels.vwap) == null ? null : fmt(levels.vwap.value, 2), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  terminalWrite('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
+  terminalWrite('dw-chart-quality', chart?.qualityStatus || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
 
   clearTxChartLevels();
   if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
@@ -3516,16 +3620,21 @@ function renderMarketChangeFeed(feed) {
 
 function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
-  dwText('dw-chart-status', payload?.status || 'UNAVAILABLE');
+  const chartReason = payload?.reason || 'TX_CHART_UNAVAILABLE';
+  const chartUnavailable = terminalUnavailable(chartReason);
+  dwText('dw-chart-status', payload?.status && payload.status !== 'UNAVAILABLE' ? payload.status : chartUnavailable);
   $('dw-chart-status').className = `dw-status-pill ${payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
-  dwText('dw-chart-session', payload?.session || '—');
-  dwText('dw-chart-contract', payload?.actualContract ? `TX ${payload.actualContract}` : 'TX —');
-  dwText('dw-chart-mode', `${payload?.mode || 'LIVE'} · ${payload?.timeframe || state.txChartTimeframe} · READ ONLY`);
-  dwText('dw-reference-price', Number.isFinite(Number(payload?.lastPrice)) ? fmt(payload.lastPrice) : '—', '—');
+  dwText('dw-chart-session', payload?.session || chartUnavailable);
+  dwText('dw-chart-contract', payload?.actualContract ? `TX ${payload.actualContract}` : chartUnavailable);
+  dwText('dw-chart-mode', `${payload?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${payload?.timeframe || state.txChartTimeframe} · READ ONLY`);
+  const chartLastPrice = finiteNumber(payload?.lastPrice);
+  dwText('dw-reference-price', chartLastPrice == null ? chartUnavailable : fmt(chartLastPrice), chartUnavailable);
   const chart = ensureTxChart();
   renderTxChartLevels(payload);
-  renderMarketPulse(state.decisionWorkspace, payload);
-  renderTerminalShell(state.decisionWorkspace, payload);
+  if ($('decision-workspace')?.dataset.dashboardLoadState !== 'UNAVAILABLE') {
+    renderMarketPulse(state.decisionWorkspace, payload);
+    renderTerminalShell(state.decisionWorkspace, payload);
+  }
 
   const visualizable = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
   $('dw-chart-empty').classList.toggle('hidden', visualizable);
@@ -3614,11 +3723,16 @@ function renderDecisionWorkspace(workspace) {
   $('dw-focus-mode')?.classList.toggle('is-capability-limited', compactCapabilityValues.every((value) => !value || ['UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(value)));
 
   dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
-  const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : '—';
-  dwText('dw-reference-price', reference, '—');
-  dwText('dw-or-state', availabilityLabel(chart.OR));
-  dwText('dw-vwap-state', availabilityLabel(chart.VWAP));
-  dwText('dw-rvol-state', availabilityLabel(chart.RVOL));
+  const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : null;
+  terminalWrite('dw-reference-price', reference, { reason: chart.price?.reason || chart.reason || 'PRICE_REFERENCE_UNAVAILABLE' });
+  for (const [id, field, fallback] of [
+    ['dw-or-state', chart.OR, 'OPENING_RANGE_UNAVAILABLE'],
+    ['dw-vwap-state', chart.VWAP, 'VWAP_UNAVAILABLE'],
+    ['dw-rvol-state', chart.RVOL, 'DERIVATION_NOT_IMPLEMENTED'],
+  ]) {
+    const label = availabilityLabel(field);
+    terminalWrite(id, label && label !== 'UNAVAILABLE' ? label : null, { reason: field?.reason || fallback });
+  }
 
   renderPlainList('dw-support-list', workspace?.againstMyTrade?.support, 'NOT_IMPLEMENTED');
   renderPlainList('dw-against-list', workspace?.againstMyTrade?.against, 'NOT_IMPLEMENTED');
@@ -3677,6 +3791,9 @@ async function copyToClipboard(value) {
 }
 
 async function loadDashboard() {
+  const terminalRoot = $('decision-workspace');
+  terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
+  terminalRoot?.setAttribute('aria-busy', 'true');
   const [payload] = await Promise.all([api('/api/v1/dashboard'), loadHistory(), loadBacktest(), loadV2Research().catch((error) => {
     text('v2-data-status', `V2 無法讀取：${error.message}`); $('v2-data-status').className = 'source-badge bad';
   }), loadV2Backtests().catch((error) => {
@@ -3684,11 +3801,13 @@ async function loadDashboard() {
   })]);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
-  await loadIndexLeadership().catch(() => {});
+  await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
   await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
   if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
+  terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
+  terminalRoot?.setAttribute('aria-busy', 'false');
 }
 
 function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
@@ -3698,6 +3817,7 @@ function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
   box.dataset.dashboardLoadError = 'true';
   box.textContent = `Dashboard data unavailable · ${context} · ${message}`;
   $('alert-area')?.replaceChildren(box);
+  renderTerminalDashboardFailure(`${context}:${message}`);
   console.error(`[${context}] ${message}`);
 }
 
@@ -3767,7 +3887,7 @@ $('dw-copy-chatgpt').addEventListener('click', async () => {
 });
 $('dw-copy-gpt-prompt').addEventListener('click', async () => {
   const workspace = state.decisionWorkspace;
-  if (!workspace?.chatGptCopy) return;
+  if (!workspace?.chatGptCopy) { dwText('dw-journal-feedback', 'Copy context UNAVAILABLE'); return; }
   await copyToClipboard(`QUESTION\n${state.gptQuestion}\n\n${workspace.chatGptCopy}`);
   dwText('dw-journal-feedback', 'Question + immutable snapshot copied');
 });
@@ -3852,10 +3972,7 @@ $('login-form').addEventListener('submit', async (event) => {
   try {
     await loadDashboard();
   } catch (error) {
-    const box = document.createElement('div');
-    box.className = 'alert bad';
-    box.textContent = `登入成功，但面板資料載入失敗：${error.message}`;
-    $('alert-area').replaceChildren(box);
+    reportDashboardLoadError(error, 'POST_LOGIN_DASHBOARD_LOAD');
   } finally {
     button.disabled = false;
   }
@@ -3998,5 +4115,5 @@ setInterval(() => {
 
 // IX0001 Leadership consumes the bounded latest cache only; it never reloads the full ledger.
 setInterval(() => {
-  if (!$('dashboard-view').classList.contains('hidden')) loadIndexLeadership().catch(() => {});
+  if (!$('dashboard-view').classList.contains('hidden')) loadIndexLeadership().catch(renderIndexLeadershipFailure);
 }, 5_000);
