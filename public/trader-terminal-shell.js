@@ -72,11 +72,12 @@
   function terminalTopbar(root) {
     const heading = root.querySelector('.dw-page-heading');
     if (!heading || heading.classList.contains('tt-terminal-topbar')) return heading;
+    const modeSwitch = heading.querySelector('.dw-mode-switch');
     heading.className = 'tt-terminal-topbar';
     const identity = element('div', 'tt-market-identity');
     identity.append(
       Object.assign(element('strong', '', '台指期貨'), { id: 'tt-top-contract' }),
-      Object.assign(element('b', '', '—'), { id: 'tt-top-price' }),
+      Object.assign(element('b', '', 'LOADING'), { id: 'tt-top-price' }),
       Object.assign(element('span', '', 'UNAVAILABLE'), { id: 'tt-top-change' }),
     );
     const facts = element('div', 'tt-top-facts');
@@ -85,11 +86,12 @@
     ]) facts.append(compactMetric(label, id));
     const status = element('div', 'tt-top-status');
     status.append(
-      Object.assign(element('small', '', '更新 —'), { id: 'tt-top-updated' }),
+      Object.assign(element('small', '', '更新 LOADING'), { id: 'tt-top-updated' }),
       Object.assign(element('span', 'dw-status-pill is-unavailable', 'UNAVAILABLE'), { id: 'tt-top-trust' }),
       element('span', 'tt-descriptive-only', 'DESCRIPTIVE ONLY'),
       element('span', 'tt-no-signal', 'NOT A TRADING SIGNAL'),
     );
+    if (modeSwitch) status.append(modeSwitch);
     heading.replaceChildren(identity, facts, status);
     return heading;
   }
@@ -134,7 +136,7 @@
     return visualNode;
   }
 
-  function compactMetric(label, id, value = '—', subtitle = '') {
+  function compactMetric(label, id, value = 'LOADING', subtitle = '') {
     const metric = element('article', 'tt-compact-metric');
     metric.append(element('span', '', label), Object.assign(element('strong', '', value), { id }));
     if (subtitle) metric.append(element('small', '', subtitle));
@@ -192,7 +194,7 @@
     const overview = element('div', 'tt-compact-metrics tt-trend-overview');
     overview.append(
       compactMetric('方向', 'tt-trend-direction'),
-      compactMetric('強度', 'tt-trend-strength', '—'),
+      compactMetric('強度', 'tt-trend-strength', 'RESEARCH_PENDING'),
       compactMetric('強度變化', 'tt-trend-change'),
     );
     const factors = element('div', 'tt-track-list tt-trend-factors');
@@ -228,14 +230,16 @@
     insertVisual(cardNode, price.group);
     insertVisual(cardNode, positions.group);
     insertVisual(cardNode, oi.group);
-    insertVisual(cardNode, miniBars('tt-futures-bars'));
+    const fixtureBars = miniBars('tt-futures-bars tt-fixture-only');
+    fixtureBars.setAttribute('aria-label', 'Fixture-only futures visual; no production series contract');
+    insertVisual(cardNode, fixtureBars);
   }
 
   function buildOptionsVisual(cardNode) {
     const layout = element('div', 'tt-options-layout');
     const ring = element('div', 'tt-ring tt-options-ring');
     const center = element('div', 'tt-ring-center');
-    center.append(element('span', '', 'OI 結構'), Object.assign(element('strong', '', '—'), { id: 'tt-options-ring-value' }));
+    center.append(element('span', '', 'OI 結構'), Object.assign(element('strong', '', 'LOADING'), { id: 'tt-options-ring-value' }));
     ring.append(center);
     const metrics = element('div', 'tt-options-metrics');
     for (const [label, id] of [['Call Wall', 'tt-options-call'], ['Put Wall', 'tt-options-put'], ['Max Pain', 'tt-options-max-pain'], ['OI Context', 'tt-options-oi']]) {
@@ -252,8 +256,10 @@
     participation.setAttribute('aria-label', '市場參與度 visual placeholder; unavailable does not mean zero');
     participation.append(element('i', 'is-up'), element('i', 'is-flat'), element('i', 'is-down'));
     const context = element('div', 'tt-compact-metrics tt-breadth-context');
-    context.append(compactMetric('漲跌比', 'tt-breadth-ratio'), compactMetric('參與強度', 'tt-breadth-strength'));
-    const seriesWrap = element('div', 'tt-series-block tt-breadth-series-block');
+    const strength = compactMetric('參與強度', 'tt-breadth-strength', 'RESEARCH_PENDING');
+    strength.classList.add('tt-detail-only');
+    context.append(compactMetric('漲跌比', 'tt-breadth-ratio'), strength);
+    const seriesWrap = element('div', 'tt-series-block tt-breadth-series-block tt-detail-only');
     seriesWrap.append(element('span', '', '盤中參與趨勢'), miniSeries('tt-breadth-series', 'is-unavailable'));
     insertVisual(cardNode, metrics);
     insertVisual(cardNode, participation);
@@ -272,9 +278,9 @@
       );
       tile.append(
         Object.assign(element('span', '', `來源 ${index}`), { id: `tt-global-name-${index}` }),
-        Object.assign(element('strong', '', '—'), { id: `tt-global-price-${index}` }),
+        Object.assign(element('strong', '', 'LOADING'), { id: `tt-global-price-${index}` }),
         change,
-        miniSeries(`tt-global-series-${index}`, 'tt-global-mini is-unavailable'),
+        miniSeries(`tt-global-series-${index}`, 'tt-global-mini is-unavailable tt-fixture-only'),
       );
       tiles.append(tile);
     }
@@ -286,9 +292,9 @@
     const layout = element('div', 'tt-risk-layout');
     const ring = element('div', 'tt-ring tt-risk-ring');
     const center = element('div', 'tt-ring-center');
-    center.append(Object.assign(element('strong', '', '—'), { id: 'tt-risk-ring-value' }), Object.assign(element('span', '', 'UNAVAILABLE'), { id: 'tt-risk-ring-state' }));
+    center.append(Object.assign(element('strong', '', 'LOADING'), { id: 'tt-risk-ring-value' }), Object.assign(element('span', '', 'UNAVAILABLE'), { id: 'tt-risk-ring-state' }));
     ring.append(center);
-    const states = element('div', 'tt-risk-states');
+    const states = element('div', 'tt-risk-states tt-detail-only');
     for (const [label, id] of [
       ['波動風險', 'tt-risk-volatility'], ['流動性風險', 'tt-risk-liquidity'],
       ['事件風險', 'tt-risk-event'], ['市場廣度壓力', 'tt-risk-breadth'],
@@ -298,7 +304,7 @@
       metric.append(element('i', 'tt-risk-indicator'));
       states.append(metric);
     }
-    const trend = element('div', 'tt-series-block tt-risk-series-block');
+    const trend = element('div', 'tt-series-block tt-risk-series-block tt-detail-only');
     trend.append(element('span', '', 'Risk Trend'), miniSeries('tt-risk-series', 'tt-risk-trend is-unavailable'));
     layout.append(ring, states, trend);
     const axis = node.querySelector('.dw-conflict-axis-grid');
@@ -313,13 +319,13 @@
       const group = element('section', `tt-contribution-group ${tone}`);
       group.append(element('h4', '', title));
       for (let index = 1; index <= 5; index += 1) {
-        const row = trackRow('—', `tt-contribution-${prefix}-${index}`, '—');
+        const row = trackRow('資料不可用', `tt-contribution-${prefix}-${index}`, 'UNAVAILABLE · LEADERSHIP_DOM_MISSING');
         group.append(row);
       }
       layout.append(group);
     }
     const net = element('div', 'tt-contribution-net');
-    net.append(element('span', '', '淨貢獻'), Object.assign(element('strong', '', 'UNAVAILABLE'), { id: 'tt-contribution-net' }));
+    net.append(element('span', '', '淨貢獻'), Object.assign(element('strong', '', 'UNAVAILABLE · LEADERSHIP_DOM_MISSING'), { id: 'tt-contribution-net' }));
     layout.append(net);
     const bars = node.querySelector('.dw-leadership-bars');
     if (bars) bars.replaceWith(layout);
@@ -394,7 +400,8 @@
     const change = pulse?.querySelector('#dw-pulse-change');
     const changeMetric = change?.closest('article') ?? change;
     if (changeMetric?.parentElement && pulse.contains(changeMetric) && !pulse.querySelector('.tt-pulse-trend')) {
-      const trend = miniBars('tt-pulse-trend');
+      const trend = miniBars('tt-pulse-trend tt-fixture-only');
+      trend.setAttribute('aria-label', 'Fixture-only pulse visual; no production series contract');
       changeMetric.parentElement.insertBefore(trend, changeMetric);
     }
   }
@@ -406,7 +413,7 @@
     const layout = element('div', 'tt-health-layout');
     const ring = element('div', 'tt-ring tt-health-ring');
     const center = element('div', 'tt-ring-center');
-    center.append(Object.assign(element('strong', '', '—'), { id: 'tt-health-ring-value' }), element('span', '', '健康度'));
+    center.append(Object.assign(element('strong', '', 'LOADING'), { id: 'tt-health-ring-value' }), element('span', '', '健康度'));
     ring.append(center);
     const sources = element('div', 'tt-health-sources');
     for (const [label, id] of [
@@ -421,23 +428,12 @@
   function ensureAskArchitecture(node) {
     if (!node || node.querySelector('.tt-gpt-visual')) return;
     const visual = element('div', 'tt-gpt-visual');
-    const prompts = element('div', 'tt-gpt-prompts');
-    const disabledState = element('strong', 'tt-gpt-disabled-state', 'UI SHELL · DISABLED');
+    const disabledState = element('strong', 'tt-gpt-disabled-state', 'COPY SNAPSHOT · LOADING');
     disabledState.id = 'tt-gpt-disabled-state';
-    visual.append(disabledState);
-    for (const prompt of ['最大反向證據？', '為何趨勢開始減弱？', '現在有什麼證據衝突？', '多單 thesis 何時失效？']) {
-      const chip = element('button', '', prompt);
-      chip.type = 'button';
-      chip.disabled = true;
-      prompts.append(chip);
-    }
-    const input = element('div', 'tt-gpt-input');
-    input.setAttribute('role', 'textbox');
-    input.setAttribute('aria-disabled', 'true');
-    input.append(element('span', '', '問目前市場…'), element('b', '', '➤'));
-    visual.append(prompts, input);
-    const copy = node.querySelector('#copy-gpt');
-    if (copy) node.insertBefore(visual, copy);
+    visual.append(disabledState, element('span', 'tt-gpt-copy-note', 'Manual copy only · no direct GPT API · not a trading signal'));
+    const copy = node.querySelector('#dw-copy-gpt-prompt');
+    const copyBody = copy?.closest('.dw-gpt-body');
+    if (copyBody?.parentElement === node) node.insertBefore(visual, copyBody);
     else node.append(visual);
   }
 
@@ -625,11 +621,11 @@
     const primary = element('div', 'tt-primary-grid');
     const tierOne = element('aside', 'tt-tier-one-grid');
     const trend = card('trend', '', '趨勢強度', 'Trend Strength', 'tt-trend-main', '正式研究尚未完成；空軌不代表 0、Neutral 或任何分數。', 'RESEARCH_PENDING');
-    trend.querySelector('#tt-trend-main').textContent = '—';
+    trend.querySelector('#tt-trend-main').textContent = 'RESEARCH_PENDING';
     buildTrendVisual(trend);
     const futures = card('futures', '', '期貨流向', 'Futures Flow', 'tt-futures-main', 'OI 與法人部位只作描述背景，不代表多空意圖。');
     buildFuturesVisual(futures);
-    tierOne.append(pulse, trend, futures);
+    tierOne.append(pulse, futures);
     primary.append(chart, tierOne);
 
     const tierTwo = element('div', 'tt-tier-two-grid');
@@ -658,7 +654,7 @@
     const progressive = element('details', 'tt-progressive');
     const progressiveSummary = element('summary', '', '證據明細 / 市場變化 / 人工決策日誌');
     const progressiveBody = element('div', 'tt-progressive-body');
-    for (const node of [focus.querySelector('.dw-now-summary'), focus.querySelector('.dw-decision-bar'), against, focus.querySelector('.dw-family-strip'), focus.querySelector('.dw-change-strip'), focus.querySelector('.dw-data-health'), focus.querySelector('.dw-journal-bar')]) {
+    for (const node of [focus.querySelector('.dw-now-summary'), focus.querySelector('.dw-decision-bar'), trend, against, focus.querySelector('.dw-family-strip'), focus.querySelector('.dw-change-strip'), focus.querySelector('.dw-data-health'), focus.querySelector('.dw-journal-bar')]) {
       if (node) progressiveBody.append(node);
     }
     progressive.append(progressiveSummary, progressiveBody);

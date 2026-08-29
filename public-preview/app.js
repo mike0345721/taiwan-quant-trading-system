@@ -326,17 +326,17 @@ function renderGovernedWorkspace(value) {
   setText('tt-summary-risk', value.decisionSummary?.risk);
   setText('dw-chart-status', 'FROZEN');
   setText('dw-pulse-status', 'FROZEN');
-  setText('dw-conflict-status', 'UNAVAILABLE');
+  setText('dw-conflict-status', 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
   setLeadershipTrust('NOT_REQUESTED');
-  setText('tt-trend-main', '—');
-  setText('tt-trend-direction', '—');
-  setText('tt-trend-strength', '—');
-  setText('tt-trend-change', '—');
+  setText('tt-trend-main', 'RESEARCH_PENDING');
+  setText('tt-trend-direction', 'RESEARCH_PENDING');
+  setText('tt-trend-strength', 'RESEARCH_PENDING');
+  setText('tt-trend-change', 'RESEARCH_PENDING');
   for (const [id, state] of [
     ['tt-trend-price-track', 'RESEARCH_PENDING'], ['tt-trend-vwap-track', 'RESEARCH_PENDING'],
     ['tt-trend-path-track', 'RESEARCH_PENDING'],
-    ['tt-trend-breadth-track', 'UNAVAILABLE'], ['tt-trend-leadership-track', 'NOT_REQUESTED'],
-    ['tt-trend-futures-track', 'UNAVAILABLE'],
+    ['tt-trend-breadth-track', 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED'], ['tt-trend-leadership-track', 'NOT_REQUESTED'],
+    ['tt-trend-futures-track', 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED'],
   ]) setTrack(id, state);
   for (const id of [
     'tt-futures-tx', 'tt-futures-vwap', 'tt-futures-basis', 'tt-futures-oi', 'tt-futures-oi-change',
@@ -345,28 +345,28 @@ function renderGovernedWorkspace(value) {
     'tt-breadth-up', 'tt-breadth-flat', 'tt-breadth-down', 'tt-breadth-ratio', 'tt-breadth-strength',
     'tt-risk-ring-value', 'tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth',
     'tt-health-ring-value', 'tt-health-market', 'tt-health-institutional', 'tt-health-futures', 'tt-health-options', 'tt-health-global',
-  ]) setText(id, '—', '—');
+  ]) setText(id, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
   for (const key of ['futures', 'options', 'breadth', 'global']) {
-    setText(`tt-${key}-main`, 'UNAVAILABLE');
-    setTrust(key, 'UNAVAILABLE');
+    setText(`tt-${key}-main`, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
+    setTrust(key, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
   }
-  setText('tt-risk-ring-state', 'UNAVAILABLE');
-  for (const id of ['tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth']) setRiskMetric(id, '—');
+  setText('tt-risk-ring-state', 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
+  for (const id of ['tt-risk-volatility', 'tt-risk-liquidity', 'tt-risk-event', 'tt-risk-breadth']) setRiskMetric(id, 'UNAVAILABLE · BREAKDOWN_NOT_IMPLEMENTED');
   setSeries('tt-breadth-series', []);
   setSeries('tt-risk-series', []);
   for (let index = 1; index <= 6; index += 1) {
     setText(`tt-global-name-${index}`, `來源 ${index}`);
-    setText(`tt-global-price-${index}`, '—', '—');
-    setText(`tt-global-change-${index}`, 'UNAVAILABLE');
+    setText(`tt-global-price-${index}`, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
+    setText(`tt-global-change-${index}`, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
     const tile = $(`tt-global-change-${index}`)?.closest('.tt-global-tile');
     tile?.classList.remove('is-positive', 'is-negative');
     setSeries(`tt-global-series-${index}`, []);
   }
   for (const side of ['positive', 'negative']) {
-    for (let index = 1; index <= 5; index += 1) setTrack(`tt-contribution-${side}-${index}`, '—');
+    for (let index = 1; index <= 5; index += 1) setTrack(`tt-contribution-${side}-${index}`, 'UNAVAILABLE · FROZEN_SNAPSHOT_FIELD_NOT_SUPPLIED');
   }
   setText('tt-contribution-net', 'NOT_REQUESTED');
-  setText('tt-gpt-disabled-state', 'UI SHELL · DISABLED');
+  setText('tt-gpt-disabled-state', 'COPY SNAPSHOT · LOADING');
   setText('health-items', (value.dataHealth?.items || []).map((item) => `${item.sourceId}: ${item.freshnessState} · ${item.quality}`).join(' · '));
   setText('dw-pulse-change', '治理凍結快照 · 無即時市場解讀');
 }
@@ -500,6 +500,9 @@ function applyPreviewIdentity(mode) {
     copyButton.disabled = fixture || !governedCopyReady || activeChart?.source === 'SIMULATED_UI_FIXTURE';
     copyButton.textContent = fixture ? 'Fixture 不可複製為證據' : '複製治理快照';
   }
+  setText('tt-gpt-disabled-state', fixture
+    ? 'FIXTURE · DISABLED'
+    : governedCopyReady ? 'COPY SNAPSHOT · READY' : 'COPY SNAPSHOT · LOADING');
   setText('tt-gpt-preview-note', fixture
     ? '視覺 Fixture 不會進入 Copy Snapshot、Ask GPT 或任何證據流程。'
     : '只會將治理凍結快照複製到瀏覽器剪貼簿。');

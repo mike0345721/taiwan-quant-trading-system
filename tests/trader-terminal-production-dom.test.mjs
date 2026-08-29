@@ -23,6 +23,22 @@ function browserBinary() {
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
+async function removeBrowserProfile(profile) {
+  const deadline = Date.now() + 15_000;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(error?.code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  throw lastError;
+}
+
 function inlineScript(source) {
   return `<script>${source.replaceAll('</script', '<\\/script')}</script>`;
 }
@@ -192,6 +208,12 @@ async function clickSelector(cdp, selector) {
   await waitAnimationFrames(cdp, 4);
 }
 
+async function pressKey(cdp, key, code = key, modifiers = 0) {
+  await cdp.command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers });
+  await cdp.command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers });
+  await waitAnimationFrames(cdp, 3);
+}
+
 const interactiveStateExpression = `(() => {
   const root = document.getElementById('decision-workspace');
   const activePages = [...document.querySelectorAll('[data-page].is-active-page')].map((node) => node.dataset.page);
@@ -204,6 +226,35 @@ const interactiveStateExpression = `(() => {
     duplicateIds,
     expandPresent: Boolean(document.getElementById('tt-chart-expand')),
     chartCanvasCount: document.querySelectorAll('.dw-chart-canvas canvas').length,
+    drawerOpen: !document.querySelector('.tt-drawer')?.hidden,
+    progressiveOpen: Boolean(document.querySelector('.tt-progressive')?.open),
+    trendInProgressive: Boolean(document.querySelector('.tt-progressive-body [data-terminal-card="trend"]')),
+    visibleFixtureOnly: [...document.querySelectorAll('.tt-fixture-only')].filter((node) => {
+      const rect = node.getBoundingClientRect();
+      return getComputedStyle(node).display !== 'none' && rect.width > 0 && rect.height > 0;
+    }).length,
+    visibleMeaninglessDashes: [...(root?.querySelectorAll('*') || [])].filter((node) => {
+      const rect = node.getBoundingClientRect();
+      const directDash = [...node.childNodes]
+        .some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '—');
+      return directDash && getComputedStyle(node).display !== 'none'
+        && getComputedStyle(node).visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    }).map((node) => (node.id || node.className || node.tagName) + ':'
+      + (node.parentElement?.id || node.parentElement?.className || node.parentElement?.tagName || '') + ':'
+      + (node.parentElement?.textContent || node.textContent).trim()),
+    visibleBareUnavailable: [...(root?.querySelectorAll('*') || [])].filter((node) => {
+      const rect = node.getBoundingClientRect();
+      const directUnavailable = [...node.childNodes]
+        .some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim() === 'UNAVAILABLE');
+      return directUnavailable && getComputedStyle(node).display !== 'none'
+        && getComputedStyle(node).visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    }).map((node) => (node.id || node.className || node.tagName) + ':'
+      + (node.parentElement?.id || node.parentElement?.className || node.parentElement?.tagName || '') + ':'
+      + (node.parentElement?.textContent || node.textContent).trim()),
+    copyState: document.getElementById('tt-gpt-disabled-state')?.textContent || '',
+    activeElementId: document.activeElement?.id || '',
+    activeElementClass: typeof document.activeElement?.className === 'string' ? document.activeElement.className : '',
+    activeDrawerTitle: document.activeElement?.dataset?.terminalDrawerTitle || '',
   };
 })()`;
 
@@ -215,13 +266,15 @@ const layoutMeasurementExpression = `(() => {
   const round = (value) => Math.round(value * 100) / 100;
   const coreSelectors = [
     '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis',
-    '#tt-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid',
+    '#tt-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid', '.tt-tier-one-grid',
+    '.tt-tier-two-grid', '.tt-tier-three-grid', '.dw-chart-toolbar',
+    '.tt-progressive > summary', '.tt-terminal-nav', '.tt-drawer-panel',
   ];
   const clippedCore = coreSelectors.flatMap((selector) => [...document.querySelectorAll(selector)]
     .filter((node) => {
       const rect = node.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0
-        && (rect.left < -1 || rect.right > innerWidth + 1);
+        && (rect.left < -1 || rect.right > innerWidth + 1 || node.scrollWidth > node.clientWidth + 1);
     })
     .map(() => selector));
   const subElevenPixelText = [...(root?.querySelectorAll('*') || [])]
@@ -319,7 +372,13 @@ async function runProductionDom(options = {}) {
               headers: { 'content-type': 'application/json' },
             });
           }
-          if (${options.dashboardFailure ? 'true' : 'false'} && url.pathname === '/api/v1/dashboard') {
+          if (${options.postLoginFailure ? 'true' : 'false'} && url.pathname === '/api/auth/login') {
+            return new Response(JSON.stringify({ ok: true, csrfToken: 'test-csrf' }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+          if (${options.dashboardFailure || options.postLoginFailure ? 'true' : 'false'} && url.pathname === '/api/v1/dashboard') {
             return new Response(JSON.stringify({ ok: false, error: 'GOVERNED_DASHBOARD_FIXTURE_FAILURE' }), {
               status: 503,
               headers: { 'content-type': 'application/json' },
@@ -359,11 +418,28 @@ async function runProductionDom(options = {}) {
         dashboardVisible: !document.getElementById('dashboard-view')?.classList.contains('hidden'),
         loadErrorVisible: Boolean(document.querySelector('[data-dashboard-load-error="true"]')),
         loadErrorText: document.querySelector('[data-dashboard-load-error="true"]')?.textContent || '',
+        dashboardLoadState: root?.dataset.dashboardLoadState || null,
+        ambiguousDashes: [...(root?.querySelectorAll('*') || [])].filter((node) =>
+          [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '—')
+        ).map((node) => node.id || node.className || node.tagName),
+        bareUnavailable: [...(root?.querySelectorAll('*') || [])].filter((node) =>
+          [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim() === 'UNAVAILABLE')
+        ).map((node) => node.id || node.className || node.tagName),
         sessionRequests: window.__ui1SessionRequests || 0,
         runtimeErrors: window.__ui1RuntimeErrors || [],
       };
     })()`;
-    const pageState = await waitForPageState(cdp, pageStateExpression);
+    let pageState = await waitForPageState(cdp, pageStateExpression);
+    if (options.postLoginFailure) {
+      await evaluate(cdp, `document.getElementById('password').value = 'fixture-passphrase'`);
+      await clickSelector(cdp, '#login-form button[type="submit"]');
+      pageState = await waitForValue(
+        cdp,
+        pageStateExpression,
+        (value) => value?.loadErrorVisible && value.dashboardLoadState === 'UNAVAILABLE',
+        'POST_LOGIN_FAILURE_NOT_VISIBLE',
+      );
+    }
     return { pageState, exceptions: [...exceptions, ...pageState.runtimeErrors], blockingConsoleErrors };
   } finally {
     pipe.close();
@@ -374,7 +450,7 @@ async function runProductionDom(options = {}) {
         new Promise((resolve) => setTimeout(resolve, 5_000)),
       ]);
     }
-    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await removeBrowserProfile(profile);
   }
 }
 
@@ -480,7 +556,11 @@ async function runProductionInteractionRegression() {
         globalStatus: { dataHealth: 'DELAYED' },
         decisionSummary: { risk: 'ELEVATED' },
         currentMarketFactSummary: {},
-        evidenceConflict: { evidence: [] },
+        chatGptCopy: 'IMMUTABLE GOVERNED SNAPSHOT',
+        evidenceConflict: { evidence: [{
+          family: 'PARTICIPATION_BREADTH', availabilityState: 'AVAILABLE', qualityStatus: 'PASS',
+          detail: { descriptiveValues: [{ label: '上漲家數', value: 904, unit: ' 家', sourceMode: 'RAW_LIVE' }] },
+        }] },
         snapshot: {
           dataHealth: { items: [
             health('chartBar', 'LIVE'), health('txTick', 'LIVE'), health('marketOverview', 'FRESH'),
@@ -503,7 +583,14 @@ async function runProductionInteractionRegression() {
           vwap: { availability: 'AVAILABLE', value: 23980, source: 'SESSION_EXACT_TX_TICK_VWAP' },
         },
       };
+      globalThis.__ui1Workspace = workspace;
+      globalThis.__ui1Chart = chart;
       renderTerminalShell(workspace, chart);
+      renderMarketPulse(workspace, chart);
+      dwText('dw-chart-session', chart.tradeDate + ' · ' + chart.session);
+      dwText('dw-chart-contract', chart.actualContract);
+      dwText('dw-reference-price', fmt(chart.lastPrice));
+      dwText('dw-leadership-time', 'UNAVAILABLE · SOURCE_NOT_RUNNING');
       const ids = [
         'tt-top-change', 'tt-top-oi', 'tt-top-basis', 'tt-pulse-basis',
         'tt-futures-vwap', 'tt-futures-basis', 'tt-futures-foreign', 'tt-futures-dealer',
@@ -514,11 +601,121 @@ async function runProductionInteractionRegression() {
         'tt-health-global', 'tt-risk-ring-value', 'tt-risk-volatility', 'tt-risk-liquidity',
         'tt-risk-event', 'tt-risk-breadth',
       ];
-      return Object.fromEntries(ids.map((id) => {
+      const evidence = Object.fromEntries(ids.map((id) => {
         const node = document.getElementById(id);
         return [id, { text: node?.textContent || '', title: node?.title || '' }];
       }));
+      renderTerminalShell({ ...workspace, globalStatus: {} }, chart);
+      for (const id of ['tt-health-main', 'tt-health-trust']) {
+        const node = document.getElementById(id);
+        evidence[id + '-missing'] = { text: node?.textContent || '', title: node?.title || '' };
+      }
+      renderTerminalShell(workspace, chart);
+      renderIndexLeadership({ state: 'UNAVAILABLE', reason: 'INDEX_LEADERSHIP_API_UNAVAILABLE', quality: 'QUALITY_INSUFFICIENT' });
+      for (const id of ['dw-leadership-state', 'dw-leadership-mode', 'dw-leadership-time']) {
+        const node = document.getElementById(id);
+        evidence[id] = { text: node?.textContent || '', title: node?.title || '' };
+      }
+      return evidence;
     })()`);
+
+    const refreshFailureEvidence = await evaluate(cdp, `(() => {
+      const pulseIds = [
+        'dw-pulse-price', 'dw-pulse-vwap', 'dw-pulse-session', 'dw-pulse-breadth',
+        'dw-pulse-futures', 'dw-pulse-options', 'dw-pulse-global', 'dw-pulse-change',
+        'dw-pulse-volume', 'dw-pulse-vwap-mode', 'dw-pulse-breadth-mode',
+        'dw-pulse-futures-mode', 'dw-pulse-options-mode', 'dw-pulse-global-mode',
+      ];
+      const pulseBeforeFailure = {
+        price: document.getElementById('dw-pulse-price')?.textContent || '',
+        basis: document.getElementById('tt-pulse-basis')?.textContent || '',
+        breadth: document.getElementById('dw-pulse-breadth')?.textContent || '',
+      };
+      renderTerminalDashboardFailure('DASHBOARD_REFRESH:GOVERNED_DASHBOARD_FIXTURE_FAILURE');
+      state.txChartApi = window.__ui1LayoutChart;
+      renderTxDecisionChart(globalThis.__ui1Chart);
+      const root = document.getElementById('decision-workspace');
+      const result = {
+        pulseBeforeFailure,
+        loadState: root.dataset.dashboardLoadState,
+        topPrice: document.getElementById('tt-top-price')?.textContent || '',
+        pulsePrice: document.getElementById('dw-pulse-price')?.textContent || '',
+        pulseBasis: document.getElementById('tt-pulse-basis')?.textContent || '',
+        pulseAfterFailure: Object.fromEntries(pulseIds.map((id) => [id, document.getElementById(id)?.textContent || ''])),
+        copyDisabled: document.getElementById('dw-copy-gpt-prompt')?.disabled,
+      };
+      root.dataset.dashboardLoadState = 'LOADING';
+      renderTerminalShell(globalThis.__ui1Workspace, globalThis.__ui1Chart);
+      root.dataset.dashboardLoadState = 'READY';
+      return result;
+    })()`);
+
+    const leadershipRefreshFailureEvidence = await evaluate(cdp, `(() => {
+      renderIndexLeadership({
+        state: 'LIVE', sourceMode: 'LEDGER_LATEST', sourceTradeDate: '2026-08-28',
+        lastAvailableAt: '2026-08-28T05:30:00.000Z', quality: 'QUALITY_SUFFICIENT',
+        indexLeadership: {
+          topAbsolute: [{ code: '2330', points: 18.5 }],
+          topPositive: [{ code: '2330', points: 18.5 }],
+          topNegative: [{ code: '2317', points: -2.5 }],
+        },
+        industryLeadership: { rows: [{ category: '半導體', points: 12.25 }] },
+      });
+      const before = {
+        state: document.getElementById('dw-leadership-state')?.textContent || '',
+        bars: document.getElementById('dw-leadership-bars')?.textContent || '',
+      };
+      renderIndexLeadershipFailure(new Error('GOVERNED_INDEX_LEADERSHIP_FAILURE'));
+      return {
+        before,
+        state: document.getElementById('dw-leadership-state')?.textContent || '',
+        bars: document.getElementById('dw-leadership-bars')?.textContent || '',
+      };
+    })()`);
+
+    await clickSelector(cdp, '[data-terminal-card="futures"] > .tt-more');
+    const drawerOpened = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value?.drawerOpen,
+      'DRAWER_OPEN_FAILED',
+    );
+    await pressKey(cdp, 'Tab', 'Tab');
+    const drawerForwardLoop = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value?.activeElementClass.includes('tt-drawer-scrim'),
+      'DRAWER_FORWARD_FOCUS_LOOP_FAILED',
+    );
+    await pressKey(cdp, 'Tab', 'Tab', 8);
+    const drawerReverseLoop = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value?.activeElementClass.includes('tt-drawer-close'),
+      'DRAWER_REVERSE_FOCUS_LOOP_FAILED',
+    );
+    await pressKey(cdp, 'Escape', 'Escape');
+    const drawerClosed = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value && !value.drawerOpen,
+      'DRAWER_ESCAPE_CLOSE_FAILED',
+    );
+    await clickSelector(cdp, '.tt-progressive > summary');
+    const progressiveOpened = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value?.progressiveOpen && value.trendInProgressive,
+      'PROGRESSIVE_DISCLOSURE_OPEN_FAILED',
+    );
+    const progressiveOpenLayout = await evaluate(cdp, layoutMeasurementExpression);
+    await clickSelector(cdp, '.tt-progressive > summary');
+    const progressiveClosed = await waitForValue(
+      cdp,
+      interactiveStateExpression,
+      (value) => value && !value.progressiveOpen,
+      'PROGRESSIVE_DISCLOSURE_CLOSE_FAILED',
+    );
 
     const routeStates = [];
     for (const route of ['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']) {
@@ -537,6 +734,12 @@ async function runProductionInteractionRegression() {
       (value) => value?.activePages.length === 1 && value.activePages[0] === 'workspace',
       'WORKSPACE_RESTORE_FAILED',
     );
+
+    const defaultViewportEvidence = [];
+    for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
+      await setViewport(cdp, width, height);
+      defaultViewportEvidence.push({ width, height, samples: await stableLayoutSamples(cdp, 6) });
+    }
 
     await clickSelector(cdp, '#tt-chart-expand');
     await waitForValue(
@@ -574,7 +777,12 @@ async function runProductionInteractionRegression() {
     return {
       initialState,
       wiringEvidence,
+      refreshFailureEvidence,
+      leadershipRefreshFailureEvidence,
+      drawerEvidence: { opened: drawerOpened, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
+      progressiveEvidence: { opened: progressiveOpened, openLayout: progressiveOpenLayout, closed: progressiveClosed },
       routeStates,
+      defaultViewportEvidence,
       viewportEvidence,
       cycleEvidence,
       finalState,
@@ -591,7 +799,124 @@ async function runProductionInteractionRegression() {
         new Promise((resolve) => setTimeout(resolve, 5_000)),
       ]);
     }
-    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await removeBrowserProfile(profile);
+  }
+}
+
+async function runRealRuntimeDom({ baseUrl, password, screenshotPath }) {
+  const binary = browserBinary();
+  assert.ok(binary, 'Chrome or Edge is required for real-runtime DOM acceptance');
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cru31-real-runtime-dom-'));
+  const browser = spawn(binary, [
+    '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-extensions',
+    '--disable-background-networking', '--no-proxy-server', '--no-first-run', '--no-default-browser-check',
+    '--remote-debugging-pipe', `--user-data-dir=${profile}`, 'about:blank',
+  ], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], windowsHide: true });
+  const pipe = connectPipeCdp(browser);
+  try {
+    const { targetId } = await pipe.command('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await pipe.command('Target.attachToTarget', { targetId, flatten: true });
+    const cdp = sessionClient(pipe, sessionId);
+    const exceptions = [];
+    const blockingConsoleErrors = [];
+    cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => exceptions.push(exceptionDetails));
+    cdp.on('Runtime.consoleAPICalled', ({ type, args }) => {
+      if (!['error', 'assert'].includes(type)) return;
+      blockingConsoleErrors.push(args.map((arg) => arg.value ?? arg.description ?? arg.type).join(' '));
+    });
+    await cdp.command('Runtime.enable');
+    await cdp.command('Page.enable');
+    await cdp.command('Network.enable');
+    await cdp.command('Network.setBlockedURLs', { urls: ['*://*.kaspersky-labs.com/*'] });
+    await setViewport(cdp, 1536, 864);
+    const navigation = await cdp.command('Page.navigate', { url: `${baseUrl}/` });
+    if (navigation.errorText) throw new Error(`REAL_RUNTIME_NAVIGATION_FAILED:${navigation.errorText}`);
+    await waitForValue(cdp, `(() => ({
+      ready: document.readyState,
+      url: location.href,
+      html: document.documentElement?.outerHTML?.slice(0, 500) || '',
+      login: Boolean(document.getElementById('password'))
+        && !document.getElementById('login-view')?.classList.contains('hidden'),
+    }))()`, (value) => value?.login, 'REAL_RUNTIME_LOGIN_NOT_VISIBLE');
+    await evaluate(cdp, `(() => {
+      document.getElementById('password').value = ${JSON.stringify(password)};
+      document.getElementById('login-form').requestSubmit();
+      return true;
+    })()`);
+    await waitForValue(cdp, `(() => ({
+      dashboard: !document.getElementById('dashboard-view')?.classList.contains('hidden'),
+      state: document.getElementById('decision-workspace')?.dataset.dashboardLoadState || null,
+    }))()`, (value) => value?.dashboard && ['READY', 'UNAVAILABLE'].includes(value.state), 'REAL_RUNTIME_DASHBOARD_NOT_SETTLED');
+    await waitAnimationFrames(cdp, 4);
+    const evidence = await evaluate(cdp, `(() => {
+      const root = document.getElementById('decision-workspace');
+      const visible = (node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
+      const directTextMatches = (expected) => [...root.querySelectorAll('*')].filter((node) => visible(node)
+        && [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim() === expected))
+        .map((node) => node.id || node.className || node.tagName).slice(0, 30);
+      const subElevenPixelText = [...root.querySelectorAll('button, span, small, code, p, li, label, summary')]
+        .filter((node) => visible(node) && Number.parseFloat(getComputedStyle(node).fontSize) < 11)
+        .map((node) => ({ id: node.id, className: node.className, size: getComputedStyle(node).fontSize })).slice(0, 30);
+      const text = (id) => document.getElementById(id)?.textContent?.trim() || null;
+      return {
+        observedAt: new Date().toISOString(),
+        route: location.href,
+        viewport: [innerWidth, innerHeight],
+        loadState: root?.dataset.dashboardLoadState || null,
+        alert: document.querySelector('[data-dashboard-load-error="true"]')?.textContent || null,
+        duplicateIds: [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))],
+        horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+        clippedCore: [
+          '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis', '#tt-pulse-basis',
+          '.tt-terminal-topbar', '.tt-primary-grid', '.tt-tier-one-grid', '.tt-tier-two-grid',
+          '.tt-tier-three-grid', '.dw-chart-toolbar', '.tt-progressive > summary', '.tt-terminal-nav',
+        ].flatMap((selector) => [...document.querySelectorAll(selector)].filter((node) => {
+          const rect = node.getBoundingClientRect();
+          return visible(node) && (rect.left < -1 || rect.right > innerWidth + 1 || node.scrollWidth > node.clientWidth + 1);
+        }).map(() => selector)),
+        overflowingElements: [...document.querySelectorAll('body *')].filter((node) => {
+          if (!visible(node)) return false;
+          const rect = node.getBoundingClientRect();
+          return rect.right > innerWidth + 1 || rect.left < -1 || node.scrollWidth > node.clientWidth + 1;
+        }).map((node) => ({
+          id: node.id, className: String(node.className || ''),
+          left: Math.round(node.getBoundingClientRect().left), right: Math.round(node.getBoundingClientRect().right),
+          clientWidth: node.clientWidth, scrollWidth: node.scrollWidth,
+        })).slice(0, 40),
+        visibleMeaninglessDashes: directTextMatches('—'),
+        visibleBareUnavailable: directTextMatches('UNAVAILABLE'),
+        subElevenPixelText,
+        chartCanvasCount: document.querySelectorAll('#dw-chart-canvas canvas').length,
+        identity: {
+          contract: text('tt-top-contract'), session: text('tt-top-session'), updated: text('tt-top-updated'), trust: text('tt-top-trust'),
+          chartContract: text('dw-chart-contract'), chartSession: text('dw-chart-session'), chartAvailableAt: text('dw-chart-available-at'), chartQuality: text('dw-chart-quality'),
+        },
+        surfaces: {
+          price: text('tt-top-price'), pulse: text('dw-pulse-price'), futures: text('tt-futures-main'), options: text('tt-options-main'),
+          breadth: text('tt-breadth-main'), contribution: text('dw-leadership-state'), global: text('tt-global-main'),
+          health: text('tt-health-main'), risk: text('tt-risk-ring-state'), copy: text('tt-gpt-disabled-state'), trend: text('tt-summary-strength'),
+        },
+        safetyLabelPresent: root?.textContent?.includes('READ ONLY') && root?.textContent?.includes('NOT A TRADING SIGNAL') || false,
+      };
+    })()`);
+    if (screenshotPath) {
+      const screenshot = await cdp.command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+      fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+    }
+    return { evidence, exceptions, blockingConsoleErrors, screenshotPath };
+  } finally {
+    pipe.close();
+    if (browser.exitCode === null) {
+      browser.kill();
+      await Promise.race([once(browser, 'exit'), new Promise((resolve) => setTimeout(resolve, 5_000))]);
+    }
+    await removeBrowserProfile(profile);
   }
 }
 
@@ -634,8 +959,25 @@ test('authenticated dashboard API failure remains visible and is not misreported
   assert.equal(result.pageState.loadErrorVisible, true);
   assert.match(result.pageState.loadErrorText, /INITIAL_DASHBOARD_LOAD/);
   assert.match(result.pageState.loadErrorText, /GOVERNED_DASHBOARD_FIXTURE_FAILURE/);
+  assert.equal(result.pageState.dashboardLoadState, 'UNAVAILABLE');
+  assert.deepEqual(result.pageState.ambiguousDashes, []);
+  assert.deepEqual(result.pageState.bareUnavailable, []);
   assert.equal(result.blockingConsoleErrors.length, 1, JSON.stringify(result.blockingConsoleErrors));
   assert.match(result.blockingConsoleErrors[0], /INITIAL_DASHBOARD_LOAD/);
+});
+
+test('post-login dashboard API failure remains visible and normalizes the terminal shell', async () => {
+  const result = await runProductionDom({ postLoginFailure: true });
+  assert.deepEqual(result.exceptions, []);
+  assert.equal(result.pageState.dashboardVisible, true);
+  assert.equal(result.pageState.loginVisible, false);
+  assert.equal(result.pageState.loadErrorVisible, true);
+  assert.match(result.pageState.loadErrorText, /POST_LOGIN_DASHBOARD_LOAD/);
+  assert.equal(result.pageState.dashboardLoadState, 'UNAVAILABLE');
+  assert.deepEqual(result.pageState.ambiguousDashes, []);
+  assert.deepEqual(result.pageState.bareUnavailable, []);
+  assert.equal(result.blockingConsoleErrors.length, 1, JSON.stringify(result.blockingConsoleErrors));
+  assert.match(result.blockingConsoleErrors[0], /POST_LOGIN_DASHBOARD_LOAD/);
 });
 
 test('authenticated Production DOM navigation and chart layout remain isolated and bounded', { timeout: 120_000 }, async () => {
@@ -647,6 +989,8 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.deepEqual(result.initialState.activePages, ['workspace']);
   assert.ok(result.initialState.chartCanvasCount > 0);
   assert.deepEqual(result.initialState.duplicateIds, []);
+  assert.equal(result.initialState.trendInProgressive, true);
+  assert.equal(result.initialState.visibleFixtureOnly, 0);
 
   for (const [id, evidence] of Object.entries(result.wiringEvidence)) {
     assert.ok(evidence.text && evidence.text !== '—', `${id}:${JSON.stringify(evidence)}`);
@@ -661,6 +1005,38 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['tt-breadth-flat'].text, /163/);
   assert.equal(result.wiringEvidence['tt-risk-ring-value'].text, 'ELEVATED');
   assert.equal(result.wiringEvidence['tt-risk-volatility'].text, 'UNAVAILABLE · BREAKDOWN_NOT_IMPLEMENTED');
+  assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
+  assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);
+  assert.match(result.refreshFailureEvidence.pulseBeforeFailure.breadth, /904/);
+  assert.equal(result.refreshFailureEvidence.loadState, 'UNAVAILABLE');
+  assert.match(result.refreshFailureEvidence.topPrice, /UNAVAILABLE · DASHBOARD_REFRESH/);
+  assert.match(result.refreshFailureEvidence.pulsePrice, /UNAVAILABLE · DASHBOARD_REFRESH/);
+  assert.match(result.refreshFailureEvidence.pulseBasis, /UNAVAILABLE · DASHBOARD_REFRESH/);
+  for (const [id, value] of Object.entries(result.refreshFailureEvidence.pulseAfterFailure)) {
+    assert.match(value, /UNAVAILABLE · DASHBOARD_REFRESH/, `${id}:${value}`);
+  }
+  assert.equal(result.refreshFailureEvidence.copyDisabled, true);
+  assert.equal(result.leadershipRefreshFailureEvidence.before.state, 'LIVE');
+  assert.match(result.leadershipRefreshFailureEvidence.before.bars, /2330/);
+  assert.match(result.leadershipRefreshFailureEvidence.state, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
+  assert.match(result.leadershipRefreshFailureEvidence.bars, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
+  assert.doesNotMatch(result.leadershipRefreshFailureEvidence.bars, /2330/);
+  assert.equal(result.drawerEvidence.opened.drawerOpen, true);
+  assert.deepEqual(result.drawerEvidence.opened.visibleMeaninglessDashes, []);
+  assert.deepEqual(result.drawerEvidence.opened.visibleBareUnavailable, []);
+  assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
+  assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
+  assert.equal(result.drawerEvidence.closed.drawerOpen, false);
+  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '期貨流向');
+  assert.equal(result.progressiveEvidence.opened.progressiveOpen, true);
+  assert.equal(result.progressiveEvidence.opened.trendInProgressive, true);
+  assert.deepEqual(result.progressiveEvidence.opened.visibleMeaninglessDashes, []);
+  assert.deepEqual(result.progressiveEvidence.opened.visibleBareUnavailable, []);
+  assert.deepEqual(result.progressiveEvidence.openLayout.clippedCore, []);
+  assert.deepEqual(result.progressiveEvidence.openLayout.subElevenPixelText, []);
+  assert.equal(result.progressiveEvidence.closed.progressiveOpen, false);
+  assert.deepEqual(result.progressiveEvidence.closed.visibleMeaninglessDashes, []);
+  assert.equal(result.progressiveEvidence.closed.copyState, 'COPY SNAPSHOT · READY');
 
   assert.equal(result.routeStates.length, 7);
   result.routeStates.forEach((state, index) => {
@@ -679,6 +1055,15 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     assert.ok(spread(evidence.samples.map((sample) => sample.documentHeight)) <= 2, JSON.stringify(evidence));
   }
 
+  for (const item of result.defaultViewportEvidence) {
+    for (const sample of item.samples) {
+      assert.equal(sample.expanded, false, JSON.stringify(sample));
+      assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
+      assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
+      assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
+    }
+  }
+
   assert.equal(result.cycleEvidence.length, 10);
   result.cycleEvidence.forEach(({ expanded, restored }) => {
     assertExpandedLayoutBounded(expanded);
@@ -693,4 +1078,29 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.deepEqual(result.finalState.activePages, ['workspace']);
   assert.deepEqual(result.finalState.duplicateIds, []);
   assert.ok(result.apiRequests.includes('/api/session'));
+});
+
+test('optional MOCK_DATA=0 local production runtime exposes a truthful authenticated DOM', {
+  timeout: 120_000,
+  skip: !process.env.CRU31_REAL_RUNTIME_URL || !process.env.CRU31_REAL_RUNTIME_PASSWORD,
+}, async () => {
+  const result = await runRealRuntimeDom({
+    baseUrl: process.env.CRU31_REAL_RUNTIME_URL.replace(/\/$/, ''),
+    password: process.env.CRU31_REAL_RUNTIME_PASSWORD,
+    screenshotPath: process.env.CRU31_REAL_RUNTIME_SCREENSHOT || null,
+  });
+  assert.deepEqual(result.exceptions, []);
+  assert.deepEqual(result.blockingConsoleErrors, []);
+  assert.equal(result.evidence.loadState, 'READY', JSON.stringify(result));
+  assert.equal(result.evidence.alert, null, JSON.stringify(result));
+  assert.deepEqual(result.evidence.viewport, [1536, 864]);
+  assert.deepEqual(result.evidence.duplicateIds, []);
+  assert.equal(result.evidence.horizontalOverflow, false, JSON.stringify(result.evidence));
+  assert.deepEqual(result.evidence.clippedCore, [], JSON.stringify(result.evidence));
+  assert.deepEqual(result.evidence.visibleMeaninglessDashes, []);
+  assert.deepEqual(result.evidence.visibleBareUnavailable, []);
+  assert.deepEqual(result.evidence.subElevenPixelText, []);
+  assert.ok(result.evidence.chartCanvasCount > 0, JSON.stringify(result.evidence));
+  assert.equal(result.evidence.safetyLabelPresent, true);
+  console.log(`CRU31_REAL_RUNTIME_EVIDENCE ${JSON.stringify(result)}`);
 });

@@ -56,13 +56,19 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /tt-futures-oi-change/);
   assert.match(shell, /tt-contribution-net/);
   assert.match(shell, /tt-mini-series/);
-  assert.match(shell, /最大反向證據？/);
-  assert.match(shell, /多單 thesis 何時失效？/);
+  assert.match(shell, /COPY SNAPSHOT · LOADING/);
+  assert.match(shell, /Manual copy only · no direct GPT API/);
+  assert.match(shell, /copyBody\?\.parentElement === node/);
+  assert.match(shell, /tt-fixture-only/);
+  assert.match(shell, /tierOne\.append\(pulse, futures\)/);
+  assert.match(shell, /focus\.querySelector\('\.dw-decision-bar'\), trend/);
   assert.match(shell, /aria-disabled/);
   assert.match(shell, /button\.disabled = index !== 0/);
   assert.match(shell, /shell\.returnFocus = trigger/);
   assert.match(shell, /returnFocus\?\.isConnected/);
   assert.match(shell, /event\.key !== 'Tab'/);
+  assert.match(shell, /const modeSwitch = heading\.querySelector\('\.dw-mode-switch'\)/);
+  assert.match(shell, /if \(modeSwitch\) status\.append\(modeSwitch\)/);
   assert.match(shell, /aria-labelledby/);
   assert.match(shell, /index <= 6/);
   assert.match(shell, /正貢獻 TOP 5/);
@@ -119,7 +125,21 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(terminalSource, /TRADE_DATE_OR_SOURCE_MISMATCH/);
   assert.match(terminalSource, /DERIVATION_NOT_IMPLEMENTED/);
   assert.match(terminalSource, /BREAKDOWN_NOT_IMPLEMENTED/);
+  assert.match(terminalSource, /COPY SNAPSHOT · READY/);
+  assert.match(terminalSource, /COPY_CONTEXT_UNAVAILABLE/);
+  assert.match(terminalSource, /function renderTerminalDashboardFailure/);
+  assert.match(terminalSource, /DASHBOARD_API_UNAVAILABLE/);
+  assert.match(app, /root\.setAttribute\('data-dashboard-load-state', 'UNAVAILABLE'\)/);
+  assert.match(app, /button\.disabled = true/);
   assert.doesNotMatch(terminalSource, /tt-top-(?:change|oi|basis)',\s*'UNAVAILABLE'/);
+  assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', 'LOADING'\)/);
+  assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', 'READY'\)/);
+  assert.match(app, /reportDashboardLoadError\(error, 'POST_LOGIN_DASHBOARD_LOAD'\)/);
+  assert.match(app, /Copy context UNAVAILABLE/);
+  assert.match(app, /INDEX_LEADERSHIP_API_UNAVAILABLE/);
+  assert.match(app, /terminalWrite\('tt-health-main', health, \{ reason: 'DATA_HEALTH_UNAVAILABLE'/);
+  assert.match(app, /terminalWrite\('tt-futures-tx', lastPrice == null \? null : fmt\(lastPrice\)/);
+  assert.match(read('public', 'index.html'), /id="dw-event-risk-state">RESEARCH_PENDING</);
   assert.match(app, /show-optional-levels/);
   assert.match(app, /const hasDayLevels =/);
   assert.match(app, /trader-terminal:levels/);
@@ -188,6 +208,20 @@ test('isolated fixture is explicit, local, and excluded from evidence copy', () 
   assert.match(preview, /if \(\$\('decision-workspace'\)\?\.classList\.contains\('show-optional-levels'\)\)/);
   assert.doesNotMatch(production, /SIMULATED_UI_FIXTURE|SIM-TX|模擬 A 公司/);
   assert.doesNotMatch(preview, /fetch\([^\n]+method:\s*'(?:POST|PUT|PATCH|DELETE)'/);
+  assert.doesNotMatch(preview, /setText\(`tt-\$\{key\}-main`, 'UNAVAILABLE'\)/);
+});
+
+test('Owner review launcher reuses local prerequisites without enabling mock or execution paths', () => {
+  const launcher = read('scripts', 'start-cru31-owner-review.ps1');
+  assert.match(launcher, /NODE_ENV = 'production'/);
+  assert.match(launcher, /MOCK_DATA = '0'/);
+  assert.match(launcher, /COOKIE_SECURE = '0'/);
+  assert.match(launcher, /REFRESH_INTERVAL_SECONDS = '0'/);
+  assert.match(launcher, /ItemType Junction/);
+  assert.match(launcher, /git -c "safe\.directory=\$project" -C \$project rev-parse HEAD/);
+  assert.doesNotMatch(launcher, /safe\.directory=\*|config\s+--global/);
+  assert.match(launcher, /Press Ctrl\+C/);
+  assert.doesNotMatch(launcher, /shioaji|broker|order|executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/i);
 });
 
 test('preview mode transitions reject stale chart loads and gate evidence copy', () => {
