@@ -51,6 +51,8 @@
 | Dealer Flow | 一般維護集合，再讀`DEALER_FLOW_AI_MASTER_PLAN.md` |
 | 研究／回測 | 一般維護集合，再讀對應Research Spec；只讀相關研究報告 |
 | 安全／架構 | 一般維護集合，再讀`SECURITY.md`、`docs/ARCHITECTURE.md`及依主題搜尋`DECISIONS.md` |
+| Market Control / Pressure / Flow / Efficiency | 一般維護集合，再讀`docs/product/MARKET_CONTROL_SYSTEM_BLUEPRINT_V1.md`與對應 Linear 工作包／Data Contract |
+| Codex 額度／中斷／handoff／subagent／context compaction 恢復 | 一般維護集合，再讀`docs/operations/CODEX_QUOTA_AND_HANDOFF_RECOVERY_V1.md`與最新 Resume Packet |
 | 版本追查 | GitHub commit／tag／PR，加上`CHANGELOG.md`對應版本或日期區段 |
 
 - `CHANGELOG.md`不在一般任務中全文讀取。
@@ -58,6 +60,7 @@
 - `DEALER_FLOW_AI_MASTER_PLAN.md`只在Dealer Flow任務讀取。
 - `DATA_DICTIONARY.md`只在資料Schema或Feature任務讀取。
 - Research文件只在對應研究任務讀取。
+- Codex 在 quota/session/model/subagent handoff 或 context compaction 後，不得從記憶推測 Scope、完成度或 PASS；必須依 `docs/operations/CODEX_QUOTA_AND_HANDOFF_RECOVERY_V1.md` 重新對齊 Linear、GitHub exact HEAD、worktree 與驗證證據。
 
 ## 修改與驗證
 
