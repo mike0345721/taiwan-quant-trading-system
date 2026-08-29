@@ -218,6 +218,8 @@ test('Owner review launcher reuses local prerequisites without enabling mock or 
   assert.match(launcher, /COOKIE_SECURE = '0'/);
   assert.match(launcher, /REFRESH_INTERVAL_SECONDS = '0'/);
   assert.match(launcher, /ItemType Junction/);
+  assert.match(launcher, /git -c "safe\.directory=\$project" -C \$project rev-parse HEAD/);
+  assert.doesNotMatch(launcher, /safe\.directory=\*|config\s+--global/);
   assert.match(launcher, /Press Ctrl\+C/);
   assert.doesNotMatch(launcher, /shioaji|broker|order|executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/i);
 });

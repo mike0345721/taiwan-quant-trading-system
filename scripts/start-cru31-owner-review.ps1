@@ -66,7 +66,7 @@ $env:MOCK_DATA = '0'
 $env:REFRESH_INTERVAL_SECONDS = '0'
 
 try { $node = (Get-Command node.exe -ErrorAction Stop).Source } catch { Stop-ReviewLaunch 'Node.js is not available.' }
-$head = (& git -C $project rev-parse HEAD 2>$null).Trim()
+$head = (& git -c "safe.directory=$project" -C $project rev-parse HEAD 2>$null).Trim()
 if (-not $head) { Stop-ReviewLaunch 'The CRU-31 runtime commit could not be resolved.' }
 
 Write-Host "CRU-31 owner review runtime: $head"
