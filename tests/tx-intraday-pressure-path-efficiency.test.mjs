@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildExecutedPressureWindow,
   buildSnapshotLineage,
   evaluateBestQuoteEligibility,
   materializeTxCanonicalObservations,
@@ -245,15 +246,9 @@ test('snapshot lineage preserves physical cutoff and max used input', () => {
 
 test('non-TX physical clock regression invalidates the TX continuity segment', () => {
   const stock = {
-    kind: 'stock_tick',
-    product: '2330',
-    receivedAt: '2026-08-26T09:00:00.900+08:00',
-    recordHash: 's',
-    formalWeight: 0,
-    researchOnly: true,
-    executionAuthorized: false,
-    orderRoutesEnabled: false,
-    payload: { code: '2330' },
+    kind: 'stock_tick', product: '2330', receivedAt: '2026-08-26T09:00:00.900+08:00',
+    recordHash: 's', formalWeight: 0, researchOnly: true, executionAuthorized: false,
+    orderRoutesEnabled: false, payload: { code: '2330' },
   };
   const events = materializeTxCanonicalObservations([
     record('futures_bidask', {
@@ -279,4 +274,116 @@ test('safety boundary violation throws', () => {
   assert.throws(() => materializeTxCanonicalObservations([bad], {
     sourceLedgerIdentity: 'ledger-A',
   }), /CRU34_SAFETY_BOUNDARY_INVALID/);
+});
+
+test('pressure window preserves BUY SELL UNKNOWN and bounded ratio', () => {
+  const events = materializeTxCanonicalObservations([
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+      hash: 'q1', payload: { bid_price: [99], ask_price: [100] },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00',
+      hash: 't1', payload: { close: 100, price: 100, volume: 2, executedVolume: 2, tick_type: 1 },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.200+08:00', receivedAt: '2026-08-26T09:00:00.210+08:00',
+      hash: 't2', payload: { close: 99, price: 99, volume: 1, executedVolume: 1, tick_type: 2 },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.300+08:00', receivedAt: '2026-08-26T09:00:00.310+08:00',
+      hash: 't3', payload: { close: 99.5, price: 99.5, volume: 1, executedVolume: 1, tick_type: 0 },
+    }),
+  ], { sourceLedgerIdentity: 'ledger-A' }).events;
+  const output = buildExecutedPressureWindow(events, events.at(-1));
+  assert.equal(output.status, 'READY');
+  assert.equal(output.buyProxyVolume, 2);
+  assert.equal(output.sellProxyVolume, 1);
+  assert.equal(output.unknownVolume, 1);
+  assert.equal(output.netAggressiveFlowProxy, 1);
+  assert.equal(output.pressureRatio, 1 / 3);
+  assert.equal(output.classifiedCoverage, 0.75);
+  assert.equal(output.direction, 'BUY_SIDE');
+  assert.equal(output.relativeIntensity, 'RESEARCH_PENDING');
+});
+
+test('pressure ratio is unavailable when all provider classifications are unknown', () => {
+  const events = materializeTxCanonicalObservations([
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+      hash: 'q', payload: { bid_price: [99], ask_price: [100] },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00',
+      hash: 't', payload: { close: 99.5, price: 99.5, volume: 2, executedVolume: 2, tick_type: 0 },
+    }),
+  ], { sourceLedgerIdentity: 'ledger-A' }).events;
+  const output = buildExecutedPressureWindow(events, events.at(-1));
+  assert.equal(output.status, 'READY');
+  assert.equal(output.pressureRatio, null);
+  assert.equal(output.unavailableReason, 'NO_CLASSIFIED_VOLUME');
+  assert.equal(output.direction, 'UNAVAILABLE');
+  assert.equal(output.classifiedCoverage, 0);
+});
+
+test('best-quote cross-check preserves provider conflict without replacing provider side', () => {
+  const events = materializeTxCanonicalObservations([
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+      hash: 'q', payload: { bid_price: [100], ask_price: [101] },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00',
+      hash: 't', payload: { close: 100, price: 100, volume: 3, executedVolume: 3, tick_type: 1 },
+    }),
+  ], { sourceLedgerIdentity: 'ledger-A' }).events;
+  const output = buildExecutedPressureWindow(events, events.at(-1));
+  assert.equal(output.buyProxyVolume, 3);
+  assert.equal(output.sellProxyVolume, 0);
+  assert.equal(output.bestQuoteCrossCheck.sellProxyVolume, 3);
+  assert.equal(output.conflict.count, 1);
+  assert.equal(output.conflict.rate, 1);
+});
+
+test('physically later quote never enters earlier pressure evidence', () => {
+  const events = materializeTxCanonicalObservations([
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.200+08:00',
+      hash: 't1', payload: { close: 100, price: 100, volume: 1, executedVolume: 1, tick_type: 1 },
+    }),
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00.050+08:00', receivedAt: '2026-08-26T09:00:00.200+08:00',
+      hash: 'q', payload: { bid_price: [99], ask_price: [100] },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.300+08:00', receivedAt: '2026-08-26T09:00:00.300+08:00',
+      hash: 't2', payload: { close: 100, price: 100, volume: 1, executedVolume: 1, tick_type: 1 },
+    }),
+  ], { sourceLedgerIdentity: 'ledger-A' }).events;
+  const firstOnly = buildExecutedPressureWindow(events, events[0]);
+  assert.equal(firstOnly.bestQuoteCrossCheck.unavailableVolume, 1);
+  const later = buildExecutedPressureWindow(events, events[2]);
+  assert.equal(later.bestQuoteCrossCheck.buyProxyVolume, 1);
+  assert.equal(later.bestQuoteCrossCheck.unavailableVolume, 1);
+});
+
+test('pressure output is deterministic for identical governed prefix', () => {
+  const records = [
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+      hash: 'q', payload: { bid_price: [99], ask_price: [100] },
+    }),
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00',
+      hash: 't', payload: { close: 100, price: 100, volume: 2, executedVolume: 2, tick_type: 1 },
+    }),
+  ];
+  const a = materializeTxCanonicalObservations(records, { sourceLedgerIdentity: 'ledger-A' }).events;
+  const b = materializeTxCanonicalObservations(records, { sourceLedgerIdentity: 'ledger-A' }).events;
+  const left = buildExecutedPressureWindow(a, a.at(-1));
+  const right = buildExecutedPressureWindow(b, b.at(-1));
+  const comparable = (value) => JSON.stringify(value, (key, item) => (
+    key === 'rawRecord' ? undefined : item
+  ));
+  assert.equal(comparable(left), comparable(right));
 });
