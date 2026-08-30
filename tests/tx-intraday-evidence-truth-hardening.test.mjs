@@ -27,6 +27,15 @@ function stock(receivedAt) {
   };
 }
 
+function chain(records) {
+  let previousHash = 'GENESIS';
+  return records.map((record) => {
+    const linked = { ...record, previousHash };
+    previousHash = record.recordHash;
+    return linked;
+  });
+}
+
 test('standalone price response refuses availability-lineage-invalid ticks', () => {
   const canonical = materializeTxCanonicalObservations([
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:01.000+08:00', hash: 't1', price: 100 }),
@@ -41,11 +50,11 @@ test('standalone price response refuses availability-lineage-invalid ticks', () 
 });
 
 test('all-UNKNOWN pressure keeps snapshot PARTIAL rather than falsely READY', () => {
-  const records = [
+  const records = chain([
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 't1', price: 100, volume: 1, tickType: 0 }),
     tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 't2', price: 101, volume: 1, tickType: 0 }),
     tick({ eventTime: '2026-08-26T09:00:20+08:00', receivedAt: '2026-08-26T09:00:20.010+08:00', hash: 't3', price: 102, volume: 1, tickType: 0 }),
-  ];
+  ]);
   const snapshot = buildTxIntradayResearchSnapshot(records, {
     sourceLedgerIdentity: 'ledger-hardening', instrumentProfile: PROFILE,
   });
