@@ -104,6 +104,10 @@ export function materializeTxCanonicalObservations(records, {
     const record = records[index];
     const ledgerOrdinal = index + 1;
 
+    // Every physical record can influence observation order, wall-clock lineage, or continuity.
+    // Enforce the research-only safety boundary before any such state mutation.
+    assertSafety(record);
+
     if (txContinuityBreak(record)) {
       breakPending = true;
       breakReason = record.kind;
@@ -128,7 +132,6 @@ export function materializeTxCanonicalObservations(records, {
     if (physicalReceivedMs != null) lastReceivedMs = physicalReceivedMs;
 
     if (!txRecord(record) || record?.duplicate === true || record?.payload?.simtrade === true) continue;
-    assertSafety(record);
 
     const payload = record.payload || {};
     const eventTime = eventTimeOf(record);
@@ -419,9 +422,10 @@ export function buildExecutedPressureWindow(events, cutoffEvent, {
   const direction = pressureRatio == null ? 'UNAVAILABLE'
     : pressureRatio > 0 ? 'BUY_SIDE'
       : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED';
+  const status = pressureRatio == null ? 'UNAVAILABLE' : 'READY';
 
   return Object.freeze({
-    status: 'READY',
+    status,
     unavailableReason: pressureRatio == null ? 'NO_CLASSIFIED_VOLUME' : null,
     windowMs,
     tickCount: ticks.length,
