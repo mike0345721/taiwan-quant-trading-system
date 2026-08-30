@@ -696,7 +696,7 @@ Explicitly out of scope for the next package unless separately authorized:
 | A Scope / Contract | REQUIRED | PASS — Linear scope is explicit and branch baseline matches approved main at audit start |
 | B Data Truth | REQUIRED | PARTIAL — repository/provider contracts verified; current local real-provider runtime is not directly observable through GitHub connector |
 | C Derivation / Replay | REQUIRED | PARTIAL — physical-ledger-order + availability-safe replay contract now frozen at design level; implementation/tests remain for the next authorized package |
-| D Engineering | REQUIRED | PENDING — Level-3 Review 3 found three blockers on prior HEAD; fixes changed HEAD, so all affected exact-HEAD reviews must rerun |
+| D Engineering | REQUIRED | PENDING — Level-3 Review 3 found three blockers on a prior HEAD; blocker fixes changed HEAD, so all affected exact-HEAD reviews must rerun |
 | E Dashboard Truth | NOT_APPLICABLE | no production UI change |
 | F Production Browser | NOT_APPLICABLE | no browser/runtime change |
 | G Decision Assist | NOT_APPLICABLE | no runtime interpretation change |
