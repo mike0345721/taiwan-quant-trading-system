@@ -8,6 +8,10 @@ import { buildPriceResponsePathEfficiencyWindow } from './tx-price-response-path
 export const PRIMARY_WINDOW_MS = 60_000;
 export const CONTEXT_WINDOW_MS = 300_000;
 
+function nonEmptyText(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 function finitePositive(value) {
   if (value == null || value === '') return null;
   const parsed = Number(value);
@@ -24,6 +28,72 @@ function profileOf(instrumentProfile) {
     throw new Error('CRU34_V1_TX_REFERENCE_ONLY');
   }
   return Object.freeze({ instrument, product, market, tickSize });
+}
+
+function rawTxTick(record) {
+  if (record?.kind !== 'futures_tick') return false;
+  const payload = record?.payload || {};
+  const family = nonEmptyText(payload.productFamily) || nonEmptyText(payload._product_family);
+  if (family) return family === 'TX';
+  const code = nonEmptyText(payload.actualContract) || nonEmptyText(payload.targetCode)
+    || nonEmptyText(payload._target_code) || nonEmptyText(payload.code)
+    || nonEmptyText(record?.code) || nonEmptyText(record?.product);
+  return Boolean(code && /^TXF/i.test(code));
+}
+
+function effectiveCutoffOrdinal(records, requested) {
+  if (requested != null) {
+    if (!Number.isInteger(requested) || requested < 1) {
+      throw new Error('CRU34_CUTOFF_LEDGER_ORDINAL_INVALID');
+    }
+    return requested;
+  }
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    if (rawTxTick(records[index])) return index + 1;
+  }
+  return null;
+}
+
+function exactPhysicalPrefix(records, cutoffLedgerOrdinal) {
+  if (cutoffLedgerOrdinal == null) return records;
+  return records.slice(0, cutoffLedgerOrdinal);
+}
+
+function verifyPhysicalLedgerPrefix(records) {
+  if (!records.length) {
+    return Object.freeze({
+      status: 'UNAVAILABLE_EMPTY_PREFIX',
+      verified: false,
+      recordCount: 0,
+      terminalHash: null,
+      failingLedgerOrdinal: null,
+    });
+  }
+  let previousHash = 'GENESIS';
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    const recordHash = nonEmptyText(record?.recordHash);
+    const declaredPreviousHash = nonEmptyText(record?.previousHash);
+    if (!recordHash || !declaredPreviousHash || declaredPreviousHash !== previousHash) {
+      return Object.freeze({
+        status: !recordHash || !declaredPreviousHash
+          ? 'UNVERIFIED_HASH_CHAIN_FIELDS_MISSING'
+          : 'INVALID_HASH_CHAIN_CONTINUITY',
+        verified: false,
+        recordCount: records.length,
+        terminalHash: index > 0 ? nonEmptyText(records[index - 1]?.recordHash) : null,
+        failingLedgerOrdinal: index + 1,
+      });
+    }
+    previousHash = recordHash;
+  }
+  return Object.freeze({
+    status: 'VERIFIED_CONTIGUOUS_HASH_CHAIN_PREFIX',
+    verified: true,
+    recordCount: records.length,
+    terminalHash: previousHash,
+    failingLedgerOrdinal: null,
+  });
 }
 
 function unavailableWindow(windowMs, reason) {
@@ -165,28 +235,20 @@ function buildWindow(events, cutoffEvent, profile, windowMs, options) {
   };
 }
 
-function exactPhysicalPrefix(records, cutoffLedgerOrdinal) {
-  if (cutoffLedgerOrdinal == null) return records;
-  if (!Number.isInteger(cutoffLedgerOrdinal) || cutoffLedgerOrdinal < 1) {
-    throw new Error('CRU34_CUTOFF_LEDGER_ORDINAL_INVALID');
-  }
-  return records.slice(0, cutoffLedgerOrdinal);
-}
-
 function cutoffTick(events, cutoffLedgerOrdinal) {
-  if (!events.length) return null;
-  if (cutoffLedgerOrdinal == null) {
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      if (events[index].kind === 'futures_tick') return events[index];
-    }
-    return null;
-  }
+  if (!events.length || cutoffLedgerOrdinal == null) return null;
   return events.find((event) => (
     event.ledgerOrdinal === cutoffLedgerOrdinal && event.kind === 'futures_tick'
   )) || null;
 }
 
-function unavailableSnapshot(profile, reason, cutoff = null, sourceLedgerIdentity = null) {
+function unavailableSnapshot(
+  profile,
+  reason,
+  cutoff = null,
+  sourceLedgerIdentity = null,
+  prefixProof = null,
+) {
   return Object.freeze({
     schemaVersion: 'cru34-tx-intraday-research-snapshot-v1',
     status: 'UNAVAILABLE',
@@ -210,6 +272,10 @@ function unavailableSnapshot(profile, reason, cutoff = null, sourceLedgerIdentit
       maxUsedLedgerOrdinal: null,
       maxUsedRecordHash: null,
       sourceLedgerIdentity: cutoff?.sourceLedgerIdentity || sourceLedgerIdentity || null,
+      inputPrefixStatus: prefixProof?.status || null,
+      inputPrefixRecordCount: prefixProof?.recordCount ?? null,
+      inputPrefixTerminalHash: prefixProof?.terminalHash || null,
+      inputPrefixFailingLedgerOrdinal: prefixProof?.failingLedgerOrdinal ?? null,
     }),
     windows: Object.freeze({
       primary60s: unavailableWindow(PRIMARY_WINDOW_MS, reason),
@@ -258,17 +324,53 @@ export function buildTxIntradayResearchSnapshot(records, {
   if (primaryWindowMs !== PRIMARY_WINDOW_MS || contextWindowMs !== CONTEXT_WINDOW_MS) {
     throw new Error('CRU34_V1_WINDOW_CONTRACT_INVALID');
   }
-  const prefix = exactPhysicalPrefix(records, cutoffLedgerOrdinal);
+
+  const effectiveCutoff = effectiveCutoffOrdinal(records, cutoffLedgerOrdinal);
+  const prefix = exactPhysicalPrefix(records, effectiveCutoff);
+  const prefixProof = verifyPhysicalLedgerPrefix(prefix);
+  if (!prefixProof.verified) {
+    return unavailableSnapshot(
+      profile,
+      'PHYSICAL_LEDGER_PREFIX_UNVERIFIED',
+      null,
+      sourceLedgerIdentity,
+      prefixProof,
+    );
+  }
+
   const canonical = materializeTxCanonicalObservations(prefix, {
     sourceLedgerIdentity,
     resolveSessionTradeDate,
   });
-  const cutoff = cutoffTick(canonical.events, cutoffLedgerOrdinal);
-  if (!cutoff) return unavailableSnapshot(profile, 'NO_TX_TICK_CUTOFF', null, sourceLedgerIdentity);
+  const cutoff = cutoffTick(canonical.events, effectiveCutoff);
+  if (!cutoff) {
+    return unavailableSnapshot(
+      profile,
+      'NO_TX_TICK_CUTOFF',
+      null,
+      sourceLedgerIdentity,
+      prefixProof,
+    );
+  }
+  if (prefixProof.terminalHash !== cutoff.recordHash) {
+    return unavailableSnapshot(
+      profile,
+      'CUTOFF_PREFIX_HASH_MISMATCH',
+      cutoff,
+      sourceLedgerIdentity,
+      prefixProof,
+    );
+  }
   if (cutoff.identityStatus !== 'USABLE'
       || cutoff.availabilityLineageStatus !== 'USABLE'
       || !cutoff.recordHash) {
-    return unavailableSnapshot(profile, 'CUTOFF_LINEAGE_UNUSABLE', cutoff, sourceLedgerIdentity);
+    return unavailableSnapshot(
+      profile,
+      'CUTOFF_LINEAGE_UNUSABLE',
+      cutoff,
+      sourceLedgerIdentity,
+      prefixProof,
+    );
   }
 
   const options = { maxQuoteAgeMs, minPathTickCount, maxPathGapMs };
@@ -280,10 +382,23 @@ export function buildTxIntradayResearchSnapshot(records, {
 
   let lineage;
   try {
-    lineage = Object.freeze({ status: 'READY', unavailableReason: null,
-      ...buildSnapshotLineage([...byOrdinal.values()], cutoff) });
+    lineage = Object.freeze({
+      status: 'READY',
+      unavailableReason: null,
+      ...buildSnapshotLineage([...byOrdinal.values()], cutoff),
+      inputPrefixStatus: prefixProof.status,
+      inputPrefixRecordCount: prefixProof.recordCount,
+      inputPrefixTerminalHash: prefixProof.terminalHash,
+      inputPrefixFailingLedgerOrdinal: null,
+    });
   } catch {
-    return unavailableSnapshot(profile, 'SNAPSHOT_LINEAGE_UNUSABLE', cutoff, sourceLedgerIdentity);
+    return unavailableSnapshot(
+      profile,
+      'SNAPSHOT_LINEAGE_UNUSABLE',
+      cutoff,
+      sourceLedgerIdentity,
+      prefixProof,
+    );
   }
 
   const supportingEvidence = Object.freeze([
@@ -343,6 +458,7 @@ export function buildTxIntradayResearchSnapshot(records, {
       pathEfficiency: 'absolute net displacement divided by total absolute path; path directness only',
       observationOrder: 'physical append-only ledger order',
       availableAt: 'durable ledger receivedAt wall-clock lineage',
+      inputPrefix: 'full unfiltered contiguous hash-chained physical ledger prefix ending at cutoff Tick',
     }),
     limitations: Object.freeze([
       'Relative Intensity is not implemented.',
