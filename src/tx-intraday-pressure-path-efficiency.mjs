@@ -419,14 +419,19 @@ export function buildExecutedPressureWindow(events, cutoffEvent, {
     ? bestQuoteMatchedVolume / totalExecutedVolume : null;
   const classificationConflictRate = bestQuoteMatchedTicks > 0
     ? classificationConflictCount / bestQuoteMatchedTicks : null;
-  const direction = pressureRatio == null ? 'UNAVAILABLE'
-    : pressureRatio > 0 ? 'BUY_SIDE'
-      : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED';
-  const status = pressureRatio == null ? 'UNAVAILABLE' : 'READY';
+  const completeClassifiedCoverage = classifiedCoverage === 1;
+  const status = pressureRatio == null ? 'UNAVAILABLE'
+    : completeClassifiedCoverage ? 'READY' : 'QUALITY_INSUFFICIENT';
+  const unavailableReason = pressureRatio == null ? 'NO_CLASSIFIED_VOLUME'
+    : completeClassifiedCoverage ? null : 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE';
+  const direction = status === 'READY'
+    ? pressureRatio > 0 ? 'BUY_SIDE'
+      : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED'
+    : 'UNAVAILABLE';
 
   return Object.freeze({
     status,
-    unavailableReason: pressureRatio == null ? 'NO_CLASSIFIED_VOLUME' : null,
+    unavailableReason,
     windowMs,
     tickCount: ticks.length,
     totalExecutedVolume,
