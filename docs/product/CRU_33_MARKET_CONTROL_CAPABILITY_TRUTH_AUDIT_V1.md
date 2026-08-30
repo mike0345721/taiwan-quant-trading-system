@@ -83,7 +83,7 @@ This distinction is required before any Market Control implementation.
 | Provider side classification | YES | Tick `tick_type` | Official Shioaji semantics: `1=外盤`, `2=內盤`, `0=無法判定` | UNKNOWN explicitly available | same Tick lineage | must not be renamed as proof of trader identity/intent | YES | preserve native state + UNKNOWN | NATIVE_PROVIDER_CLASSIFICATION |
 | Provider-classified buy/sell volume | YES, research derivation | `src/futures-order-flow.mjs` | V1 maps `tick_type 1→buy`, `2→sell`, other→unknown | `classifiedVolumeRatio` measures classified volume coverage | exchange-time aggregation; actual product code required | naming must remain proxy/estimated aggressive flow | YES | keep UNKNOWN separate | DETERMINISTIC_RESEARCH_PROXY |
 | Estimated CVD | YES, research derivation | `src/futures-order-flow.mjs` | provider-classified buy volume − sell volume; unknown excluded | coverage is available at product level; 1m/5m bars currently do not expose all product-level quality ratios | exchange-time bars | session reset / cumulative-scope contract must be explicit in future engine | YES | label `Estimated CVD / Provider Side Proxy` | RESEARCH_ONLY / NOT_PROMOTED |
-| Best-quote trade cross-check | YES | `src/futures-order-flow.mjs` | tick at/above best ask → buy proxy; at/below best bid → sell proxy; otherwise inside spread/unavailable | quote matched volume ratio + conflicts available | current code checks exchange-time age only; V1 contract must additionally enforce availability cutoff and continuity epoch | explicit delayed-availability/future/stale/reconnect negative cases not yet implemented | YES | implement the §6 availability-safe pairing contract before reuse | DETERMINISTIC_RESEARCH_PROXY |
+| Best-quote trade cross-check | YES | `src/futures-order-flow.mjs` | tick at/above best ask → buy proxy; at/below best bid → sell proxy; otherwise inside spread/unavailable | quote matched volume ratio + conflicts available | current code checks exchange-time age only; V1 contract must additionally enforce availability cutoff, physical-ledger precedence and continuity epoch | explicit delayed-availability/equal-time-later-ordinal/future/stale/reconnect negative cases not yet implemented | YES | implement the §6 availability-safe pairing contract before reuse | DETERMINISTIC_RESEARCH_PROXY |
 | Classification conflict | YES | same derivation | provider side and best-quote inferred side disagree | count + ratio retained | same pairing contract | future engine must preserve conflict as evidence, not majority-vote it away | YES | required | RESEARCH_QUALITY_EVIDENCE |
 | Captured-stream exact VWAP | YES | same derivation | `sum(tick price × tick volume) / sum(tick volume)` over captured non-simulated ticks | only exact for captured audited stream | exchange-time scope | cannot claim complete-market VWAP if stream capture is incomplete | YES | optional context/response baseline | DETERMINISTIC_DERIVED_TRUTH WITH CAPTURE LIMIT |
 | Displayed 5-level depth | RAW DATA AVAILABLE | BidAsk provider payload | five-level `bid_price/bid_volume`, `ask_price/ask_volume`; provider also exposes diff-volume fields | raw coverage depends on BidAsk delivery | event time + receive time present | no current validation contract for array completeness/ordering/zero/derived levels | YES | audit and freeze contract before derivation | RAW_PROVIDER_CAPABILITY, DERIVATION_UNIMPLEMENTED |
@@ -220,7 +220,7 @@ It currently:
 
 Important limitation:
 
-> The existing quote matcher is not yet availability-safe. Exchange-time ordering alone is insufficient for a governed replay because a quote with an earlier `eventTime` may arrive after the Tick. The next package must implement the §6 canonical `availableAt` contract before reusing best-quote classification as governed Pressure evidence.
+> The existing quote matcher is not yet availability-safe. Exchange-time ordering alone is insufficient for a governed replay because a quote with an earlier `eventTime` may arrive after the Tick. The next package must implement the §6 canonical availability + physical-ledger-order contract before reusing best-quote classification as governed Pressure evidence.
 
 ### 5.5 Health / Failure modes
 
@@ -256,9 +256,11 @@ Best-quote cross-check usable
 = Executed Pressure prerequisites
 + BidAsk delivery usable
 + same contract / session / continuity epoch
++ quote.ledgerOrdinal < tick.ledgerOrdinal
 + quote.eventTime <= tick.eventTime
 + quote.availableAt <= tick.availableAt
 + quote age within contract
++ availability lineage monotonicity usable
 ```
 
 Displayed Liquidity Pressure additionally requires complete/valid depth arrays and a book-quality contract.
@@ -275,32 +277,63 @@ The durable ledger contains:
 - bridge callback time inside payload (`_received_at`),
 - ledger append time (`receivedAt`).
 
+The append-only file also provides a deterministic physical record order. The V1 engine must materialize that order as a stable `ledgerOrdinal` for replay/audit lineage; it must not infer knowledge order from exchange timestamps.
+
 The current order-flow derivation uses exchange time for quote matching and requires quote age to be non-negative and within 2 seconds.
 
-### 6.2 Canonical V1 `availableAt` contract
+### 6.2 Canonical V1 `availableAt` and observation-order contract
 
 The CRU-13 canonical collection contract requires explicit `availableAt`, but generic futures ledger records do not currently expose a first-class top-level `availableAt` field.
 
 Do **not** silently equate exchange time with model availability.
 
-For the first governed TX research engine, freeze this canonical rule:
+For the first governed TX research engine, freeze these canonical rules:
 
 ```text
 availableAt = durable ledger receivedAt
+observationOrder = physical append-only ledger order
+ledgerOrdinal = stable ordinal materialized from that physical order
 ```
+
+`availableAt` is the canonical wall-clock timestamp for when a persisted record became available to the governed system. **It is not the authoritative ordering key when physical order and wall-clock time disagree.** `ledgerOrdinal` is the authoritative observation sequence.
 
 Rationale:
 
 - `receivedAt` is already persisted on every governed ledger record and is replayable.
-- It is conservative: a record is never considered usable before the project has durably observed/appended it.
-- It prevents a replay from using a quote merely because its exchange `eventTime` is earlier when that quote actually reached the governed system later.
-- `_received_at` remains useful diagnostic lineage, but it is not the canonical V1 availability timestamp.
+- physical append order captures which governed record was durably observed first when timestamps are equal or anomalous.
+- separating timestamp lineage from observation sequence prevents a later record with an equal/regressed wall-clock timestamp from moving backward into an earlier knowledge state.
+- `_received_at` remains useful diagnostic lineage, but it is not the canonical V1 availability timestamp or ordering authority.
 
-The future adapter may materialize `availableAt` as a first-class canonical field from ledger `receivedAt`; it must not choose a different timestamp by convenience without a new reviewed contract version.
+The future adapter may materialize `availableAt` from ledger `receivedAt` and `ledgerOrdinal` from physical ledger order; it must not choose different semantics by convenience without a new reviewed contract version.
+
+#### Non-monotonic `receivedAt` fail-closed rule
+
+Within a governed replay scope, `receivedAt` must be non-decreasing as `ledgerOrdinal` increases.
+
+If replay detects:
+
+```text
+record[n].ledgerOrdinal > record[n-1].ledgerOrdinal
+AND
+record[n].receivedAt < record[n-1].receivedAt
+```
+
+then availability lineage is invalid from that regression point for availability-dependent joined derivations.
+
+Required V1 behavior:
+
+```text
+availabilityLineageStatus = INVALID_NON_MONOTONIC_RECEIVED_AT
+```
+
+- replay must **not** reorder records to repair the regression;
+- best-quote cross-check / joined Pressure evidence affected by that lineage must fail closed to `UNAVAILABLE` / `QUALITY_INSUFFICIENT`;
+- provider-side raw classification may remain separately inspectable, but it must carry the degraded lineage status and must not be promoted through the joined research snapshot;
+- recovery requires a new independently valid governed continuity segment/epoch; it must not silently resume inside an ambiguous segment.
 
 Formal status:
 
-`AVAILABLE_AT_CONTRACT_FROZEN_FOR_NEXT_PACKAGE / IMPLEMENTATION_PENDING`
+`AVAILABLE_AT_AND_LEDGER_ORDER_CONTRACT_FROZEN_FOR_NEXT_PACKAGE / IMPLEMENTATION_PENDING`
 
 ### 6.3 Availability-safe quote eligibility
 
@@ -310,61 +343,94 @@ A BidAsk quote may classify a Tick only when **all** of the following are true:
 quote.actualContract == tick.actualContract
 quote.session == tick.session
 quote.continuityEpoch == tick.continuityEpoch
+quote.ledgerOrdinal < tick.ledgerOrdinal
 quote.eventTime <= tick.eventTime
 quote.availableAt <= tick.availableAt
 0 <= (tick.eventTime - quote.eventTime) <= maxQuoteAgeMs
+availabilityLineageStatus == USABLE
 ```
 
-This explicitly separates two different no-future questions:
+This explicitly separates three different no-future questions:
 
-1. **Exchange/event-time future** — a quote describing a later market state cannot classify an earlier Tick.
-2. **System-availability future** — a quote that arrived later cannot be retroactively used merely because its exchange timestamp is earlier.
+1. **Physical observation future** — a quote physically appended after the Tick cannot classify that Tick, even if timestamps are equal or its exchange timestamp is earlier.
+2. **Exchange/event-time future** — a quote describing a later market state cannot classify an earlier Tick.
+3. **System-availability future** — a quote with a strictly later governed availability timestamp cannot be retroactively used merely because its exchange timestamp is earlier.
 
-If any required identity, continuity, `availableAt`, or quote-age field is missing/invalid, best-quote classification must fail closed to `UNAVAILABLE`; provider-side classification and UNKNOWN evidence remain separately preserved.
+`quote.availableAt <= tick.availableAt` is necessary but not sufficient. `quote.ledgerOrdinal < tick.ledgerOrdinal` is independently required.
+
+If any required identity, continuity, ordinal, `availableAt`, quote-age field, or lineage-quality state is missing/invalid, best-quote classification must fail closed to `UNAVAILABLE`; provider-side classification and UNKNOWN evidence remain separately preserved with quality status.
 
 A reconnect boundary must start a new deterministic `continuityEpoch`. Quotes from a prior epoch cannot classify Ticks from a later epoch, even when timestamps appear close. The next implementation package may derive the epoch from governed subscription/reconnect lifecycle evidence, but it must not bridge a known reconnect gap silently.
 
-### 6.4 Deterministic replay by availability cutoff
+### 6.4 Deterministic replay by physical ledger order and ordinal-bearing cutoff
 
-Replay must reproduce what the governed system could have known at each point in time.
+Replay must reproduce what the governed system could have known at each physical observation point.
 
-Canonical V1 replay ordering:
-
-```text
-1. availableAt ascending
-2. eventTime ascending
-3. physical append-only ledger order as the deterministic tie-breaker
-```
-
-The replay reader must preserve ledger record order as a stable ordinal. It must not re-sort equal-time records using object iteration order or another unstable runtime property.
-
-For every Tick decision at cutoff `tick.availableAt`, the eligible quote set is restricted to records with:
+Canonical V1 replay processing order:
 
 ```text
-quote.availableAt <= tick.availableAt
+1. physical append-only ledger order only
+2. materialize stable ledgerOrdinal in that order
+3. never reorder records by availableAt or eventTime
 ```
 
-and then further restricted by §6.3 event-time, identity, continuity and age rules.
+`eventTime` remains an eligibility/quote-age field. `availableAt` remains timestamp lineage. Neither may reorder system knowledge.
 
-Any derived window/snapshot must publish:
+Before using availability-dependent joined derivations, replay must validate the §6.2 non-monotonic `receivedAt` rule. A regression fails closed; replay does not sort around it.
+
+For every Tick classification, the deterministic cutoff is the Tick's physical observation point:
 
 ```text
-output.availableAt >= max(availableAt of every input record used)
+cutoffLedgerOrdinal = tick.ledgerOrdinal
+cutoffAvailableAt = tick.availableAt
 ```
 
-For a deterministic research snapshot, set `output.availableAt` to the maximum canonical `availableAt` of its included/used inputs. A replay must never emit a snapshot at an availability time earlier than an input that contributed to it.
+Eligible quote records must satisfy:
+
+```text
+quote.ledgerOrdinal < cutoffLedgerOrdinal
+quote.availableAt <= cutoffAvailableAt
+```
+
+and then the §6.3 event-time, identity, continuity, quote-age and lineage-quality requirements.
+
+#### Derived snapshot cutoff identity
+
+Every derived window/snapshot must publish enough lineage to prove its exact knowledge cutoff:
+
+```text
+output.availableAt
+output.cutoffLedgerOrdinal
+output.maxUsedLedgerOrdinal
+```
+
+Required invariants:
+
+```text
+output.availableAt = max(availableAt of every input record used)
+output.maxUsedLedgerOrdinal = max(ledgerOrdinal of every input record used)
+output.maxUsedLedgerOrdinal <= output.cutoffLedgerOrdinal
+every used input ledgerOrdinal <= output.cutoffLedgerOrdinal
+```
+
+For a Tick-triggered snapshot, `output.cutoffLedgerOrdinal` is the Tick/cutoff record ordinal. For another deterministic emission boundary, it is the last physically processed governed ledger ordinal at the emission point.
+
+Two snapshots with the same `output.availableAt` but different physical prefixes are therefore distinguishable by `cutoffLedgerOrdinal` / `maxUsedLedgerOrdinal`. The output must retain enough source/audit linkage to reconstruct or verify the used ledger prefix.
 
 Required negative tests in the next package:
 
 - `DELAYED_EARLIER_EVENT_QUOTE`: quote `eventTime <= tick.eventTime` but `quote.availableAt > tick.availableAt` → quote is ineligible.
+- `EQUAL_AVAILABLE_AT_LATER_ORDINAL`: quote and Tick have equal `availableAt`, quote has earlier `eventTime`, but `quote.ledgerOrdinal > tick.ledgerOrdinal` → quote is ineligible.
 - `FUTURE_EVENT_QUOTE`: quote `eventTime > tick.eventTime` → quote is ineligible.
 - `STALE_QUOTE`: event-time age exceeds `maxQuoteAgeMs` → quote is ineligible.
+- `NON_MONOTONIC_RECEIVED_AT`: physically later record has earlier `receivedAt` → availability-dependent joined derivation fails closed; replay does not reorder.
 - `RECONNECT_BOUNDARY`: quote and Tick are in different `continuityEpoch` values → quote is ineligible.
 - `CONTRACT_OR_SESSION_BOUNDARY`: identity differs → quote is ineligible.
-- `DETERMINISTIC_TIE`: equal `availableAt`/`eventTime` records replay identically using ledger order.
-- `OUTPUT_AVAILABILITY`: derived output `availableAt` is never earlier than any used input.
+- `DETERMINISTIC_EQUAL_TIME`: equal `availableAt`/`eventTime` records preserve physical ledger order exactly.
+- `OUTPUT_AVAILABILITY`: derived output `availableAt` equals the maximum availability of used inputs.
+- `OUTPUT_ORDINAL_CUTOFF`: every used input ordinal is at/before `cutoffLedgerOrdinal`, and `maxUsedLedgerOrdinal` is preserved.
 
-The current `buildFuturesOrderFlow()` exchange-time guard remains useful research substrate, but it is **not sufficient by itself** for the governed V1 engine until this contract is implemented and tested.
+The current `buildFuturesOrderFlow()` exchange-time guard remains useful research substrate, but it is **not sufficient by itself** for the governed V1 engine until this physical-order + availability contract is implemented and tested.
 
 ---
 
@@ -554,6 +620,8 @@ source
 eventTime
 receivedAt
 availableAt
+cutoffLedgerOrdinal
+maxUsedLedgerOrdinal
 quality
 methodology
 limitations
@@ -585,13 +653,13 @@ Recommended bounded scope:
 
 1. TX only as reference instrument.
 2. Reuse existing Tick + BidAsk collector; no new provider/source.
-3. Materialize canonical `availableAt = ledger.receivedAt` and enforce the §6 availability-safe event/identity/continuity contract.
+3. Materialize canonical `availableAt = ledger.receivedAt` plus stable physical `ledgerOrdinal`; enforce the §6 availability-safe event/identity/continuity/ordinal contract.
 4. Preserve provider side, UNKNOWN, quote-inferred side, conflict and coverage separately.
 5. Add deterministic windows; start with a minimal set rather than every timeframe at once.
 6. Implement Price Path Efficiency.
 7. Implement pressure + price-response evidence without a composite Market Control score.
-8. Add explicit delayed-earlier-event, future-event, stale-quote, deterministic-tie, output-availability, Tick-only, BidAsk-only, low-coverage, reconnect-boundary and contract/session-boundary negative tests.
-9. Replay by availability cutoff with stable ledger-order tie-breaking; produce deterministic replay artifact and audit report.
+8. Add explicit delayed-earlier-event, equal-available-at/later-ordinal, future-event, stale-quote, non-monotonic-receivedAt, output-ordinal-cutoff, Tick-only, BidAsk-only, low-coverage, reconnect-boundary and contract/session-boundary negative tests.
+9. Replay strictly in physical ledger order; fail closed on invalid availability lineage; produce deterministic replay artifact and audit report with `cutoffLedgerOrdinal` / `maxUsedLedgerOrdinal`.
 10. Keep production Decision Workspace `estimatedFlow` unavailable until the research capability passes its own gates and Owner separately authorizes wiring.
 
 Explicitly out of scope for the next package unless separately authorized:
@@ -616,8 +684,8 @@ Explicitly out of scope for the next package unless separately authorized:
 | --- | --- | --- |
 | A Scope / Contract | REQUIRED | PASS — Linear scope is explicit and branch baseline matches approved main at audit start |
 | B Data Truth | REQUIRED | PARTIAL — repository/provider contracts verified; current local real-provider runtime is not directly observable through GitHub connector |
-| C Derivation / Replay | REQUIRED | PARTIAL — availability-safe replay contract now frozen at design level; implementation/tests remain for the next authorized package |
-| D Engineering | REQUIRED | PENDING — prior independent review requested changes on old HEAD; B-01 design fix applied, exact-HEAD re-review required |
+| C Derivation / Replay | REQUIRED | PARTIAL — physical-ledger-order + availability-safe replay contract now frozen at design level; implementation/tests remain for the next authorized package |
+| D Engineering | REQUIRED | PENDING — Level-3 Review 3 found three blockers on prior HEAD; fixes changed HEAD, so all affected exact-HEAD reviews must rerun |
 | E Dashboard Truth | NOT_APPLICABLE | no production UI change |
 | F Production Browser | NOT_APPLICABLE | no browser/runtime change |
 | G Decision Assist | NOT_APPLICABLE | no runtime interpretation change |
@@ -629,17 +697,26 @@ Explicitly out of scope for the next package unless separately authorized:
 
 ## 13. Current Blocking Findings
 
-### B1 — `availableAt` is not first-class on generic futures ledger records
+### B1 — `availableAt` / physical observation order was not sufficient on the prior reviewed HEAD
 
-Severity: **Implementation blocker for the next package; CRU-33 design blocker resolved by freezing §6.**
+Severity: **CRU-33 design blocker addressed; exact-HEAD Level-3 re-review required.**
 
 Reason:
 
-The generic ledger does not yet expose first-class canonical `availableAt`, but the audit now freezes V1 semantics as `availableAt = ledger.receivedAt` and requires availability-cutoff replay, same contract/session/continuity epoch, event-time ordering, bounded quote age, deterministic ledger-order ties, and output availability no earlier than all used inputs.
+The prior contract used `availableAt` / event-time ordering with ledger order only as a tie-breaker. That allowed equal-timestamp or regressed-wall-clock records to move backward into an earlier knowledge state.
+
+Current design resolution:
+
+- `availableAt = ledger.receivedAt` remains timestamp lineage;
+- physical append-only `ledgerOrdinal` is the authoritative observation sequence;
+- quote eligibility requires `quote.ledgerOrdinal < tick.ledgerOrdinal`;
+- replay never reorders physical observations by `availableAt` or `eventTime`;
+- non-monotonic `receivedAt` fails availability-dependent joined derivations closed;
+- outputs preserve `cutoffLedgerOrdinal` and `maxUsedLedgerOrdinal`.
 
 Disposition:
 
-`DESIGN_CONTRACT_RESOLVED / IMPLEMENTATION_PENDING_NEXT_AUTHORIZED_PACKAGE`
+`DESIGN_FIX_APPLIED / EXACT_HEAD_LEVEL3_REREVIEW_REQUIRED`
 
 ### B2 — Existing `quoteCvd` can be misread as order-book pressure
 
@@ -682,9 +759,9 @@ CRU-33 contains no implementation of a trading signal, Market State promotion, b
 
 ## 15. Preliminary Audit Verdict
 
-**The raw data foundation is sufficient to justify a bounded TX research implementation package without adding a new data source.**
+**The raw data foundation is sufficient to justify a bounded TX research implementation package without adding a new data source, provided the physical-ledger-order / availability contract passes exact-HEAD Level-3 re-review.**
 
-But the system is **not yet entitled to claim Market Control**.
+The system is **not yet entitled to claim Market Control**.
 
 The correct next engineering move is not “add a CVD widget.” It is to build and validate a governed chain:
 
@@ -704,4 +781,4 @@ Absorption / Effectiveness research observations
 
 Displayed five-level liquidity should be a separate evidence channel and should only join after its own raw-contract/quality audit.
 
-Final Engineering Review and Owner Acceptance remain pending.
+Final Level-3 Engineering Review and Owner Acceptance remain pending.
