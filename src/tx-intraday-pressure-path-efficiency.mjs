@@ -109,10 +109,8 @@ export function materializeTxCanonicalObservations(records, {
       breakReason = record.kind;
       continue;
     }
-    if (!txRecord(record) || record?.duplicate === true || record?.payload?.simtrade === true) continue;
-    assertSafety(record);
 
-    if (breakPending) {
+    if (breakPending && txRecord(record)) {
       epoch += 1;
       breakPending = false;
       seenTick = false;
@@ -121,6 +119,18 @@ export function materializeTxCanonicalObservations(records, {
       epochLineageInvalid = false;
     }
 
+    const physicalReceivedMs = timestampMs(record?.receivedAt);
+    if (physicalReceivedMs == null) {
+      epochLineageInvalid = true;
+    } else if (lastReceivedMs != null && physicalReceivedMs < lastReceivedMs) {
+      epochLineageInvalid = true;
+    }
+    if (physicalReceivedMs != null) lastReceivedMs = physicalReceivedMs;
+
+    if (!txRecord(record) || record?.duplicate === true || record?.payload?.simtrade === true) continue;
+    assertSafety(record);
+
+    const payload = record.payload || {};
     const eventTime = eventTimeOf(record);
     const eventMs = timestampMs(eventTime);
     const receivedAt = text(record.receivedAt);
@@ -133,17 +143,11 @@ export function materializeTxCanonicalObservations(records, {
     const qualityReasons = [];
     if (receivedMs == null) {
       availabilityLineageStatus = 'INVALID_RECEIVED_AT';
-      epochLineageInvalid = true;
       qualityReasons.push('RECEIVED_AT_INVALID');
-    } else if (lastReceivedMs != null && receivedMs < lastReceivedMs) {
-      availabilityLineageStatus = 'INVALID_NON_MONOTONIC_RECEIVED_AT';
-      epochLineageInvalid = true;
-      qualityReasons.push('NON_MONOTONIC_RECEIVED_AT');
     } else if (epochLineageInvalid) {
       availabilityLineageStatus = 'INVALID_NON_MONOTONIC_RECEIVED_AT';
       qualityReasons.push('CONTINUITY_SEGMENT_LINEAGE_INVALID');
     }
-    if (receivedMs != null) lastReceivedMs = receivedMs;
     if (!recordHash) qualityReasons.push('RECORD_HASH_MISSING');
     if (eventMs == null) qualityReasons.push('EVENT_TIME_INVALID');
     if (!actualContract) qualityReasons.push('ACTUAL_CONTRACT_MISSING');
@@ -181,7 +185,7 @@ export function materializeTxCanonicalObservations(records, {
       ledgerOrdinal,
       recordHash,
       sourceLedgerIdentity: sourceIdentity,
-      payload: record.payload || {},
+      payload,
       qualityReasons: Object.freeze([...new Set(qualityReasons)]),
       rawRecord: record,
     }));
