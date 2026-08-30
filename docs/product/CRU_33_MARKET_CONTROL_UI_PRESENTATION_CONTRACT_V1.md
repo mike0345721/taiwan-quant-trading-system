@@ -54,15 +54,21 @@ Primary descriptive observation
 Research / Promotion status
 ```
 
-Candidate descriptive observation labels, only after their deterministic contracts are frozen and validated:
+Before formal Control / Relative Intensity promotion, the primary observation must stay descriptive and capability-aware, for example:
+
+- **買方成交壓力占優 · Control 研究中**
+- **賣方成交壓力占優 · Control 研究中**
+- **成交壓力接近平衡 · Control 研究中**
+- insufficient quality / coverage → **資料不足，暫不判讀**
+- capability not promoted → **研究中 / 尚未升格**
+
+Candidate control labels below are reserved until their deterministic contracts are frozen, validated and separately promoted:
 
 - `BUYER_EFFECTIVE_CANDIDATE` → **買方施壓，價格有反應**
 - `SELLER_EFFECTIVE_CANDIDATE` → **賣方施壓，價格有反應**
 - `SELLER_ABSORPTION_CANDIDATE` → **買壓偏強，但價格推不動**
 - `BUYER_ABSORPTION_CANDIDATE` → **賣壓偏強，但價格跌不動**
 - `BALANCED_OR_CONFLICT` → **壓力與價格反應不一致**
-- insufficient quality / coverage → **資料不足，暫不判讀**
-- capability not promoted → **研究中 / 尚未升格**
 
 These labels are descriptive research observations. They must not render as BUY / SELL / confidence / strategy permission.
 
@@ -91,33 +97,37 @@ Keep the first evidence row to at most four compact concepts:
    - conflict ratio
    - missing required stream reason
 
-Displayed Liquidity should be a separate evidence tile only after its own depth contract exists. Until then it must render `RESEARCH_PENDING`, not a fabricated neutral value.
+Relative Intensity must render `RESEARCH_PENDING` until its historical baseline contract is frozen. Displayed Liquidity should be a separate evidence tile only after its own depth contract exists. Until then it must render `RESEARCH_PENDING`, not a fabricated neutral value.
 
 ## 4. Recommended Desktop Card
 
-Conceptual layout only:
+Conceptual layout for the **initial research engine state**, before Relative Intensity / Control / Market State promotion:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │ TX · TXFxxxx · DAY · 1m                           LIVE · 研究中      │
 │                                                                     │
-│  買方施壓，價格有反應                                                │
-│  買方成交壓力占優，價格同步上移；目前只作研究觀察。                    │
+│  買方成交壓力占優 · Control 研究中                                  │
+│  目前只描述成交壓力與價格反應，不宣稱「買方控制」。                  │
 │                                                                     │
 │  成交壓力         價格反應          路徑效率          資料可信度      │
 │  +0.62            +18 ticks         0.78              96% coverage  │
 │  Buy > Sell       同向              —                 conflict 4%   │
 │                                                                     │
-│  [ Price timeline ]                                                    │
+│  相對力道：RESEARCH_PENDING   Market State：由獨立契約提供/未提供     │
+│                                                                     │
+│  [ Price timeline ]                                                │
 │  [ Pressure bars  ]   ← same time axis, separate panes              │
 │                                                                     │
-│  反向證據：5m 壓力未同步增強 / conflict 上升（有才顯示）              │
-│  注意：若壓力續增但價格停止延伸，可能轉為吸收候選。                    │
+│  反向證據：若有，顯示實際 evidence；無則不補造                       │
+│  注意：Control / Absorption 尚未升格，不在此卡先行宣稱。              │
 │                                                     [查看證據與細節] │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 Values above are illustrative UI placeholders only, not production thresholds or current market facts.
+
+After a later separately governed promotion contract, the same card may replace `Control 研究中` with a qualified descriptive control observation. It must not jump directly to a probability or trading direction.
 
 ## 5. Timeline Visualization
 
@@ -134,7 +144,7 @@ Executed Pressure bars
 Why:
 
 - the user can see whether pressure arrived before / with the price move;
-- divergence and absorption become visually inspectable;
+- divergence and potential absorption patterns become visually inspectable without claiming causality;
 - separate panes avoid pretending pressure and price have the same numeric scale;
 - the relationship is easier to understand than an opaque composite score.
 
@@ -153,9 +163,11 @@ What we observe
 → What would weaken this observation
 ```
 
-Example pattern:
+Before formal Control promotion, example pattern:
 
-> 買方成交壓力目前占優，且價格在同一觀察窗內同步抬升；路徑效率顯示價格移動較直接。反向證據為分類衝突上升。若買方壓力持續增加但價格不再延伸，應把目前的「有效推動」降級為吸收／衝突候選。
+> 買方成交壓力目前占優，且價格在同一觀察窗內上移；Path Efficiency 為可用研究值。這只描述壓力與價格反應的同步關係，不證明買方造成上漲，也不構成「買方控制」。Control / Absorption 維持 RESEARCH_PENDING。
+
+After a later control promotion contract, wording may use the allowed candidate states, but must continue to avoid causal or participant-identity claims.
 
 The actual wording must be generated from explicit evidence fields and allowed states. It must not introduce facts that are absent from the snapshot.
 
@@ -204,6 +216,7 @@ source
 eventTime
 receivedAt
 availableAt
+continuityEpoch
 Tick health
 BidAsk health
 classified coverage
@@ -237,7 +250,7 @@ Examples:
 ```
 
 ```text
-研究中 · Path Efficiency 已可計算，Market Control 尚未升格
+研究中 · Path Efficiency 已可計算，Control / Market Control 尚未升格
 ```
 
 ```text
@@ -254,10 +267,13 @@ Before production wiring is accepted, the UI should pass two product tests.
 
 Without opening a drawer, a user can answer:
 
-- who is applying pressure?
-- is price responding?
-- is the path efficient / available?
+- which side has observed executed pressure advantage?
+- is price responding in the same/opposite direction?
+- is Path Efficiency available?
+- is Relative Intensity promoted or still pending?
 - is the data trustworthy?
+
+The user must also be able to see whether Control and Market State are promoted, pending, or supplied by another governed capability. Pending concepts must not be visually replaced by implied conclusions.
 
 ### 10-second evidence test
 
@@ -267,6 +283,7 @@ With one interaction, a user can answer:
 - what contradicts it?
 - what is missing or stale?
 - what observation would weaken / invalidate the current interpretation?
+- what evidence is unavailable because the capability has not yet been promoted?
 
 If the interface requires reading raw Tick/BidAsk tables to answer those questions, the product presentation is not complete.
 
@@ -280,6 +297,9 @@ If the interface requires reading raw Tick/BidAsk tables to answer those questio
 - Use progressive disclosure for raw volumes, formulas, lineage and diagnostics.
 - Avoid gauges that imply precision not justified by validation.
 - Do not show a composite `Bull 78 / Bear 22` score in V1.
+- Do not display `強 / 中 / 弱` before the Relative Intensity baseline is governed.
+- Do not display `買方控制 / 賣方控制 / 吸收` before the formal Control observation contract is promoted.
+- Do not synthesize Market State inside this card unless it is supplied by the separate governed Market State contract.
 
 ## 12. Engineering Consequence
 
@@ -293,6 +313,9 @@ window
 pressure
 response
 pathEfficiency
+relativeIntensity (or RESEARCH_PENDING)
+control (or RESEARCH_PENDING)
+marketStateReference (VALUE / RESEARCH_PENDING / UNAVAILABLE)
 liquidity (or RESEARCH_PENDING)
 quality / trust
 conflict
@@ -312,6 +335,7 @@ For the proposed **TX Intraday Pressure & Path Efficiency Research Engine V1**:
 - Engine/Data/Derivation work remains one bounded implementation package.
 - This UI Presentation Contract is an input to the engine output schema and acceptance design.
 - A static/research preview may be used to validate comprehension if separately included in scope.
+- The initial research preview must keep Relative Intensity / Control / Market State pending unless their own contracts have already passed the required gates.
 - Production Dashboard wiring should be a follow-on package after engine Data Truth / Derivation / Replay gates pass and Product Owner explicitly authorizes UI wiring.
 
 This sequencing avoids designing an engine that cannot be explained in the UI while also avoiding premature promotion of unvalidated research output into production.
