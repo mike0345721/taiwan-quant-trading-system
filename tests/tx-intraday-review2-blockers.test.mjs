@@ -69,6 +69,9 @@ test('incomplete provider classification coverage cannot become READY or support
   const snapshot = buildTxIntradayResearchSnapshot(records, options());
   assert.equal(snapshot.windows.primary60s.pressure.pressureRatio, 1);
   assert.equal(snapshot.windows.primary60s.pressure.classifiedCoverage, 1 / 11);
+  assert.equal(snapshot.windows.primary60s.pressure.status, 'QUALITY_INSUFFICIENT');
+  assert.equal(snapshot.windows.primary60s.pressure.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
+  assert.equal(snapshot.windows.primary60s.pressure.direction, 'UNAVAILABLE');
   assert.equal(snapshot.windows.primary60s.status, 'QUALITY_INSUFFICIENT');
   assert.equal(snapshot.status, 'QUALITY_INSUFFICIENT');
   assert.equal(snapshot.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
