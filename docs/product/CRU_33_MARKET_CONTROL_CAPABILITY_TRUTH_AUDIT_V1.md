@@ -401,7 +401,10 @@ Every derived window/snapshot must publish enough lineage to prove its exact kno
 ```text
 output.availableAt
 output.cutoffLedgerOrdinal
+output.cutoffRecordHash
 output.maxUsedLedgerOrdinal
+output.maxUsedRecordHash
+output.sourceLedgerIdentity
 ```
 
 Required invariants:
@@ -411,11 +414,15 @@ output.availableAt = max(availableAt of every input record used)
 output.maxUsedLedgerOrdinal = max(ledgerOrdinal of every input record used)
 output.maxUsedLedgerOrdinal <= output.cutoffLedgerOrdinal
 every used input ledgerOrdinal <= output.cutoffLedgerOrdinal
+output.cutoffRecordHash = recordHash at output.cutoffLedgerOrdinal
+output.maxUsedRecordHash = recordHash at output.maxUsedLedgerOrdinal
 ```
 
 For a Tick-triggered snapshot, `output.cutoffLedgerOrdinal` is the Tick/cutoff record ordinal. For another deterministic emission boundary, it is the last physically processed governed ledger ordinal at the emission point.
 
-Two snapshots with the same `output.availableAt` but different physical prefixes are therefore distinguishable by `cutoffLedgerOrdinal` / `maxUsedLedgerOrdinal`. The output must retain enough source/audit linkage to reconstruct or verify the used ledger prefix.
+`output.sourceLedgerIdentity` must identify the exact governed source ledger/replay artifact. Combined with the deterministic window/filter contract, cutoff ordinal and hash-chain identity, it must be sufficient to reconstruct and verify the eligible input prefix and whether every used input was legal at the cutoff.
+
+Two snapshots with the same `output.availableAt` but different physical prefixes are therefore distinguishable by `cutoffLedgerOrdinal`, record hash and `maxUsedLedgerOrdinal` lineage.
 
 Required negative tests in the next package:
 
@@ -429,6 +436,7 @@ Required negative tests in the next package:
 - `DETERMINISTIC_EQUAL_TIME`: equal `availableAt`/`eventTime` records preserve physical ledger order exactly.
 - `OUTPUT_AVAILABILITY`: derived output `availableAt` equals the maximum availability of used inputs.
 - `OUTPUT_ORDINAL_CUTOFF`: every used input ordinal is at/before `cutoffLedgerOrdinal`, and `maxUsedLedgerOrdinal` is preserved.
+- `OUTPUT_LINEAGE_HASH`: cutoff/max-used record hashes and source-ledger identity reproduce the same legal replay prefix.
 
 The current `buildFuturesOrderFlow()` exchange-time guard remains useful research substrate, but it is **not sufficient by itself** for the governed V1 engine until this physical-order + availability contract is implemented and tested.
 
@@ -621,7 +629,10 @@ eventTime
 receivedAt
 availableAt
 cutoffLedgerOrdinal
+cutoffRecordHash
 maxUsedLedgerOrdinal
+maxUsedRecordHash
+sourceLedgerIdentity
 quality
 methodology
 limitations
@@ -658,8 +669,8 @@ Recommended bounded scope:
 5. Add deterministic windows; start with a minimal set rather than every timeframe at once.
 6. Implement Price Path Efficiency.
 7. Implement pressure + price-response evidence without a composite Market Control score.
-8. Add explicit delayed-earlier-event, equal-available-at/later-ordinal, future-event, stale-quote, non-monotonic-receivedAt, output-ordinal-cutoff, Tick-only, BidAsk-only, low-coverage, reconnect-boundary and contract/session-boundary negative tests.
-9. Replay strictly in physical ledger order; fail closed on invalid availability lineage; produce deterministic replay artifact and audit report with `cutoffLedgerOrdinal` / `maxUsedLedgerOrdinal`.
+8. Add explicit delayed-earlier-event, equal-available-at/later-ordinal, future-event, stale-quote, non-monotonic-receivedAt, output-ordinal-cutoff/lineage-hash, Tick-only, BidAsk-only, low-coverage, reconnect-boundary and contract/session-boundary negative tests.
+9. Replay strictly in physical ledger order; fail closed on invalid availability lineage; produce deterministic replay artifact and audit report with ordinal + hash-chain cutoff identity.
 10. Keep production Decision Workspace `estimatedFlow` unavailable until the research capability passes its own gates and Owner separately authorizes wiring.
 
 Explicitly out of scope for the next package unless separately authorized:
@@ -712,7 +723,7 @@ Current design resolution:
 - quote eligibility requires `quote.ledgerOrdinal < tick.ledgerOrdinal`;
 - replay never reorders physical observations by `availableAt` or `eventTime`;
 - non-monotonic `receivedAt` fails availability-dependent joined derivations closed;
-- outputs preserve `cutoffLedgerOrdinal` and `maxUsedLedgerOrdinal`.
+- outputs preserve ordinal + record-hash cutoff lineage and exact source-ledger identity.
 
 Disposition:
 
