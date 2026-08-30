@@ -276,6 +276,22 @@ test('safety boundary violation throws', () => {
   }), /CRU34_SAFETY_BOUNDARY_INVALID/);
 });
 
+test('safety-invalid continuity evidence fails closed before changing epoch', () => {
+  for (const kind of ['futures_reconnect_resubscribe_started', 'quote_type_resubscribe']) {
+    const badLifecycle = lifecycle(kind, {
+      product: 'TX', quoteType: 'BidAsk', actualContract: 'TXFI6',
+    }, '2026-08-26T09:00:01+08:00', `bad-${kind}`);
+    badLifecycle.executionAuthorized = true;
+    assert.throws(() => materializeTxCanonicalObservations([
+      record('futures_tick', {
+        eventTime: '2026-08-26T09:00:00.100+08:00',
+        receivedAt: '2026-08-26T09:00:00.110+08:00', hash: `t-${kind}`,
+      }),
+      badLifecycle,
+    ], { sourceLedgerIdentity: 'ledger-A' }), /CRU34_SAFETY_BOUNDARY_INVALID/);
+  }
+});
+
 test('pressure window preserves BUY SELL UNKNOWN and bounded ratio', () => {
   const events = materializeTxCanonicalObservations([
     record('futures_bidask', {
@@ -319,7 +335,7 @@ test('pressure ratio is unavailable when all provider classifications are unknow
     }),
   ], { sourceLedgerIdentity: 'ledger-A' }).events;
   const output = buildExecutedPressureWindow(events, events.at(-1));
-  assert.equal(output.status, 'READY');
+  assert.equal(output.status, 'UNAVAILABLE');
   assert.equal(output.pressureRatio, null);
   assert.equal(output.unavailableReason, 'NO_CLASSIFIED_VOLUME');
   assert.equal(output.direction, 'UNAVAILABLE');
