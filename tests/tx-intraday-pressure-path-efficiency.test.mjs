@@ -292,7 +292,7 @@ test('safety-invalid continuity evidence fails closed before changing epoch', ()
   }
 });
 
-test('pressure window preserves BUY SELL UNKNOWN and bounded ratio', () => {
+test('pressure window preserves BUY SELL UNKNOWN but fails closed below full classified coverage', () => {
   const events = materializeTxCanonicalObservations([
     record('futures_bidask', {
       eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
@@ -312,14 +312,15 @@ test('pressure window preserves BUY SELL UNKNOWN and bounded ratio', () => {
     }),
   ], { sourceLedgerIdentity: 'ledger-A' }).events;
   const output = buildExecutedPressureWindow(events, events.at(-1));
-  assert.equal(output.status, 'READY');
+  assert.equal(output.status, 'QUALITY_INSUFFICIENT');
+  assert.equal(output.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
   assert.equal(output.buyProxyVolume, 2);
   assert.equal(output.sellProxyVolume, 1);
   assert.equal(output.unknownVolume, 1);
   assert.equal(output.netAggressiveFlowProxy, 1);
   assert.equal(output.pressureRatio, 1 / 3);
   assert.equal(output.classifiedCoverage, 0.75);
-  assert.equal(output.direction, 'BUY_SIDE');
+  assert.equal(output.direction, 'UNAVAILABLE');
   assert.equal(output.relativeIntensity, 'RESEARCH_PENDING');
 });
 
