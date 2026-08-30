@@ -271,3 +271,183 @@ export function buildSnapshotLineage(usedEvents, cutoffEvent) {
     sourceLedgerIdentity: source,
   });
 }
+
+function finitePositive(value) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function providerSide(value) {
+  const tickType = Number(value);
+  if (tickType === 1) return 'BUY_PROXY';
+  if (tickType === 2) return 'SELL_PROXY';
+  return 'UNKNOWN';
+}
+
+function bestQuoteSide(price, quote) {
+  const bid = Array.isArray(quote?.payload?.bid_price)
+    ? Number(quote.payload.bid_price[0]) : NaN;
+  const ask = Array.isArray(quote?.payload?.ask_price)
+    ? Number(quote.payload.ask_price[0]) : NaN;
+  if (!Number.isFinite(price) || !Number.isFinite(bid) || !Number.isFinite(ask) || bid > ask) {
+    return 'UNAVAILABLE';
+  }
+  if (price >= ask) return 'BUY_PROXY';
+  if (price <= bid) return 'SELL_PROXY';
+  return 'INSIDE_SPREAD';
+}
+
+function sameWindowIdentity(event, anchor) {
+  return event.actualContract === anchor.actualContract
+    && event.tradeDate === anchor.tradeDate
+    && event.session === anchor.session
+    && event.continuityEpoch === anchor.continuityEpoch;
+}
+
+function ticksForWindow(events, cutoffEvent, windowMs) {
+  const lowerExclusive = cutoffEvent.eventMs - windowMs;
+  return events.filter((event) => event.kind === 'futures_tick'
+    && event.ledgerOrdinal <= cutoffEvent.ledgerOrdinal
+    && sameWindowIdentity(event, cutoffEvent)
+    && event.eventMs != null
+    && event.eventMs > lowerExclusive
+    && event.eventMs <= cutoffEvent.eventMs);
+}
+
+function latestEligibleQuote(events, tick, maxQuoteAgeMs) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const candidate = events[index];
+    if (candidate.kind !== 'futures_bidask') continue;
+    if (candidate.ledgerOrdinal >= tick.ledgerOrdinal) continue;
+    const eligibility = evaluateBestQuoteEligibility(candidate, tick, { maxQuoteAgeMs });
+    if (eligibility.eligible) return { quote: candidate, eligibility };
+  }
+  return { quote: null, eligibility: null };
+}
+
+export function buildExecutedPressureWindow(events, cutoffEvent, {
+  windowMs = 60_000,
+  maxQuoteAgeMs = 2_000,
+} = {}) {
+  if (!Array.isArray(events) || cutoffEvent?.kind !== 'futures_tick') {
+    throw new Error('CRU34_PRESSURE_WINDOW_INPUT_INVALID');
+  }
+  if (!(windowMs > 0)) throw new Error('CRU34_PRESSURE_WINDOW_MS_INVALID');
+  const ticks = ticksForWindow(events, cutoffEvent, windowMs);
+  if (!ticks.length) {
+    return Object.freeze({
+      status: 'UNAVAILABLE', unavailableReason: 'NO_ELIGIBLE_TICKS',
+      windowMs, pressureRatio: null, direction: 'UNAVAILABLE',
+      relativeIntensity: 'RESEARCH_PENDING', controlObservationState: 'RESEARCH_PENDING',
+    });
+  }
+  const lineageInvalid = ticks.some((tick) => (
+    tick.identityStatus !== 'USABLE' || tick.availabilityLineageStatus !== 'USABLE'
+  ));
+  if (lineageInvalid) {
+    return Object.freeze({
+      status: 'QUALITY_INSUFFICIENT', unavailableReason: 'TICK_LINEAGE_UNUSABLE',
+      windowMs, pressureRatio: null, direction: 'UNAVAILABLE',
+      relativeIntensity: 'RESEARCH_PENDING', controlObservationState: 'RESEARCH_PENDING',
+    });
+  }
+
+  let totalExecutedVolume = 0;
+  let buyProxyVolume = 0;
+  let sellProxyVolume = 0;
+  let unknownVolume = 0;
+  let bestQuoteBuyProxyVolume = 0;
+  let bestQuoteSellProxyVolume = 0;
+  let bestQuoteInsideSpreadVolume = 0;
+  let bestQuoteUnavailableVolume = 0;
+  let bestQuoteMatchedTicks = 0;
+  let classificationConflictCount = 0;
+  const usedEvents = [...ticks];
+
+  for (const tick of ticks) {
+    const volume = finitePositive(tick.payload?.executedVolume ?? tick.payload?.volume);
+    const price = finitePositive(tick.payload?.price ?? tick.payload?.close);
+    if (volume == null || price == null) {
+      return Object.freeze({
+        status: 'QUALITY_INSUFFICIENT', unavailableReason: 'TICK_PRICE_OR_VOLUME_INVALID',
+        windowMs, pressureRatio: null, direction: 'UNAVAILABLE',
+        relativeIntensity: 'RESEARCH_PENDING', controlObservationState: 'RESEARCH_PENDING',
+      });
+    }
+    totalExecutedVolume += volume;
+    const side = providerSide(tick.payload?.tick_type);
+    if (side === 'BUY_PROXY') buyProxyVolume += volume;
+    else if (side === 'SELL_PROXY') sellProxyVolume += volume;
+    else unknownVolume += volume;
+
+    const { quote } = latestEligibleQuote(events, tick, maxQuoteAgeMs);
+    if (!quote) {
+      bestQuoteUnavailableVolume += volume;
+      continue;
+    }
+    usedEvents.push(quote);
+    const quoteSide = bestQuoteSide(price, quote);
+    if (quoteSide === 'BUY_PROXY') {
+      bestQuoteBuyProxyVolume += volume;
+      bestQuoteMatchedTicks += 1;
+    } else if (quoteSide === 'SELL_PROXY') {
+      bestQuoteSellProxyVolume += volume;
+      bestQuoteMatchedTicks += 1;
+    } else if (quoteSide === 'INSIDE_SPREAD') {
+      bestQuoteInsideSpreadVolume += volume;
+    } else {
+      bestQuoteUnavailableVolume += volume;
+    }
+    if ((side === 'BUY_PROXY' || side === 'SELL_PROXY')
+        && (quoteSide === 'BUY_PROXY' || quoteSide === 'SELL_PROXY')
+        && side !== quoteSide) {
+      classificationConflictCount += 1;
+    }
+  }
+
+  const classifiedVolume = buyProxyVolume + sellProxyVolume;
+  const pressureRatio = classifiedVolume > 0
+    ? (buyProxyVolume - sellProxyVolume) / classifiedVolume : null;
+  const classifiedCoverage = totalExecutedVolume > 0
+    ? classifiedVolume / totalExecutedVolume : null;
+  const bestQuoteMatchedVolume = bestQuoteBuyProxyVolume + bestQuoteSellProxyVolume;
+  const bestQuoteMatchedCoverage = totalExecutedVolume > 0
+    ? bestQuoteMatchedVolume / totalExecutedVolume : null;
+  const classificationConflictRate = bestQuoteMatchedTicks > 0
+    ? classificationConflictCount / bestQuoteMatchedTicks : null;
+  const direction = pressureRatio == null ? 'UNAVAILABLE'
+    : pressureRatio > 0 ? 'BUY_SIDE'
+      : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED';
+
+  return Object.freeze({
+    status: 'READY',
+    unavailableReason: pressureRatio == null ? 'NO_CLASSIFIED_VOLUME' : null,
+    windowMs,
+    tickCount: ticks.length,
+    totalExecutedVolume,
+    buyProxyVolume,
+    sellProxyVolume,
+    unknownVolume,
+    classifiedVolume,
+    netAggressiveFlowProxy: buyProxyVolume - sellProxyVolume,
+    pressureRatio,
+    direction,
+    classifiedCoverage,
+    bestQuoteCrossCheck: Object.freeze({
+      buyProxyVolume: bestQuoteBuyProxyVolume,
+      sellProxyVolume: bestQuoteSellProxyVolume,
+      insideSpreadVolume: bestQuoteInsideSpreadVolume,
+      unavailableVolume: bestQuoteUnavailableVolume,
+      matchedCoverage: bestQuoteMatchedCoverage,
+      matchedTicks: bestQuoteMatchedTicks,
+    }),
+    conflict: Object.freeze({
+      count: classificationConflictCount,
+      rate: classificationConflictRate,
+    }),
+    relativeIntensity: 'RESEARCH_PENDING',
+    controlObservationState: 'RESEARCH_PENDING',
+    usedEvents: Object.freeze([...new Set(usedEvents)]),
+  });
+}
