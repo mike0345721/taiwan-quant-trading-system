@@ -99,6 +99,21 @@ export function buildPriceResponsePathEfficiencyWindow(events, cutoffEvent, {
     });
   }
 
+  if (ticks.some((tick) => tick.availabilityLineageStatus !== 'USABLE')) {
+    return Object.freeze({
+      status: 'QUALITY_INSUFFICIENT',
+      unavailableReason: 'TICK_AVAILABILITY_LINEAGE_UNUSABLE',
+      windowMs,
+      tickCount: ticks.length,
+      response: Object.freeze({
+        status: 'UNAVAILABLE',
+        unavailableReason: 'TICK_AVAILABILITY_LINEAGE_UNUSABLE',
+      }),
+      pathEfficiency: unavailablePath('QUALITY_INSUFFICIENT_AVAILABILITY_LINEAGE', ticks.length, maxGapMs),
+      usedEvents: Object.freeze(ticks),
+    });
+  }
+
   const prices = ticks.map(priceOf);
   if (prices.some((price) => price == null)) {
     return Object.freeze({
