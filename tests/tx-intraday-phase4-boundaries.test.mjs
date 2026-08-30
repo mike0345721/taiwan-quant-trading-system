@@ -41,12 +41,21 @@ function lifecycle(kind, payload, receivedAt, hash) {
   };
 }
 
+function chain(records) {
+  let previousHash = 'GENESIS';
+  return records.map((record) => {
+    const linked = { ...record, previousHash };
+    previousHash = record.recordHash;
+    return linked;
+  });
+}
+
 test('equal eventTime keeps physical ledger order for path calculation', () => {
-  const records = [
+  const records = chain([
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 't1', price: 100 }),
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.020+08:00', hash: 't2', price: 105 }),
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.030+08:00', hash: 't3', price: 101 }),
-  ];
+  ]);
   const snapshot = buildTxIntradayResearchSnapshot(records, SNAPSHOT_OPTIONS);
   assert.equal(snapshot.windows.primary60s.response.startPrice, 100);
   assert.equal(snapshot.windows.primary60s.response.endPrice, 101);
@@ -55,14 +64,14 @@ test('equal eventTime keeps physical ledger order for path calculation', () => {
 });
 
 test('full reconnect starts a fresh joined continuity epoch', () => {
-  const records = [
+  const records = chain([
     quote({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 'q1', bid: 99, ask: 100 }),
     tick({ eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00', hash: 't1', price: 100 }),
     lifecycle('futures_reconnect_resubscribe_started', { products: ['TX', 'MTX', 'TMF'], subscriptionGeneration: 2 }, '2026-08-26T09:00:01+08:00', 'life'),
     quote({ eventTime: '2026-08-26T09:00:01.100+08:00', receivedAt: '2026-08-26T09:00:01.110+08:00', hash: 'q2', bid: 100, ask: 101 }),
     tick({ eventTime: '2026-08-26T09:00:01.200+08:00', receivedAt: '2026-08-26T09:00:01.210+08:00', hash: 't2', price: 101 }),
     tick({ eventTime: '2026-08-26T09:00:01.300+08:00', receivedAt: '2026-08-26T09:00:01.310+08:00', hash: 't3', price: 102 }),
-  ];
+  ]);
   const snapshot = buildTxIntradayResearchSnapshot(records, SNAPSHOT_OPTIONS);
   assert.equal(snapshot.identity.continuityEpoch, 'TX:2');
   assert.equal(snapshot.windows.primary60s.pressure.tickCount, 2);
@@ -71,12 +80,12 @@ test('full reconnect starts a fresh joined continuity epoch', () => {
 });
 
 test('session identity boundary excludes earlier session observations', () => {
-  const records = [
+  const records = chain([
     tick({ eventTime: '2026-08-26T04:59:50+08:00', receivedAt: '2026-08-26T04:59:50.010+08:00', hash: 'night', price: 90, session: 'NIGHT' }),
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 'd1', price: 100, session: 'DAY' }),
     tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 'd2', price: 101, session: 'DAY' }),
     tick({ eventTime: '2026-08-26T09:00:20+08:00', receivedAt: '2026-08-26T09:00:20.010+08:00', hash: 'd3', price: 102, session: 'DAY' }),
-  ];
+  ]);
   const snapshot = buildTxIntradayResearchSnapshot(records, SNAPSHOT_OPTIONS);
   assert.equal(snapshot.identity.session, 'DAY');
   assert.equal(snapshot.windows.context300s.pressure.tickCount, 3);
