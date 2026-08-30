@@ -77,14 +77,6 @@ function publicResponse(responseWindow) {
 function evidenceFor(pressure, responseWindow) {
   const supporting = [];
   const contrary = [];
-  if (pressure.direction === 'BUY_SIDE' || pressure.direction === 'SELL_SIDE') {
-    supporting.push(Object.freeze({
-      code: 'EXECUTED_PRESSURE_DIRECTION_OBSERVED',
-      direction: pressure.direction,
-      pressureRatio: pressure.pressureRatio,
-      classifiedCoverage: pressure.classifiedCoverage,
-    }));
-  }
   if (responseWindow.response?.directionRelation === 'SAME_DIRECTION') {
     supporting.push(Object.freeze({ code: 'PRICE_RESPONSE_SAME_DIRECTION' }));
   } else if (responseWindow.response?.directionRelation === 'OPPOSITE_DIRECTION') {
@@ -116,6 +108,7 @@ function qualityFor(pressure, responseWindow) {
   }
   const unavailable = pressure.status === 'UNAVAILABLE' && responseWindow.status === 'UNAVAILABLE';
   const partial = pressure.status !== 'READY'
+    || pressure.pressureRatio == null
     || responseWindow.response?.status !== 'READY'
     || responseWindow.pathEfficiency?.status !== 'READY';
   const status = reasons.length ? 'QUALITY_INSUFFICIENT'
@@ -150,7 +143,7 @@ function buildWindow(events, cutoffEvent, profile, windowMs, options) {
     public: Object.freeze({
       status: quality.status,
       unavailableReason: quality.reasons[0] || pressure.unavailableReason
-        || responseWindow.unavailableReason || null,
+        || responseWindow.unavailableReason || responseWindow.pathEfficiency?.unavailableReason || null,
       windowMs,
       pressure: publicPressure(pressure),
       response: Object.freeze({
@@ -193,7 +186,7 @@ function cutoffTick(events, cutoffLedgerOrdinal) {
   )) || null;
 }
 
-function unavailableSnapshot(profile, reason, cutoff = null) {
+function unavailableSnapshot(profile, reason, cutoff = null, sourceLedgerIdentity = null) {
   return Object.freeze({
     schemaVersion: 'cru34-tx-intraday-research-snapshot-v1',
     status: 'UNAVAILABLE',
@@ -216,7 +209,7 @@ function unavailableSnapshot(profile, reason, cutoff = null) {
       cutoffRecordHash: cutoff?.recordHash || null,
       maxUsedLedgerOrdinal: null,
       maxUsedRecordHash: null,
-      sourceLedgerIdentity: cutoff?.sourceLedgerIdentity || null,
+      sourceLedgerIdentity: cutoff?.sourceLedgerIdentity || sourceLedgerIdentity || null,
     }),
     windows: Object.freeze({
       primary60s: unavailableWindow(PRIMARY_WINDOW_MS, reason),
@@ -271,11 +264,11 @@ export function buildTxIntradayResearchSnapshot(records, {
     resolveSessionTradeDate,
   });
   const cutoff = cutoffTick(canonical.events, cutoffLedgerOrdinal);
-  if (!cutoff) return unavailableSnapshot(profile, 'NO_TX_TICK_CUTOFF');
+  if (!cutoff) return unavailableSnapshot(profile, 'NO_TX_TICK_CUTOFF', null, sourceLedgerIdentity);
   if (cutoff.identityStatus !== 'USABLE'
       || cutoff.availabilityLineageStatus !== 'USABLE'
       || !cutoff.recordHash) {
-    return unavailableSnapshot(profile, 'CUTOFF_LINEAGE_UNUSABLE', cutoff);
+    return unavailableSnapshot(profile, 'CUTOFF_LINEAGE_UNUSABLE', cutoff, sourceLedgerIdentity);
   }
 
   const options = { maxQuoteAgeMs, minPathTickCount, maxPathGapMs };
@@ -290,7 +283,7 @@ export function buildTxIntradayResearchSnapshot(records, {
     lineage = Object.freeze({ status: 'READY', unavailableReason: null,
       ...buildSnapshotLineage([...byOrdinal.values()], cutoff) });
   } catch {
-    return unavailableSnapshot(profile, 'SNAPSHOT_LINEAGE_UNUSABLE', cutoff);
+    return unavailableSnapshot(profile, 'SNAPSHOT_LINEAGE_UNUSABLE', cutoff, sourceLedgerIdentity);
   }
 
   const supportingEvidence = Object.freeze([
@@ -308,11 +301,15 @@ export function buildTxIntradayResearchSnapshot(records, {
   const qualityStatus = qualityReasons.length ? 'QUALITY_INSUFFICIENT'
     : primary.public.status === 'READY' && context.public.status === 'READY'
       ? 'READY' : 'PARTIAL';
+  const partialReason = qualityReasons[0]
+    || (primary.public.status !== 'READY' ? primary.public.unavailableReason : null)
+    || (context.public.status !== 'READY' ? context.public.unavailableReason : null)
+    || null;
 
   return Object.freeze({
     schemaVersion: 'cru34-tx-intraday-research-snapshot-v1',
     status: qualityStatus,
-    unavailableReason: qualityReasons[0] || null,
+    unavailableReason: partialReason,
     identity: Object.freeze({
       instrument: profile.instrument,
       product: profile.product,
