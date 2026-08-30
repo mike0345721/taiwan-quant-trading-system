@@ -243,6 +243,33 @@ test('snapshot lineage preserves physical cutoff and max used input', () => {
   assert.equal(lineage.availableAt, '2026-08-26T09:00:00.110+08:00');
 });
 
+test('non-TX physical clock regression invalidates the TX continuity segment', () => {
+  const stock = {
+    kind: 'stock_tick',
+    product: '2330',
+    receivedAt: '2026-08-26T09:00:00.900+08:00',
+    recordHash: 's',
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+    orderRoutesEnabled: false,
+    payload: { code: '2330' },
+  };
+  const events = materializeTxCanonicalObservations([
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00',
+      receivedAt: '2026-08-26T09:00:01.000+08:00', hash: 'q',
+    }),
+    stock,
+    record('futures_tick', {
+      eventTime: '2026-08-26T09:00:01.100+08:00',
+      receivedAt: '2026-08-26T09:00:01.100+08:00', hash: 't',
+    }),
+  ], { sourceLedgerIdentity: 'ledger-A' }).events;
+  assert.equal(events[1].availabilityLineageStatus, 'INVALID_NON_MONOTONIC_RECEIVED_AT');
+  assert.equal(evaluateBestQuoteEligibility(events[0], events[1]).eligible, false);
+});
+
 test('safety boundary violation throws', () => {
   const bad = record('futures_tick', {
     eventTime: '2026-08-26T09:00:00+08:00',
