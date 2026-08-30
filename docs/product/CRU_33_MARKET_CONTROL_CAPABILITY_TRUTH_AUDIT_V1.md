@@ -706,32 +706,50 @@ Explicitly out of scope for the next package unless separately authorized:
 
 ---
 
-## 13. Current Blocking Findings
+## 13. Review Blocker Disposition
 
-### B1 — `availableAt` / physical observation order was not sufficient on the prior reviewed HEAD
+### RB1 — Physical-later equal-timestamp quote could be replayed retroactively on the prior reviewed HEAD
 
 Severity: **CRU-33 design blocker addressed; exact-HEAD Level-3 re-review required.**
 
-Reason:
+Resolution:
 
-The prior contract used `availableAt` / event-time ordering with ledger order only as a tie-breaker. That allowed equal-timestamp or regressed-wall-clock records to move backward into an earlier knowledge state.
-
-Current design resolution:
-
-- `availableAt = ledger.receivedAt` remains timestamp lineage;
 - physical append-only `ledgerOrdinal` is the authoritative observation sequence;
 - quote eligibility requires `quote.ledgerOrdinal < tick.ledgerOrdinal`;
-- replay never reorders physical observations by `availableAt` or `eventTime`;
-- non-monotonic `receivedAt` fails availability-dependent joined derivations closed;
-- outputs preserve ordinal + record-hash cutoff lineage and exact source-ledger identity.
+- replay never reorders physical observations by `availableAt` or `eventTime`.
 
 Disposition:
 
 `DESIGN_FIX_APPLIED / EXACT_HEAD_LEVEL3_REREVIEW_REQUIRED`
 
-### B2 — Existing `quoteCvd` can be misread as order-book pressure
+### RB2 — Non-monotonic `receivedAt` could rewrite availability history on the prior reviewed HEAD
 
-Severity: **Semantic blocker for Market Control design.**
+Severity: **CRU-33 design blocker addressed; exact-HEAD Level-3 re-review required.**
+
+Resolution:
+
+- `receivedAt` remains canonical wall-clock `availableAt` lineage but is not the ordering authority;
+- replay validates non-decreasing `receivedAt` by ordinal;
+- regressions fail availability-dependent joined derivations closed instead of reordering records.
+
+Disposition:
+
+`DESIGN_FIX_APPLIED / EXACT_HEAD_LEVEL3_REREVIEW_REQUIRED`
+
+### RB3 — Output lineage did not preserve exact physical cutoff identity on the prior reviewed HEAD
+
+Severity: **CRU-33 design blocker addressed; exact-HEAD Level-3 re-review required.**
+
+Resolution:
+
+- outputs preserve `cutoffLedgerOrdinal`, `cutoffRecordHash`, `maxUsedLedgerOrdinal`, `maxUsedRecordHash`, and `sourceLedgerIdentity` in addition to `availableAt`;
+- deterministic source/window/filter rules plus hash-chain cutoff identity must make the eligible replay prefix reconstructable and auditable.
+
+Disposition:
+
+`DESIGN_FIX_APPLIED / EXACT_HEAD_LEVEL3_REREVIEW_REQUIRED`
+
+### Existing semantic blocker — `quoteCvd` can be misread as order-book pressure
 
 Truth:
 
@@ -741,9 +759,7 @@ Disposition:
 
 Resolved at audit/design level by renaming/classifying the capability truth. No implementation edit authorized in CRU-33.
 
-### B3 — current runtime provider evidence is not independently observable from connected GitHub state
-
-Severity: **Evidence limitation, not proof of runtime failure.**
+### Evidence limitation — current runtime provider evidence is not independently observable from connected GitHub state
 
 Committed project records state prior real-provider acceptance, but local `data/live-events` and readiness artifacts are intentionally not all committed. CRU-33 must not claim “currently LIVE now” from repository evidence alone.
 
