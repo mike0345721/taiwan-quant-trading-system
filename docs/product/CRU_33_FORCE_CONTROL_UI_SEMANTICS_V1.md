@@ -16,7 +16,7 @@ The product must distinguish at least four different questions:
 1. **Direction** — which side is exerting more executed pressure?
 2. **Magnitude / Relative Intensity** — how large is that pressure relative to a governed baseline?
 3. **Persistence / Change** — is the pressure persisting, strengthening, weakening, or switching sides?
-4. **Effectiveness / Control** — is that pressure actually producing price movement efficiently?
+4. **Effectiveness / Control** — is that pressure accompanied by price response strongly and persistently enough to qualify for a separately governed control observation?
 
 These are not interchangeable.
 
@@ -29,18 +29,22 @@ Pressure
 = how much directional executed-flow pressure is observed
 
 Control
-= whether that pressure is successfully producing / maintaining price response
+= a separately governed descriptive observation about whether pressure and price response align persistently enough to satisfy an explicit contract
 ```
 
-Therefore:
+Therefore, before Control promotion:
 
 ```text
 Strong Pressure + Strong Same-Direction Response
-→ Effective Control candidate
+→ evidence consistent with effective control
 
 Strong Pressure + Weak / Opposite Response
-→ Absorption / Failed Control candidate
+→ evidence consistent with absorption / failed control
 ```
+
+These are evidence patterns, not yet Control labels.
+
+Only after a later promotion contract may the product expose candidate states such as `BUYER_EFFECTIVE_CANDIDATE` or `SELLER_ABSORPTION_CANDIDATE`.
 
 The Dashboard must never label raw volume alone as `強勢控制`.
 
@@ -103,6 +107,14 @@ means the observed pressure magnitude is larger than most comparable historical 
 
 CRU-33 does not authorize the percentile sample design or qualitative thresholds.
 
+Until that research contract is frozen and validated:
+
+```text
+pressure.relativeIntensity = RESEARCH_PENDING
+```
+
+The UI must not replace this pending state with `強 / 中 / 弱`.
+
 ### 3.3 Persistence / Change
 
 The UI should not show only the current pressure value. It should preserve whether pressure is:
@@ -123,13 +135,13 @@ The intended user question is:
 
 ### 3.4 Effectiveness / Control
 
-Effectiveness compares observed pressure with actual price response.
+Effectiveness research compares observed pressure with actual price response.
 
 Preserve independent evidence first:
 
 ```text
 Pressure direction
-Pressure relative intensity
+Pressure relative intensity or RESEARCH_PENDING
 Price displacement
 Path Efficiency
 Coverage
@@ -138,7 +150,7 @@ Conflict
 
 Do not collapse them immediately into one score.
 
-Candidate descriptive states after validation:
+Candidate descriptive states reserved for a later validated promotion contract:
 
 - `BUYER_EFFECTIVE_CANDIDATE`
 - `SELLER_EFFECTIVE_CANDIDATE`
@@ -148,6 +160,14 @@ Candidate descriptive states after validation:
 - `QUALITY_INSUFFICIENT`
 
 No threshold is authorized by this document.
+
+For the initial TX Intraday Pressure & Path Efficiency Research Engine V1:
+
+```text
+control.observationState = RESEARCH_PENDING
+```
+
+unless a separate Control promotion contract has already passed its required gates.
 
 ## 4. Price-efficiency interpretation
 
@@ -165,55 +185,58 @@ It must return unavailable when path length is zero or observation quality is in
 
 Path Efficiency alone does not define trend or control. It becomes useful when interpreted together with pressure and response.
 
+The V1 derivation contract still must define deterministic window inclusivity, start/end-price selection, same-timestamp ordering, observation sufficiency and session/contract boundaries before implementation is accepted.
+
 ## 5. Control-quality trend
 
-The product should distinguish **Price Trend** from **Control Quality Trend**.
+The product should distinguish **Price Trend** from a future **Control Quality Trend**.
 
-Examples:
+The table below describes research evidence patterns; it does not authorize Control or Market State labels:
 
-| Price | Pressure | Response / Efficiency | Research interpretation |
+| Price | Pressure | Response / Efficiency | Research evidence pattern |
 | --- | --- | --- | --- |
-| rising | buyer pressure strong | response strong / efficient | buyer control healthy candidate |
-| rising | buyer pressure increasing | response weakening | buyer control quality deteriorating |
-| flat | buyer pressure strong | weak response | seller absorption candidate |
-| flat / oscillating | pressure switches frequently | low efficiency | range / balanced evidence |
-| breakout | pressure expands | price responds efficiently and persists | trend-transition evidence |
-| breakout | pressure expands | price fails to extend | failed-control / absorption evidence |
+| rising | buyer pressure elevated | response strong / efficient | consistent with healthy buyer-side effectiveness |
+| rising | buyer pressure increasing | response weakening | consistent with deteriorating buyer-side effectiveness |
+| flat | buyer pressure elevated | weak response | consistent with seller-side absorption pattern |
+| flat / oscillating | pressure switches frequently | low efficiency | consistent with range / balanced evidence |
+| breakout | pressure expands | price responds efficiently and persists | trend-transition supporting evidence |
+| breakout | pressure expands | price fails to extend | failed-control / absorption supporting evidence |
 
 This does not authorize prediction or Market State promotion.
 
 ## 6. Primary Dashboard card
 
-The first-glance card should answer five questions, in this order:
+The first-glance card should answer these questions in this order:
 
 ```text
-1. Market State       → where is the market structurally?
-2. Control            → who is currently effective?
-3. Force              → how strong is directional pressure?
-4. Force Trend        → strengthening / stable / weakening / switching?
-5. Efficiency         → is price still responding efficiently?
+1. Market State       → only if supplied by the separate governed Market State capability
+2. Pressure Direction → which side has observed executed-pressure advantage?
+3. Relative Intensity → promoted value or RESEARCH_PENDING
+4. Force Trend        → strengthening / stable / weakening / switching, only after its contract is frozen
+5. Price Response     → what did price do in the same governed window?
+6. Path Efficiency    → deterministic value / unavailable
+7. Control            → promoted observation or RESEARCH_PENDING
 ```
 
-Conceptual layout:
+Conceptual initial-engine layout:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ TX · 近月 · DAY · 1m                         LIVE · 96%可信 │
 │                                                             │
-│ 市場狀態      上升趨勢候選                                 │
-│ 市場控制      買方控制                                     │
+│ 市場狀態      由獨立 Market State 契約提供 / 未提供         │
+│ Control       RESEARCH_PENDING                              │
 │                                                             │
-│ 力道          強 ↓          價格反應       仍同向           │
+│ 成交壓力      買方占優       價格反應       同向上移         │
 │ 賣方 ────────────●──── 買方   +18 ticks                    │
 │                 +0.62                                       │
 │                                                             │
-│ 相對強度      研究基準 percentile / pending                 │
-│ 推動效率      下降 ↓                                        │
+│ 相對力道      RESEARCH_PENDING                              │
+│ Path Efficiency 0.78                                       │
 │                                                             │
-│ 目前解讀：趨勢仍在，但買方控制品質惡化                     │
-│ ⚠ 買方壓力仍強，價格延伸與 Path Efficiency 同步下降         │
+│ 目前解讀：描述壓力與價格反應，不宣稱買方控制               │
+│ 反向證據：有才顯示；無則不補造                             │
 │                                                             │
-│ 若買壓續增但價格停止創高 → 吸收 / 衝突候選                 │
 │                                         [查看證據與細節 >]   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -225,19 +248,21 @@ All numbers and labels above are conceptual placeholders, not current market fac
 Prefer a horizontal bidirectional pressure bar rather than a circular gauge.
 
 ```text
-                 成交力道
-賣方強 ←────────────┼────────────→ 買方強
+                 成交壓力方向
+賣方 ←──────────────┼──────────────→ 買方
                     0       ●
                            +0.62
 ```
 
 The bar communicates **direction + bounded imbalance**.
 
-A separate adjacent state communicates **relative intensity** and **change**:
+It does **not** communicate probability or historically normalized strength.
+
+A separate adjacent state communicates relative intensity and change:
 
 ```text
-相對強度：RESEARCH_PENDING / percentile value
-變化：STRENGTHENING / STABLE / WEAKENING / SWITCHING
+相對力道：RESEARCH_PENDING / governed percentile value
+變化：RESEARCH_PENDING / STRENGTHENING / STABLE / WEAKENING / SWITCHING
 ```
 
 Do not visually imply that `+0.62` means 62% bullish probability.
@@ -259,19 +284,28 @@ Executed Pressure
 
 Use aligned time axes.
 
-The user should be able to visually identify:
+The user should be able to visually inspect:
 
 - pressure arriving with a price move,
-- persistent pressure with sustained price extension,
+- persistent pressure alongside sustained price extension,
 - pressure increasing while price response weakens,
 - side switching and choppy response,
-- potential absorption / failed control patterns.
+- patterns that may later support absorption / failed-control research.
 
 Displayed Liquidity, when legally derived later, should remain a separate pane / evidence family rather than being added into executed pressure.
 
 ## 9. First-layer wording policy
 
-Prefer plain-language descriptions:
+Before Control / Relative Intensity promotion, prefer wording such as:
+
+```text
+買方成交壓力占優 · Control 研究中
+賣方成交壓力占優 · Control 研究中
+壓力方向頻繁切換 · 持續性研究中
+資料不足，暫不判讀
+```
+
+After a later promotion contract, qualified descriptive wording may include:
 
 ```text
 買方控制，力道增強
@@ -279,7 +313,6 @@ Prefer plain-language descriptions:
 買壓偏強，但價格推不動
 賣方控制，力道穩定
 多空力道頻繁切換，暫無持續控制
-資料不足，暫不判讀
 ```
 
 Avoid opaque labels such as:
@@ -298,16 +331,16 @@ unless a future separate validated probability / scoring contract exists and is 
 The first evidence row should expose only the concepts needed to explain the primary result:
 
 1. **成交壓力** — direction, net proxy, classified coverage.
-2. **相對力道** — baseline percentile or `RESEARCH_PENDING`.
+2. **相對力道** — governed baseline percentile or `RESEARCH_PENDING`.
 3. **價格反應** — displacement / ticks / direction relation.
-4. **推動效率** — Path Efficiency + change state.
+4. **推動效率** — Path Efficiency + governed change state / pending.
 5. **資料可信度** — Tick/BidAsk health, unknown/conflict/missing reason.
 
-To keep the first view calm, these may be displayed as four visual tiles by combining Force direction + relative intensity into one tile.
+To keep the first view calm, these may be displayed as four visual tiles by combining Force direction + relative intensity into one tile while keeping pending state explicit.
 
 ## 11. Detail / audit layer
 
-The drawer should provide the exact evidence behind a qualitative label.
+The drawer should provide the exact evidence behind every qualitative label.
 
 Minimum future fields:
 
@@ -332,6 +365,7 @@ BidAsk health
 eventTime
 receivedAt
 availableAt
+continuityEpoch
 actualContract
 session
 tradeDate
@@ -340,7 +374,7 @@ limitations
 promotionState
 ```
 
-A user must be able to answer: **為什麼 UI 說「力道強」？** without trusting an unexplained model label.
+A user must be able to answer: **為什麼 UI 顯示這個力道 / Control 狀態？** without trusting an unexplained model label.
 
 ## 12. Research questions required before qualitative labels
 
@@ -354,6 +388,8 @@ Before production UI can show `弱 / 中 / 強`, the implementation/research pat
 6. What minimum sample size makes percentile stable enough to display?
 7. What quality / coverage threshold suppresses the label?
 8. Does persistence add useful information beyond current-window intensity?
+9. How is baseline versioning preserved so future threshold changes do not rewrite historical observations?
+10. How are sample age / decay and regime shifts handled?
 
 Until these are governed and validated, UI must show raw/bounded values or `RESEARCH_PENDING`, not invented `強/弱` thresholds.
 
@@ -379,6 +415,8 @@ quality
 promotionState
 ```
 
+For the initial engine, fields whose contract is not yet promoted must remain explicitly pending rather than inferred by the UI.
+
 This lets Dashboard and Ask GPT consume the same governed snapshot without reverse-engineering UI semantics from raw numbers.
 
 ## 14. V1 acceptance intent
@@ -389,19 +427,21 @@ The eventual UI should pass:
 
 Without opening details, the user can tell:
 
-- which side is applying pressure,
-- whether that pressure is relatively strong / unavailable,
-- whether pressure is strengthening or weakening,
+- which side is applying observed pressure,
+- whether relative intensity is available or still pending,
+- whether pressure-change state is available or still pending,
 - whether price is responding,
-- whether control quality is improving or deteriorating,
+- whether Path Efficiency is available,
+- whether Control is promoted or pending,
 - whether the data is trustworthy.
 
 ### 10-second evidence check
 
 With one interaction, the user can identify:
 
-- why the force label exists,
-- what supports the control observation,
+- why the pressure direction exists,
+- why any qualitative force/control label exists if promoted,
+- what supports the observation,
 - what contradicts it,
 - what is missing/stale,
 - what would cause the observation to be downgraded.
