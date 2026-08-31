@@ -6,6 +6,8 @@ export const CRU34_SNAPSHOT_CONTRACT_VERSION = 'cru34-snapshot-contract-v1';
 export const CRU34_ARTIFACT_SCHEMA_VERSION = 'cru34-snapshot-artifact-v1';
 export const CRU34_SOURCE_MODE_HISTORICAL = 'HISTORICAL';
 export const CRU34_MAX_ARTIFACT_BYTES = 4 * 1024 * 1024;
+export const CRU34_MAX_DIRECTORY_ENTRIES = 4_096;
+export const CRU34_MAX_SELECTION_CANDIDATES = 128;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SAFE_SELECTION_PATTERN = /^([a-f0-9]{24})\.([0-9]{16})\.([a-f0-9]{64})\.json$/;
@@ -16,6 +18,12 @@ function canonicalValue(value) {
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])]));
   }
   return value;
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return Object.freeze(value);
 }
 
 export function stableCru34ArtifactJson(value) {
@@ -51,6 +59,63 @@ function requiredSha256(value, code) {
   const text = requiredText(value, code).toLowerCase();
   if (!SHA256_PATTERN.test(text)) throw new Error(code);
   return text;
+}
+
+function requiredObject(value, code) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(code);
+  return value;
+}
+
+function requiredOwn(object, key, code) {
+  if (!Object.hasOwn(object, key)) throw new Error(code);
+  return object[key];
+}
+
+function requiredNullableFinite(object, key, code) {
+  const value = requiredOwn(object, key, code);
+  if (value !== null && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error(code);
+  return value;
+}
+
+function requiredStringArray(value, code, { allowEmpty = true } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)
+      || value.some((entry) => typeof entry !== 'string' || !entry.trim())) {
+    throw new Error(code);
+  }
+  return value;
+}
+
+function validateWindow(window, expectedWindowMs) {
+  requiredObject(window, 'CRU36_CONTRACT_WINDOW_INVALID');
+  if (window.windowMs !== expectedWindowMs) throw new Error('CRU36_CONTRACT_WINDOW_INVALID');
+  requiredText(window.status, 'CRU36_CONTRACT_WINDOW_STATUS_REQUIRED');
+  requiredOwn(window, 'unavailableReason', 'CRU36_CONTRACT_WINDOW_REASON_REQUIRED');
+  if (!Array.isArray(window.supportingEvidence) || !Array.isArray(window.contraryEvidence)) {
+    throw new Error('CRU36_CONTRACT_EVIDENCE_INVALID');
+  }
+
+  const pressure = requiredObject(window.pressure, 'CRU36_CONTRACT_PRESSURE_INVALID');
+  for (const key of ['status', 'direction', 'relativeIntensity', 'controlObservationState']) {
+    requiredText(pressure[key], 'CRU36_CONTRACT_PRESSURE_INVALID');
+  }
+  requiredOwn(pressure, 'unavailableReason', 'CRU36_CONTRACT_PRESSURE_INVALID');
+  requiredNullableFinite(pressure, 'pressureRatio', 'CRU36_CONTRACT_PRESSURE_INVALID');
+  requiredNullableFinite(pressure, 'classifiedCoverage', 'CRU36_CONTRACT_PRESSURE_INVALID');
+
+  const response = requiredObject(window.response, 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requiredText(response.status, 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requiredText(response.directionRelation, 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requiredNullableFinite(response, 'displacementPoints', 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requiredNullableFinite(response, 'displacementTicks', 'CRU36_CONTRACT_RESPONSE_INVALID');
+
+  const pathEfficiency = requiredObject(window.pathEfficiency, 'CRU36_CONTRACT_PATH_INVALID');
+  requiredText(pathEfficiency.status, 'CRU36_CONTRACT_PATH_INVALID');
+  requiredOwn(pathEfficiency, 'unavailableReason', 'CRU36_CONTRACT_PATH_INVALID');
+  requiredNullableFinite(pathEfficiency, 'value', 'CRU36_CONTRACT_PATH_INVALID');
+
+  const quality = requiredObject(window.quality, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requiredText(quality.status, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requiredStringArray(quality.reasons, 'CRU36_CONTRACT_QUALITY_INVALID');
 }
 
 function assertSafety(value, code = 'CRU36_ARTIFACT_SAFETY_INVALID') {
@@ -97,8 +162,42 @@ function validateSemanticPayload(payload) {
       || !payload.methodology || !Array.isArray(payload.limitations)) {
     throw new Error('CRU36_CONTRACT_STRUCTURE_INVALID');
   }
+  validateWindow(payload.primary60s, 60_000);
+  validateWindow(payload.context300s, 300_000);
+  requiredStringArray(payload.qualityReasons, 'CRU36_CONTRACT_QUALITY_INVALID');
+  const quality = requiredObject(payload.quality, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requiredText(quality.status, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requiredStringArray(quality.reasons, 'CRU36_CONTRACT_QUALITY_INVALID');
+  for (const key of [
+    'classifiedCoveragePrimary60s', 'classifiedCoverageContext300s',
+    'bestQuoteMatchedCoveragePrimary60s', 'bestQuoteMatchedCoverageContext300s',
+    'classificationConflictRatePrimary60s', 'classificationConflictRateContext300s',
+  ]) {
+    requiredNullableFinite(quality, key, 'CRU36_CONTRACT_QUALITY_INVALID');
+  }
+  const promotion = requiredObject(payload.promotionState, 'CRU36_CONTRACT_PROMOTION_INVALID');
+  for (const key of ['relativeIntensity', 'controlObservationState', 'absorption', 'marketState']) {
+    requiredText(promotion[key], 'CRU36_CONTRACT_PROMOTION_INVALID');
+  }
+  const methodology = requiredObject(payload.methodology, 'CRU36_CONTRACT_METHODOLOGY_INVALID');
+  for (const key of ['pressure', 'response', 'pathEfficiency', 'observationOrder', 'availableAt', 'inputPrefix']) {
+    requiredText(methodology[key], 'CRU36_CONTRACT_METHODOLOGY_INVALID');
+  }
+  requiredStringArray(payload.limitations, 'CRU36_CONTRACT_LIMITATIONS_INVALID', { allowEmpty: false });
+  const coherent = digestCanonical(payload.pressure.primary60s) === digestCanonical(payload.primary60s.pressure)
+    && digestCanonical(payload.pressure.context300s) === digestCanonical(payload.context300s.pressure)
+    && digestCanonical(payload.response.primary60s) === digestCanonical(payload.primary60s.response)
+    && digestCanonical(payload.response.context300s) === digestCanonical(payload.context300s.response)
+    && digestCanonical(payload.pathEfficiency.primary60s) === digestCanonical(payload.primary60s.pathEfficiency)
+    && digestCanonical(payload.pathEfficiency.context300s) === digestCanonical(payload.context300s.pathEfficiency)
+    && digestCanonical(payload.qualityReasons) === digestCanonical(payload.quality.reasons);
+  if (!coherent) throw new Error('CRU36_CONTRACT_VIEW_INCONSISTENT');
   if (payload.cutoffLedgerOrdinal < payload.maxUsedLedgerOrdinal) {
     throw new Error('CRU36_LINEAGE_ORDINAL_INVALID');
+  }
+  if (payload.cutoffLedgerOrdinal === payload.maxUsedLedgerOrdinal
+      && payload.cutoffRecordHash !== payload.maxUsedRecordHash) {
+    throw new Error('CRU36_LINEAGE_HASH_CONTRADICTION');
   }
   assertSafety(payload);
   if (containsForbiddenKey(payload)) throw new Error('CRU36_FORBIDDEN_RAW_OR_PRIVATE_FIELD');
@@ -157,7 +256,9 @@ export function buildCru34HistoricalSemanticPayload(snapshot) {
     executionAuthorized: false,
     orderRoutesEnabled: false,
   };
-  return Object.freeze(validateSemanticPayload(canonicalValue(payload)));
+  const canonical = canonicalValue(payload);
+  validateSemanticPayload(canonical);
+  return deepFreeze(canonical);
 }
 
 function identityMaterial(semanticPayload, semanticContentHash) {
@@ -188,6 +289,7 @@ function selectionIdentity(semanticPayload) {
     tradeDate: semanticPayload.tradeDate,
     session: semanticPayload.session,
     continuityEpoch: semanticPayload.continuityEpoch,
+    sourceLedgerIdentity: semanticPayload.sourceLedgerIdentity,
   };
 }
 
@@ -198,9 +300,13 @@ export function cru34SelectionKey(identity) {
     tradeDate: requiredText(identity?.tradeDate, 'CRU36_SELECTOR_TRADE_DATE_REQUIRED'),
     session: requiredText(identity?.session, 'CRU36_SELECTOR_SESSION_REQUIRED'),
     continuityEpoch: requiredText(identity?.continuityEpoch, 'CRU36_SELECTOR_EPOCH_REQUIRED'),
+    sourceLedgerIdentity: requiredText(identity?.sourceLedgerIdentity, 'CRU36_SELECTOR_SOURCE_REQUIRED'),
   };
   if (normalized.schemaVersion !== CRU34_SNAPSHOT_CONTRACT_VERSION) {
     throw new Error('CRU36_SELECTOR_SCHEMA_UNSUPPORTED');
+  }
+  if (!/^sha256:[a-f0-9]{64}$/.test(normalized.sourceLedgerIdentity)) {
+    throw new Error('CRU36_SELECTOR_SOURCE_INVALID');
   }
   return digestCanonical(normalized).slice(0, 24);
 }
@@ -230,6 +336,10 @@ export function buildCru34SnapshotArtifact(semanticPayload, {
       || !Number.isInteger(sourcePrefixByteSize) || sourcePrefixByteSize < 1) {
     throw new Error('CRU36_SOURCE_SCALE_INVALID');
   }
+  if (sourcePrefixRecordCount !== semanticPayload.cutoffLedgerOrdinal
+      || sourcePrefixByteSize > sourceLedgerByteSize) {
+    throw new Error('CRU36_SOURCE_SCALE_LINEAGE_MISMATCH');
+  }
   const semanticContentHash = digestCanonical(semanticPayload);
   const artifactIdentity = artifactIdentityFor(semanticPayload, semanticContentHash);
   const withoutHash = {
@@ -247,7 +357,7 @@ export function buildCru34SnapshotArtifact(semanticPayload, {
     },
   };
   const artifactHash = digestCanonical(withoutHash);
-  return Object.freeze(canonicalValue({ ...withoutHash, artifactHash }));
+  return deepFreeze(canonicalValue({ ...withoutHash, artifactHash }));
 }
 
 export function validateCru34SnapshotArtifact(artifact, { fileName = null } = {}) {
@@ -279,6 +389,10 @@ export function validateCru34SnapshotArtifact(artifact, { fileName = null } = {}
       || !Number.isInteger(envelope?.sourcePrefixByteSize) || envelope.sourcePrefixByteSize < 1) {
     throw new Error('CRU36_SOURCE_SCALE_INVALID');
   }
+  if (envelope.sourcePrefixRecordCount !== artifact.semanticPayload.cutoffLedgerOrdinal
+      || envelope.sourcePrefixByteSize > envelope.sourceLedgerByteSize) {
+    throw new Error('CRU36_SOURCE_SCALE_LINEAGE_MISMATCH');
+  }
   const artifactHash = requiredSha256(artifact.artifactHash, 'CRU36_ARTIFACT_HASH_INVALID');
   const { artifactHash: ignored, ...withoutHash } = artifact;
   if (digestCanonical(withoutHash) !== artifactHash) throw new Error('CRU36_ARTIFACT_HASH_MISMATCH');
@@ -303,7 +417,7 @@ function readValidatedArtifactFile(filePath, { expectedFileName = path.basename(
     throw new Error('CRU36_ARTIFACT_JSON_INVALID');
   }
   validateCru34SnapshotArtifact(artifact, { fileName: expectedFileName });
-  return Object.freeze({ artifact: Object.freeze(artifact), bytes });
+  return Object.freeze({ artifact: deepFreeze(artifact), bytes });
 }
 
 function removeTempIfPresent(tempPath) {
@@ -412,7 +526,10 @@ export function readCru34SnapshotArtifact({ artifactPath, expectedIdentity = nul
   }
   if (expectedIdentity) {
     const actual = selectionIdentity(artifact.semanticPayload);
-    for (const key of ['schemaVersion', 'actualContract', 'tradeDate', 'session', 'continuityEpoch']) {
+    for (const key of [
+      'schemaVersion', 'actualContract', 'tradeDate', 'session', 'continuityEpoch',
+      'sourceLedgerIdentity',
+    ]) {
       if (actual[key] !== expectedIdentity[key]) return unavailable('ARTIFACT_IDENTITY_MISMATCH');
     }
   }
@@ -448,13 +565,32 @@ export function selectCru34SnapshotArtifact({ artifactRoot, selector, freshnessC
     return unavailable('ARTIFACT_IDENTITY_INVALID');
   }
   if (!fs.existsSync(root)) return unavailable('ARTIFACT_ROOT_MISSING');
-  const candidates = fs.readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.startsWith(`${selectionKey}.`) && entry.name.endsWith('.json'))
-    .map((entry) => {
+  const candidates = [];
+  let directory;
+  try {
+    directory = fs.opendirSync(root);
+    let entryCount = 0;
+    let entry;
+    while ((entry = directory.readSync()) !== null) {
+      entryCount += 1;
+      if (entryCount > CRU34_MAX_DIRECTORY_ENTRIES) {
+        return unavailable('ARTIFACT_DIRECTORY_ENTRY_LIMIT_EXCEEDED');
+      }
+      if (!entry.isFile() || !entry.name.startsWith(`${selectionKey}.`) || !entry.name.endsWith('.json')) {
+        continue;
+      }
       const match = SAFE_SELECTION_PATTERN.exec(entry.name);
-      return match ? { name: entry.name, ordinal: Number(match[2]) } : { name: entry.name, ordinal: -1 };
-    })
-    .sort((left, right) => right.ordinal - left.ordinal || right.name.localeCompare(left.name));
+      candidates.push(match ? { name: entry.name, ordinal: Number(match[2]) } : { name: entry.name, ordinal: -1 });
+      if (candidates.length > CRU34_MAX_SELECTION_CANDIDATES) {
+        return unavailable('ARTIFACT_SELECTION_CANDIDATE_LIMIT_EXCEEDED');
+      }
+    }
+  } catch {
+    return unavailable('ARTIFACT_ROOT_UNREADABLE');
+  } finally {
+    try { directory?.closeSync(); } catch { /* fail-closed result already determined */ }
+  }
+  candidates.sort((left, right) => right.ordinal - left.ordinal || right.name.localeCompare(left.name));
   if (!candidates.length) return unavailable('ARTIFACT_NOT_FOUND_FOR_IDENTITY');
   const newest = candidates[0];
   if (newest.ordinal < 1) return unavailable('ARTIFACT_FILENAME_INVALID');

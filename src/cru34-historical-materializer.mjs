@@ -100,7 +100,6 @@ export async function readGovernedLedgerPrefix(filePath, cutoffLedgerOrdinals, {
     prefixByteSizes,
     sourceLedgerSha256,
     sourceLedgerByteSize: after.size,
-    sourceFileName: path.basename(resolved),
   });
 }
 
@@ -121,6 +120,7 @@ export function materializeCru34HistoricalSnapshot({
   artifactRoot,
   materializedAt = new Date().toISOString(),
   resolveSessionTradeDate = null,
+  expectedIdentity = null,
 } = {}) {
   const sourceSha = String(sourceLedgerSha256 || '').toLowerCase();
   if (!SHA256_PATTERN.test(sourceSha)) throw new Error('CRU36_SOURCE_SHA256_REQUIRED');
@@ -130,6 +130,7 @@ export function materializeCru34HistoricalSnapshot({
     cutoffLedgerOrdinal,
     resolveSessionTradeDate,
   });
+  if (expectedIdentity) assertTargetIdentity(snapshot, expectedIdentity);
   const semanticPayload = buildCru34HistoricalSemanticPayload(snapshot);
   const artifact = buildCru34SnapshotArtifact(semanticPayload, {
     materializedAt,
@@ -152,6 +153,10 @@ export async function materializeCru34HistoricalLedger({
   materializedAt = new Date().toISOString(),
   resolveSessionTradeDate = null,
 } = {}) {
+  const expectedSourceSha = String(expectedSourceSha256 || '').toLowerCase();
+  if (!SHA256_PATTERN.test(expectedSourceSha)) {
+    throw new Error('CRU36_EXPECTED_SOURCE_SHA256_REQUIRED');
+  }
   if (!expectedIdentity || typeof expectedIdentity !== 'object') {
     throw new Error('CRU36_EXPECTED_TARGET_IDENTITY_REQUIRED');
   }
@@ -162,7 +167,7 @@ export async function materializeCru34HistoricalLedger({
   }
   const startedAt = performance.now();
   const source = await readGovernedLedgerPrefix(ledgerPath, cutoffLedgerOrdinals, {
-    expectedSourceSha256,
+    expectedSourceSha256: expectedSourceSha,
   });
   const snapshots = [];
   for (const cutoffLedgerOrdinal of source.cutoffs) {
@@ -177,15 +182,16 @@ export async function materializeCru34HistoricalLedger({
       artifactRoot,
       materializedAt,
       resolveSessionTradeDate,
+      expectedIdentity,
     });
     const materializationMs = performance.now() - snapshotStartedAt;
-    assertTargetIdentity(result.snapshot, expectedIdentity);
     const readStartedAt = performance.now();
     const readResult = readCru34SnapshotArtifact({
       artifactPath: result.write.filePath,
       expectedIdentity: {
         schemaVersion: CRU34_SNAPSHOT_CONTRACT_VERSION,
         ...expectedIdentity,
+        sourceLedgerIdentity: `sha256:${source.sourceLedgerSha256}`,
       },
     });
     const adapterReadMs = performance.now() - readStartedAt;
@@ -210,7 +216,6 @@ export async function materializeCru34HistoricalLedger({
   const resource = process.resourceUsage();
   return Object.freeze({
     status: 'PASS',
-    sourceFileName: source.sourceFileName,
     sourceLedgerIdentity: `sha256:${source.sourceLedgerSha256}`,
     sourceLedgerSha256: source.sourceLedgerSha256,
     sourceLedgerByteSize: source.sourceLedgerByteSize,

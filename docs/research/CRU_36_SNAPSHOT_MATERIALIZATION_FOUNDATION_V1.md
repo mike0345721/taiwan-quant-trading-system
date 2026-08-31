@@ -109,10 +109,12 @@ safe scale, hash, identity, timing, size, and quality summaries.
 The adapter module does not import CRU-34, the governed ledger reader, the chart cache, Shioaji,
 or a `/latest` client. It reads at most one bounded artifact after deterministic selection.
 
-Selection requires exact contract schema, `actualContract`, `tradeDate`, `session`, and
-`continuityEpoch`. Candidates are scoped by their deterministic selection key and ordered by
-physical cutoff ordinal. The newest exact-identity candidate is authoritative. If it is corrupt,
-the adapter returns `UNAVAILABLE`; it never silently falls back to an older artifact.
+Selection requires exact contract schema, `actualContract`, `tradeDate`, `session`,
+`continuityEpoch`, and governed `sourceLedgerIdentity`. Candidates are scoped by their
+deterministic selection key and ordered by physical cutoff ordinal. Both total directory entries
+and matching candidates have hard scan limits. The newest exact-identity candidate is
+authoritative. If it is corrupt or a scan bound is exceeded, the adapter returns `UNAVAILABLE`;
+it never silently falls back to an older artifact.
 
 Phase A truth states are:
 
@@ -164,6 +166,13 @@ The checkpoint stores:
 - last emitted snapshot identity/hash;
 - operational counters such as processed ordinal, without promoting them into research meaning.
 
+The replaceable latest-checkpoint pointer contains only the immutable checkpoint identity and
+hash. It is written to a same-directory temporary file, flushed and closed, reread and validated,
+then atomically renamed over the prior pointer and followed by a directory flush where supported.
+Startup never trusts the pointer alone: a missing, truncated, mismatched, or dangling pointer
+causes fail-closed recovery by scanning a bounded checkpoint index for an earlier independently
+verified checkpoint or by replaying from GENESIS.
+
 ### 7.3 Restart validation and bounded suffix replay
 
 On restart the worker:
@@ -173,10 +182,13 @@ On restart the worker:
    `lastVerifiedLedgerOrdinal`/`lastVerifiedRecordHash`;
 3. rejects any contract, trade-date, session, or continuity-epoch mismatch;
 4. restores rolling state only after all checks pass;
-5. consumes the durable physical suffix from `lastVerifiedLedgerOrdinal + 1`;
+5. consumes the durable physical suffix from `lastVerifiedLedgerOrdinal + 1` in batches bounded
+   by both record count and encoded byte size; an approved runtime configuration must set both
+   finite bounds before activation;
 6. preserves physical order and `availableAt=receivedAt` without timestamp sorting;
-7. prunes rolling observations only after they are outside the 300-second horizon and cannot
-   affect the 60-second horizon;
+7. retains the last lawful quote before the 300-second boundary plus all eligible observations
+   in the 300-second horizon, and prunes only after an observation cannot classify the earliest
+   in-window tick or affect either output window;
 8. emits a new snapshot only after its complete cutoff is verified and atomically persisted.
 
 If verification fails, the checkpoint is quarantined logically and no live-looking snapshot is
@@ -206,11 +218,15 @@ lagRecords = ledgerLatestOrdinal - materializerProcessedOrdinal
 lagMs = max(0, ledgerLatestAvailableAt - snapshot.availableAt)
 ```
 
-It reads a bounded batch directly from the durable ledger, commits a verified checkpoint, then
+It reads a record-and-byte-bounded batch directly from the durable ledger, commits a verified checkpoint, then
 continues. No unbounded queue is kept in memory. If append rate exceeds processing rate, the
-collector continues, lag grows visibly, and the last snapshot becomes `STALE`/operationally
-degraded according to a separately approved policy. V1 intentionally freezes no numeric lag
-threshold without runtime evidence.
+collector continues and lag grows visibly. A separate read-side liveness observer, outside the
+projection worker failure domain, compares the immutable snapshot watermark with a lightweight
+collector heartbeat/latest-ordinal marker. It can only downgrade a snapshot to `STALE` or
+`UNAVAILABLE`; it cannot create semantic data or promote truth. Therefore worker death cannot
+leave a last snapshot looking live indefinitely. The exact heartbeat lease and lag thresholds
+remain separately approved runtime policy; V1 intentionally freezes no numeric value without
+runtime evidence.
 
 Snapshot emission is policy-driven after verified progress (for example, a bounded interval or
 ordinal batch) and coalesces intermediate UI writes without dropping ledger truth. `availableAt`

@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import {
   CRU34_SNAPSHOT_CONTRACT_VERSION,
+  CRU34_MAX_SELECTION_CANDIDATES,
   buildCru34SnapshotArtifact,
   cru34ArtifactFileName,
   cru34SelectionKey,
@@ -29,6 +30,7 @@ const EXPECTED = Object.freeze({
   tradeDate: '2026-08-26',
   session: 'DAY',
   continuityEpoch: 'TX:1',
+  sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
 });
 
 function tick(hash, second, price, tickType = 1) {
@@ -154,6 +156,7 @@ test('valid artifact reads as HISTORICAL and can be explicitly marked STALE', ()
   });
   assert.equal(stale.truthState, 'STALE');
   assert.notEqual(stale.snapshot.truthState, 'LIVE');
+  assert.throws(() => { historical.snapshot.primary60s.pressure.status = 'MUTATED'; }, TypeError);
 });
 
 test('missing artifact fails closed to UNAVAILABLE', () => {
@@ -188,6 +191,7 @@ test('artifact hash mismatch and semantic content hash mismatch fail closed', ()
   assert.equal(readCru34SnapshotArtifact({ artifactPath: filePath }).unavailableReason, 'ARTIFACT_HASH_INVALID');
   filePath = writeTampered(artifactRoot, result.artifact, (artifact) => {
     artifact.semanticPayload.primary60s.pressure.buyProxyVolume += 1;
+    artifact.semanticPayload.pressure.primary60s.buyProxyVolume += 1;
   });
   assert.equal(readCru34SnapshotArtifact({ artifactPath: filePath }).unavailableReason, 'SEMANTIC_CONTENT_HASH_INVALID');
 });
@@ -257,6 +261,115 @@ test('invalid source identity cannot be built or accepted', () => {
   }), /CRU36_SOURCE_IDENTITY_SHA_MISMATCH/);
 });
 
+test('inconsistent duplicated consumer views and false prefix scale are rejected', () => {
+  const result = materialize(tempDir());
+  const inconsistent = structuredClone(result.semanticPayload);
+  inconsistent.pressure.primary60s.buyProxyVolume += 1;
+  assert.throws(() => buildCru34SnapshotArtifact(inconsistent, {
+    materializedAt: '2026-08-31T06:00:00.000Z',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_CONTRACT_VIEW_INCONSISTENT/);
+  assert.throws(() => buildCru34SnapshotArtifact(result.semanticPayload, {
+    materializedAt: '2026-08-31T06:00:00.000Z',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 5,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_SOURCE_SCALE_LINEAGE_MISMATCH/);
+});
+
+test('equal cutoff and max-used ordinals require the same record hash', () => {
+  const result = materialize(tempDir());
+  const payload = structuredClone(result.semanticPayload);
+  assert.equal(payload.cutoffLedgerOrdinal, payload.maxUsedLedgerOrdinal);
+  payload.maxUsedRecordHash = 'contradictory-hash';
+  assert.throws(
+    () => buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: 6,
+      sourcePrefixByteSize: 5_000,
+    }),
+    /CRU36_LINEAGE_HASH_CONTRADICTION/,
+  );
+});
+
+test('hash-consistent but semantically empty contract structure is rejected', () => {
+  const result = materialize(tempDir());
+  const payload = structuredClone(result.semanticPayload);
+  payload.primary60s = { windowMs: 60_000 };
+  payload.context300s = { windowMs: 300_000 };
+  payload.pressure = {};
+  payload.response = {};
+  payload.pathEfficiency = {};
+  payload.quality = { status: 'READY', reasons: [] };
+  payload.qualityReasons = [];
+  payload.promotionState = {};
+  payload.methodology = {};
+  assert.throws(
+    () => buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: 6,
+      sourcePrefixByteSize: 5_000,
+    }),
+    /CRU36_CONTRACT_/,
+  );
+});
+
+test('selector binds the governed source identity and fails closed on an unreadable root', () => {
+  const root = tempDir();
+  const sourceA = materialize(root);
+  const sourceBHash = 'b'.repeat(64);
+  const sourceB = materialize(root, { sourceLedgerSha256: sourceBHash });
+  const selectedA = selectCru34SnapshotArtifact({ artifactRoot: root, selector: EXPECTED });
+  const selectedB = selectCru34SnapshotArtifact({
+    artifactRoot: root,
+    selector: { ...EXPECTED, sourceLedgerIdentity: `sha256:${sourceBHash}` },
+  });
+  assert.equal(selectedA.snapshot.artifactIdentity, sourceA.artifact.artifactIdentity);
+  assert.equal(selectedB.snapshot.artifactIdentity, sourceB.artifact.artifactIdentity);
+  assert.notEqual(selectedA.snapshot.artifactIdentity, selectedB.snapshot.artifactIdentity);
+
+  const fileRoot = path.join(tempDir(), 'not-a-directory');
+  fs.writeFileSync(fileRoot, 'x', 'utf8');
+  const unreadable = selectCru34SnapshotArtifact({ artifactRoot: fileRoot, selector: EXPECTED });
+  assert.equal(unreadable.truthState, 'UNAVAILABLE');
+  assert.equal(unreadable.unavailableReason, 'ARTIFACT_ROOT_UNREADABLE');
+});
+
+test('selector candidate scan is explicitly bounded', () => {
+  const root = tempDir();
+  const key = cru34SelectionKey(EXPECTED);
+  for (let index = 1; index <= CRU34_MAX_SELECTION_CANDIDATES + 1; index += 1) {
+    const ordinal = String(index).padStart(16, '0');
+    fs.writeFileSync(path.join(root, `${key}.${ordinal}.${String(index).padStart(64, '0')}.json`), '{}', 'utf8');
+  }
+  const selected = selectCru34SnapshotArtifact({ artifactRoot: root, selector: EXPECTED });
+  assert.equal(selected.truthState, 'UNAVAILABLE');
+  assert.equal(selected.unavailableReason, 'ARTIFACT_SELECTION_CANDIDATE_LIMIT_EXCEEDED');
+});
+
+test('wrong expected target identity fails before any artifact is published', () => {
+  const root = path.join(tempDir(), 'not-created');
+  assert.throws(() => materializeCru34HistoricalSnapshot({
+    records: normalLedger(),
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixByteSize: 5_000,
+    cutoffLedgerOrdinal: 6,
+    instrumentProfile: PROFILE,
+    artifactRoot: root,
+    expectedIdentity: { ...EXPECTED, actualContract: 'TXFJ6' },
+  }), /CRU36_TARGET_ACTUALCONTRACT_MISMATCH/);
+  assert.equal(fs.existsSync(root), false);
+});
+
 test('immutable conflict fails closed instead of replacing a corrupt accepted path', () => {
   const root = tempDir();
   const result = materialize(root);
@@ -305,6 +418,16 @@ test('ledger job rejects a mismatched persisted source SHA', async () => {
     expectedIdentity: EXPECTED,
     instrumentProfile: PROFILE,
   }), /CRU36_SOURCE_SHA256_MISMATCH/);
+});
+
+test('exported ledger materializer requires a persisted expected source SHA', async () => {
+  await assert.rejects(materializeCru34HistoricalLedger({
+    ledgerPath: path.join(tempDir(), 'missing.ndjson'),
+    artifactRoot: tempDir(),
+    cutoffLedgerOrdinals: [6],
+    expectedIdentity: EXPECTED,
+    instrumentProfile: PROFILE,
+  }), /CRU36_EXPECTED_SOURCE_SHA256_REQUIRED/);
 });
 
 test('artifact validator rejects a consumer-visible LIVE source mode', () => {
