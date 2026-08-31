@@ -4,11 +4,14 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import {
+  CRU34_MAX_ARTIFACT_BYTES,
   CRU34_SNAPSHOT_CONTRACT_VERSION,
   buildCru34HistoricalSemanticPayload,
   buildCru34SnapshotArtifact,
+  cru34ArtifactFileName,
   readCru34SnapshotArtifact,
-  writeCru34SnapshotArtifact,
+  stableCru34ArtifactJson,
+  validateCru34SnapshotArtifact,
 } from './cru34-snapshot-artifact.mjs';
 import { buildTxIntradayResearchSnapshot } from './tx-intraday-research-snapshot.mjs';
 
@@ -35,7 +38,108 @@ function parseLine(bytes, ordinal) {
   }
 }
 
-export async function readGovernedLedgerPrefix(filePath, cutoffLedgerOrdinals, {
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return Object.freeze(value);
+}
+
+function readAcceptedArtifact(filePath, expectedFileName) {
+  let descriptor;
+  let bytes;
+  try {
+    descriptor = fs.openSync(filePath, 'r');
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile() || stat.size < 1 || stat.size > CRU34_MAX_ARTIFACT_BYTES) {
+      throw new Error('CRU36_ARTIFACT_SIZE_INVALID');
+    }
+    bytes = Buffer.allocUnsafe(stat.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (count < 1) throw new Error('CRU36_ARTIFACT_SIZE_CHANGED_DURING_READ');
+      offset += count;
+    }
+    const trailing = Buffer.allocUnsafe(1);
+    if (fs.readSync(descriptor, trailing, 0, 1, bytes.length) !== 0) {
+      throw new Error('CRU36_ARTIFACT_SIZE_CHANGED_DURING_READ');
+    }
+  } finally {
+    if (descriptor != null) fs.closeSync(descriptor);
+  }
+  let artifact;
+  try { artifact = JSON.parse(bytes.toString('utf8')); } catch { throw new Error('CRU36_ARTIFACT_JSON_INVALID'); }
+  validateCru34SnapshotArtifact(artifact, { fileName: expectedFileName });
+  return Object.freeze({ artifact: deepFreeze(artifact), byteSize: bytes.length });
+}
+
+function removeTempIfPresent(tempPath) {
+  try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch { /* preserve primary failure */ }
+}
+
+function flushDirectoryBestEffort(root) {
+  let descriptor;
+  try {
+    descriptor = fs.openSync(root, 'r');
+    fs.fsyncSync(descriptor);
+  } catch {
+    // Windows may not permit opening a directory; absence after a crash remains fail-closed and rerunnable.
+  } finally {
+    if (descriptor != null) fs.closeSync(descriptor);
+  }
+}
+
+function publishCru34SnapshotArtifact(artifactRoot, artifact) {
+  validateCru34SnapshotArtifact(artifact);
+  const root = path.resolve(String(artifactRoot || ''));
+  if (!artifactRoot) throw new Error('CRU36_ARTIFACT_ROOT_REQUIRED');
+  fs.mkdirSync(root, { recursive: true });
+  const fileName = cru34ArtifactFileName(artifact);
+  const filePath = path.join(root, fileName);
+  const bytes = Buffer.from(stableCru34ArtifactJson(artifact), 'utf8');
+  if (bytes.length > CRU34_MAX_ARTIFACT_BYTES) throw new Error('CRU36_ARTIFACT_SIZE_INVALID');
+  if (fs.existsSync(filePath)) {
+    const existing = readAcceptedArtifact(filePath, fileName);
+    if (existing.artifact.artifactIdentity !== artifact.artifactIdentity
+        || existing.artifact.semanticContentHash !== artifact.semanticContentHash) {
+      throw new Error('CRU36_IMMUTABLE_ARTIFACT_CONFLICT');
+    }
+    return Object.freeze({ filePath, fileName, artifact: existing.artifact, reused: true, byteSize: existing.byteSize });
+  }
+
+  const tempPath = path.join(root, `.${fileName}.${process.pid}.${crypto.randomUUID()}.tmp`);
+  let handle;
+  try {
+    handle = fs.openSync(tempPath, 'wx', 0o600);
+    fs.writeFileSync(handle, bytes);
+    fs.fsyncSync(handle);
+    fs.closeSync(handle);
+    handle = null;
+    readAcceptedArtifact(tempPath, fileName);
+    try {
+      fs.linkSync(tempPath, filePath);
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      const existing = readAcceptedArtifact(filePath, fileName);
+      if (existing.artifact.artifactIdentity !== artifact.artifactIdentity
+          || existing.artifact.semanticContentHash !== artifact.semanticContentHash) {
+        throw new Error('CRU36_IMMUTABLE_ARTIFACT_CONFLICT');
+      }
+      removeTempIfPresent(tempPath);
+      return Object.freeze({ filePath, fileName, artifact: existing.artifact, reused: true, byteSize: existing.byteSize });
+    }
+    flushDirectoryBestEffort(root);
+    removeTempIfPresent(tempPath);
+    const accepted = readAcceptedArtifact(filePath, fileName);
+    return Object.freeze({ filePath, fileName, artifact: accepted.artifact, reused: false, byteSize: accepted.byteSize });
+  } catch (error) {
+    if (handle != null) fs.closeSync(handle);
+    removeTempIfPresent(tempPath);
+    throw error;
+  }
+}
+
+async function readGovernedLedgerPrefix(filePath, cutoffLedgerOrdinals, {
   expectedSourceSha256,
 } = {}) {
   const resolved = path.resolve(filePath || '');
@@ -105,12 +209,12 @@ export async function readGovernedLedgerPrefix(filePath, cutoffLedgerOrdinals, {
 
 function assertTargetIdentity(snapshot, expected) {
   const identity = snapshot?.identity || {};
-  for (const key of ['actualContract', 'tradeDate', 'session', 'continuityEpoch']) {
+  for (const key of ['instrument', 'actualContract', 'tradeDate', 'session', 'continuityEpoch']) {
     if (identity[key] !== expected[key]) throw new Error(`CRU36_TARGET_${key.toUpperCase()}_MISMATCH`);
   }
 }
 
-export function materializeCru34HistoricalSnapshot({
+function materializeCru34HistoricalSnapshot({
   records,
   sourceLedgerSha256,
   sourceLedgerByteSize,
@@ -130,8 +234,19 @@ export function materializeCru34HistoricalSnapshot({
     cutoffLedgerOrdinal,
     resolveSessionTradeDate,
   });
-  if (expectedIdentity) assertTargetIdentity(snapshot, expectedIdentity);
-  const semanticPayload = buildCru34HistoricalSemanticPayload(snapshot);
+  if (expectedIdentity?.instrument != null && expectedIdentity.instrument !== instrumentProfile?.instrument) {
+    throw new Error('CRU36_TARGET_INSTRUMENT_MISMATCH');
+  }
+  if (expectedIdentity?.tickSize != null && Number(expectedIdentity.tickSize) !== Number(instrumentProfile?.tickSize)) {
+    throw new Error('CRU36_TARGET_TICKSIZE_MISMATCH');
+  }
+  if (expectedIdentity) assertTargetIdentity(snapshot, {
+    ...expectedIdentity,
+    instrument: instrumentProfile?.instrument,
+  });
+  const semanticPayload = buildCru34HistoricalSemanticPayload(snapshot, {
+    tickSize: instrumentProfile?.tickSize,
+  });
   const artifact = buildCru34SnapshotArtifact(semanticPayload, {
     materializedAt,
     sourceLedgerSha256: sourceSha,
@@ -139,7 +254,7 @@ export function materializeCru34HistoricalSnapshot({
     sourcePrefixRecordCount: cutoffLedgerOrdinal,
     sourcePrefixByteSize,
   });
-  const write = writeCru34SnapshotArtifact(artifactRoot, artifact);
+  const write = publishCru34SnapshotArtifact(artifactRoot, artifact);
   return Object.freeze({ snapshot, semanticPayload, artifact: write.artifact, write });
 }
 
@@ -191,6 +306,8 @@ export async function materializeCru34HistoricalLedger({
       expectedIdentity: {
         schemaVersion: CRU34_SNAPSHOT_CONTRACT_VERSION,
         ...expectedIdentity,
+        instrument: instrumentProfile.instrument,
+        tickSize: instrumentProfile.tickSize,
         sourceLedgerIdentity: `sha256:${source.sourceLedgerSha256}`,
       },
     });

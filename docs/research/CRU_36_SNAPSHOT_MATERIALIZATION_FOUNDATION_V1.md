@@ -33,7 +33,8 @@ orderRoutesEnabled=false
 `cru34-snapshot-contract-v1` is the stable consumer-facing semantic payload. It contains:
 
 - `sourceMode`, which is exactly `HISTORICAL` in Phase A;
-- target identity: `instrument`, `actualContract`, `tradeDate`, `session`, `continuityEpoch`;
+- target identity: `instrument`, `actualContract`, `tradeDate`, `session`, `continuityEpoch`,
+  and the explicit `tickSize` used for point-to-tick conversion;
 - time and lineage: `availableAt`, cutoff ordinal/hash, max-used ordinal/hash, and
   `sourceLedgerIdentity`;
 - `primary60s`, `context300s`, and horizon-indexed `pressure`, `response`, and
@@ -109,8 +110,8 @@ safe scale, hash, identity, timing, size, and quality summaries.
 The adapter module does not import CRU-34, the governed ledger reader, the chart cache, Shioaji,
 or a `/latest` client. It reads at most one bounded artifact after deterministic selection.
 
-Selection requires exact contract schema, `actualContract`, `tradeDate`, `session`,
-`continuityEpoch`, and governed `sourceLedgerIdentity`. Candidates are scoped by their
+Selection requires exact contract schema, `instrument`, `actualContract`, `tradeDate`, `session`,
+`continuityEpoch`, `tickSize`, and governed `sourceLedgerIdentity`. Candidates are scoped by their
 deterministic selection key and ordered by physical cutoff ordinal. Both total directory entries
 and matching candidates have hard scan limits. The newest exact-identity candidate is
 authoritative. If it is corrupt or a scan bound is exceeded, the adapter returns `UNAVAILABLE`;
@@ -158,6 +159,8 @@ The checkpoint stores:
 - checkpoint schema/version and checkpoint hash;
 - `sourceLedgerIdentity` plus the immutable ledger segment/file identity;
 - `lastVerifiedLedgerOrdinal` and `lastVerifiedRecordHash`;
+- `lastVerifiedEndByteOffset`, which is the byte immediately after that record's newline within
+  the identified immutable segment, or an equivalent verified bounded ordinal-to-offset index;
 - `actualContract`, `tradeDate`, `session`, and `continuityEpoch`;
 - last verified `availableAt` and event-time watermark;
 - canonical rolling 60-second and 300-second state sufficient to reproduce every CRU-34 semantic
@@ -179,7 +182,8 @@ On restart the worker:
 
 1. validates checkpoint schema, safety boundary, canonical hash, and implementation compatibility;
 2. confirms ledger identity and recomputes/verifies the checkpoint anchor at
-   `lastVerifiedLedgerOrdinal`/`lastVerifiedRecordHash`;
+   `lastVerifiedLedgerOrdinal`/`lastVerifiedRecordHash` and its newline-boundary
+   `lastVerifiedEndByteOffset` without rescanning the full prefix;
 3. rejects any contract, trade-date, session, or continuity-epoch mismatch;
 4. restores rolling state only after all checks pass;
 5. consumes the durable physical suffix from `lastVerifiedLedgerOrdinal + 1` in batches bounded
@@ -195,6 +199,15 @@ If verification fails, the checkpoint is quarantined logically and no live-looki
 served. Recovery follows an explicit governed policy: find an earlier independently verified
 checkpoint for the same immutable source identity or perform full GENESIS replay. It never resumes
 from unverifiable in-memory state.
+
+For LIVE, `sourceLedgerIdentity` is a stable governed ledger-generation identity created from an
+immutable genesis/manifest identifier, not the changing SHA-256 of the actively appended file.
+Each checkpoint separately binds the immutable segment identifier, byte offset, physical ordinal,
+record hash, and preceding chain hash. Rotation closes and hashes the old segment, opens a new
+segment under the same generation only through a verified rotation record, and resets offsets
+without resetting the generation identity or physical ordinal. A new genesis/manifest starts a
+new source identity and cannot reuse prior checkpoints or selection keys. Phase A continues to use
+the persisted full-file SHA-256 because its historical source file is immutable.
 
 ### 7.4 Boundary invalidation
 

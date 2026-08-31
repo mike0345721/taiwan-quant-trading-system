@@ -71,6 +71,15 @@ function requiredOwn(object, key, code) {
   return object[key];
 }
 
+function requireExactKeys(object, allowedKeys, code) {
+  const actual = Object.keys(requiredObject(object, code)).sort();
+  const expected = [...allowedKeys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new Error(code);
+  }
+  return object;
+}
+
 function requiredNullableFinite(object, key, code) {
   const value = requiredOwn(object, key, code);
   if (value !== null && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error(code);
@@ -122,16 +131,31 @@ function validateEvidence(entries) {
       'PROVIDER_BOOK_CLASSIFICATION_CONFLICT_PRESENT',
     ], 'CRU36_CONTRACT_EVIDENCE_INVALID');
     if (entry.code === 'PROVIDER_BOOK_CLASSIFICATION_CONFLICT_PRESENT') {
+      requireExactKeys(entry, ['code', 'count', 'rate'], 'CRU36_CONTRACT_EVIDENCE_INVALID');
       requireNonnegative(requiredFinite(entry, 'count', 'CRU36_CONTRACT_EVIDENCE_INVALID'),
         'CRU36_CONTRACT_EVIDENCE_INVALID', { integer: true });
       requireRange(requiredFinite(entry, 'rate', 'CRU36_CONTRACT_EVIDENCE_INVALID'), 0, 1,
         'CRU36_CONTRACT_EVIDENCE_INVALID');
-    }
+    } else requireExactKeys(entry, ['code'], 'CRU36_CONTRACT_EVIDENCE_INVALID');
   }
 }
 
-function validateWindow(window, expectedWindowMs) {
+function responseUnavailableReason(pathEfficiency) {
+  const mapping = {
+    QUALITY_INSUFFICIENT_IDENTITY: 'TICK_IDENTITY_UNUSABLE',
+    QUALITY_INSUFFICIENT_AVAILABILITY_LINEAGE: 'TICK_AVAILABILITY_LINEAGE_UNUSABLE',
+    QUALITY_INSUFFICIENT_PRICE: 'TICK_PRICE_INVALID',
+    INSUFFICIENT_OBSERVATIONS: 'NO_ELIGIBLE_TICKS',
+  };
+  return mapping[pathEfficiency?.unavailableReason] || null;
+}
+
+function validateWindow(window, expectedWindowMs, expectedTickSize) {
   requiredObject(window, 'CRU36_CONTRACT_WINDOW_INVALID');
+  requireExactKeys(window, [
+    'status', 'unavailableReason', 'windowMs', 'pressure', 'response', 'pathEfficiency',
+    'quality', 'supportingEvidence', 'contraryEvidence',
+  ], 'CRU36_CONTRACT_WINDOW_INVALID');
   if (window.windowMs !== expectedWindowMs) throw new Error('CRU36_CONTRACT_WINDOW_INVALID');
   requiredEnum(window.status, ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE'],
     'CRU36_CONTRACT_WINDOW_STATUS_REQUIRED');
@@ -140,6 +164,16 @@ function validateWindow(window, expectedWindowMs) {
   validateEvidence(window.contraryEvidence);
 
   const pressure = requiredObject(window.pressure, 'CRU36_CONTRACT_PRESSURE_INVALID');
+  const fullPressure = Object.hasOwn(pressure, 'tickCount');
+  requireExactKeys(pressure, fullPressure ? [
+    'status', 'unavailableReason', 'windowMs', 'tickCount', 'totalExecutedVolume',
+    'buyProxyVolume', 'sellProxyVolume', 'unknownVolume', 'classifiedVolume',
+    'netAggressiveFlowProxy', 'pressureRatio', 'direction', 'classifiedCoverage',
+    'bestQuoteCrossCheck', 'conflict', 'relativeIntensity', 'controlObservationState',
+  ] : [
+    'status', 'unavailableReason', 'windowMs', 'pressureRatio', 'direction',
+    'relativeIntensity', 'controlObservationState',
+  ], 'CRU36_CONTRACT_PRESSURE_INVALID');
   requiredEnum(pressure.status, ['READY', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE'],
     'CRU36_CONTRACT_PRESSURE_INVALID');
   requiredEnum(pressure.direction, ['BUY_SIDE', 'SELL_SIDE', 'BALANCED', 'UNAVAILABLE'],
@@ -148,58 +182,116 @@ function validateWindow(window, expectedWindowMs) {
     if (pressure[key] !== 'RESEARCH_PENDING') throw new Error('CRU36_CONTRACT_PRESSURE_INVALID');
   }
   requiredNullableText(pressure, 'unavailableReason', 'CRU36_CONTRACT_PRESSURE_INVALID');
-  const tickCount = requireNonnegative(requiredFinite(pressure, 'tickCount', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
-  if (tickCount < 1) throw new Error('CRU36_CONTRACT_PRESSURE_INVALID');
-  const totalVolume = requireNonnegative(requiredFinite(pressure, 'totalExecutedVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  const buyVolume = requireNonnegative(requiredFinite(pressure, 'buyProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  const sellVolume = requireNonnegative(requiredFinite(pressure, 'sellProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  const unknownVolume = requireNonnegative(requiredFinite(pressure, 'unknownVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  const classifiedVolume = requireNonnegative(requiredFinite(pressure, 'classifiedVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  const netFlow = requiredFinite(pressure, 'netAggressiveFlowProxy', 'CRU36_CONTRACT_PRESSURE_INVALID');
   const pressureRatio = requireRange(requiredNullableFinite(pressure, 'pressureRatio', 'CRU36_CONTRACT_PRESSURE_INVALID'),
     -1, 1, 'CRU36_CONTRACT_PRESSURE_INVALID');
-  const classifiedCoverage = requireRange(requiredFinite(pressure, 'classifiedCoverage', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    0, 1, 'CRU36_CONTRACT_PRESSURE_INVALID');
-  if (classifiedVolume !== buyVolume + sellVolume || totalVolume !== classifiedVolume + unknownVolume
-      || netFlow !== buyVolume - sellVolume
-      || classifiedCoverage !== classifiedVolume / totalVolume
-      || pressureRatio !== (classifiedVolume > 0 ? netFlow / classifiedVolume : null)) {
-    throw new Error('CRU36_CONTRACT_PRESSURE_ARITHMETIC_INVALID');
-  }
   if (pressure.windowMs !== expectedWindowMs) throw new Error('CRU36_CONTRACT_PRESSURE_INVALID');
-  const bestQuote = requiredObject(pressure.bestQuoteCrossCheck, 'CRU36_CONTRACT_PRESSURE_INVALID');
-  for (const key of ['buyProxyVolume', 'sellProxyVolume', 'insideSpreadVolume', 'unavailableVolume']) {
-    requireNonnegative(requiredFinite(bestQuote, key, 'CRU36_CONTRACT_PRESSURE_INVALID'),
+  let classifiedCoverage = null;
+  let unknownVolume = null;
+  let bestQuoteMatchedCoverage = null;
+  let conflictCount = 0;
+  let conflictRate = null;
+  if (!fullPressure) {
+    if (pressure.status === 'READY' || pressure.pressureRatio !== null
+        || pressure.direction !== 'UNAVAILABLE' || pressure.unavailableReason === null) {
+      throw new Error('CRU36_CONTRACT_PRESSURE_STATUS_INVALID');
+    }
+  } else {
+    const tickCount = requireNonnegative(requiredFinite(pressure, 'tickCount', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
+    if (tickCount < 1) throw new Error('CRU36_CONTRACT_PRESSURE_INVALID');
+    const totalVolume = requireNonnegative(requiredFinite(pressure, 'totalExecutedVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
       'CRU36_CONTRACT_PRESSURE_INVALID');
+    const buyVolume = requireNonnegative(requiredFinite(pressure, 'buyProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const sellVolume = requireNonnegative(requiredFinite(pressure, 'sellProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    unknownVolume = requireNonnegative(requiredFinite(pressure, 'unknownVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const classifiedVolume = requireNonnegative(requiredFinite(pressure, 'classifiedVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const netFlow = requiredFinite(pressure, 'netAggressiveFlowProxy', 'CRU36_CONTRACT_PRESSURE_INVALID');
+    classifiedCoverage = requireRange(requiredFinite(pressure, 'classifiedCoverage', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      0, 1, 'CRU36_CONTRACT_PRESSURE_INVALID');
+    if (!(totalVolume > 0) || classifiedVolume !== buyVolume + sellVolume
+        || totalVolume !== classifiedVolume + unknownVolume || netFlow !== buyVolume - sellVolume
+        || classifiedCoverage !== classifiedVolume / totalVolume
+        || pressureRatio !== (classifiedVolume > 0 ? netFlow / classifiedVolume : null)) {
+      throw new Error('CRU36_CONTRACT_PRESSURE_ARITHMETIC_INVALID');
+    }
+    if (pressure.status === 'READY') {
+      const expectedDirection = pressureRatio > 0 ? 'BUY_SIDE' : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED';
+      if (classifiedCoverage !== 1 || pressure.unavailableReason !== null || pressure.direction !== expectedDirection) {
+        throw new Error('CRU36_CONTRACT_PRESSURE_STATUS_INVALID');
+      }
+    } else if (pressure.status !== 'QUALITY_INSUFFICIENT'
+        || pressure.direction !== 'UNAVAILABLE' || pressure.unavailableReason === null) {
+      throw new Error('CRU36_CONTRACT_PRESSURE_STATUS_INVALID');
+    }
+    const bestQuote = requiredObject(pressure.bestQuoteCrossCheck, 'CRU36_CONTRACT_PRESSURE_INVALID');
+    requireExactKeys(bestQuote, [
+      'buyProxyVolume', 'sellProxyVolume', 'insideSpreadVolume', 'unavailableVolume',
+      'matchedCoverage', 'matchedTicks',
+    ], 'CRU36_CONTRACT_PRESSURE_INVALID');
+    const bestQuoteBuy = requireNonnegative(requiredFinite(bestQuote, 'buyProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const bestQuoteSell = requireNonnegative(requiredFinite(bestQuote, 'sellProxyVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const bestQuoteInside = requireNonnegative(requiredFinite(bestQuote, 'insideSpreadVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const bestQuoteUnavailable = requireNonnegative(requiredFinite(bestQuote, 'unavailableVolume', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    bestQuoteMatchedCoverage = requireRange(requiredFinite(bestQuote, 'matchedCoverage', 'CRU36_CONTRACT_PRESSURE_INVALID'), 0, 1,
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    const matchedTicks = requireNonnegative(requiredFinite(bestQuote, 'matchedTicks', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
+    const conflict = requiredObject(pressure.conflict, 'CRU36_CONTRACT_PRESSURE_INVALID');
+    requireExactKeys(conflict, ['count', 'rate'], 'CRU36_CONTRACT_PRESSURE_INVALID');
+    conflictCount = requireNonnegative(requiredFinite(conflict, 'count', 'CRU36_CONTRACT_PRESSURE_INVALID'),
+      'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
+    conflictRate = requireRange(requiredNullableFinite(conflict, 'rate', 'CRU36_CONTRACT_PRESSURE_INVALID'), 0, 1,
+      'CRU36_CONTRACT_PRESSURE_INVALID');
+    if (bestQuoteBuy + bestQuoteSell + bestQuoteInside + bestQuoteUnavailable !== totalVolume
+        || bestQuoteMatchedCoverage !== (bestQuoteBuy + bestQuoteSell) / totalVolume
+        || matchedTicks > tickCount || conflictCount > matchedTicks
+        || conflictRate !== (matchedTicks > 0 ? conflictCount / matchedTicks : null)) {
+      throw new Error('CRU36_CONTRACT_QUOTE_ARITHMETIC_INVALID');
+    }
   }
-  requireRange(requiredFinite(bestQuote, 'matchedCoverage', 'CRU36_CONTRACT_PRESSURE_INVALID'), 0, 1,
-    'CRU36_CONTRACT_PRESSURE_INVALID');
-  requireNonnegative(requiredFinite(bestQuote, 'matchedTicks', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
-  const conflict = requiredObject(pressure.conflict, 'CRU36_CONTRACT_PRESSURE_INVALID');
-  requireNonnegative(requiredFinite(conflict, 'count', 'CRU36_CONTRACT_PRESSURE_INVALID'),
-    'CRU36_CONTRACT_PRESSURE_INVALID', { integer: true });
-  requireRange(requiredNullableFinite(conflict, 'rate', 'CRU36_CONTRACT_PRESSURE_INVALID'), 0, 1,
-    'CRU36_CONTRACT_PRESSURE_INVALID');
 
   const response = requiredObject(window.response, 'CRU36_CONTRACT_RESPONSE_INVALID');
-  requiredEnum(response.status, ['READY'], 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requireExactKeys(response, [
+    'status', 'startPrice', 'endPrice', 'displacementPoints', 'displacementTicks', 'directionRelation',
+  ], 'CRU36_CONTRACT_RESPONSE_INVALID');
+  requiredEnum(response.status, ['READY', 'UNAVAILABLE'], 'CRU36_CONTRACT_RESPONSE_INVALID');
   requiredEnum(response.directionRelation, [
     'SAME_DIRECTION', 'OPPOSITE_DIRECTION', 'FLAT_PRICE', 'PRESSURE_UNAVAILABLE',
   ], 'CRU36_CONTRACT_RESPONSE_INVALID');
-  const startPrice = requiredFinite(response, 'startPrice', 'CRU36_CONTRACT_RESPONSE_INVALID');
-  const endPrice = requiredFinite(response, 'endPrice', 'CRU36_CONTRACT_RESPONSE_INVALID');
-  const displacementPoints = requiredFinite(response, 'displacementPoints', 'CRU36_CONTRACT_RESPONSE_INVALID');
-  requiredFinite(response, 'displacementTicks', 'CRU36_CONTRACT_RESPONSE_INVALID');
-  if (displacementPoints !== endPrice - startPrice) throw new Error('CRU36_CONTRACT_RESPONSE_ARITHMETIC_INVALID');
+  let expectedRelation = 'PRESSURE_UNAVAILABLE';
+  if (response.status === 'READY') {
+    const startPrice = requiredFinite(response, 'startPrice', 'CRU36_CONTRACT_RESPONSE_INVALID');
+    const endPrice = requiredFinite(response, 'endPrice', 'CRU36_CONTRACT_RESPONSE_INVALID');
+    const displacementPoints = requiredFinite(response, 'displacementPoints', 'CRU36_CONTRACT_RESPONSE_INVALID');
+    const displacementTicks = requiredFinite(response, 'displacementTicks', 'CRU36_CONTRACT_RESPONSE_INVALID');
+    expectedRelation = displacementPoints === 0 ? 'FLAT_PRICE'
+      : pressure.status !== 'READY' || pressureRatio === 0 ? 'PRESSURE_UNAVAILABLE'
+        : Math.sign(pressureRatio) === Math.sign(displacementPoints) ? 'SAME_DIRECTION' : 'OPPOSITE_DIRECTION';
+    if (displacementPoints !== endPrice - startPrice
+        || displacementTicks !== displacementPoints / expectedTickSize
+        || response.directionRelation !== expectedRelation) {
+      throw new Error('CRU36_CONTRACT_RESPONSE_ARITHMETIC_INVALID');
+    }
+  } else if (['startPrice', 'endPrice', 'displacementPoints', 'displacementTicks']
+    .some((key) => requiredOwn(response, key, 'CRU36_CONTRACT_RESPONSE_INVALID') !== null)
+      || response.directionRelation !== 'PRESSURE_UNAVAILABLE') {
+    throw new Error('CRU36_CONTRACT_RESPONSE_ARITHMETIC_INVALID');
+  }
 
   const pathEfficiency = requiredObject(window.pathEfficiency, 'CRU36_CONTRACT_PATH_INVALID');
+  requireExactKeys(pathEfficiency, pathEfficiency.status === 'READY'
+    ? ['status', 'value', 'unavailableReason', 'tickCount', 'pathLengthPoints',
+      'netDisplacementPoints', 'maxObservedGapMs', 'maxAllowedGapMs']
+    : ['status', 'value', 'unavailableReason', 'tickCount', 'maxObservedGapMs', 'maxAllowedGapMs'],
+  'CRU36_CONTRACT_PATH_INVALID');
   requiredEnum(pathEfficiency.status, ['READY', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE'],
     'CRU36_CONTRACT_PATH_INVALID');
   requiredNullableText(pathEfficiency, 'unavailableReason', 'CRU36_CONTRACT_PATH_INVALID');
@@ -214,11 +306,25 @@ function validateWindow(window, expectedWindowMs) {
     requireNonnegative(pathEfficiency.maxObservedGapMs, 'CRU36_CONTRACT_PATH_INVALID');
   }
   if (pathEfficiency.status === 'READY') {
-    requiredNullableFinite(pathEfficiency, 'pathLengthPoints', 'CRU36_CONTRACT_PATH_INVALID');
-    requiredNullableFinite(pathEfficiency, 'netDisplacementPoints', 'CRU36_CONTRACT_PATH_INVALID');
+    requireRange(requiredFinite(pathEfficiency, 'value', 'CRU36_CONTRACT_PATH_INVALID'), 0, 1,
+      'CRU36_CONTRACT_PATH_INVALID');
+    requireNonnegative(requiredFinite(pathEfficiency, 'pathLengthPoints', 'CRU36_CONTRACT_PATH_INVALID'),
+      'CRU36_CONTRACT_PATH_INVALID');
+    requireNonnegative(requiredFinite(pathEfficiency, 'netDisplacementPoints', 'CRU36_CONTRACT_PATH_INVALID'),
+      'CRU36_CONTRACT_PATH_INVALID');
+    requiredFinite(pathEfficiency, 'maxObservedGapMs', 'CRU36_CONTRACT_PATH_INVALID');
+    if (pathEfficiency.unavailableReason !== null || pathEfficiency.tickCount < 3) {
+      throw new Error('CRU36_CONTRACT_PATH_STATUS_INVALID');
+    }
+  } else if (pathEfficiency.value !== null || pathEfficiency.unavailableReason === null) {
+    throw new Error('CRU36_CONTRACT_PATH_STATUS_INVALID');
   }
 
   const quality = requiredObject(window.quality, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requireExactKeys(quality, [
+    'status', 'reasons', 'classifiedCoverage', 'bestQuoteMatchedCoverage',
+    'classificationConflictRate', 'unknownVolume',
+  ], 'CRU36_CONTRACT_QUALITY_INVALID');
   requiredEnum(quality.status, ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE'],
     'CRU36_CONTRACT_QUALITY_INVALID');
   requiredStringArray(quality.reasons, 'CRU36_CONTRACT_QUALITY_INVALID');
@@ -230,9 +336,53 @@ function validateWindow(window, expectedWindowMs) {
     else if (metric != null) requireNonnegative(metric, 'CRU36_CONTRACT_QUALITY_INVALID');
   }
   if (quality.classifiedCoverage !== classifiedCoverage
-      || quality.bestQuoteMatchedCoverage !== bestQuote.matchedCoverage
-      || quality.classificationConflictRate !== conflict.rate
+      || quality.bestQuoteMatchedCoverage !== bestQuoteMatchedCoverage
+      || quality.classificationConflictRate !== conflictRate
       || quality.unknownVolume !== unknownVolume) throw new Error('CRU36_CONTRACT_QUALITY_INCONSISTENT');
+  const expectedReasons = [];
+  if (pressure.status === 'QUALITY_INSUFFICIENT') {
+    expectedReasons.push(pressure.unavailableReason || 'PRESSURE_QUALITY_INSUFFICIENT');
+  }
+  if (classifiedCoverage != null && classifiedCoverage < 1) expectedReasons.push('PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
+  const inferredResponseReason = response.status === 'UNAVAILABLE'
+    ? responseUnavailableReason(pathEfficiency) : null;
+  if (response.status === 'UNAVAILABLE' && !inferredResponseReason) {
+    throw new Error('CRU36_CONTRACT_RESPONSE_REASON_INCONSISTENT');
+  }
+  if (response.status === 'UNAVAILABLE' && pathEfficiency.status === 'QUALITY_INSUFFICIENT') {
+    expectedReasons.push(inferredResponseReason);
+  }
+  if (pathEfficiency.status === 'QUALITY_INSUFFICIENT') {
+    expectedReasons.push(pathEfficiency.unavailableReason || 'PATH_QUALITY_INSUFFICIENT');
+  }
+  const deduplicatedReasons = [...new Set(expectedReasons)];
+  const expectedWindowStatus = deduplicatedReasons.length ? 'QUALITY_INSUFFICIENT'
+    : pressure.status === 'UNAVAILABLE' && response.status === 'UNAVAILABLE' ? 'UNAVAILABLE'
+      : pressure.status !== 'READY' || pressureRatio == null || response.status !== 'READY'
+        || pathEfficiency.status !== 'READY' ? 'PARTIAL' : 'READY';
+  const expectedUnavailableReason = deduplicatedReasons[0] || pressure.unavailableReason
+    || inferredResponseReason || pathEfficiency.unavailableReason || null;
+  if (digestCanonical(quality.reasons) !== digestCanonical(deduplicatedReasons)
+      || quality.status !== expectedWindowStatus || window.status !== expectedWindowStatus
+      || window.unavailableReason !== expectedUnavailableReason) {
+    throw new Error('CRU36_CONTRACT_QUALITY_INCONSISTENT');
+  }
+
+  const expectedSupporting = expectedRelation === 'SAME_DIRECTION'
+    ? [{ code: 'PRICE_RESPONSE_SAME_DIRECTION' }] : [];
+  const expectedContrary = [];
+  if (expectedRelation === 'OPPOSITE_DIRECTION') expectedContrary.push({ code: 'PRICE_RESPONSE_OPPOSITE_DIRECTION' });
+  if (conflictCount > 0) {
+    expectedContrary.push({
+      code: 'PROVIDER_BOOK_CLASSIFICATION_CONFLICT_PRESENT',
+      count: conflictCount,
+      rate: conflictRate,
+    });
+  }
+  if (digestCanonical(window.supportingEvidence) !== digestCanonical(expectedSupporting)
+      || digestCanonical(window.contraryEvidence) !== digestCanonical(expectedContrary)) {
+    throw new Error('CRU36_CONTRACT_EVIDENCE_INCONSISTENT');
+  }
 }
 
 function assertSafety(value, code = 'CRU36_ARTIFACT_SAFETY_INVALID') {
@@ -261,11 +411,21 @@ function validateSemanticPayload(payload) {
   if (payload.sourceMode !== CRU34_SOURCE_MODE_HISTORICAL) {
     throw new Error('CRU36_SOURCE_MODE_INVALID');
   }
+  requireExactKeys(payload, [
+    'schemaVersion', 'sourceMode', 'instrument', 'actualContract', 'tradeDate', 'session',
+    'continuityEpoch', 'tickSize', 'availableAt', 'cutoffLedgerOrdinal', 'cutoffRecordHash',
+    'maxUsedLedgerOrdinal', 'maxUsedRecordHash', 'sourceLedgerIdentity', 'primary60s',
+    'context300s', 'pressure', 'response', 'pathEfficiency', 'quality', 'qualityReasons',
+    'promotionState', 'methodology', 'limitations', 'formalWeight', 'researchOnly',
+    'executionAuthorized', 'orderRoutesEnabled',
+  ], 'CRU36_CONTRACT_KEYS_INVALID');
   requiredText(payload.instrument, 'CRU36_INSTRUMENT_REQUIRED');
   requiredText(payload.actualContract, 'CRU36_ACTUAL_CONTRACT_REQUIRED');
   requiredText(payload.tradeDate, 'CRU36_TRADE_DATE_REQUIRED');
   requiredText(payload.session, 'CRU36_SESSION_REQUIRED');
   requiredText(payload.continuityEpoch, 'CRU36_CONTINUITY_EPOCH_REQUIRED');
+  const tickSize = requiredFinite(payload, 'tickSize', 'CRU36_TICK_SIZE_REQUIRED');
+  if (!(tickSize > 0)) throw new Error('CRU36_TICK_SIZE_REQUIRED');
   requiredIso(payload.availableAt, 'CRU36_AVAILABLE_AT_REQUIRED');
   requiredOrdinal(payload.cutoffLedgerOrdinal, 'CRU36_CUTOFF_ORDINAL_REQUIRED');
   requiredText(payload.cutoffRecordHash, 'CRU36_CUTOFF_HASH_REQUIRED');
@@ -279,10 +439,15 @@ function validateSemanticPayload(payload) {
       || !payload.methodology || !Array.isArray(payload.limitations)) {
     throw new Error('CRU36_CONTRACT_STRUCTURE_INVALID');
   }
-  validateWindow(payload.primary60s, 60_000);
-  validateWindow(payload.context300s, 300_000);
+  validateWindow(payload.primary60s, 60_000, tickSize);
+  validateWindow(payload.context300s, 300_000, tickSize);
   requiredStringArray(payload.qualityReasons, 'CRU36_CONTRACT_QUALITY_INVALID');
   const quality = requiredObject(payload.quality, 'CRU36_CONTRACT_QUALITY_INVALID');
+  requireExactKeys(quality, [
+    'status', 'reasons', 'classifiedCoveragePrimary60s', 'classifiedCoverageContext300s',
+    'bestQuoteMatchedCoveragePrimary60s', 'bestQuoteMatchedCoverageContext300s',
+    'classificationConflictRatePrimary60s', 'classificationConflictRateContext300s',
+  ], 'CRU36_CONTRACT_QUALITY_INVALID');
   requiredEnum(quality.status, ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE'],
     'CRU36_CONTRACT_QUALITY_INVALID');
   requiredStringArray(quality.reasons, 'CRU36_CONTRACT_QUALITY_INVALID');
@@ -302,12 +467,28 @@ function validateSemanticPayload(payload) {
       || quality.classificationConflictRateContext300s !== payload.context300s.quality.classificationConflictRate) {
     throw new Error('CRU36_CONTRACT_QUALITY_INCONSISTENT');
   }
+  const expectedQualityStatus = quality.reasons.length ? 'QUALITY_INSUFFICIENT'
+    : payload.primary60s.status === 'READY' && payload.context300s.status === 'READY' ? 'READY' : 'PARTIAL';
+  if (quality.status !== expectedQualityStatus) throw new Error('CRU36_CONTRACT_QUALITY_INCONSISTENT');
+  const expectedAggregateReasons = [...new Set([
+    ...payload.primary60s.quality.reasons,
+    ...payload.context300s.quality.reasons,
+  ])];
+  if (digestCanonical(quality.reasons) !== digestCanonical(expectedAggregateReasons)) {
+    throw new Error('CRU36_CONTRACT_QUALITY_INCONSISTENT');
+  }
   const promotion = requiredObject(payload.promotionState, 'CRU36_CONTRACT_PROMOTION_INVALID');
+  requireExactKeys(promotion, [
+    'relativeIntensity', 'controlObservationState', 'absorption', 'marketState',
+  ], 'CRU36_CONTRACT_PROMOTION_INVALID');
   if (promotion.relativeIntensity !== 'RESEARCH_PENDING'
       || promotion.controlObservationState !== 'RESEARCH_PENDING'
       || promotion.absorption !== 'RESEARCH_PENDING'
       || promotion.marketState !== 'NOT_PROVIDED') throw new Error('CRU36_CONTRACT_PROMOTION_INVALID');
   const methodology = requiredObject(payload.methodology, 'CRU36_CONTRACT_METHODOLOGY_INVALID');
+  requireExactKeys(methodology, [
+    'pressure', 'response', 'pathEfficiency', 'observationOrder', 'availableAt', 'inputPrefix',
+  ], 'CRU36_CONTRACT_METHODOLOGY_INVALID');
   for (const key of ['pressure', 'response', 'pathEfficiency', 'observationOrder', 'availableAt', 'inputPrefix']) {
     requiredText(methodology[key], 'CRU36_CONTRACT_METHODOLOGY_INVALID');
   }
@@ -320,11 +501,10 @@ function validateSemanticPayload(payload) {
     && digestCanonical(payload.pathEfficiency.context300s) === digestCanonical(payload.context300s.pathEfficiency)
     && digestCanonical(payload.qualityReasons) === digestCanonical(payload.quality.reasons);
   if (!coherent) throw new Error('CRU36_CONTRACT_VIEW_INCONSISTENT');
-  if (payload.cutoffLedgerOrdinal < payload.maxUsedLedgerOrdinal) {
+  if (payload.cutoffLedgerOrdinal !== payload.maxUsedLedgerOrdinal) {
     throw new Error('CRU36_LINEAGE_ORDINAL_INVALID');
   }
-  if (payload.cutoffLedgerOrdinal === payload.maxUsedLedgerOrdinal
-      && payload.cutoffRecordHash !== payload.maxUsedRecordHash) {
+  if (payload.cutoffRecordHash !== payload.maxUsedRecordHash) {
     throw new Error('CRU36_LINEAGE_HASH_CONTRADICTION');
   }
   assertSafety(payload);
@@ -332,7 +512,7 @@ function validateSemanticPayload(payload) {
   return payload;
 }
 
-export function buildCru34HistoricalSemanticPayload(snapshot) {
+export function buildCru34HistoricalSemanticPayload(snapshot, { tickSize } = {}) {
   if (snapshot?.schemaVersion !== 'cru34-tx-intraday-research-snapshot-v1') {
     throw new Error('CRU36_CRU34_SNAPSHOT_SCHEMA_UNSUPPORTED');
   }
@@ -354,6 +534,7 @@ export function buildCru34HistoricalSemanticPayload(snapshot) {
     tradeDate: identity.tradeDate,
     session: identity.session,
     continuityEpoch: identity.continuityEpoch,
+    tickSize,
     availableAt: lineage.availableAt,
     cutoffLedgerOrdinal: lineage.cutoffLedgerOrdinal,
     cutoffRecordHash: lineage.cutoffRecordHash,
@@ -413,10 +594,12 @@ function artifactIdentityFor(semanticPayload, semanticContentHash) {
 function selectionIdentity(semanticPayload) {
   return {
     schemaVersion: semanticPayload.schemaVersion,
+    instrument: semanticPayload.instrument,
     actualContract: semanticPayload.actualContract,
     tradeDate: semanticPayload.tradeDate,
     session: semanticPayload.session,
     continuityEpoch: semanticPayload.continuityEpoch,
+    tickSize: semanticPayload.tickSize,
     sourceLedgerIdentity: semanticPayload.sourceLedgerIdentity,
   };
 }
@@ -424,10 +607,12 @@ function selectionIdentity(semanticPayload) {
 export function cru34SelectionKey(identity) {
   const normalized = {
     schemaVersion: requiredText(identity?.schemaVersion, 'CRU36_SELECTOR_SCHEMA_REQUIRED'),
+    instrument: requiredText(identity?.instrument, 'CRU36_SELECTOR_INSTRUMENT_REQUIRED'),
     actualContract: requiredText(identity?.actualContract, 'CRU36_SELECTOR_CONTRACT_REQUIRED'),
     tradeDate: requiredText(identity?.tradeDate, 'CRU36_SELECTOR_TRADE_DATE_REQUIRED'),
     session: requiredText(identity?.session, 'CRU36_SELECTOR_SESSION_REQUIRED'),
     continuityEpoch: requiredText(identity?.continuityEpoch, 'CRU36_SELECTOR_EPOCH_REQUIRED'),
+    tickSize: Number(identity?.tickSize),
     sourceLedgerIdentity: requiredText(identity?.sourceLedgerIdentity, 'CRU36_SELECTOR_SOURCE_REQUIRED'),
   };
   if (normalized.schemaVersion !== CRU34_SNAPSHOT_CONTRACT_VERSION) {
@@ -436,6 +621,7 @@ export function cru34SelectionKey(identity) {
   if (!/^sha256:[a-f0-9]{64}$/.test(normalized.sourceLedgerIdentity)) {
     throw new Error('CRU36_SELECTOR_SOURCE_INVALID');
   }
+  if (!(normalized.tickSize > 0)) throw new Error('CRU36_SELECTOR_TICK_SIZE_INVALID');
   return digestCanonical(normalized).slice(0, 24);
 }
 
@@ -495,6 +681,10 @@ export function validateCru34SnapshotArtifact(artifact, { fileName = null } = {}
   if (artifact.artifactSchemaVersion !== CRU34_ARTIFACT_SCHEMA_VERSION) {
     throw new Error('CRU36_ARTIFACT_SCHEMA_UNSUPPORTED');
   }
+  requireExactKeys(artifact, [
+    'artifactSchemaVersion', 'artifactIdentity', 'semanticContentHash', 'semanticPayload',
+    'operationalEnvelope', 'artifactHash',
+  ], 'CRU36_ARTIFACT_KEYS_INVALID');
   validateSemanticPayload(artifact.semanticPayload);
   const semanticContentHash = requiredSha256(
     artifact.semanticContentHash,
@@ -506,6 +696,10 @@ export function validateCru34SnapshotArtifact(artifact, { fileName = null } = {}
   const expectedIdentity = artifactIdentityFor(artifact.semanticPayload, semanticContentHash);
   if (artifact.artifactIdentity !== expectedIdentity) throw new Error('CRU36_ARTIFACT_IDENTITY_MISMATCH');
   const envelope = artifact.operationalEnvelope;
+  requireExactKeys(envelope, [
+    'materializedAt', 'writerVersion', 'sourceLedgerSha256', 'sourceLedgerByteSize',
+    'sourcePrefixRecordCount', 'sourcePrefixByteSize',
+  ], 'CRU36_ARTIFACT_ENVELOPE_KEYS_INVALID');
   requiredIso(envelope?.materializedAt, 'CRU36_MATERIALIZED_AT_INVALID');
   requiredText(envelope?.writerVersion, 'CRU36_WRITER_VERSION_REQUIRED');
   const sourceSha = requiredSha256(envelope?.sourceLedgerSha256, 'CRU36_SOURCE_SHA256_REQUIRED');
@@ -532,12 +726,29 @@ export function validateCru34SnapshotArtifact(artifact, { fileName = null } = {}
 }
 
 function readValidatedArtifactFile(filePath, { expectedFileName = path.basename(filePath) } = {}) {
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile()) throw new Error('CRU36_ARTIFACT_NOT_FILE');
-  if (stat.size < 1 || stat.size > CRU34_MAX_ARTIFACT_BYTES) {
-    throw new Error('CRU36_ARTIFACT_SIZE_INVALID');
+  let descriptor;
+  let bytes;
+  try {
+    descriptor = fs.openSync(filePath, 'r');
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile()) throw new Error('CRU36_ARTIFACT_NOT_FILE');
+    if (stat.size < 1 || stat.size > CRU34_MAX_ARTIFACT_BYTES) {
+      throw new Error('CRU36_ARTIFACT_SIZE_INVALID');
+    }
+    bytes = Buffer.allocUnsafe(stat.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (count < 1) throw new Error('CRU36_ARTIFACT_SIZE_CHANGED_DURING_READ');
+      offset += count;
+    }
+    const trailing = Buffer.allocUnsafe(1);
+    if (fs.readSync(descriptor, trailing, 0, 1, bytes.length) !== 0) {
+      throw new Error('CRU36_ARTIFACT_SIZE_CHANGED_DURING_READ');
+    }
+  } finally {
+    if (descriptor != null) fs.closeSync(descriptor);
   }
-  const bytes = fs.readFileSync(filePath);
   let artifact;
   try {
     artifact = JSON.parse(bytes.toString('utf8'));
@@ -546,63 +757,6 @@ function readValidatedArtifactFile(filePath, { expectedFileName = path.basename(
   }
   validateCru34SnapshotArtifact(artifact, { fileName: expectedFileName });
   return Object.freeze({ artifact: deepFreeze(artifact), bytes });
-}
-
-function removeTempIfPresent(tempPath) {
-  try {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-  } catch {
-    // Preserve the primary failure; selection ignores non-json temporary files.
-  }
-}
-
-export function writeCru34SnapshotArtifact(artifactRoot, artifact) {
-  validateCru34SnapshotArtifact(artifact);
-  const root = path.resolve(requiredText(artifactRoot, 'CRU36_ARTIFACT_ROOT_REQUIRED'));
-  fs.mkdirSync(root, { recursive: true });
-  const fileName = cru34ArtifactFileName(artifact);
-  const filePath = path.join(root, fileName);
-  const bytes = Buffer.from(stableCru34ArtifactJson(artifact), 'utf8');
-  if (bytes.length > CRU34_MAX_ARTIFACT_BYTES) throw new Error('CRU36_ARTIFACT_SIZE_INVALID');
-
-  if (fs.existsSync(filePath)) {
-    const existing = readValidatedArtifactFile(filePath).artifact;
-    if (existing.artifactIdentity !== artifact.artifactIdentity
-        || existing.semanticContentHash !== artifact.semanticContentHash) {
-      throw new Error('CRU36_IMMUTABLE_ARTIFACT_CONFLICT');
-    }
-    return Object.freeze({ filePath, fileName, artifact: existing, reused: true, byteSize: fs.statSync(filePath).size });
-  }
-
-  const tempPath = path.join(root, `.${fileName}.${process.pid}.${crypto.randomUUID()}.tmp`);
-  let handle;
-  try {
-    handle = fs.openSync(tempPath, 'wx', 0o600);
-    fs.writeFileSync(handle, bytes);
-    fs.fsyncSync(handle);
-    fs.closeSync(handle);
-    handle = null;
-    readValidatedArtifactFile(tempPath, { expectedFileName: fileName });
-    try {
-      fs.linkSync(tempPath, filePath);
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-      const existing = readValidatedArtifactFile(filePath).artifact;
-      if (existing.artifactIdentity !== artifact.artifactIdentity
-          || existing.semanticContentHash !== artifact.semanticContentHash) {
-        throw new Error('CRU36_IMMUTABLE_ARTIFACT_CONFLICT');
-      }
-      removeTempIfPresent(tempPath);
-      return Object.freeze({ filePath, fileName, artifact: existing, reused: true, byteSize: fs.statSync(filePath).size });
-    }
-    removeTempIfPresent(tempPath);
-    const accepted = readValidatedArtifactFile(filePath).artifact;
-    return Object.freeze({ filePath, fileName, artifact: accepted, reused: false, byteSize: bytes.length });
-  } catch (error) {
-    if (handle != null) fs.closeSync(handle);
-    removeTempIfPresent(tempPath);
-    throw error;
-  }
 }
 
 function unavailable(reason, details = {}) {
@@ -655,8 +809,8 @@ export function readCru34SnapshotArtifact({ artifactPath, expectedIdentity = nul
   if (expectedIdentity) {
     const actual = selectionIdentity(artifact.semanticPayload);
     for (const key of [
-      'schemaVersion', 'actualContract', 'tradeDate', 'session', 'continuityEpoch',
-      'sourceLedgerIdentity',
+      'schemaVersion', 'instrument', 'actualContract', 'tradeDate', 'session', 'continuityEpoch',
+      'tickSize', 'sourceLedgerIdentity',
     ]) {
       if (actual[key] !== expectedIdentity[key]) return unavailable('ARTIFACT_IDENTITY_MISMATCH');
     }

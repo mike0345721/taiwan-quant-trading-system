@@ -7,7 +7,9 @@ import path from 'node:path';
 
 import {
   CRU34_SNAPSHOT_CONTRACT_VERSION,
+  CRU34_MAX_ARTIFACT_BYTES,
   CRU34_MAX_SELECTION_CANDIDATES,
+  buildCru34HistoricalSemanticPayload,
   buildCru34SnapshotArtifact,
   cru34ArtifactFileName,
   cru34SelectionKey,
@@ -15,21 +17,20 @@ import {
   selectCru34SnapshotArtifact,
   stableCru34ArtifactJson,
   validateCru34SnapshotArtifact,
-  writeCru34SnapshotArtifact,
 } from '../src/cru34-snapshot-artifact.mjs';
-import {
-  materializeCru34HistoricalLedger,
-  materializeCru34HistoricalSnapshot,
-} from '../src/cru34-historical-materializer.mjs';
+import { materializeCru34HistoricalLedger } from '../src/cru34-historical-materializer.mjs';
+import { buildTxIntradayResearchSnapshot } from '../src/tx-intraday-research-snapshot.mjs';
 
 const PROFILE = Object.freeze({ instrument: 'TX', product: 'TX', market: 'TAIFEX', tickSize: 1 });
 const SOURCE_SHA = 'a'.repeat(64);
 const EXPECTED = Object.freeze({
   schemaVersion: CRU34_SNAPSHOT_CONTRACT_VERSION,
+  instrument: 'TX',
   actualContract: 'TXFI6',
   tradeDate: '2026-08-26',
   session: 'DAY',
   continuityEpoch: 'TX:1',
+  tickSize: 1,
   sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
 });
 
@@ -86,17 +87,47 @@ function tempDir() {
 }
 
 function materialize(root, extra = {}) {
-  return materializeCru34HistoricalSnapshot({
-    records: normalLedger(),
-    sourceLedgerSha256: SOURCE_SHA,
-    sourceLedgerByteSize: 10_000,
-    sourcePrefixByteSize: 5_000,
-    cutoffLedgerOrdinal: 6,
+  const sourceLedgerSha256 = extra.sourceLedgerSha256 || SOURCE_SHA;
+  const materializedAt = extra.materializedAt || '2026-08-31T06:00:00.000Z';
+  const snapshot = buildTxIntradayResearchSnapshot(normalLedger(), {
+    sourceLedgerIdentity: `sha256:${sourceLedgerSha256}`,
     instrumentProfile: PROFILE,
-    artifactRoot: root,
-    materializedAt: '2026-08-31T06:00:00.000Z',
-    ...extra,
+    cutoffLedgerOrdinal: 6,
   });
+  const semanticPayload = buildCru34HistoricalSemanticPayload(snapshot, { tickSize: PROFILE.tickSize });
+  const artifact = buildCru34SnapshotArtifact(semanticPayload, {
+    materializedAt,
+    sourceLedgerSha256,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  });
+  fs.mkdirSync(root, { recursive: true });
+  const fileName = cru34ArtifactFileName(artifact);
+  const filePath = path.join(root, fileName);
+  const reused = fs.existsSync(filePath);
+  if (!reused) fs.writeFileSync(filePath, stableCru34ArtifactJson(artifact), 'utf8');
+  const accepted = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  validateCru34SnapshotArtifact(accepted, { fileName });
+  return Object.freeze({
+    snapshot,
+    semanticPayload,
+    artifact: accepted,
+    write: Object.freeze({ filePath, fileName, artifact: accepted, reused, byteSize: fs.statSync(filePath).size }),
+  });
+}
+
+function governedFixture(root, expectedIdentity = EXPECTED) {
+  const ledgerPath = path.join(root, 'governed.ndjson');
+  const bytes = Buffer.from(`${normalLedger().map((record) => JSON.stringify(record)).join('\n')}\n`, 'utf8');
+  fs.writeFileSync(ledgerPath, bytes);
+  return {
+    ledgerPath,
+    bytes,
+    sourceSha: crypto.createHash('sha256').update(bytes).digest('hex'),
+    artifactRoot: path.join(root, 'artifacts'),
+    expectedIdentity,
+  };
 }
 
 function containsKey(value, target) {
@@ -124,6 +155,35 @@ test('materializes a bounded immutable historical contract without raw usedEvent
   assert.equal(containsKey(result.artifact, 'usedEvents'), false);
   assert.ok(result.write.byteSize < 4 * 1024 * 1024);
   assert.equal(result.write.reused, false);
+});
+
+test('accepts legitimate sparse CRU-34 quality-insufficient variants without relaxing exact keys', () => {
+  for (const invalidPrice of [false, true]) {
+    const records = structuredClone(normalLedger());
+    records[1].payload.executedVolume = invalidPrice ? 1 : 0;
+    records[1].payload.volume = invalidPrice ? 1 : 0;
+    if (invalidPrice) {
+      records[1].payload.price = 0;
+      records[1].payload.close = 0;
+    }
+    const snapshot = buildTxIntradayResearchSnapshot(records, {
+      sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
+      instrumentProfile: PROFILE,
+      cutoffLedgerOrdinal: 6,
+    });
+    assert.equal(snapshot.status, 'QUALITY_INSUFFICIENT');
+    assert.equal(snapshot.windows.primary60s.pressure.status, 'QUALITY_INSUFFICIENT');
+    assert.equal(snapshot.windows.primary60s.response.status, invalidPrice ? 'UNAVAILABLE' : 'READY');
+    const payload = buildCru34HistoricalSemanticPayload(snapshot, { tickSize: PROFILE.tickSize });
+    const artifact = buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: 6,
+      sourcePrefixByteSize: 5_000,
+    });
+    assert.doesNotThrow(() => validateCru34SnapshotArtifact(artifact));
+  }
 });
 
 test('identical source and cutoff keep semantic hash and identity stable across operational timestamps', () => {
@@ -157,6 +217,31 @@ test('valid artifact reads as HISTORICAL and can be explicitly marked STALE', ()
   assert.equal(stale.truthState, 'STALE');
   assert.notEqual(stale.snapshot.truthState, 'LIVE');
   assert.throws(() => { historical.snapshot.primary60s.pressure.status = 'MUTATED'; }, TypeError);
+});
+
+test('bounded reader detects post-fstat growth without reading the appended payload', () => {
+  const result = materialize(tempDir());
+  const originalSize = fs.statSync(result.write.filePath).size;
+  const originalReadSync = fs.readSync;
+  let grew = false;
+  let bytesRead = 0;
+  fs.readSync = (...args) => {
+    if (!grew) {
+      grew = true;
+      fs.appendFileSync(result.write.filePath, Buffer.alloc(CRU34_MAX_ARTIFACT_BYTES));
+    }
+    const count = originalReadSync(...args);
+    bytesRead += count;
+    return count;
+  };
+  try {
+    const read = readCru34SnapshotArtifact({ artifactPath: result.write.filePath });
+    assert.equal(read.truthState, 'UNAVAILABLE');
+    assert.equal(read.unavailableReason, 'ARTIFACT_SIZE_INVALID');
+    assert.ok(bytesRead <= originalSize + 1);
+  } finally {
+    fs.readSync = originalReadSync;
+  }
 });
 
 test('missing artifact fails closed to UNAVAILABLE', () => {
@@ -218,10 +303,12 @@ test('wrong contract, trade date, session, or continuity epoch is never selected
   const root = tempDir();
   materialize(root);
   for (const [key, value] of [
+    ['instrument', 'NOT_TX'],
     ['actualContract', 'TXFJ6'],
     ['tradeDate', '2026-08-27'],
     ['session', 'NIGHT'],
     ['continuityEpoch', 'TX:2'],
+    ['tickSize', 2],
   ]) {
     const selected = selectCru34SnapshotArtifact({ artifactRoot: root, selector: { ...EXPECTED, [key]: value } });
     assert.equal(selected.truthState, 'UNAVAILABLE');
@@ -338,6 +425,24 @@ test('core pressure, response, and evidence schema cannot be omitted or malforme
       payload.pressure.primary60s.classifiedCoverage = 2;
     },
     (payload) => { payload.quality.classifiedCoveragePrimary60s = 0; },
+    (payload) => {
+      payload.primary60s.pathEfficiency.value = null;
+      payload.pathEfficiency.primary60s.value = null;
+    },
+    (payload) => {
+      payload.primary60s.pressure.bestQuoteCrossCheck.matchedCoverage = 0;
+      payload.pressure.primary60s.bestQuoteCrossCheck.matchedCoverage = 0;
+    },
+    (payload) => {
+      payload.primary60s.response.displacementTicks = 999;
+      payload.response.primary60s.displacementTicks = 999;
+    },
+    (payload) => { payload.primary60s.contraryEvidence = []; },
+    (payload) => { payload.brokerSignal = { side: 'BUY' }; },
+    (payload) => {
+      payload.primary60s.pressure.executionAuthorized = true;
+      payload.pressure.primary60s.executionAuthorized = true;
+    },
   ]) {
     const payload = structuredClone(result.semanticPayload);
     mutate(payload);
@@ -384,31 +489,54 @@ test('selector candidate scan is explicitly bounded', () => {
   assert.equal(selected.unavailableReason, 'ARTIFACT_SELECTION_CANDIDATE_LIMIT_EXCEEDED');
 });
 
-test('wrong expected target identity fails before any artifact is published', () => {
+test('wrong expected target identity fails before any artifact is published', async () => {
   const root = path.join(tempDir(), 'not-created');
-  assert.throws(() => materializeCru34HistoricalSnapshot({
-    records: normalLedger(),
-    sourceLedgerSha256: SOURCE_SHA,
-    sourceLedgerByteSize: 10_000,
-    sourcePrefixByteSize: 5_000,
-    cutoffLedgerOrdinal: 6,
+  const fixture = governedFixture(tempDir());
+  await assert.rejects(materializeCru34HistoricalLedger({
+    ledgerPath: fixture.ledgerPath,
+    expectedSourceSha256: fixture.sourceSha,
+    cutoffLedgerOrdinals: [6],
     instrumentProfile: PROFILE,
     artifactRoot: root,
     expectedIdentity: { ...EXPECTED, actualContract: 'TXFJ6' },
   }), /CRU36_TARGET_ACTUALCONTRACT_MISMATCH/);
   assert.equal(fs.existsSync(root), false);
+  await assert.rejects(materializeCru34HistoricalLedger({
+    ledgerPath: fixture.ledgerPath,
+    expectedSourceSha256: fixture.sourceSha,
+    cutoffLedgerOrdinals: [6],
+    instrumentProfile: PROFILE,
+    artifactRoot: root,
+    expectedIdentity: { ...EXPECTED, instrument: 'NOT_TX' },
+  }), /CRU36_TARGET_INSTRUMENT_MISMATCH/);
 });
 
-test('immutable conflict fails closed instead of replacing a corrupt accepted path', () => {
+test('immutable conflict fails closed instead of replacing a corrupt accepted path', async () => {
   const root = tempDir();
-  const result = materialize(root);
-  fs.writeFileSync(result.write.filePath, '{}\n', 'utf8');
-  assert.throws(() => writeCru34SnapshotArtifact(root, result.artifact));
+  const fixture = governedFixture(root);
+  const args = {
+    ledgerPath: fixture.ledgerPath,
+    artifactRoot: fixture.artifactRoot,
+    cutoffLedgerOrdinals: [6],
+    expectedSourceSha256: fixture.sourceSha,
+    expectedIdentity: EXPECTED,
+    instrumentProfile: PROFILE,
+  };
+  await materializeCru34HistoricalLedger(args);
+  const artifactPath = fs.readdirSync(fixture.artifactRoot)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => path.join(fixture.artifactRoot, name))[0];
+  fs.writeFileSync(artifactPath, '{}\n', 'utf8');
+  await assert.rejects(materializeCru34HistoricalLedger(args));
+  assert.equal(fs.readFileSync(artifactPath, 'utf8'), '{}\n');
 });
 
 test('artifact adapter is isolated from ledger, chart-cache, latest, Shioaji, and CRU-34 recomputation imports', () => {
   const source = fs.readFileSync(new URL('../src/cru34-snapshot-artifact.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /live-event-ledger|dashboard-tx-chart|\/latest|shioaji|buildTxIntradayResearchSnapshot/i);
+  assert.doesNotMatch(source, /export function writeCru34SnapshotArtifact/);
+  const materializerSource = fs.readFileSync(new URL('../src/cru34-historical-materializer.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(materializerSource, /export (?:async )?function (?:readGovernedLedgerPrefix|materializeCru34HistoricalSnapshot)/);
 });
 
 test('explicit ledger job verifies source SHA, materializes, and bounded adapter reads it', async () => {
@@ -433,6 +561,17 @@ test('explicit ledger job verifies source SHA, materializes, and bounded adapter
   assert.equal(report.snapshotCount, 1);
   assert.ok(report.snapshots[0].adapterReadMs >= 0);
   assert.equal(report.executionAuthorized, false);
+  const repeated = await materializeCru34HistoricalLedger({
+    ledgerPath,
+    artifactRoot: path.join(root, 'artifacts'),
+    cutoffLedgerOrdinals: [6],
+    expectedSourceSha256: sourceSha,
+    expectedIdentity: EXPECTED,
+    instrumentProfile: PROFILE,
+    materializedAt: '2026-08-31T07:00:00.000Z',
+  });
+  assert.equal(repeated.snapshots[0].artifactReused, true);
+  assert.equal(repeated.snapshots[0].artifactHash, report.snapshots[0].artifactHash);
 });
 
 test('ledger job rejects a mismatched persisted source SHA', async () => {
@@ -467,14 +606,11 @@ test('artifact validator rejects a consumer-visible LIVE source mode', () => {
 });
 
 test('unavailable CRU-34 result preserves a safe diagnostic reason', () => {
-  const root = tempDir();
-  assert.throws(() => materializeCru34HistoricalSnapshot({
-    records: chain([quote('q1', 0, 99, 100)]),
-    sourceLedgerSha256: SOURCE_SHA,
-    sourceLedgerByteSize: 100,
-    sourcePrefixByteSize: 100,
-    cutoffLedgerOrdinal: 1,
+  const snapshot = buildTxIntradayResearchSnapshot(chain([quote('q1', 0, 99, 100)]), {
+    sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
     instrumentProfile: PROFILE,
-    artifactRoot: root,
-  }), /CRU36_CRU34_SNAPSHOT_UNAVAILABLE:NO_TX_TICK_CUTOFF/);
+    cutoffLedgerOrdinal: 1,
+  });
+  assert.throws(() => buildCru34HistoricalSemanticPayload(snapshot, { tickSize: 1 }),
+    /CRU36_CRU34_SNAPSHOT_UNAVAILABLE:NO_TX_TICK_CUTOFF/);
 });
