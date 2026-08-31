@@ -6,6 +6,9 @@ import {
   evaluateBestQuoteEligibility,
   materializeTxCanonicalObservations,
 } from '../src/tx-intraday-pressure-path-efficiency.mjs';
+import { buildTxIntradayResearchSnapshot } from '../src/tx-intraday-research-snapshot.mjs';
+
+const PROFILE = Object.freeze({ instrument: 'TX', product: 'TX', market: 'TAIFEX', tickSize: 1 });
 
 function record(kind, {
   eventTime,
@@ -54,6 +57,15 @@ function lifecycle(kind, payload, receivedAt, hash) {
     orderRoutesEnabled: false,
     payload: { code: 'bridge', ...payload },
   };
+}
+
+function chain(records) {
+  let previousHash = 'GENESIS';
+  return records.map((record) => {
+    const linked = { ...record, previousHash };
+    previousHash = record.recordHash;
+    return linked;
+  });
 }
 
 test('materializes stable physical ledger ordinal and exact identity', () => {
@@ -360,6 +372,93 @@ test('best-quote cross-check preserves provider conflict without replacing provi
   assert.equal(output.bestQuoteCrossCheck.sellProxyVolume, 3);
   assert.equal(output.conflict.count, 1);
   assert.equal(output.conflict.rate, 1);
+});
+
+function invalidBookRecords({ bid, ask, name }) {
+  const quotePayload = {};
+  if (bid !== undefined) quotePayload.bid_price = [bid];
+  if (ask !== undefined) quotePayload.ask_price = [ask];
+  return [
+    record('futures_bidask', {
+      eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+      hash: `q-${name}`, payload: quotePayload,
+    }),
+    ...[100, 200, 300].map((offset) => record('futures_tick', {
+      eventTime: `2026-08-26T09:00:00.${String(offset).padStart(3, '0')}+08:00`,
+      receivedAt: `2026-08-26T09:00:00.${String(offset + 10).padStart(3, '0')}+08:00`,
+      hash: `t-${name}-${offset}`,
+      payload: { close: 45000, price: 45000, volume: 1, executedVolume: 1, tick_type: 2 },
+    })),
+  ];
+}
+
+for (const [name, bid, ask] of [
+  ['zero_bid_and_ask', 0, 0],
+  ['negative_bid', -1, 45000],
+  ['negative_ask', 44999, -1],
+  ['missing_bid', undefined, 45000],
+  ['missing_ask', 44999, undefined],
+  ['nonnumeric_bid', 'not-a-number', 45000],
+  ['nonnumeric_ask', 44999, 'not-a-number'],
+]) {
+  test(`invalid best quote ${name} is unavailable without fabricated conflict evidence`, () => {
+    const records = invalidBookRecords({ name, bid, ask });
+    const events = materializeTxCanonicalObservations(records, { sourceLedgerIdentity: `ledger-${name}` }).events;
+    const pressure = buildExecutedPressureWindow(events, events.at(-1));
+
+    assert.equal(pressure.buyProxyVolume, 0);
+    assert.equal(pressure.sellProxyVolume, 3);
+    assert.equal(pressure.unknownVolume, 0);
+    assert.deepEqual(pressure.bestQuoteCrossCheck, {
+      buyProxyVolume: 0,
+      sellProxyVolume: 0,
+      insideSpreadVolume: 0,
+      unavailableVolume: 3,
+      matchedCoverage: 0,
+      matchedTicks: 0,
+    });
+    assert.deepEqual(pressure.conflict, { count: 0, rate: null });
+
+    const snapshot = buildTxIntradayResearchSnapshot(chain(records), {
+      sourceLedgerIdentity: `ledger-snapshot-${name}`,
+      instrumentProfile: PROFILE,
+    });
+    for (const window of Object.values(snapshot.windows)) {
+      assert.equal(window.pressure.bestQuoteCrossCheck.unavailableVolume, 3);
+      assert.equal(window.pressure.bestQuoteCrossCheck.matchedCoverage, 0);
+      assert.deepEqual(window.contraryEvidence, []);
+      assert.deepEqual(window.supportingEvidence, []);
+    }
+    assert.deepEqual(snapshot.contraryEvidence, []);
+    assert.deepEqual(snapshot.supportingEvidence, []);
+  });
+}
+
+test('best-quote controls preserve BUY, SELL, inside-spread, and crossed-book behavior', () => {
+  const cases = [
+    ['BUY_PROXY', 44999, 45000, 45000, 1, 'buyProxyVolume'],
+    ['SELL_PROXY', 44999, 45000, 44999, 2, 'sellProxyVolume'],
+    ['INSIDE_SPREAD', 44999, 45000, 44999.5, 1, 'insideSpreadVolume'],
+    ['UNAVAILABLE', 45001, 45000, 45000, 1, 'unavailableVolume'],
+  ];
+  for (const [expected, bid, ask, price, tickType, metric] of cases) {
+    const events = materializeTxCanonicalObservations([
+      record('futures_bidask', {
+        eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
+        hash: `q-control-${expected}`, payload: { bid_price: [bid], ask_price: [ask] },
+      }),
+      record('futures_tick', {
+        eventTime: '2026-08-26T09:00:00.100+08:00', receivedAt: '2026-08-26T09:00:00.110+08:00',
+        hash: `t-control-${expected}`,
+        payload: { close: price, price, volume: 3, executedVolume: 3, tick_type: tickType },
+      }),
+    ], { sourceLedgerIdentity: `ledger-control-${expected}` }).events;
+    const pressure = buildExecutedPressureWindow(events, events.at(-1));
+
+    assert.equal(pressure.bestQuoteCrossCheck[metric], 3, expected);
+    assert.equal(pressure.conflict.count, 0, expected);
+    assert.equal(pressure.conflict.rate, expected === 'INSIDE_SPREAD' || expected === 'UNAVAILABLE' ? null : 0, expected);
+  }
 });
 
 test('physically later quote never enters earlier pressure evidence', () => {

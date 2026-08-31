@@ -293,7 +293,8 @@ function bestQuoteSide(price, quote) {
     ? Number(quote.payload.bid_price[0]) : NaN;
   const ask = Array.isArray(quote?.payload?.ask_price)
     ? Number(quote.payload.ask_price[0]) : NaN;
-  if (!Number.isFinite(price) || !Number.isFinite(bid) || !Number.isFinite(ask) || bid > ask) {
+  if (!Number.isFinite(price) || !Number.isFinite(bid) || !Number.isFinite(ask)
+      || bid <= 0 || ask <= 0 || bid > ask) {
     return 'UNAVAILABLE';
   }
   if (price >= ask) return 'BUY_PROXY';
