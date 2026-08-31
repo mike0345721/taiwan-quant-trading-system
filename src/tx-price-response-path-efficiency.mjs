@@ -62,6 +62,9 @@ export function buildPriceResponsePathEfficiencyWindow(events, cutoffEvent, {
   if (!(windowMs > 0)) throw new Error('CRU34_RESPONSE_WINDOW_MS_INVALID');
   const legalTickSize = finitePositive(tickSize);
   if (legalTickSize == null) throw new Error('CRU34_TICK_SIZE_REQUIRED');
+  if (minPathTickCount !== 3 || maxGapMs !== 30_000) {
+    throw new Error('CRU34_V1_PATH_CONTRACT_INVALID');
+  }
   if (!Number.isInteger(minPathTickCount) || minPathTickCount < 2) {
     throw new Error('CRU34_MIN_PATH_TICK_COUNT_INVALID');
   }
