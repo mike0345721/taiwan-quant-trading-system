@@ -190,8 +190,7 @@ test('artifact hash mismatch and semantic content hash mismatch fail closed', ()
   let filePath = writeTampered(artifactRoot, result.artifact, (artifact) => { artifact.artifactHash = 'b'.repeat(64); });
   assert.equal(readCru34SnapshotArtifact({ artifactPath: filePath }).unavailableReason, 'ARTIFACT_HASH_INVALID');
   filePath = writeTampered(artifactRoot, result.artifact, (artifact) => {
-    artifact.semanticPayload.primary60s.pressure.buyProxyVolume += 1;
-    artifact.semanticPayload.pressure.primary60s.buyProxyVolume += 1;
+    artifact.semanticPayload.methodology.pressure = `${artifact.semanticPayload.methodology.pressure} tampered`;
   });
   assert.equal(readCru34SnapshotArtifact({ artifactPath: filePath }).unavailableReason, 'SEMANTIC_CONTENT_HASH_INVALID');
 });
@@ -320,6 +319,36 @@ test('hash-consistent but semantically empty contract structure is rejected', ()
     }),
     /CRU36_CONTRACT_/,
   );
+});
+
+test('core pressure, response, and evidence schema cannot be omitted or malformed consistently', () => {
+  const result = materialize(tempDir());
+  for (const mutate of [
+    (payload) => {
+      delete payload.primary60s.pressure.buyProxyVolume;
+      delete payload.pressure.primary60s.buyProxyVolume;
+    },
+    (payload) => {
+      delete payload.primary60s.response.startPrice;
+      delete payload.response.primary60s.startPrice;
+    },
+    (payload) => { payload.primary60s.supportingEvidence = [123]; },
+    (payload) => {
+      payload.primary60s.pressure.classifiedCoverage = 2;
+      payload.pressure.primary60s.classifiedCoverage = 2;
+    },
+    (payload) => { payload.quality.classifiedCoveragePrimary60s = 0; },
+  ]) {
+    const payload = structuredClone(result.semanticPayload);
+    mutate(payload);
+    assert.throws(() => buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: 6,
+      sourcePrefixByteSize: 5_000,
+    }), /CRU36_CONTRACT_/);
+  }
 });
 
 test('selector binds the governed source identity and fails closed on an unreadable root', () => {
