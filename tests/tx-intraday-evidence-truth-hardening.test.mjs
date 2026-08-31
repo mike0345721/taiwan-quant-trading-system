@@ -49,7 +49,7 @@ test('standalone price response refuses availability-lineage-invalid ticks', () 
   assert.equal(result.response.status, 'UNAVAILABLE');
 });
 
-test('all-UNKNOWN pressure keeps snapshot quality-insufficient rather than falsely READY', () => {
+test('all-UNKNOWN pressure keeps every snapshot readiness path quality-insufficient', () => {
   const records = chain([
     tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 't1', price: 100, volume: 1, tickType: 0 }),
     tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 't2', price: 101, volume: 1, tickType: 0 }),
@@ -60,11 +60,12 @@ test('all-UNKNOWN pressure keeps snapshot quality-insufficient rather than false
   });
   assert.equal(snapshot.status, 'QUALITY_INSUFFICIENT');
   assert.equal(snapshot.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
-  assert.equal(snapshot.windows.primary60s.pressure.status, 'UNAVAILABLE');
-  assert.equal(snapshot.windows.primary60s.pressure.unavailableReason, 'NO_CLASSIFIED_VOLUME');
+  assert.equal(snapshot.windows.primary60s.pressure.status, 'QUALITY_INSUFFICIENT');
+  assert.equal(snapshot.windows.primary60s.pressure.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
   assert.equal(snapshot.windows.primary60s.pressure.pressureRatio, null);
   assert.equal(snapshot.windows.primary60s.pressure.direction, 'UNAVAILABLE');
   assert.equal(snapshot.windows.primary60s.pressure.classifiedCoverage, 0);
   assert.equal(snapshot.supportingEvidence.length, 0);
+  assert.equal(snapshot.contraryEvidence.length, 0);
   assert.equal(snapshot.promotionState.relativeIntensity, 'RESEARCH_PENDING');
 });
