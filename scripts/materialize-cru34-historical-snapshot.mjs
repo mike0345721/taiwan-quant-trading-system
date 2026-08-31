@@ -2,6 +2,8 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { materializeCru34HistoricalLedger } from '../src/cru34-historical-materializer.mjs';
+import { classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
+import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 
 function values(name) {
   const result = [];
@@ -30,6 +32,8 @@ function cutoffs() {
 }
 
 async function main() {
+  const calendar = loadGovernedTradingCalendar(path.resolve(required('calendar')));
+  const resolveSessionTradeDate = (eventTime) => classifyTxChartSession(eventTime, calendar);
   const result = await materializeCru34HistoricalLedger({
     ledgerPath: path.resolve(required('ledger')),
     artifactRoot: path.resolve(required('artifact-root')),
@@ -47,6 +51,7 @@ async function main() {
       market: 'TAIFEX',
       tickSize: Number(required('tick-size')),
     },
+    resolveSessionTradeDate,
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

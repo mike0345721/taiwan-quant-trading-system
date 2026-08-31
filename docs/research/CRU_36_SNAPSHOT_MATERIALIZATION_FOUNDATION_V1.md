@@ -95,6 +95,7 @@ The CLI requires all of these inputs:
 - one or more explicit physical cutoff ordinals;
 - persisted expected full-file SHA-256;
 - exact expected contract, trade date, session, and continuity epoch;
+- governed trading-calendar path used by the existing session/trade-date resolver;
 - explicit instrument tick size.
 
 The reader hashes the complete source file while retaining only the physical prefix through the

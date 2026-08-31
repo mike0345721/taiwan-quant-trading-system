@@ -109,7 +109,11 @@ export function buildCru34HistoricalSemanticPayload(snapshot) {
   if (snapshot?.schemaVersion !== 'cru34-tx-intraday-research-snapshot-v1') {
     throw new Error('CRU36_CRU34_SNAPSHOT_SCHEMA_UNSUPPORTED');
   }
-  if (snapshot.status === 'UNAVAILABLE') throw new Error('CRU36_CRU34_SNAPSHOT_UNAVAILABLE');
+  if (snapshot.status === 'UNAVAILABLE') {
+    const reason = String(snapshot.unavailableReason || 'UNKNOWN').replace(/[^A-Z0-9_]/g, '_');
+    const prefix = String(snapshot.lineage?.inputPrefixStatus || 'UNKNOWN').replace(/[^A-Z0-9_]/g, '_');
+    throw new Error(`CRU36_CRU34_SNAPSHOT_UNAVAILABLE:${reason}:${prefix}`);
+  }
   assertSafety(snapshot, 'CRU36_CRU34_SNAPSHOT_SAFETY_INVALID');
   const identity = snapshot.identity || {};
   const lineage = snapshot.lineage || {};
@@ -195,6 +199,9 @@ export function cru34SelectionKey(identity) {
     session: requiredText(identity?.session, 'CRU36_SELECTOR_SESSION_REQUIRED'),
     continuityEpoch: requiredText(identity?.continuityEpoch, 'CRU36_SELECTOR_EPOCH_REQUIRED'),
   };
+  if (normalized.schemaVersion !== CRU34_SNAPSHOT_CONTRACT_VERSION) {
+    throw new Error('CRU36_SELECTOR_SCHEMA_UNSUPPORTED');
+  }
   return digestCanonical(normalized).slice(0, 24);
 }
 
@@ -411,7 +418,12 @@ export function readCru34SnapshotArtifact({ artifactPath, expectedIdentity = nul
   }
   let truthState = 'HISTORICAL';
   if (freshnessCutoff != null) {
-    const cutoff = Date.parse(requiredIso(freshnessCutoff, 'CRU36_FRESHNESS_CUTOFF_INVALID'));
+    let cutoff;
+    try {
+      cutoff = Date.parse(requiredIso(freshnessCutoff, 'CRU36_FRESHNESS_CUTOFF_INVALID'));
+    } catch {
+      return unavailable('FRESHNESS_CUTOFF_INVALID');
+    }
     if (Date.parse(artifact.semanticPayload.availableAt) < cutoff) truthState = 'STALE';
   }
   return Object.freeze({
@@ -426,9 +438,16 @@ export function readCru34SnapshotArtifact({ artifactPath, expectedIdentity = nul
 }
 
 export function selectCru34SnapshotArtifact({ artifactRoot, selector, freshnessCutoff = null } = {}) {
-  const root = path.resolve(requiredText(artifactRoot, 'CRU36_ARTIFACT_ROOT_REQUIRED'));
+  let root;
+  let selectionKey;
+  try {
+    root = path.resolve(requiredText(artifactRoot, 'CRU36_ARTIFACT_ROOT_REQUIRED'));
+    selectionKey = cru34SelectionKey(selector);
+  } catch (error) {
+    if (String(error?.message || '').includes('SCHEMA')) return unavailable('ARTIFACT_SCHEMA_UNSUPPORTED');
+    return unavailable('ARTIFACT_IDENTITY_INVALID');
+  }
   if (!fs.existsSync(root)) return unavailable('ARTIFACT_ROOT_MISSING');
-  const selectionKey = cru34SelectionKey(selector);
   const candidates = fs.readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.startsWith(`${selectionKey}.`) && entry.name.endsWith('.json'))
     .map((entry) => {

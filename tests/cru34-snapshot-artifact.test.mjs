@@ -226,6 +226,24 @@ test('wrong contract, trade date, session, or continuity epoch is never selected
   }
 });
 
+test('unsupported selector schema and invalid freshness cutoff fail closed without throwing', () => {
+  const root = tempDir();
+  const result = materialize(root);
+  const unsupported = selectCru34SnapshotArtifact({
+    artifactRoot: root,
+    selector: { ...EXPECTED, schemaVersion: 'future-v9' },
+  });
+  assert.equal(unsupported.truthState, 'UNAVAILABLE');
+  assert.equal(unsupported.unavailableReason, 'ARTIFACT_SCHEMA_UNSUPPORTED');
+  const invalidFreshness = readCru34SnapshotArtifact({
+    artifactPath: result.write.filePath,
+    expectedIdentity: EXPECTED,
+    freshnessCutoff: 'not-a-time',
+  });
+  assert.equal(invalidFreshness.truthState, 'UNAVAILABLE');
+  assert.equal(invalidFreshness.unavailableReason, 'FRESHNESS_CUTOFF_INVALID');
+});
+
 test('invalid source identity cannot be built or accepted', () => {
   const result = materialize(tempDir());
   const payload = structuredClone(result.semanticPayload);
@@ -294,4 +312,17 @@ test('artifact validator rejects a consumer-visible LIVE source mode', () => {
   const artifact = structuredClone(result.artifact);
   artifact.semanticPayload.sourceMode = 'LIVE';
   assert.throws(() => validateCru34SnapshotArtifact(artifact), /CRU36_SOURCE_MODE_INVALID/);
+});
+
+test('unavailable CRU-34 result preserves a safe diagnostic reason', () => {
+  const root = tempDir();
+  assert.throws(() => materializeCru34HistoricalSnapshot({
+    records: chain([quote('q1', 0, 99, 100)]),
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 100,
+    sourcePrefixByteSize: 100,
+    cutoffLedgerOrdinal: 1,
+    instrumentProfile: PROFILE,
+    artifactRoot: root,
+  }), /CRU36_CRU34_SNAPSHOT_UNAVAILABLE:NO_TX_TICK_CUTOFF/);
 });
