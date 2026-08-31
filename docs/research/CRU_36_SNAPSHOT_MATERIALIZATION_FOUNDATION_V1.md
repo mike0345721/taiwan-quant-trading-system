@@ -159,8 +159,9 @@ The checkpoint stores:
 - checkpoint schema/version and checkpoint hash;
 - `sourceLedgerIdentity` plus the immutable ledger segment/file identity;
 - `lastVerifiedLedgerOrdinal` and `lastVerifiedRecordHash`;
-- `lastVerifiedEndByteOffset`, which is the byte immediately after that record's newline within
-  the identified immutable segment, or an equivalent verified bounded ordinal-to-offset index;
+- `lastVerifiedStartByteOffset` and `lastVerifiedEndByteOffset`, which delimit the exact encoded
+  record including its newline within the identified immutable segment, or an equivalent verified
+  bounded ordinal-to-offset index; the checkpoint hash binds both offsets;
 - `actualContract`, `tradeDate`, `session`, and `continuityEpoch`;
 - last verified `availableAt` and event-time watermark;
 - canonical rolling 60-second and 300-second state sufficient to reproduce every CRU-34 semantic
@@ -181,9 +182,10 @@ verified checkpoint or by replaying from GENESIS.
 On restart the worker:
 
 1. validates checkpoint schema, safety boundary, canonical hash, and implementation compatibility;
-2. confirms ledger identity and recomputes/verifies the checkpoint anchor at
-   `lastVerifiedLedgerOrdinal`/`lastVerifiedRecordHash` and its newline-boundary
-   `lastVerifiedEndByteOffset` without rescanning the full prefix;
+2. confirms ledger identity, reads only the checkpoint-bounded byte range
+   `[lastVerifiedStartByteOffset,lastVerifiedEndByteOffset)`, verifies both record boundaries,
+   reparses/recomputes the `lastVerifiedLedgerOrdinal`/`lastVerifiedRecordHash` anchor, and rejects
+   an invalid range without rescanning or backward-searching the full prefix;
 3. rejects any contract, trade-date, session, or continuity-epoch mismatch;
 4. restores rolling state only after all checks pass;
 5. consumes the durable physical suffix from `lastVerifiedLedgerOrdinal + 1` in batches bounded
@@ -235,11 +237,13 @@ It reads a record-and-byte-bounded batch directly from the durable ledger, commi
 continues. No unbounded queue is kept in memory. If append rate exceeds processing rate, the
 collector continues and lag grows visibly. A separate read-side liveness observer, outside the
 projection worker failure domain, compares the immutable snapshot watermark with a lightweight
-collector heartbeat/latest-ordinal marker. It can only downgrade a snapshot to `STALE` or
-`UNAVAILABLE`; it cannot create semantic data or promote truth. Therefore worker death cannot
-leave a last snapshot looking live indefinitely. The exact heartbeat lease and lag thresholds
-remain separately approved runtime policy; V1 intentionally freezes no numeric value without
-runtime evidence.
+collector heartbeat/latest-ordinal marker. It is evaluated on every read (or enforces an
+equivalent signed `validUntil` lease) and can only downgrade a snapshot to `STALE` or
+`UNAVAILABLE`; it cannot create semantic data or promote truth. Missing, corrupt, expired, or
+unreadable liveness/heartbeat evidence also forces a downgrade. Therefore worker or
+liveness-observer death cannot leave a last snapshot looking live indefinitely. The exact
+heartbeat lease and lag thresholds remain separately approved runtime policy; V1 intentionally
+freezes no numeric value without runtime evidence.
 
 Snapshot emission is policy-driven after verified progress (for example, a bounded interval or
 ordinal batch) and coalesces intermediate UI writes without dropping ledger truth. `availableAt`

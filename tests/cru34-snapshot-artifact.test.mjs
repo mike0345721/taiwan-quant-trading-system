@@ -186,6 +186,40 @@ test('accepts legitimate sparse CRU-34 quality-insufficient variants without rel
   }
 });
 
+test('accepts lawful CRU-34 path boundary states', () => {
+  const regression = chain([
+    tick('r1', 20, 100, 1),
+    tick('r2', 10, 101, 1),
+    tick('r3', 30, 102, 1),
+  ]).map((record, index) => ({
+    ...record,
+    receivedAt: `2026-08-26T09:01:0${index}.000+08:00`,
+  }));
+  const cases = [
+    { records: chain([tick('s1', 1, 100, 1)]), status: 'UNAVAILABLE', reason: 'INSUFFICIENT_OBSERVATIONS' },
+    { records: chain([tick('z1', 1, 100, 1), tick('z2', 2, 100, 1), tick('z3', 3, 100, 1)]), status: 'UNAVAILABLE', reason: 'UNAVAILABLE_ZERO_PATH' },
+    { records: regression, status: 'QUALITY_INSUFFICIENT', reason: 'QUALITY_INSUFFICIENT_EVENT_TIME_REGRESSION' },
+    { records: chain([tick('g1', 0, 100, 1), tick('g2', 1, 101, 1), tick('g3', 40, 102, 1)]), status: 'QUALITY_INSUFFICIENT', reason: 'QUALITY_INSUFFICIENT_LONG_GAP' },
+  ];
+  for (const item of cases) {
+    const snapshot = buildTxIntradayResearchSnapshot(item.records, {
+      sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
+      instrumentProfile: PROFILE,
+      cutoffLedgerOrdinal: item.records.length,
+    });
+    const payload = buildCru34HistoricalSemanticPayload(snapshot, { tickSize: 1 });
+    assert.equal(payload.primary60s.pathEfficiency.status, item.status);
+    assert.equal(payload.primary60s.pathEfficiency.unavailableReason, item.reason);
+    assert.doesNotThrow(() => buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: item.records.length,
+      sourcePrefixByteSize: 5_000,
+    }));
+  }
+});
+
 test('identical source and cutoff keep semantic hash and identity stable across operational timestamps', () => {
   const first = materialize(tempDir(), { materializedAt: '2026-08-31T06:00:00.000Z' });
   const second = materialize(tempDir(), { materializedAt: '2026-08-31T07:00:00.000Z' });
@@ -430,6 +464,18 @@ test('core pressure, response, and evidence schema cannot be omitted or malforme
       payload.pathEfficiency.primary60s.value = null;
     },
     (payload) => {
+      payload.primary60s.pathEfficiency.value = 0.5;
+      payload.pathEfficiency.primary60s.value = 0.5;
+    },
+    (payload) => {
+      payload.primary60s.pathEfficiency.tickCount = 4;
+      payload.pathEfficiency.primary60s.tickCount = 4;
+    },
+    (payload) => {
+      payload.primary60s.pathEfficiency.netDisplacementPoints = 999;
+      payload.pathEfficiency.primary60s.netDisplacementPoints = 999;
+    },
+    (payload) => {
       payload.primary60s.pressure.bestQuoteCrossCheck.matchedCoverage = 0;
       payload.pressure.primary60s.bestQuoteCrossCheck.matchedCoverage = 0;
     },
@@ -437,12 +483,22 @@ test('core pressure, response, and evidence schema cannot be omitted or malforme
       payload.primary60s.response.displacementTicks = 999;
       payload.response.primary60s.displacementTicks = 999;
     },
+    (payload) => {
+      payload.primary60s.response.startPrice = -100;
+      payload.primary60s.response.endPrice = -98;
+      payload.response.primary60s.startPrice = -100;
+      payload.response.primary60s.endPrice = -98;
+    },
     (payload) => { payload.primary60s.contraryEvidence = []; },
     (payload) => { payload.brokerSignal = { side: 'BUY' }; },
     (payload) => {
       payload.primary60s.pressure.executionAuthorized = true;
       payload.pressure.primary60s.executionAuthorized = true;
     },
+    (payload) => { payload.pressure.executionAuthorized = true; },
+    (payload) => { payload.response.brokerSignal = { side: 'BUY' }; },
+    (payload) => { payload.methodology.observationOrder = 'event-time sorted'; },
+    (payload) => { payload.limitations[5] = 'Trading direction is provided.'; },
   ]) {
     const payload = structuredClone(result.semanticPayload);
     mutate(payload);
@@ -454,6 +510,26 @@ test('core pressure, response, and evidence schema cannot be omitted or malforme
       sourcePrefixByteSize: 5_000,
     }), /CRU36_CONTRACT_/);
   }
+});
+
+test('canonical quality-insufficient reasons cannot be replaced by fabricated explanations', () => {
+  const records = structuredClone(normalLedger());
+  records[5].payload.tick_type = 0;
+  const snapshot = buildTxIntradayResearchSnapshot(records, {
+    sourceLedgerIdentity: `sha256:${SOURCE_SHA}`,
+    instrumentProfile: PROFILE,
+    cutoffLedgerOrdinal: 6,
+  });
+  const payload = structuredClone(buildCru34HistoricalSemanticPayload(snapshot, { tickSize: 1 }));
+  payload.primary60s.pressure.unavailableReason = 'FABRICATED_REASON';
+  payload.pressure.primary60s.unavailableReason = 'FABRICATED_REASON';
+  assert.throws(() => buildCru34SnapshotArtifact(payload, {
+    materializedAt: '2026-08-31T06:00:00.000Z',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_CONTRACT_PRESSURE_STATUS_INVALID/);
 });
 
 test('selector binds the governed source identity and fails closed on an unreadable root', () => {
@@ -600,9 +676,15 @@ test('exported ledger materializer requires a persisted expected source SHA', as
 
 test('artifact validator rejects a consumer-visible LIVE source mode', () => {
   const result = materialize(tempDir());
-  const artifact = structuredClone(result.artifact);
-  artifact.semanticPayload.sourceMode = 'LIVE';
-  assert.throws(() => validateCru34SnapshotArtifact(artifact), /CRU36_SOURCE_MODE_INVALID/);
+  const payload = structuredClone(result.semanticPayload);
+  payload.sourceMode = 'LIVE';
+  assert.throws(() => buildCru34SnapshotArtifact(payload, {
+    materializedAt: '2026-08-31T06:00:00.000Z',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_SOURCE_MODE_INVALID/);
 });
 
 test('unavailable CRU-34 result preserves a safe diagnostic reason', () => {
