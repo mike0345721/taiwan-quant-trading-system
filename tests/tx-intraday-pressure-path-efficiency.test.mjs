@@ -324,7 +324,7 @@ test('pressure window preserves BUY SELL UNKNOWN but fails closed below full cla
   assert.equal(output.relativeIntensity, 'RESEARCH_PENDING');
 });
 
-test('pressure ratio is unavailable when all provider classifications are unknown', () => {
+test('zero classified coverage remains quality-insufficient with no directional pressure', () => {
   const events = materializeTxCanonicalObservations([
     record('futures_bidask', {
       eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00',
@@ -336,9 +336,9 @@ test('pressure ratio is unavailable when all provider classifications are unknow
     }),
   ], { sourceLedgerIdentity: 'ledger-A' }).events;
   const output = buildExecutedPressureWindow(events, events.at(-1));
-  assert.equal(output.status, 'UNAVAILABLE');
+  assert.equal(output.status, 'QUALITY_INSUFFICIENT');
   assert.equal(output.pressureRatio, null);
-  assert.equal(output.unavailableReason, 'NO_CLASSIFIED_VOLUME');
+  assert.equal(output.unavailableReason, 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE');
   assert.equal(output.direction, 'UNAVAILABLE');
   assert.equal(output.classifiedCoverage, 0);
 });
