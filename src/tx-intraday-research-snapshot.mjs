@@ -212,10 +212,12 @@ function buildWindow(events, cutoffEvent, profile, windowMs, options) {
     windowMs,
     maxQuoteAgeMs: options.maxQuoteAgeMs,
   });
+  const usablePressureRatio = pressure.status === 'READY' && pressure.classifiedCoverage === 1
+    ? pressure.pressureRatio : null;
   const responseWindow = buildPriceResponsePathEfficiencyWindow(events, cutoffEvent, {
     windowMs,
     tickSize: profile.tickSize,
-    pressureRatio: pressure.pressureRatio,
+    pressureRatio: usablePressureRatio,
     minPathTickCount: options.minPathTickCount,
     maxGapMs: options.maxPathGapMs,
   });
