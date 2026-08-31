@@ -420,10 +420,9 @@ export function buildExecutedPressureWindow(events, cutoffEvent, {
   const classificationConflictRate = bestQuoteMatchedTicks > 0
     ? classificationConflictCount / bestQuoteMatchedTicks : null;
   const completeClassifiedCoverage = classifiedCoverage === 1;
-  const status = pressureRatio == null ? 'UNAVAILABLE'
-    : completeClassifiedCoverage ? 'READY' : 'QUALITY_INSUFFICIENT';
-  const unavailableReason = pressureRatio == null ? 'NO_CLASSIFIED_VOLUME'
-    : completeClassifiedCoverage ? null : 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE';
+  const status = completeClassifiedCoverage ? 'READY' : 'QUALITY_INSUFFICIENT';
+  const unavailableReason = completeClassifiedCoverage
+    ? null : 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE';
   const direction = status === 'READY'
     ? pressureRatio > 0 ? 'BUY_SIDE'
       : pressureRatio < 0 ? 'SELL_SIDE' : 'BALANCED'
