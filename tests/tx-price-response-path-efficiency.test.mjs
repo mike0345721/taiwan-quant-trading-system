@@ -101,6 +101,29 @@ test('fewer than three observations keeps response but path efficiency unavailab
   assert.equal(output.pathEfficiency.unavailableReason, 'INSUFFICIENT_OBSERVATIONS');
 });
 
+test('direct calculator rejects override of frozen minimum path observation count', () => {
+  const events = canonical([
+    tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 'a', price: 100 }),
+    tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 'b', price: 101 }),
+  ]);
+  assert.throws(() => buildPriceResponsePathEfficiencyWindow(events, events.at(-1), {
+    tickSize: 1,
+    minPathTickCount: 2,
+  }), /CRU34_V1_PATH_CONTRACT_INVALID/);
+});
+
+test('direct calculator rejects override of frozen maximum adjacent path gap', () => {
+  const events = canonical([
+    tick({ eventTime: '2026-08-26T09:00:00+08:00', receivedAt: '2026-08-26T09:00:00.010+08:00', hash: 'a', price: 100 }),
+    tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 'b', price: 101 }),
+    tick({ eventTime: '2026-08-26T09:00:40.001+08:00', receivedAt: '2026-08-26T09:00:40.011+08:00', hash: 'c', price: 102 }),
+  ]);
+  assert.throws(() => buildPriceResponsePathEfficiencyWindow(events, events.at(-1), {
+    tickSize: 1,
+    maxGapMs: 30_001,
+  }), /CRU34_V1_PATH_CONTRACT_INVALID/);
+});
+
 test('event-time regression fails path efficiency without reordering physical ticks', () => {
   const events = canonical([
     tick({ eventTime: '2026-08-26T09:00:10+08:00', receivedAt: '2026-08-26T09:00:10.010+08:00', hash: 'a', price: 100 }),
