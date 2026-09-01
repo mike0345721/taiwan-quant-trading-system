@@ -35,6 +35,28 @@ function sourceSnapshot() {
   };
 }
 
+function observedFlow() {
+  const window = (pressureRatio, classifiedCoverage, responsePoints, pathEfficiency) => ({
+    pressure: { pressureRatio, classifiedCoverage },
+    response: { displacementPoints: responsePoints },
+    pathEfficiency: { value: pathEfficiency },
+  });
+  return {
+    schemaVersion: 'dashboard-observed-flow-v1',
+    sourceState: 'HISTORICAL', unavailableReason: null,
+    source: { sourceMode: 'HISTORICAL', tradeDate: '2026-08-11', availableAt: '2026-08-11T13:59:00.000Z' },
+    identity: { actualContract: 'TXFH6', tradeDate: '2026-08-11', session: 'DAY', continuityEpoch: 'TX:2' },
+    windows: {
+      primary60s: window(0.1888, 0.9794, 22, 0.1089),
+      context300s: window(-0.2208, 0.9827, -61, 0.0326),
+    },
+    researchQuality: { status: 'QUALITY_INSUFFICIENT', reasons: ['PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE'] },
+    formalDirection: 'NOT_PROMOTED', promotionState: { marketState: 'NOT_PROVIDED' },
+    formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false,
+    executionAuthorized: false, orderRoutesEnabled: false,
+  };
+}
+
 test.beforeEach(() => fs.rmSync(root, { recursive: true, force: true }));
 test.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -75,6 +97,29 @@ test('workspace is manual-review-only and never emits a system trade direction',
   assert.equal(workspace.policies.directGptApi, false);
   assert.equal(workspace.forwardShadowStatus.status, 'UNKNOWN');
   assert.equal(workspace.forwardShadowStatus.reasonCode, 'UNKNOWN_INSUFFICIENT_EVIDENCE');
+});
+
+test('Observed Flow is included in immutable discussion copy without promotion or machine-local paths', () => {
+  const flow = observedFlow();
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), observedFlow: flow, now });
+  assert.equal(workspace.observedFlow, flow);
+  assert.equal(workspace.snapshot.observedFlow, flow);
+  assert.match(workspace.chatGptCopy, /Observed Flow: source=HISTORICAL/);
+  assert.match(workspace.chatGptCopy, /pressureRatio=0\.1888/);
+  assert.match(workspace.chatGptCopy, /quality=QUALITY_INSUFFICIENT/);
+  assert.match(workspace.chatGptCopy, /formalDirection=NOT_PROMOTED/);
+  assert.equal(workspace.snapshot.recommendation, false);
+  assert.equal(workspace.snapshot.executionAuthorized, false);
+  assert.doesNotMatch(workspace.chatGptCopy, /[A-Za-z]:[\\/]/);
+  assert.equal(workspace.snapshot.snapshotHash.length, 64);
+});
+
+test('Observed Flow future availableAt fails the immutable snapshot evidence gate', () => {
+  const flow = observedFlow();
+  flow.source.availableAt = '2026-08-12T00:21:00.000Z';
+  assert.throws(() => buildDecisionWorkspace({
+    snapshot: sourceSnapshot(), dataHealth: health(), observedFlow: flow, now,
+  }), /FUTURE_OBSERVED_FLOW_EVIDENCE/);
 });
 
 test('DW-2 chart facts populate snapshot and decision explanation without changing Market State', () => {
@@ -316,6 +361,11 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
     'dw-conflict-state', 'dw-coverage-state', 'dw-trust-state', 'dw-family-grid',
     'dw-now-price-fact', 'dw-now-evidence-fact', 'dw-now-trust-fact',
     'dw-conflict-state-raw', 'dw-coverage-state-raw', 'dw-trust-state-raw',
+    'dw-observed-flow-title', 'dw-observed-flow-state', 'dw-observed-flow-pressure-60',
+    'dw-observed-flow-response-60', 'dw-observed-flow-path-60', 'dw-observed-flow-pressure-300',
+    'dw-observed-flow-response-300', 'dw-observed-flow-path-300', 'dw-observed-flow-coverage',
+    'dw-observed-flow-quality', 'dw-observed-flow-source', 'dw-observed-flow-promotion',
+    'dw-observed-flow-detail',
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.match(html, /COPY MODE · NOT A TRADING SIGNAL/);
   assert.match(html, /LONG_INTENT/);
@@ -330,12 +380,15 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
   }
   assert.doesNotMatch(app, /EOD_OR_DELAYED:\s*['"]即時/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
+  assert.ok(html.indexOf('dw-market-pulse') < html.indexOf('dw-observed-flow'));
+  assert.ok(html.indexOf('dw-observed-flow') < html.indexOf('dw-leadership'));
 });
 
 test('formal dashboard wiring carries posture, five evidence families and complete ChatGPT copy', () => {
   const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
   const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion/);
+  assert.match(server, /loadDashboardObservedFlow\(\{[\s\S]*artifactPath: cru34SnapshotArtifactPath/);
+  assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
   assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
   assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);
   assert.match(app, /renderDw4Evidence\(workspace\?\.evidenceConflict\)/);

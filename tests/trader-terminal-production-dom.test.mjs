@@ -255,6 +255,9 @@ const interactiveStateExpression = `(() => {
     activeElementId: document.activeElement?.id || '',
     activeElementClass: typeof document.activeElement?.className === 'string' ? document.activeElement.className : '',
     activeDrawerTitle: document.activeElement?.dataset?.terminalDrawerTitle || '',
+    drawerText: document.querySelector('.tt-drawer-body')?.textContent || '',
+    observedFlowCardScrollTop: document.querySelector('.dw-observed-flow')?.scrollTop || 0,
+    observedFlowDetailDisplay: getComputedStyle(document.getElementById('dw-observed-flow-detail')).display,
   };
 })()`;
 
@@ -266,7 +269,8 @@ const layoutMeasurementExpression = `(() => {
   const round = (value) => Math.round(value * 100) / 100;
   const coreSelectors = [
     '#tt-top-price', '#tt-top-change', '#tt-top-oi', '#tt-top-basis',
-    '#tt-pulse-basis', '.tt-terminal-topbar', '.tt-primary-grid', '.tt-tier-one-grid',
+    '#tt-pulse-basis', '#dw-observed-flow-state', '.dw-observed-flow-chain',
+    '.dw-observed-flow-trust', '.tt-terminal-topbar', '.tt-primary-grid', '.tt-tier-one-grid',
     '.tt-tier-two-grid', '.tt-tier-three-grid', '.dw-chart-toolbar',
     '.tt-progressive > summary', '.tt-terminal-nav', '.tt-drawer-panel',
   ];
@@ -557,6 +561,31 @@ async function runProductionInteractionRegression() {
         decisionSummary: { risk: 'ELEVATED' },
         currentMarketFactSummary: {},
         chatGptCopy: 'IMMUTABLE GOVERNED SNAPSHOT',
+        observedFlow: {
+          schemaVersion: 'dashboard-observed-flow-v1', sourceState: 'HISTORICAL', unavailableReason: null,
+          source: { sourceMode: 'HISTORICAL', tradeDate: '2026-08-28', availableAt, materializedAt: '2026-08-31T23:57:00.000Z' },
+          identity: { instrument: 'TX', actualContract: 'TXFI6', tradeDate: '2026-08-28', session: 'DAY', continuityEpoch: 'TX:2', tickSize: 1 },
+          windows: {
+            primary60s: {
+              label: '60s', status: 'QUALITY_INSUFFICIENT', unavailableReason: 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE',
+              pressure: { pressureRatio: 0.1888, classifiedCoverage: 0.9794, buyProxyVolume: 85, sellProxyVolume: 58, unknownVolume: 3, classifiedVolume: 143, netAggressiveFlowProxy: 27, unavailableReason: 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE', bestQuoteCrossCheck: { matchedCoverage: 0.87, unavailableVolume: 0 }, conflict: { count: 5, rate: 0.055 } },
+              response: { status: 'READY', startPrice: 46428, endPrice: 46450, displacementPoints: 22, displacementTicks: 22, directionRelation: 'PRESSURE_UNAVAILABLE' },
+              pathEfficiency: { status: 'READY', value: 0.1089, unavailableReason: null },
+            },
+            context300s: {
+              label: '300s', status: 'QUALITY_INSUFFICIENT', unavailableReason: 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE',
+              pressure: { pressureRatio: -0.2208, classifiedCoverage: 0.9827, buyProxyVolume: 598, sellProxyVolume: 937, unknownVolume: 27, classifiedVolume: 1535, netAggressiveFlowProxy: -339, unavailableReason: 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE', bestQuoteCrossCheck: { matchedCoverage: 0.878, unavailableVolume: 0 }, conflict: { count: 48, rate: 0.057 } },
+              response: { status: 'READY', startPrice: 46511, endPrice: 46450, displacementPoints: -61, displacementTicks: -61, directionRelation: 'PRESSURE_UNAVAILABLE' },
+              pathEfficiency: { status: 'READY', value: 0.0326, unavailableReason: null },
+            },
+          },
+          researchQuality: { status: 'QUALITY_INSUFFICIENT', reasons: ['PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE'] },
+          formalDirection: 'NOT_PROMOTED', promotionState: { marketState: 'NOT_PROVIDED' },
+          lineage: { cutoffLedgerOrdinal: 163114, cutoffRecordHash: 'a'.repeat(64), maxUsedLedgerOrdinal: 163114, maxUsedRecordHash: 'a'.repeat(64), sourceLedgerIdentity: 'sha256:' + 'b'.repeat(64) },
+          artifact: { artifactIdentity: 'cru34-historical-' + 'c'.repeat(64), semanticContentHash: 'd'.repeat(64), artifactHash: 'e'.repeat(64) },
+          methodology: { pressure: 'provider classification proxy; UNKNOWN preserved' },
+          limitations: ['No trading direction is produced.'],
+        },
         evidenceConflict: { evidence: [{
           family: 'PARTICIPATION_BREADTH', availabilityState: 'AVAILABLE', qualityStatus: 'PASS',
           detail: { descriptiveValues: [{ label: '上漲家數', value: 904, unit: ' 家', sourceMode: 'RAW_LIVE' }] },
@@ -585,6 +614,7 @@ async function runProductionInteractionRegression() {
       };
       globalThis.__ui1Workspace = workspace;
       globalThis.__ui1Chart = chart;
+      renderObservedFlow(workspace.observedFlow);
       renderTerminalShell(workspace, chart);
       renderMarketPulse(workspace, chart);
       dwText('dw-chart-session', chart.tradeDate + ' · ' + chart.session);
@@ -600,6 +630,9 @@ async function runProductionInteractionRegression() {
         'tt-health-market', 'tt-health-institutional', 'tt-health-futures', 'tt-health-options',
         'tt-health-global', 'tt-risk-ring-value', 'tt-risk-volatility', 'tt-risk-liquidity',
         'tt-risk-event', 'tt-risk-breadth',
+        'dw-observed-flow-pressure-60', 'dw-observed-flow-response-60', 'dw-observed-flow-path-60',
+        'dw-observed-flow-pressure-300', 'dw-observed-flow-response-300', 'dw-observed-flow-path-300',
+        'dw-observed-flow-coverage', 'dw-observed-flow-quality', 'dw-observed-flow-source',
       ];
       const evidence = Object.fromEntries(ids.map((id) => {
         const node = document.getElementById(id);
@@ -642,6 +675,13 @@ async function runProductionInteractionRegression() {
         pulsePrice: document.getElementById('dw-pulse-price')?.textContent || '',
         pulseBasis: document.getElementById('tt-pulse-basis')?.textContent || '',
         pulseAfterFailure: Object.fromEntries(pulseIds.map((id) => [id, document.getElementById(id)?.textContent || ''])),
+        observedAfterFailure: Object.fromEntries([
+          'dw-observed-flow-state', 'dw-observed-flow-pressure-60', 'dw-observed-flow-response-60',
+          'dw-observed-flow-path-60', 'dw-observed-flow-pressure-300', 'dw-observed-flow-response-300',
+          'dw-observed-flow-path-300', 'dw-observed-flow-coverage', 'dw-observed-flow-quality',
+          'dw-observed-flow-source',
+        ].map((id) => [id, document.getElementById(id)?.textContent || ''])),
+        observedDetail: document.getElementById('dw-observed-flow-detail')?.textContent || '',
         copyDisabled: document.getElementById('dw-copy-gpt-prompt')?.disabled,
       };
       root.dataset.dashboardLoadState = 'LOADING';
@@ -673,7 +713,8 @@ async function runProductionInteractionRegression() {
       };
     })()`);
 
-    await clickSelector(cdp, '[data-terminal-card="futures"] > .tt-more');
+    await evaluate(cdp, 'renderObservedFlow(globalThis.__ui1Workspace.observedFlow)');
+    await clickSelector(cdp, '[data-terminal-card="observed-flow"] > .tt-more');
     const drawerOpened = await waitForValue(
       cdp,
       interactiveStateExpression,
@@ -736,9 +777,15 @@ async function runProductionInteractionRegression() {
     );
 
     const defaultViewportEvidence = [];
-    for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
+    for (const [width, height] of [[1920, 1080], [1680, 900], [1536, 864], [1440, 900], [1366, 768]]) {
       await setViewport(cdp, width, height);
       defaultViewportEvidence.push({ width, height, samples: await stableLayoutSamples(cdp, 6) });
+    }
+
+    const resizeSweepEvidence = [];
+    for (const width of [1920, 1840, 1760, 1680, 1600, 1536, 1480, 1440, 1400, 1366]) {
+      await setViewport(cdp, width, width === 1920 ? 1080 : width === 1366 ? 768 : 900);
+      resizeSweepEvidence.push({ width, sample: (await stableLayoutSamples(cdp, 3)).at(-1) });
     }
 
     await clickSelector(cdp, '#tt-chart-expand');
@@ -749,7 +796,7 @@ async function runProductionInteractionRegression() {
       'CHART_EXPAND_FAILED',
     );
     const viewportEvidence = [];
-    for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
+    for (const [width, height] of [[1920, 1080], [1680, 900], [1536, 864], [1440, 900], [1366, 768]]) {
       await setViewport(cdp, width, height);
       viewportEvidence.push({ width, height, samples: await stableLayoutSamples(cdp, 6) });
     }
@@ -783,6 +830,7 @@ async function runProductionInteractionRegression() {
       progressiveEvidence: { opened: progressiveOpened, openLayout: progressiveOpenLayout, closed: progressiveClosed },
       routeStates,
       defaultViewportEvidence,
+      resizeSweepEvidence,
       viewportEvidence,
       cycleEvidence,
       finalState,
@@ -1016,18 +1064,29 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     assert.match(value, /UNAVAILABLE · DASHBOARD_REFRESH/, `${id}:${value}`);
   }
   assert.equal(result.refreshFailureEvidence.copyDisabled, true);
+  for (const [id, value] of Object.entries(result.refreshFailureEvidence.observedAfterFailure)) {
+    assert.match(value, /UNAVAILABLE .* DASHBOARD_REFRESH/, `${id}:${value}`);
+  }
+  assert.match(result.refreshFailureEvidence.observedDetail, /Evidence unavailable/);
+  assert.match(result.refreshFailureEvidence.observedDetail, /DASHBOARD_REFRESH:GOVERNED_DASHBOARD_FIXTURE_FAILURE/);
+  assert.doesNotMatch(result.refreshFailureEvidence.observedDetail, /BuyProxyVolume/);
   assert.equal(result.leadershipRefreshFailureEvidence.before.state, 'LIVE');
   assert.match(result.leadershipRefreshFailureEvidence.before.bars, /2330/);
   assert.match(result.leadershipRefreshFailureEvidence.state, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.match(result.leadershipRefreshFailureEvidence.bars, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.doesNotMatch(result.leadershipRefreshFailureEvidence.bars, /2330/);
   assert.equal(result.drawerEvidence.opened.drawerOpen, true);
+  assert.match(result.drawerEvidence.opened.drawerText, /BuyProxyVolume/);
+  assert.match(result.drawerEvidence.opened.drawerText, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
+  assert.match(result.drawerEvidence.opened.drawerText, /NOT_PROMOTED/);
   assert.deepEqual(result.drawerEvidence.opened.visibleMeaninglessDashes, []);
   assert.deepEqual(result.drawerEvidence.opened.visibleBareUnavailable, []);
   assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
   assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
   assert.equal(result.drawerEvidence.closed.drawerOpen, false);
-  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '期貨流向');
+  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, 'Observed Flow Evidence');
+  assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
+  assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');
   assert.equal(result.progressiveEvidence.opened.progressiveOpen, true);
   assert.equal(result.progressiveEvidence.opened.trendInProgressive, true);
   assert.deepEqual(result.progressiveEvidence.opened.visibleMeaninglessDashes, []);
@@ -1045,7 +1104,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   });
 
   assert.deepEqual(result.viewportEvidence.map(({ width, height }) => [width, height]), [
-    [1920, 1080], [1536, 864], [1366, 768],
+    [1920, 1080], [1680, 900], [1536, 864], [1440, 900], [1366, 768],
   ]);
   for (const evidence of result.viewportEvidence) {
     evidence.samples.forEach(assertExpandedLayoutBounded);
@@ -1062,6 +1121,16 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
       assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
       assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
     }
+  }
+
+  assert.deepEqual(result.resizeSweepEvidence.map(({ width }) => width), [
+    1920, 1840, 1760, 1680, 1600, 1536, 1480, 1440, 1400, 1366,
+  ]);
+  for (const { sample } of result.resizeSweepEvidence) {
+    assert.equal(sample.expanded, false, JSON.stringify(sample));
+    assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
+    assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
+    assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
   }
 
   assert.equal(result.cycleEvidence.length, 10);

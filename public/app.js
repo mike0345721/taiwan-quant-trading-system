@@ -2520,6 +2520,17 @@ const DW_REASON_LABELS = Object.freeze({
   PORT_OCCUPIED_UNHEALTHY: '行情連接埠已被不健康程序占用',
   RECOVERY_BUDGET_EXHAUSTED: '自動恢復次數已用完，進入冷卻',
   TIMESTAMP_LINEAGE_INSUFFICIENT: '時間來源品質仍不足',
+  ARTIFACT_MISSING: '尚未設定或找不到已驗證的 CRU-34 歷史快照',
+  ARTIFACT_CORRUPT_JSON: 'CRU-34 歷史快照內容損毀',
+  ARTIFACT_SCHEMA_UNSUPPORTED: 'CRU-34 歷史快照版本不支援',
+  SEMANTIC_CONTENT_HASH_INVALID: 'CRU-34 快照語意雜湊驗證失敗',
+  ARTIFACT_HASH_INVALID: 'CRU-34 快照完整性驗證失敗',
+  ARTIFACT_IDENTITY_INVALID: 'CRU-34 快照身分驗證失敗',
+  ARTIFACT_IDENTITY_MISMATCH: 'CRU-34 快照身分與選擇條件不一致',
+  SOURCE_IDENTITY_INVALID: 'CRU-34 來源帳本身分驗證失敗',
+  SOURCE_MODE_NOT_AUTHORIZED: '此來源模式未獲准用於 Observed Flow',
+  FRESHNESS_CUTOFF_INVALID: 'Observed Flow freshness cutoff 無效',
+  PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE: '分類成交量覆蓋尚未達 100%，正式方向不晉升',
 });
 
 function dwHumanize(value, fallback = '目前無法取得') {
@@ -2670,6 +2681,156 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   dwText('dw-pulse-change', workspace?.currentMarketFactSummary?.priceStructureFact || '目前沒有合法事件');
   const latestVolume = Array.isArray(chart?.bars) ? finiteNumber(chart.bars.at(-1)?.volume) : null;
   terminalWrite('dw-pulse-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
+}
+
+function observedFlowMetric(value, { signedValue = false, suffix = '', digits = 3 } = {}) {
+  const parsed = finiteNumber(value);
+  if (parsed == null) return null;
+  return signedValue ? signed(parsed, suffix, digits) : `${fmt(parsed, digits)}${suffix}`;
+}
+
+function observedFlowCoverage(value) {
+  const parsed = finiteNumber(value);
+  return parsed == null ? null : `${fmt(parsed * 100, 1)}%`;
+}
+
+function observedFlowDetailValue(value, reason = 'FIELD_NOT_REPORTED') {
+  if (value == null || value === '') return terminalUnavailable(reason);
+  if (typeof value === 'number') return Number.isInteger(value) ? fmt(value) : fmt(value, 4);
+  return String(value);
+}
+
+function observedFlowDetailSection(title, rows) {
+  const section = document.createElement('section');
+  const heading = document.createElement('h3'); heading.textContent = title;
+  const list = document.createElement('dl');
+  for (const [label, value, reason] of rows) {
+    const term = document.createElement('dt'); term.textContent = label;
+    const detail = document.createElement('dd'); detail.textContent = observedFlowDetailValue(value, reason);
+    list.append(term, detail);
+  }
+  section.append(heading, list);
+  return section;
+}
+
+function observedFlowWindowDetail(window) {
+  const pressure = window?.pressure || {};
+  const quote = pressure.bestQuoteCrossCheck || {};
+  const conflict = pressure.conflict || {};
+  const response = window?.response || {};
+  const path = window?.pathEfficiency || {};
+  return observedFlowDetailSection(`${window?.label || 'Window'} evidence`, [
+    ['BuyProxyVolume', pressure.buyProxyVolume, pressure.unavailableReason],
+    ['SellProxyVolume', pressure.sellProxyVolume, pressure.unavailableReason],
+    ['UnknownVolume', pressure.unknownVolume, pressure.unavailableReason],
+    ['classifiedVolume', pressure.classifiedVolume, pressure.unavailableReason],
+    ['netAggressiveFlowProxy', pressure.netAggressiveFlowProxy, pressure.unavailableReason],
+    ['Observed Pressure Ratio', pressure.pressureRatio, pressure.unavailableReason],
+    ['Classified Coverage', observedFlowCoverage(pressure.classifiedCoverage), pressure.unavailableReason],
+    ['BestQuoteMatchedCoverage', observedFlowCoverage(quote.matchedCoverage), 'BEST_QUOTE_MATCHED_COVERAGE_UNAVAILABLE'],
+    ['Best Quote unavailable volume', quote.unavailableVolume, 'BEST_QUOTE_UNAVAILABLE_VOLUME_NOT_REPORTED'],
+    ['Classification conflict count', conflict.count, 'CLASSIFICATION_CONFLICT_COUNT_NOT_REPORTED'],
+    ['Classification conflict rate', observedFlowCoverage(conflict.rate), 'CLASSIFICATION_CONFLICT_RATE_NOT_REPORTED'],
+    ['startPrice', response.startPrice, 'RESPONSE_START_PRICE_UNAVAILABLE'],
+    ['endPrice', response.endPrice, 'RESPONSE_END_PRICE_UNAVAILABLE'],
+    ['displacementPoints', response.displacementPoints, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['displacementTicks', response.displacementTicks, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['directionRelation', response.directionRelation, 'RESPONSE_DIRECTION_RELATION_UNAVAILABLE'],
+    ['Path Efficiency', path.value, path.unavailableReason],
+    ['Path unavailable reason', path.unavailableReason || 'none', path.status],
+  ]);
+}
+
+function renderObservedFlowDetail(flow) {
+  const target = $('dw-observed-flow-detail');
+  if (!target) return;
+  if (!flow || flow.sourceState === 'UNAVAILABLE' || !flow.windows) {
+    target.replaceChildren(observedFlowDetailSection('Evidence unavailable', [
+      ['Reason', flow?.unavailableReason || 'ARTIFACT_MISSING'],
+      ['Meaning', dwHumanize(flow?.unavailableReason || 'ARTIFACT_MISSING')],
+      ['Formal Direction', 'NOT PROMOTED'],
+    ]));
+    return;
+  }
+  const identity = flow.identity || {};
+  const source = flow.source || {};
+  const lineage = flow.lineage || {};
+  const artifact = flow.artifact || {};
+  const nodes = [
+    observedFlowDetailSection('Identity / Source', [
+      ['Source state', flow.sourceState],
+      ['sourceMode', source.sourceMode],
+      ['actualContract', identity.actualContract],
+      ['tradeDate', identity.tradeDate],
+      ['session', identity.session],
+      ['continuityEpoch', identity.continuityEpoch],
+      ['availableAt', source.availableAt],
+      ['materializedAt', source.materializedAt],
+    ]),
+    observedFlowWindowDetail(flow.windows.primary60s),
+    observedFlowWindowDetail(flow.windows.context300s),
+    observedFlowDetailSection('Quality / Promotion', [
+      ['Research Quality', flow.researchQuality?.status],
+      ['Quality reasons', (flow.researchQuality?.reasons || []).join(', ') || 'none'],
+      ['Formal Direction', flow.formalDirection || 'NOT_PROMOTED'],
+      ['Promotion state', JSON.stringify(flow.promotionState || {})],
+    ]),
+    observedFlowDetailSection('Technical lineage', [
+      ['cutoffLedgerOrdinal', lineage.cutoffLedgerOrdinal],
+      ['cutoffRecordHash', lineage.cutoffRecordHash],
+      ['maxUsedLedgerOrdinal', lineage.maxUsedLedgerOrdinal],
+      ['maxUsedRecordHash', lineage.maxUsedRecordHash],
+      ['sourceLedgerIdentity', lineage.sourceLedgerIdentity],
+      ['artifactIdentity', artifact.artifactIdentity],
+      ['semanticContentHash', artifact.semanticContentHash],
+      ['artifactHash', artifact.artifactHash],
+    ]),
+  ];
+  const methodology = observedFlowDetailSection('Research contract', Object.entries(flow.methodology || {})
+    .map(([key, value]) => [key, value]));
+  const limitations = document.createElement('section');
+  const limitationsHeading = document.createElement('h3'); limitationsHeading.textContent = 'Limitations';
+  const limitationsList = document.createElement('ul');
+  for (const value of flow.limitations || []) {
+    const item = document.createElement('li'); item.textContent = value; limitationsList.append(item);
+  }
+  if (!limitationsList.children.length) {
+    const item = document.createElement('li'); item.textContent = terminalUnavailable('LIMITATIONS_NOT_REPORTED'); limitationsList.append(item);
+  }
+  limitations.append(limitationsHeading, limitationsList);
+  target.replaceChildren(...nodes, methodology, limitations);
+}
+
+function renderObservedFlow(flow) {
+  const value = flow || { sourceState: 'UNAVAILABLE', unavailableReason: 'ARTIFACT_MISSING', windows: null };
+  const available = ['HISTORICAL', 'STALE'].includes(value.sourceState) && value.windows;
+  const reason = value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE';
+  const state = $('dw-observed-flow-state');
+  if (state) {
+    state.textContent = available ? value.sourceState : terminalUnavailable(reason);
+    state.className = `dw-status-pill ${available ? 'is-quality' : 'is-unavailable'}`;
+  }
+  const primary = value.windows?.primary60s;
+  const context = value.windows?.context300s;
+  for (const [id, metric, metricReason] of [
+    ['dw-observed-flow-pressure-60', observedFlowMetric(primary?.pressure?.pressureRatio, { signedValue: true, digits: 3 }), primary?.pressure?.unavailableReason],
+    ['dw-observed-flow-response-60', observedFlowMetric(primary?.response?.displacementPoints, { signedValue: true, suffix: ' pts', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['dw-observed-flow-path-60', observedFlowMetric(primary?.pathEfficiency?.value, { digits: 3 }), primary?.pathEfficiency?.unavailableReason],
+    ['dw-observed-flow-pressure-300', observedFlowMetric(context?.pressure?.pressureRatio, { signedValue: true, digits: 3 }), context?.pressure?.unavailableReason],
+    ['dw-observed-flow-response-300', observedFlowMetric(context?.response?.displacementPoints, { signedValue: true, suffix: ' pts', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['dw-observed-flow-path-300', observedFlowMetric(context?.pathEfficiency?.value, { digits: 3 }), context?.pathEfficiency?.unavailableReason],
+  ]) terminalWrite(id, available ? metric : null, { reason: available ? (metricReason || 'FIELD_UNAVAILABLE') : reason });
+  terminalWrite('dw-observed-flow-coverage', available
+    ? `60s ${observedFlowCoverage(primary?.pressure?.classifiedCoverage) || terminalUnavailable(primary?.pressure?.unavailableReason)} · 300s ${observedFlowCoverage(context?.pressure?.classifiedCoverage) || terminalUnavailable(context?.pressure?.unavailableReason)}`
+    : null, { reason });
+  terminalWrite('dw-observed-flow-quality', available ? value.researchQuality?.status : null, { reason });
+  const quality = $('dw-observed-flow-quality');
+  quality?.classList.toggle('is-quality', value.researchQuality?.status === 'QUALITY_INSUFFICIENT');
+  terminalWrite('dw-observed-flow-source', available
+    ? `${value.sourceState} · ${value.identity?.actualContract || 'CONTRACT_NOT_REPORTED'} · ${value.source?.tradeDate || 'DATE_NOT_REPORTED'} · ${timeLabel(value.source?.availableAt)}`
+    : null, { reason });
+  terminalWrite('dw-observed-flow-promotion', 'NOT PROMOTED', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
+  renderObservedFlowDetail(value);
 }
 
 function terminalSetTrust(cardKey, evidence) {
@@ -3068,6 +3229,10 @@ function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
     'dw-pulse-volume', 'dw-pulse-vwap-mode', 'dw-pulse-breadth-mode',
     'dw-pulse-futures-mode', 'dw-pulse-options-mode', 'dw-pulse-global-mode',
   ]) terminalWrite(id, null, { reason });
+  renderObservedFlow({
+    sourceState: 'UNAVAILABLE', unavailableReason: reason, windows: null,
+    formalDirection: 'NOT_PROMOTED',
+  });
   for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
     const button = $(id);
     if (!button) continue;
@@ -3716,6 +3881,7 @@ function renderDecisionWorkspace(workspace) {
   dwText('dw-now-trust-fact', `完整度：${dw4SummaryLabel(currentFacts.coverageState || 'INSUFFICIENT')} · 資料信任：${dw4SummaryLabel(currentFacts.dataTrustState || 'BLOCKED')}`);
   renderDw4Evidence(workspace?.evidenceConflict);
   renderMarketPulse(workspace, state.txChartPayload || chart);
+  renderObservedFlow(workspace?.observedFlow);
   renderTerminalShell(workspace, state.txChartPayload || chart);
   renderIndexLeadership(workspace?.indexLeadership);
 
@@ -4074,8 +4240,7 @@ $('refresh-button').addEventListener('click', async () => {
     box.textContent = `最新資料檢查完成：${timeLabel(payload.data?.generatedAt)}；資料日 ${payload.data?.asOfDate || '—'}`;
     $('alert-area').prepend(box);
   } catch (error) {
-    const box = document.createElement('div'); box.className = 'alert bad'; box.textContent = `更新失敗：${error.message}`;
-    $('alert-area').replaceChildren(box);
+    reportDashboardLoadError(error, 'DASHBOARD_REFRESH');
   } finally { button.disabled = false; button.textContent = '更新最新資料'; }
 });
 
