@@ -368,6 +368,26 @@ test('unsupported selector schema and invalid freshness cutoff fail closed witho
   assert.equal(invalidFreshness.unavailableReason, 'FRESHNESS_CUTOFF_INVALID');
 });
 
+test('lineage timestamps require a complete timezone-bearing ISO timestamp', () => {
+  const result = materialize(tempDir());
+  const payload = structuredClone(result.semanticPayload);
+  payload.availableAt = '2026';
+  assert.throws(() => buildCru34SnapshotArtifact(payload, {
+    materializedAt: '2026-08-31T06:00:00.000Z',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_AVAILABLE_AT_REQUIRED/);
+  assert.throws(() => buildCru34SnapshotArtifact(result.semanticPayload, {
+    materializedAt: '2026',
+    sourceLedgerSha256: SOURCE_SHA,
+    sourceLedgerByteSize: 10_000,
+    sourcePrefixRecordCount: 6,
+    sourcePrefixByteSize: 5_000,
+  }), /CRU36_MATERIALIZED_AT_INVALID/);
+});
+
 test('invalid source identity cannot be built or accepted', () => {
   const result = materialize(tempDir());
   const payload = structuredClone(result.semanticPayload);
