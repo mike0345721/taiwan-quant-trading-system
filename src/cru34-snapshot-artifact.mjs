@@ -11,7 +11,7 @@ export const CRU34_MAX_SELECTION_CANDIDATES = 128;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SAFE_SELECTION_PATTERN = /^([a-f0-9]{24})\.([0-9]{16})\.([a-f0-9]{64})\.json$/;
-const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
 const CRU34_METHOD_V1 = Object.freeze({
   pressure: 'provider-side tick_type classification proxy; UNKNOWN preserved; directional response evidence requires complete classified coverage in V1',
   response: 'first/last eligible TX Tick in physical ledger order',
@@ -63,7 +63,28 @@ function requiredText(value, code) {
 
 function requiredIso(value, code) {
   const text = requiredText(value, code);
-  if (!ISO_TIMESTAMP_PATTERN.test(text) || !Number.isFinite(Date.parse(text))) throw new Error(code);
+  const match = ISO_TIMESTAMP_PATTERN.exec(text);
+  if (!match) throw new Error(code);
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText,
+    offset, offsetHourText, offsetMinuteText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]
+      || hour > 23 || minute > 59 || second > 59) throw new Error(code);
+  if (offset !== 'Z') {
+    const offsetHour = Number(offsetHourText);
+    const offsetMinute = Number(offsetMinuteText);
+    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) {
+      throw new Error(code);
+    }
+  }
+  if (!Number.isFinite(Date.parse(text))) throw new Error(code);
   return text;
 }
 

@@ -370,17 +370,25 @@ test('unsupported selector schema and invalid freshness cutoff fail closed witho
 
 test('lineage timestamps require a complete timezone-bearing ISO timestamp', () => {
   const result = materialize(tempDir());
-  const payload = structuredClone(result.semanticPayload);
-  payload.availableAt = '2026';
-  assert.throws(() => buildCru34SnapshotArtifact(payload, {
-    materializedAt: '2026-08-31T06:00:00.000Z',
-    sourceLedgerSha256: SOURCE_SHA,
-    sourceLedgerByteSize: 10_000,
-    sourcePrefixRecordCount: 6,
-    sourcePrefixByteSize: 5_000,
-  }), /CRU36_AVAILABLE_AT_REQUIRED/);
+  for (const timestamp of [
+    '2026',
+    '2026-02-30T00:00:00Z',
+    '2026-04-31T00:00:00Z',
+    '2026-01-01T24:00:00Z',
+    '2026-01-01T00:00:00+14:01',
+  ]) {
+    const payload = structuredClone(result.semanticPayload);
+    payload.availableAt = timestamp;
+    assert.throws(() => buildCru34SnapshotArtifact(payload, {
+      materializedAt: '2026-08-31T06:00:00.000Z',
+      sourceLedgerSha256: SOURCE_SHA,
+      sourceLedgerByteSize: 10_000,
+      sourcePrefixRecordCount: 6,
+      sourcePrefixByteSize: 5_000,
+    }), /CRU36_AVAILABLE_AT_REQUIRED/);
+  }
   assert.throws(() => buildCru34SnapshotArtifact(result.semanticPayload, {
-    materializedAt: '2026',
+    materializedAt: '2026-02-30T00:00:00Z',
     sourceLedgerSha256: SOURCE_SHA,
     sourceLedgerByteSize: 10_000,
     sourcePrefixRecordCount: 6,
