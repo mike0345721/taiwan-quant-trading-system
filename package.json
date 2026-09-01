@@ -39,6 +39,7 @@
     "live:futures:audit": "node scripts/audit-futures-live-event-ledger.mjs",
     "live:futures:derive": "node scripts/build-live-futures-order-flow.mjs",
     "live:timestamp:analyze": "node scripts/analyze-live-timestamp-offset.mjs",
+    "cru34:snapshot:materialize": "node scripts/materialize-cru34-historical-snapshot.mjs",
     "live:options:greeks-probe": "node scripts/build-live-option-greeks-probe.mjs",
     "research:v310:restricted-wave3": "node scripts/run-v310-restricted-wave3.mjs",
     "research:v310:freeze-forward": "node scripts/freeze-v310-forward-models.mjs",
