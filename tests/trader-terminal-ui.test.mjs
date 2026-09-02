@@ -61,6 +61,8 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /copyBody\?\.parentElement === node/);
   assert.match(shell, /tt-fixture-only/);
   assert.match(shell, /tierOne\.append\(pulse, observedFlow\)/);
+  assert.match(shell, /tt-primary-market-surface/);
+  assert.match(shell, /Price Structure · Primary/);
   assert.match(shell, /tierTwo\.append\(leadership, futures, options, breadth, conflict\)/);
   assert.match(shell, /Research · descriptive only/);
   assert.match(shell, /focus\.querySelector\('\.dw-decision-bar'\), trend/);
@@ -88,7 +90,9 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /\.tt-global-tile\.is-negative/);
   assert.match(styles, /\.tt-global-change-row \{ display: grid/);
   assert.match(styles, /overflow-x:\s*clip/);
-  assert.match(styles, /height:\s*clamp\(360px,\s*42vh,\s*470px\)/);
+  assert.match(styles, /grid-template-columns:\s*minmax\(0, 1\.7fr\) minmax\(680px, \.95fr\)/);
+  assert.match(styles, /height:\s*clamp\(440px,\s*48vh,\s*540px\)/);
+  assert.match(styles, /\.tt-primary-market-surface/);
   assert.match(styles, /min-height:\s*clamp\(268px,\s*25vh,\s*280px\)/);
   assert.match(styles, /height:\s*clamp\(205px,\s*20vh,\s*220px\)/);
   assert.match(styles, /grid-template-columns:\s*64px/);
@@ -146,7 +150,12 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /terminalWrite\('tt-futures-tx', lastPrice == null \? null : fmt\(lastPrice\)/);
   assert.match(read('public', 'index.html'), /id="dw-event-risk-state">RESEARCH_PENDING</);
   assert.match(read('public', 'index.html'), /data-terminal-card="observed-flow"/);
+  assert.match(read('public', 'index.html'), /−1 ← 0 → \+1/);
+  assert.match(read('public', 'index.html'), /window displacement/);
+  assert.match(read('public', 'index.html'), /0 winding · 1 direct/);
+  assert.match(read('public', 'index.html'), /id="dw-observed-flow-truth"/);
   assert.match(app, /function renderObservedFlow\(flow\)/);
+  assert.match(app, /非目前盤勢 · historical snapshot/);
   assert.match(app, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
   assert.match(app, /renderObservedFlow\(workspace\?\.observedFlow\)/);
   assert.match(app, /\$\('refresh-button'\)\.addEventListener\('click',[\s\S]*?catch \(error\) \{\s*reportDashboardLoadError\(error, 'DASHBOARD_REFRESH'\);/);

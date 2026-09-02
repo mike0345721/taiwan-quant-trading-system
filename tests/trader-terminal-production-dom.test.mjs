@@ -264,6 +264,7 @@ const interactiveStateExpression = `(() => {
 const layoutMeasurementExpression = `(() => {
   const root = document.getElementById('decision-workspace');
   const owner = root?.querySelector('.tt-primary-grid > .dw-price-region');
+  const observed = root?.querySelector('.dw-observed-flow');
   const stage = root?.querySelector('.dw-chart-stage');
   const host = root?.querySelector('.dw-chart-canvas');
   const round = (value) => Math.round(value * 100) / 100;
@@ -298,9 +299,19 @@ const layoutMeasurementExpression = `(() => {
       className: typeof node.className === 'string' ? node.className : '',
       fontSize: getComputedStyle(node).fontSize,
     }));
+  const ownerRect = owner?.getBoundingClientRect();
+  const observedRect = observed?.getBoundingClientRect();
   return {
     expanded: root?.classList.contains('is-chart-expanded') ?? false,
-    ownerHeight: round(owner?.getBoundingClientRect().height || 0),
+    ownerHeight: round(ownerRect?.height || 0),
+    ownerWidth: round(ownerRect?.width || 0),
+    observedHeight: round(observedRect?.height || 0),
+    observedWidth: round(observedRect?.width || 0),
+    visualPrimaryRatio: observedRect?.width && observedRect?.height
+      ? round((ownerRect.width * ownerRect.height) / (observedRect.width * observedRect.height))
+      : null,
+    chartLeadsSupporting: Boolean(ownerRect && observedRect && ownerRect.top <= observedRect.top + 1),
+    observedFlowClipped: Boolean(observed && (observed.scrollWidth > observed.clientWidth + 1 || observed.scrollHeight > observed.clientHeight + 1)),
     stageHeight: round(stage?.getBoundingClientRect().height || 0),
     hostHeight: round(host?.getBoundingClientRect().height || 0),
     canvasHeights: [...(host?.querySelectorAll('canvas') || [])].map((canvas) => round(canvas.getBoundingClientRect().height)),
@@ -633,11 +644,21 @@ async function runProductionInteractionRegression() {
         'dw-observed-flow-pressure-60', 'dw-observed-flow-response-60', 'dw-observed-flow-path-60',
         'dw-observed-flow-pressure-300', 'dw-observed-flow-response-300', 'dw-observed-flow-path-300',
         'dw-observed-flow-coverage', 'dw-observed-flow-quality', 'dw-observed-flow-source',
+        'dw-observed-flow-truth',
       ];
       const evidence = Object.fromEntries(ids.map((id) => {
         const node = document.getElementById(id);
         return [id, { text: node?.textContent || '', title: node?.title || '' }];
       }));
+      evidence['dw-observed-flow-semantics'] = {
+        text: document.querySelector('.dw-observed-flow-chain-head')?.textContent || '', title: '',
+      };
+      renderObservedFlow({ ...workspace.observedFlow, sourceState: 'STALE' });
+      evidence['dw-observed-flow-stale-truth'] = {
+        text: document.getElementById('dw-observed-flow-truth')?.textContent || '',
+        title: document.getElementById('dw-observed-flow-truth')?.className || '',
+      };
+      renderObservedFlow(workspace.observedFlow);
       renderTerminalShell({ ...workspace, globalStatus: {} }, chart);
       for (const id of ['tt-health-main', 'tt-health-trust']) {
         const node = document.getElementById(id);
@@ -679,7 +700,7 @@ async function runProductionInteractionRegression() {
           'dw-observed-flow-state', 'dw-observed-flow-pressure-60', 'dw-observed-flow-response-60',
           'dw-observed-flow-path-60', 'dw-observed-flow-pressure-300', 'dw-observed-flow-response-300',
           'dw-observed-flow-path-300', 'dw-observed-flow-coverage', 'dw-observed-flow-quality',
-          'dw-observed-flow-source',
+          'dw-observed-flow-source', 'dw-observed-flow-truth',
         ].map((id) => [id, document.getElementById(id)?.textContent || ''])),
         observedDetail: document.getElementById('dw-observed-flow-detail')?.textContent || '',
         copyDisabled: document.getElementById('dw-copy-gpt-prompt')?.disabled,
@@ -721,6 +742,7 @@ async function runProductionInteractionRegression() {
       (value) => value?.drawerOpen,
       'DRAWER_OPEN_FAILED',
     );
+    const drawerOpenLayout = await evaluate(cdp, layoutMeasurementExpression);
     await pressKey(cdp, 'Tab', 'Tab');
     const drawerForwardLoop = await waitForValue(
       cdp,
@@ -826,7 +848,7 @@ async function runProductionInteractionRegression() {
       wiringEvidence,
       refreshFailureEvidence,
       leadershipRefreshFailureEvidence,
-      drawerEvidence: { opened: drawerOpened, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
+      drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
       progressiveEvidence: { opened: progressiveOpened, openLayout: progressiveOpenLayout, closed: progressiveClosed },
       routeStates,
       defaultViewportEvidence,
@@ -1053,6 +1075,15 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['tt-breadth-flat'].text, /163/);
   assert.equal(result.wiringEvidence['tt-risk-ring-value'].text, 'ELEVATED');
   assert.equal(result.wiringEvidence['tt-risk-volatility'].text, 'UNAVAILABLE · BREAKDOWN_NOT_IMPLEMENTED');
+  assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /HISTORICAL · 2026-08-28/);
+  assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /非目前盤勢/);
+  assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /TXFI6 · DAY/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /−1 ← 0 → \+1/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /window displacement/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /0 winding · 1 direct/);
+  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
+  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /非目前盤勢 · stale snapshot/);
+  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.breadth, /904/);
@@ -1079,6 +1110,8 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.drawerEvidence.opened.drawerText, /BuyProxyVolume/);
   assert.match(result.drawerEvidence.opened.drawerText, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
   assert.match(result.drawerEvidence.opened.drawerText, /NOT_PROMOTED/);
+  assert.deepEqual(result.drawerEvidence.openLayout.clippedCore, []);
+  assert.deepEqual(result.drawerEvidence.openLayout.subElevenPixelText, []);
   assert.deepEqual(result.drawerEvidence.opened.visibleMeaninglessDashes, []);
   assert.deepEqual(result.drawerEvidence.opened.visibleBareUnavailable, []);
   assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
@@ -1120,6 +1153,9 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
       assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
       assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
       assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
+      assert.equal(sample.chartLeadsSupporting, true, JSON.stringify(sample));
+      assert.ok(sample.visualPrimaryRatio >= 1.8, JSON.stringify(sample));
+      assert.equal(sample.observedFlowClipped, false, JSON.stringify(sample));
     }
   }
 
@@ -1131,6 +1167,9 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     assert.equal(sample.horizontalOverflow, false, JSON.stringify(sample));
     assert.deepEqual(sample.clippedCore, [], JSON.stringify(sample));
     assert.deepEqual(sample.subElevenPixelText, [], JSON.stringify(sample));
+    assert.equal(sample.chartLeadsSupporting, true, JSON.stringify(sample));
+    assert.ok(sample.visualPrimaryRatio >= 1.8, JSON.stringify(sample));
+    assert.equal(sample.observedFlowClipped, false, JSON.stringify(sample));
   }
 
   assert.equal(result.cycleEvidence.length, 10);

@@ -223,9 +223,15 @@
                   <span id="dw-observed-flow-state" class="dw-status-pill is-unavailable">LOADING</span>
                 </div>
                 <p class="dw-observed-flow-boundary">描述性已執行流量證據 · NOT A TRADING SIGNAL</p>
+                <p id="dw-observed-flow-truth" class="dw-observed-flow-truth is-unavailable" role="status">
+                  <strong>LOADING</strong><span>等待 bounded historical snapshot</span>
+                </p>
                 <div class="dw-observed-flow-chain" role="table" aria-label="60 秒與 300 秒 Observed Flow 比較">
                   <div class="dw-observed-flow-chain-head" role="row">
-                    <span role="columnheader">視窗</span><span role="columnheader">Observed Pressure Ratio</span><span role="columnheader">Price Response</span><span role="columnheader">Path Efficiency</span>
+                    <span role="columnheader">視窗</span>
+                    <span role="columnheader"><strong>Pressure ratio</strong><small>−1 ← 0 → +1</small></span>
+                    <span role="columnheader"><strong>Δ Price</strong><small>window displacement</small></span>
+                    <span role="columnheader"><strong>Path efficiency</strong><small>0 winding · 1 direct</small></span>
                   </div>
                   <div class="dw-observed-flow-chain-row" role="row">
                     <strong role="rowheader">60s</strong><b id="dw-observed-flow-pressure-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-response-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-path-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b>

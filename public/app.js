@@ -2812,6 +2812,25 @@ function renderObservedFlow(flow) {
   }
   const primary = value.windows?.primary60s;
   const context = value.windows?.context300s;
+  const truth = $('dw-observed-flow-truth');
+  if (truth) {
+    const title = truth.querySelector('strong');
+    const note = truth.querySelector('span');
+    const tradeDate = value.identity?.tradeDate || value.source?.tradeDate || 'DATE_NOT_REPORTED';
+    const contract = value.identity?.actualContract || 'CONTRACT_NOT_REPORTED';
+    const session = value.identity?.session || 'SESSION_NOT_REPORTED';
+    if (available) {
+      title.textContent = `${value.sourceState} · ${tradeDate}`;
+      note.textContent = value.sourceState === 'STALE'
+        ? `非目前盤勢 · stale snapshot · ${contract} · ${session}`
+        : `非目前盤勢 · historical snapshot · ${contract} · ${session}`;
+      truth.className = `dw-observed-flow-truth ${value.sourceState === 'STALE' ? 'is-stale' : 'is-historical'}`;
+    } else {
+      title.textContent = terminalUnavailable(reason);
+      note.textContent = '目前沒有可合法顯示的 Observed Flow snapshot';
+      truth.className = 'dw-observed-flow-truth is-unavailable';
+    }
+  }
   for (const [id, metric, metricReason] of [
     ['dw-observed-flow-pressure-60', observedFlowMetric(primary?.pressure?.pressureRatio, { signedValue: true, digits: 3 }), primary?.pressure?.unavailableReason],
     ['dw-observed-flow-response-60', observedFlowMetric(primary?.response?.displacementPoints, { signedValue: true, suffix: ' pts', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],

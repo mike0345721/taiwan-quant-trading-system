@@ -614,7 +614,7 @@
     if (chartTitle) {
       chartTitle.id = 'tt-chart-title';
       chartTitle.textContent = '台指期貨';
-      chartTitle.append(element('small', 'tt-chart-title-subtitle', 'Price Structure'));
+      chartTitle.append(element('small', 'tt-chart-title-subtitle', 'Price Structure · Primary'));
     }
     if (chartEyebrow) chartEyebrow.hidden = true;
     ensureLeadershipArchitecture(leadership);
@@ -628,6 +628,7 @@
     const futures = card('futures', '', '期貨流向', 'Futures Flow', 'tt-futures-main', 'OI 與法人部位只作描述背景，不代表多空意圖。');
     buildFuturesVisual(futures);
     tierOne.append(pulse, observedFlow);
+    chart.classList.add('tt-primary-market-surface');
     primary.append(chart, tierOne);
 
     const tierTwo = element('div', 'tt-tier-two-grid');
