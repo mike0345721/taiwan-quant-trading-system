@@ -8,9 +8,9 @@ This evidence is for review only. It does not approve merge, mark CRU-35 Done, s
 
 - Branch: `codex/cru-35-observed-flow-evidence-ui-preview-v1`
 - Authoritative base: `ef7c8054c05e816297f0a36317cbfc1ec8aee7a7`
-- Implementation commit: `93525e4b75a06c3ec0704953812f93e733190188`
-- Implementation tree: `4a26fd7fa449c128fd09489b042597ea11c41755`
-- Browser observation time: 2026-09-01 18:08-18:11 Asia/Taipei
+- Implementation commit: `d3703ff50da5e249b9915cac9a0fff581eb42a11`
+- Implementation tree: `5906b2886ad50d6762ef86af2d2112735c52c97a`
+- Browser observation time: 2026-09-02 08:28-08:46 Asia/Taipei
 - Runtime: production server path, loopback only, `MOCK_DATA=0`, read-only UI, one governed CRU-36 artifact
 - Browser authentication: one-time local acceptance credential; the Owner password was not read or changed
 
@@ -28,20 +28,22 @@ Governed artifact evidence:
 
 The measurements use the browser's exact inner viewport. K-line clipping checks the chart owner, stage, host, and all chart canvases. Observed Flow clipping checks the card, comparison chain, trust block, and drawer trigger. Drawer vertical scrolling is allowed; viewport or horizontal clipping is not.
 
-| Viewport | Horizontal overflow | K-line clipping | Observed Flow clipping | Duplicate IDs | Visible formal text below 11px | Meaningless bare dash |
-|---|---:|---:|---:|---:|---:|---:|
-| 1920x1080 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1680x900 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1536x864 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1440x900 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 1366x768 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Viewport | K-line / Observed Flow visual-area ratio | Horizontal overflow | K-line clipping | Observed Flow clipping | Duplicate IDs | Visible formal text below 11px | Meaningless bare dash |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1920x1080 | 2.96 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 1680x900 | 2.32 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 1536x864 | 2.84 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 1440x900 | 2.86 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 1366x768 | 2.56 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Every checkpoint also observed:
 
 - dashboard load state `READY`
 - seven K-line canvases present
-- Market Pulse then Observed Flow in tier one; Leadership is first in tier two
-- `HISTORICAL`, `QUALITY_INSUFFICIENT`, `NOT PROMOTED`
+- K-line precedes supporting evidence and has at least 1.8 times the Observed Flow visual area
+- prominent `HISTORICAL · 2026-08-28` plus `非目前盤勢`
+- visible `−1 ← 0 → +1`, `window displacement`, and `0 winding · 1 direct` semantics
+- `QUALITY_INSUFFICIENT`, `NOT PROMOTED`
 - `60s 97.9% · 300s 98.3%`
 - blocking console errors: `0`
 
@@ -62,15 +64,16 @@ At every sample:
 - duplicate IDs `0`
 - visible formal text below 11px `0`
 - meaningless bare dash `0`
+- K-line precedes supporting evidence and visual-area ratio remains at least `2.16`
 
-The sweep found and the implementation fixed three pre-evidence defects: long real-runtime topbar text at 1366, an unnecessary single-column Observed Flow trust layout, and internal card scrolling after drawer focus restoration.
+The sweep found and the implementation fixed one bounded reimplementation defect: the shorter supporting-card height caused internal card scrolling after drawer focus restoration. The corrected tier height preserves `scrollTop=0` without reducing K-line primacy.
 
 ## Evidence drawer acceptance
 
 At 1366x768:
 
 - one click on `查看證據 >` opened `Observed Flow Evidence`
-- panel bounds: left 813, right 1353, top 0, bottom 768
+- panel bounds: left 811, right 1351, top 0, bottom 768; width 540
 - drawer clipping `0`; horizontal overflow `0`
 - required evidence present: `BuyProxyVolume`, `PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE`, `NOT_PROMOTED`, and `artifactHash`
 - Escape closed the drawer
@@ -93,7 +96,8 @@ The manual `更新畫面` failure path now calls the same `reportDashboardLoadEr
 
 - `npm.cmd run test:ci`: PASS, 558 passed / 2 governed skips
 - `npm.cmd run test:windows`: PASS, 37 passed / 0 skipped
-- `node --test tests/trader-terminal-ui.test.mjs tests/trader-terminal-production-dom.test.mjs`: PASS, 17 passed / 1 optional real-runtime skip
+- `node --test tests/trader-terminal-ui.test.mjs tests/dashboard-observed-flow.test.mjs tests/dashboard-decision-workspace.test.mjs`: PASS, 41 passed / 0 skipped
+- `node --test tests/trader-terminal-production-dom.test.mjs`: PASS, 5 passed / 1 optional real-runtime skip
 - `npm.cmd run security:scan`: PASS
 - `git diff --check`: PASS
 

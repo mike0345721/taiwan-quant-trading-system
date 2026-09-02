@@ -15,14 +15,15 @@ The launcher validates the artifact through the governed CRU-36 reader before st
 
 ## Review checklist
 
-- Market Pulse remains first, Observed Flow is immediately after it, Leadership follows, and the K-line remains the primary surface.
+- The K-line / `Price Structure · Primary` surface is visibly dominant. Market Pulse and Observed Flow remain supporting evidence, and Leadership follows in the next tier.
 - Observed Flow visibly says `RESEARCH`, `NOT A TRADING SIGNAL`, and `NOT PROMOTED`.
-- `60s` and `300s` each show Observed Pressure Ratio, Price Response, and Path Efficiency even while Evidence Quality is `QUALITY_INSUFFICIENT`.
+- A prominent banner says `HISTORICAL · 2026-08-28` and `非目前盤勢`; the current K-line date must not be mistaken for the historical evidence date.
+- `60s` and `300s` each show Pressure Ratio with `−1 ← 0 → +1`, price response as `Δ Price / window displacement`, and Path Efficiency with `0 winding · 1 direct`, even while Evidence Quality is `QUALITY_INSUFFICIENT`.
 - Classified Coverage, source state, actual contract, trade date, session lineage in the drawer, and `availableAt` are understandable and truthful.
 - `查看證據 >` opens the existing right drawer. It includes raw pressure volumes, conflict/cross-check fields, response values, quality reasons, lineage, artifact hashes, methodology, and limitations.
 - `Esc` closes the drawer and focus returns to the trigger.
 - Copy Snapshot / Ask GPT includes the bounded Observed Flow summary and does not imply a recommendation.
-- Check 1920, 1680, 1536, 1440, and 1366 widths. There must be no horizontal overflow, clipping, card overlap, or unreadable text.
+- Check 1920, 1680, 1536, 1440, and 1366 widths. There must be no horizontal overflow, clipping, card overlap, unreadable text, or loss of K-line visual primacy.
 
 ## Expected truth for the supplied artifact
 
