@@ -6,6 +6,7 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
 $log = Join-Path $logDir "p0-forward-paper-${stamp}.log"
 $lifecycle = Join-Path $root 'data\operational-lifecycle\p0-forward-paper.json'
+$dailyStatus = Join-Path $root ("data\paper\p0-forward\daily\{0}.json" -f (Get-Date -Format 'yyyy-MM-dd'))
 
 Push-Location $root
 try {
@@ -17,7 +18,8 @@ try {
     '--name' 'P0_FORWARD_PAPER' `
     '--script' 'scripts\run-p0-forward-paper-observer.mjs' `
     '--log' $log `
-    '--status' $lifecycle
+    '--status' $lifecycle `
+    '--daily-status' $dailyStatus
   $observerExit = $LASTEXITCODE
 
   if ($observerExit -ne 0) {

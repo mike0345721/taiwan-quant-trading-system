@@ -3,7 +3,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { appendPaperLedgerFile, appendRejectedPaperDay, auditPaperTradingLedger, digest, evaluatePremarketReadiness, P0_SPEC, readPaperLedgerFile } from '../src/p0-paper-trading.mjs';
-import { executeP0SingleEngine, readP0LiveTicks } from '../src/p0-market-engine.mjs';
+import { executeP0SingleEngine, readP0LiveTicks, readP0LiveTxContractCoverage } from '../src/p0-market-engine.mjs';
+import { inspectShioajiBridge, resolveRequiredSubscriptionActualContract } from '../src/shioaji-bridge-client.mjs';
 import { loadAndVerifyFrozenInputs } from '../src/t0-h0-runner.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +40,7 @@ const reject = (reason) => {
   appendRejectedPaperDay(staged, { tradeDate, sessionId, reason, recordedAt, sourceEvidenceHash });
   for (const event of staged.slice(existing.length)) appendPaperLedgerFile(paperLedger, event);
   const audit = auditPaperTradingLedger(readPaperLedgerFile(paperLedger));
-  writeStatus({ tradeDate, observerStartTime: recordedAt, attemptStatus:'DAY_REJECTED', reason, reconciliationStatus:audit.ok?'PASS':'FAIL', ledgerHash:audit.ledgerHash, executionAuthorized:false });
+  writeStatus({ tradeDate, observerStartTime: recordedAt, attemptStatus:'DAY_REJECTED', reason, reconciliationStatus:audit.ok?'PASS':'FAIL', ledgerHash:audit.ledgerHash, executionAuthorized:false, orderRoutesEnabled:false });
 };
 
 const priorStatus = fs.existsSync(statusFile) ? JSON.parse(fs.readFileSync(statusFile, 'utf8')) : null;
@@ -47,7 +48,7 @@ const timelyPriorStart = priorStatus?.attemptStatus === 'OBSERVER_STARTED' && Da
 if (!dryRun && localMinutes > 9 * 60 && !timelyPriorStart) { reject('MISSED_START'); process.exit(0); }
 let restartCount = timelyPriorStart ? Number(priorStatus.restartCount || 0) + 1 : 0;
 if (!dryRun && localMinutes <= 9 * 60) {
-  writeStatus({ tradeDate, observerStartTime:now.toISOString(), attemptStatus:'OBSERVER_STARTED', readinessGate:'PENDING_SESSION_COMPLETION', restartCount, executionAuthorized:false });
+  writeStatus({ tradeDate, observerStartTime:now.toISOString(), attemptStatus:'OBSERVER_STARTED', readinessGate:'PENDING_SESSION_COMPLETION', restartCount, executionAuthorized:false, orderRoutesEnabled:false });
 }
 if (!dryRun) {
   const reconcileAt = Date.parse(`${tradeDate}T05:47:00.000Z`);
@@ -56,12 +57,13 @@ if (!dryRun) {
 }
 if (!fs.existsSync(liveLedger)) { reject('DATA_UNAVAILABLE'); process.exit(0); }
 
-const targetCode = value('--contract-code') || (() => {
-  const readinessFile = path.join(root, 'data/readiness/shioaji-futures-access.json');
-  if (!fs.existsSync(readinessFile)) return null;
-  return JSON.parse(fs.readFileSync(readinessFile, 'utf8')).contracts?.TX?.targetCode || null;
-})();
-if (!targetCode) { reject('CONTRACT_UNRESOLVED'); process.exit(0); }
+const observedContractCoverage = await readP0LiveTxContractCoverage({ ledgerFile: liveLedger, tradeDate });
+if (observedContractCoverage.contracts.length === 0) { reject('DATA_UNAVAILABLE'); process.exit(0); }
+const contractResolution = resolveRequiredSubscriptionActualContract(await inspectShioajiBridge());
+const targetCode = contractResolution.actualContract;
+if (!targetCode || observedContractCoverage.contracts.length !== 1 || observedContractCoverage.contracts[0] !== targetCode) {
+  reject('CONTRACT_UNRESOLVED'); process.exit(0);
+}
 
 const frozen = loadAndVerifyFrozenInputs(root);
 const tickRead = await readP0LiveTicks({ ledgerFile:liveLedger, tradeDate, contractCode:targetCode });
@@ -75,4 +77,4 @@ const result = executeP0SingleEngine({ manifestRow, tickRead, costPolicy:frozen.
 for (const event of existing.slice(beforeCount)) appendPaperLedgerFile(paperLedger, event);
 const finalAudit = auditPaperTradingLedger(readPaperLedgerFile(paperLedger));
 if (!finalAudit.ok) throw new Error(`P0_FORWARD_LEDGER_AUDIT_FAIL:${finalAudit.errors.join(',')}`);
-writeStatus({ tradeDate, observerStartTime:priorStatus?.observerStartTime||now.toISOString(), readinessGate:'PASS', contractCode:targetCode, sessionState:'SESSION_RECONCILED', orState:result.detection.qualityState, t0TriggerState:result.detection.tradeState, paperDirection:result.paper.position?.direction||null, entry:result.paper.position?.entryPrice||null, stop:result.paper.position?.stopPrice||null, exit:result.paper.position?.exitPrice||null, netPnl:result.paper.position?.netPnl||0, noTradeReason:result.detection.noTradeReason||null, dataQuality:result.detection.pathQuality, restartCount, hardFailCount:0, reconciliationStatus:'PASS', appendedEvents:existing.length-beforeCount, ledgerHash:finalAudit.ledgerHash, inputEvidenceHash:result.inputEvidenceHash, executionAuthorized:false });
+writeStatus({ tradeDate, observerStartTime:priorStatus?.observerStartTime||now.toISOString(), readinessGate:'PASS', contractCode:targetCode, contractIdentitySource:contractResolution.source, observedContractCodes:observedContractCoverage.contracts, sessionState:'SESSION_RECONCILED', orState:result.detection.qualityState, t0TriggerState:result.detection.tradeState, paperDirection:result.paper.position?.direction||null, entry:result.paper.position?.entryPrice||null, stop:result.paper.position?.stopPrice||null, exit:result.paper.position?.exitPrice||null, netPnl:result.paper.position?.netPnl||0, noTradeReason:result.detection.noTradeReason||null, dataQuality:result.detection.pathQuality, restartCount, hardFailCount:0, reconciliationStatus:'PASS', appendedEvents:existing.length-beforeCount, ledgerHash:finalAudit.ledgerHash, inputEvidenceHash:result.inputEvidenceHash, executionAuthorized:false, orderRoutesEnabled:false });

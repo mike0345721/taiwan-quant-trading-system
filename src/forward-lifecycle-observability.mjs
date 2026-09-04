@@ -44,6 +44,45 @@ export function writeLifecycleStatus(filePath, status) {
   fs.renameSync(tempPath, filePath);
 }
 
+export function finalizePendingDailyStatus({ filePath, expectedTradeDate, lifecycleStatus }) {
+  if (!filePath || !fs.existsSync(filePath)) return { updated: false, reason: 'DAILY_STATUS_NOT_FOUND' };
+  let current;
+  try {
+    current = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return { updated: false, reason: 'DAILY_STATUS_UNREADABLE' };
+  }
+  if (current?.tradeDate !== expectedTradeDate) return { updated: false, reason: 'DAILY_STATUS_TRADE_DATE_MISMATCH' };
+  if (current?.attemptStatus !== 'OBSERVER_STARTED' || current?.readinessGate !== 'PENDING_SESSION_COMPLETION') {
+    return { updated: false, reason: 'DAILY_STATUS_ALREADY_TERMINAL' };
+  }
+  const observerExitCode = Number.isInteger(lifecycleStatus?.observerExitCode) ? lifecycleStatus.observerExitCode : null;
+  const reason = lifecycleStatus?.shutdownRequested === true
+    ? 'OBSERVER_SHUTDOWN_REQUESTED'
+    : observerExitCode === 0
+      ? 'OBSERVER_EXITED_WITHOUT_TERMINAL_SESSION_EVIDENCE'
+      : 'OBSERVER_EXITED_BEFORE_SESSION_TERMINAL_EVIDENCE';
+  const status = {
+    ...current,
+    attemptStatus: 'OTHER_FAILURE',
+    readinessGate: 'FAIL',
+    sessionState: 'SESSION_FAILED',
+    reconciliationStatus: 'NOT_VERIFIED',
+    reason,
+    hardFailCount: Number(current.hardFailCount || 0) + 1,
+    lifecycle: {
+      wrapperExitAt: lifecycleStatus?.wrapperExitAt || null,
+      observerExitCode,
+      observerSignal: lifecycleStatus?.observerSignal || null,
+      exitReason: lifecycleStatus?.exitReason || 'UNKNOWN_INSUFFICIENT_EVIDENCE',
+    },
+    executionAuthorized: false,
+    orderRoutesEnabled: false,
+  };
+  writeLifecycleStatus(filePath, status);
+  return { updated: true, reason };
+}
+
 export function parseScheduledTaskLifetime(raw = {}) {
   const settings = raw.settings ?? {};
   const action = raw.action ?? {};

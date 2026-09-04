@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { buildContinuityReport } from '../src/data-continuity.mjs';
 import { readBoundedLiveCoverage, scanLiveCoverageFile } from '../src/data-continuity-audit.mjs';
 import { buildDailyUpdateGateSummary } from '../src/daily-update-gates.mjs';
-import { classifyChildExit, parseScheduledTaskLifetime } from '../src/forward-lifecycle-observability.mjs';
+import { classifyChildExit, finalizePendingDailyStatus, parseScheduledTaskLifetime } from '../src/forward-lifecycle-observability.mjs';
 
 const root = path.resolve('.');
 const temp = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -54,6 +54,50 @@ test('unknown exit reason stays unknown and scheduler parser does not infer Last
   assert.equal(task.lastResult, 0xC000013A);
   assert.equal(task.lastResultInterpretation, 'UNKNOWN_INSUFFICIENT_EVIDENCE');
   assert.equal(task.multipleInstances, 'IgnoreNew');
+});
+
+test('pending daily status becomes an explicit non-reconciled failure when an observed child exits without terminal evidence', () => {
+  const dir = temp('forward-daily-terminal-');
+  const daily = path.join(dir, '2026-08-14.json');
+  fs.writeFileSync(daily, JSON.stringify({
+    tradeDate: '2026-08-14', observerStartTime: '2026-08-14T00:35:00.000Z',
+    attemptStatus: 'OBSERVER_STARTED', readinessGate: 'PENDING_SESSION_COMPLETION', executionAuthorized: false,
+  }));
+  const result = finalizePendingDailyStatus({
+    filePath: daily,
+    expectedTradeDate: '2026-08-14',
+    lifecycleStatus: { observerExitCode: 7, observerSignal: null, exitReason: 'UNEXPECTED_CHILD_EXIT', wrapperExitAt: '2026-08-14T05:47:01.000Z' },
+  });
+  const final = JSON.parse(fs.readFileSync(daily, 'utf8'));
+  assert.equal(result.updated, true);
+  assert.equal(final.attemptStatus, 'OTHER_FAILURE');
+  assert.equal(final.sessionState, 'SESSION_FAILED');
+  assert.equal(final.reconciliationStatus, 'NOT_VERIFIED');
+  assert.equal(final.reason, 'OBSERVER_EXITED_BEFORE_SESSION_TERMINAL_EVIDENCE');
+  assert.equal(final.executionAuthorized, false);
+  assert.equal(final.orderRoutesEnabled, false);
+});
+
+test('observed child runner finalizes a pending daily status when its child exits unexpectedly', () => {
+  const dir = temp('forward-runner-daily-terminal-');
+  const child = path.join(dir, 'child.mjs');
+  const status = path.join(dir, 'lifecycle.json');
+  const daily = path.join(dir, '2026-08-14.json');
+  const log = path.join(dir, 'child.log');
+  fs.writeFileSync(child, 'process.exitCode = 7;\n');
+  fs.writeFileSync(daily, JSON.stringify({
+    tradeDate: '2026-08-14', observerStartTime: '2026-08-14T00:35:00.000Z',
+    attemptStatus: 'OBSERVER_STARTED', readinessGate: 'PENDING_SESSION_COMPLETION', executionAuthorized: false,
+  }));
+  const run = spawnSync(process.execPath, [
+    'scripts/run-observed-forward-child.mjs', '--name', 'TEST_OBSERVER', '--script', child,
+    '--status', status, '--daily-status', daily, '--log', log, '--expected-trade-date', '2026-08-14',
+  ], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 7);
+  assert.equal(JSON.parse(fs.readFileSync(status, 'utf8')).pendingDailyStatusFinalization.updated, true);
+  const final = JSON.parse(fs.readFileSync(daily, 'utf8'));
+  assert.equal(final.attemptStatus, 'OTHER_FAILURE');
+  assert.equal(final.reconciliationStatus, 'NOT_VERIFIED');
 });
 
 test('bounded continuity scan early-exits after required products and fails closed when proof exceeds byte bound', async () => {

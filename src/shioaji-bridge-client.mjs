@@ -31,6 +31,26 @@ async function getJson(path, { baseUrl = DEFAULT_URL, timeoutMs = 1200 } = {}) {
   }
 }
 
+export function resolveRequiredSubscriptionActualContract(bridge, product = 'TX') {
+  if (!bridge || bridge.safetyVerified !== true) {
+    return Object.freeze({ state: 'UNAVAILABLE', reason: 'BRIDGE_SAFETY_NOT_VERIFIED', actualContract: null });
+  }
+  const subscription = (bridge.requiredSubscriptions || []).find((item) => item?.product === product);
+  if (!subscription || subscription.state !== 'RESTORED') {
+    return Object.freeze({ state: 'UNAVAILABLE', reason: 'REQUIRED_SUBSCRIPTION_NOT_RESTORED', actualContract: null });
+  }
+  const actualContract = typeof subscription.actualContract === 'string' ? subscription.actualContract.trim() : '';
+  if (!actualContract) {
+    return Object.freeze({ state: 'UNAVAILABLE', reason: 'REQUIRED_SUBSCRIPTION_CONTRACT_UNRESOLVED', actualContract: null });
+  }
+  return Object.freeze({
+    state: 'RESOLVED',
+    reason: null,
+    actualContract,
+    source: `SHIOAJI_${subscription.subscriptionAlias || product}_RESOLVED_ACTUAL_CONTRACT`,
+  });
+}
+
 export async function inspectShioajiBridge(options = {}) {
   const runtime = options?.continuityRuntime?.schemaVersion === 'shioaji-market-data-continuity-v1'
     && options.continuityRuntime.executionAuthorized === false
