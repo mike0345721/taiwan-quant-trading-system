@@ -45,6 +45,22 @@ export async function executeP0HistoricalRaw({ root, manifestRow, costPolicy, ex
   return executeP0SingleEngine({ manifestRow, tickRead, costPolicy, existingEvents });
 }
 
+export async function readP0LiveTxContractCoverage({ ledgerFile, tradeDate }) {
+  if (!fs.existsSync(ledgerFile)) return { sourceState: 'MISSING', contracts: [] };
+  const contracts = new Set();
+  const stream = fs.createReadStream(ledgerFile, { encoding: 'utf8' });
+  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  for await (const line of lines) {
+    let record;
+    try { record = JSON.parse(line); } catch { continue; }
+    if (record.kind !== 'futures_tick' || record.payload?._product_family !== 'TX') continue;
+    if (record.payload?.date !== tradeDate || record.payload?.simtrade === true || record.duplicate === true) continue;
+    const actualContract = typeof record.payload?._target_code === 'string' ? record.payload._target_code.trim() : '';
+    if (actualContract) contracts.add(actualContract);
+  }
+  return { sourceState: 'AVAILABLE', contracts: [...contracts].sort() };
+}
+
 export async function readP0LiveTicks({ ledgerFile, tradeDate, contractCode }) {
   if (!fs.existsSync(ledgerFile)) return { sourceState: 'MISSING', source: { ledgerFile }, ticks: [], bars: [], statistics: {} };
   const stream = fs.createReadStream(ledgerFile, { encoding: 'utf8' });

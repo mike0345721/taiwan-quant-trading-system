@@ -7,6 +7,7 @@ import {
   DEFAULT_HEARTBEAT_MS,
   classifyChildExit,
   createLifecycleStatus,
+  finalizePendingDailyStatus,
   writeLifecycleStatus,
 } from '../src/forward-lifecycle-observability.mjs';
 
@@ -30,6 +31,8 @@ const afterScriptValue = value('--after-script');
 const afterScript = afterScriptValue ? path.resolve(root, afterScriptValue) : null;
 const logPath = path.resolve(required('--log'));
 const statusPath = path.resolve(required('--status'));
+const dailyStatusValue = value('--daily-status');
+const dailyStatusPath = dailyStatusValue ? path.resolve(dailyStatusValue) : null;
 const expectedTradeDate = value('--expected-trade-date', taipeiDate());
 const heartbeatMs = Number(value('--heartbeat-ms', String(DEFAULT_HEARTBEAT_MS)));
 if (!Number.isFinite(heartbeatMs) || heartbeatMs < 20) throw new Error('INVALID_HEARTBEAT_MS');
@@ -96,6 +99,13 @@ try {
   status.signalReason = shutdownSignal ?? status.signalReason;
   status.wrapperExitAt = new Date().toISOString();
   status.lastLifecycleStage = 'WRAPPER_EXITED';
+  if (dailyStatusPath) {
+    status.pendingDailyStatusFinalization = finalizePendingDailyStatus({
+      filePath: dailyStatusPath,
+      expectedTradeDate,
+      lifecycleStatus: status,
+    });
+  }
   writeLifecycleStatus(statusPath, status);
   await new Promise((resolve) => log.end(resolve));
 }

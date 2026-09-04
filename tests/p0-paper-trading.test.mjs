@@ -5,6 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { appendEvent, appendPaperLedgerFile, auditPaperTradingLedger, buildHistoricalPaperSession, evaluatePremarketReadiness, readPaperLedgerFile, rebuildPaperSession } from '../src/p0-paper-trading.mjs';
+import { readP0LiveTxContractCoverage } from '../src/p0-market-engine.mjs';
+import { resolveRequiredSubscriptionActualContract } from '../src/shioaji-bridge-client.mjs';
 
 const root=path.resolve('.'),jobs=path.join(root,'data','research','t0-h0-formal-v1','run-2026-08-02-v1','jobs');
 function session(predicate=x=>x.tradeState==='TRADE'){for(const n of fs.readdirSync(jobs).filter(x=>x.endsWith('-DAY.json')).sort()){const x=JSON.parse(fs.readFileSync(path.join(jobs,n),'utf8'));if(predicate(x))return x}throw new Error('fixture_session_missing')}
@@ -59,4 +61,21 @@ test('forward observer runtime-root injection prevents every output fallback to 
  assert.deepEqual(fs.readFileSync(canonicalSentinel),before);
  assert.equal(fs.existsSync(path.join(runtimeRoot,'PAPER_TRADING_EVENT_LEDGER.jsonl')),true);
  assert.equal(fs.existsSync(path.join(runtimeRoot,'daily','2026-01-02.json')),true);
+});
+
+test('P0 resolves TX from the safe live bridge identity and never falls back to the stale readiness snapshot', async()=>{
+ const source=fs.readFileSync(path.join(root,'scripts/run-p0-forward-paper-observer.mjs'),'utf8');
+ const resolved=resolveRequiredSubscriptionActualContract({safetyVerified:true,requiredSubscriptions:[{product:'TX',state:'RESTORED',subscriptionAlias:'TXFR1',actualContract:'TXFI6'}]});
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'p0-contract-coverage-')),ledger=path.join(dir,'2026-09-04.ndjson');
+ fs.writeFileSync(ledger,[
+   JSON.stringify({kind:'futures_tick',duplicate:false,payload:{_product_family:'TX',date:'2026-09-04',_target_code:'TXFI6',simtrade:false}}),
+   JSON.stringify({kind:'futures_tick',duplicate:false,payload:{_product_family:'TX',date:'2026-09-04',_target_code:'TXFH6',simtrade:false}}),
+ ].join('\n'));
+ const coverage=await readP0LiveTxContractCoverage({ledgerFile:ledger,tradeDate:'2026-09-04'});
+ assert.equal(resolved.state,'RESOLVED');assert.equal(resolved.actualContract,'TXFI6');
+ assert.deepEqual(coverage.contracts,['TXFH6','TXFI6']);
+ assert.match(resolved.source,/SHIOAJI_TXFR1_RESOLVED_ACTUAL_CONTRACT/);
+ assert.doesNotMatch(source,/shioaji-futures-access\.json/);
+ assert.match(source,/resolveRequiredSubscriptionActualContract/);
+ assert.match(source,/observedContractCoverage\.contracts\.length !== 1/);
 });
