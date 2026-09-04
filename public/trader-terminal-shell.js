@@ -595,15 +595,17 @@
     const chart = originalMain?.querySelector('.dw-price-region');
     const side = originalMain?.querySelector('.dw-side-stack');
     const pulse = side?.querySelector('.dw-market-pulse');
+    const observedFlow = side?.querySelector('.dw-observed-flow');
     const leadership = side?.querySelector('.dw-leadership');
     const against = side?.querySelector('.dw-against-panel');
     const ask = side?.querySelector('.dw-gpt-panel');
     const conflict = focus?.querySelector('.dw-conflict-monitor');
-    if (!focus || !chart || !pulse || !leadership || !conflict) return root;
+    if (!focus || !chart || !pulse || !observedFlow || !leadership || !conflict) return root;
 
     chartControls(root);
     removePulseDuplicates(root);
     relabelExistingCard(pulse, '即時盤況', 'Market Pulse', '');
+    relabelExistingCard(observedFlow, '已執行流量證據', 'Observed Flow', 'Research · descriptive only');
     relabelExistingCard(leadership, '現貨 / 指數貢獻', 'Spot Contribution', '');
     relabelExistingCard(conflict, '風險監控', 'Risk / Conflict', '');
     relabelExistingCard(ask, 'Ask GPT', 'Snapshot Discussion', '');
@@ -612,7 +614,7 @@
     if (chartTitle) {
       chartTitle.id = 'tt-chart-title';
       chartTitle.textContent = '台指期貨';
-      chartTitle.append(element('small', 'tt-chart-title-subtitle', 'Price Structure'));
+      chartTitle.append(element('small', 'tt-chart-title-subtitle', 'Price Structure · Primary'));
     }
     if (chartEyebrow) chartEyebrow.hidden = true;
     ensureLeadershipArchitecture(leadership);
@@ -625,7 +627,8 @@
     buildTrendVisual(trend);
     const futures = card('futures', '', '期貨流向', 'Futures Flow', 'tt-futures-main', 'OI 與法人部位只作描述背景，不代表多空意圖。');
     buildFuturesVisual(futures);
-    tierOne.append(pulse, futures);
+    tierOne.append(pulse, observedFlow);
+    chart.classList.add('tt-primary-market-surface');
     primary.append(chart, tierOne);
 
     const tierTwo = element('div', 'tt-tier-two-grid');
@@ -637,7 +640,7 @@
     buildBreadthVisual(breadth);
     conflict.dataset.terminalCard = 'risk';
     addMoreButton(conflict, '風險 / 衝突', '[data-terminal-card="risk"]');
-    tierTwo.append(leadership, options, breadth, conflict);
+    tierTwo.append(leadership, futures, options, breadth, conflict);
 
     const tierThree = element('div', 'tt-tier-three-grid');
     const globalCard = card('global', '', '全球市場總覽', 'Global Context', 'tt-global-main', '背景參考，不取代台指期即時價格；無序列時不製造 sparkline。');

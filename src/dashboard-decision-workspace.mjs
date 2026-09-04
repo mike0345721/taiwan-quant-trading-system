@@ -192,7 +192,7 @@ export function buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict
 export function createDecisionSnapshot({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
   marketChangeFeed = null, currentMarketFactSummary = null, liveBreadth = null,
-  indexLeadership = null,
+  indexLeadership = null, observedFlow = null,
   decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
 } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
@@ -207,6 +207,9 @@ export function createDecisionSnapshot({
   ].filter(Boolean);
   if (chartAvailableTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) throw new Error('DECISION_SNAPSHOT_FUTURE_CHART_EVIDENCE');
   if (indexLeadership?.lastAvailableAt && Date.parse(indexLeadership.lastAvailableAt) > parsedSnapshotTime) throw new Error('DECISION_SNAPSHOT_FUTURE_LEADERSHIP_EVIDENCE');
+  if (observedFlow?.source?.availableAt && Date.parse(observedFlow.source.availableAt) > parsedSnapshotTime) {
+    throw new Error('DECISION_SNAPSHOT_FUTURE_OBSERVED_FLOW_EVIDENCE');
+  }
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
   const marketState = safeMarketState(runtimeTruth);
@@ -276,6 +279,7 @@ export function createDecisionSnapshot({
     decisionReadiness,
     evidenceConflict: evidenceConflict || buildDashboardDw4Evidence(dataHealth),
     currentMarketFactSummary,
+    observedFlow,
     ...leadershipCopyAllowlist(indexLeadership),
     governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
       eventId: event.eventId || null,
@@ -304,6 +308,14 @@ export function validateDecisionSnapshot(snapshot) {
   if (snapshot.formalWeight !== 0 || snapshot.researchOnly !== true || snapshot.recommendation !== false || snapshot.systemDirectionalSignal !== false || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false
     || snapshot.LEADERSHIP_DESCRIPTIVE_ONLY !== true || snapshot.NOT_PROMOTED !== true || snapshot.NOT_A_TRADING_SIGNAL !== true) {
     throw new Error('DECISION_SNAPSHOT_AUTHORIZATION_BOUNDARY');
+  }
+  if (snapshot.observedFlow && (snapshot.observedFlow.formalWeight !== 0
+      || snapshot.observedFlow.researchOnly !== true
+      || snapshot.observedFlow.executionAuthorized !== false
+      || snapshot.observedFlow.orderRoutesEnabled !== false
+      || snapshot.observedFlow.recommendation !== false
+      || snapshot.observedFlow.systemDirectionalSignal !== false)) {
+    throw new Error('DECISION_SNAPSHOT_OBSERVED_FLOW_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
   if (snapshot.identityState != null) {
@@ -341,6 +353,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
     `IX0001 Leadership: state=${snapshot.leadershipSource?.state || 'UNAVAILABLE'}; mode=${snapshot.leadershipSource?.sourceMode || 'UNAVAILABLE'}; tradeDate=${snapshot.leadershipSource?.sourceTradeDate || 'UNAVAILABLE'}; quality=${snapshot.leadershipSource?.quality || 'QUALITY_INSUFFICIENT'}; descriptiveOnly=${snapshot.LEADERSHIP_DESCRIPTIVE_ONLY}; notPromoted=${snapshot.NOT_PROMOTED}; notTradingSignal=${snapshot.NOT_A_TRADING_SIGNAL}`,
+    observedFlowCopyLine(snapshot.observedFlow),
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
@@ -352,6 +365,21 @@ export function copyForChatGpt(snapshot, question = null) {
     `USER QUESTION: ${prompt}`,
   ];
   return readable.join('\n');
+}
+
+function observedFlowCopyLine(observedFlow) {
+  if (!observedFlow || observedFlow.sourceState === 'UNAVAILABLE' || !observedFlow.windows) {
+    return `Observed Flow: source=UNAVAILABLE; reason=${observedFlow?.unavailableReason || 'ARTIFACT_MISSING'}; formalDirection=NOT_PROMOTED`;
+  }
+  const primary = observedFlow.windows.primary60s;
+  const context = observedFlow.windows.context300s;
+  const compact = (window) => [
+    `pressureRatio=${window?.pressure?.pressureRatio ?? 'UNAVAILABLE'}`,
+    `classifiedCoverage=${window?.pressure?.classifiedCoverage ?? 'UNAVAILABLE'}`,
+    `responsePoints=${window?.response?.displacementPoints ?? 'UNAVAILABLE'}`,
+    `pathEfficiency=${window?.pathEfficiency?.value ?? 'UNAVAILABLE'}`,
+  ].join(',');
+  return `Observed Flow: source=${observedFlow.sourceState}; identity=${observedFlow.identity?.actualContract || 'UNAVAILABLE'}/${observedFlow.identity?.tradeDate || 'UNAVAILABLE'}/${observedFlow.identity?.session || 'UNAVAILABLE'}; availableAt=${observedFlow.source?.availableAt || 'UNAVAILABLE'}; 60s[${compact(primary)}]; 300s[${compact(context)}]; quality=${observedFlow.researchQuality?.status || 'UNAVAILABLE'}; formalDirection=${observedFlow.formalDirection || 'NOT_PROMOTED'}`;
 }
 
 function compactAvailability(value) {
@@ -424,6 +452,7 @@ export function discussionSnapshot(snapshot) {
     },
     governedMarketChanges: snapshot.governedMarketChanges,
     currentMarketFactSummary: snapshot.currentMarketFactSummary,
+    observedFlow: discussionObservedFlow(snapshot.observedFlow),
     indexLeadership: snapshot.indexLeadership,
     industryLeadership: snapshot.industryLeadership,
     leadershipSource: snapshot.leadershipSource,
@@ -451,9 +480,40 @@ export function discussionSnapshot(snapshot) {
   });
 }
 
+function discussionObservedFlow(observedFlow) {
+  if (!observedFlow || observedFlow.sourceState === 'UNAVAILABLE' || !observedFlow.windows) {
+    return Object.freeze({
+      sourceState: 'UNAVAILABLE',
+      unavailableReason: observedFlow?.unavailableReason || 'ARTIFACT_MISSING',
+      formalDirection: 'NOT_PROMOTED',
+    });
+  }
+  const window = (value) => Object.freeze({
+    pressureRatio: value?.pressure?.pressureRatio ?? null,
+    classifiedCoverage: value?.pressure?.classifiedCoverage ?? null,
+    responsePoints: value?.response?.displacementPoints ?? null,
+    pathEfficiency: value?.pathEfficiency?.value ?? null,
+  });
+  return Object.freeze({
+    sourceState: observedFlow.sourceState,
+    sourceMode: observedFlow.source?.sourceMode || null,
+    availableAt: observedFlow.source?.availableAt || null,
+    identity: observedFlow.identity,
+    primary60s: window(observedFlow.windows.primary60s),
+    context300s: window(observedFlow.windows.context300s),
+    researchQuality: observedFlow.researchQuality,
+    formalDirection: observedFlow.formalDirection,
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+    orderRoutesEnabled: false,
+  });
+}
+
 export function buildDecisionWorkspace({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null,
-  dw4EvidenceObservations = null, liveBreadth = null, indexLeadership = null, runtimeVersion = null, now = new Date(),
+  dw4EvidenceObservations = null, liveBreadth = null, indexLeadership = null, observedFlow = null,
+  runtimeVersion = null, now = new Date(),
 } = {}) {
   const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
     observations: dw4EvidenceObservations,
@@ -475,6 +535,7 @@ export function buildDecisionWorkspace({
     currentMarketFactSummary,
     liveBreadth,
     indexLeadership,
+    observedFlow,
     decisionReadiness: decisionSummary.readiness,
     snapshotTime: now.toISOString(),
   });
@@ -502,6 +563,7 @@ export function buildDecisionWorkspace({
     decisionSummary,
     currentMarketFactSummary,
     indexLeadership,
+    observedFlow,
     evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',

@@ -60,7 +60,11 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /Manual copy only · no direct GPT API/);
   assert.match(shell, /copyBody\?\.parentElement === node/);
   assert.match(shell, /tt-fixture-only/);
-  assert.match(shell, /tierOne\.append\(pulse, futures\)/);
+  assert.match(shell, /tierOne\.append\(pulse, observedFlow\)/);
+  assert.match(shell, /tt-primary-market-surface/);
+  assert.match(shell, /Price Structure · Primary/);
+  assert.match(shell, /tierTwo\.append\(leadership, futures, options, breadth, conflict\)/);
+  assert.match(shell, /Research · descriptive only/);
   assert.match(shell, /focus\.querySelector\('\.dw-decision-bar'\), trend/);
   assert.match(shell, /aria-disabled/);
   assert.match(shell, /button\.disabled = index !== 0/);
@@ -86,10 +90,15 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /\.tt-global-tile\.is-negative/);
   assert.match(styles, /\.tt-global-change-row \{ display: grid/);
   assert.match(styles, /overflow-x:\s*clip/);
-  assert.match(styles, /height:\s*clamp\(360px,\s*42vh,\s*470px\)/);
-  assert.match(styles, /height:\s*clamp\(268px,\s*25vh,\s*280px\)/);
+  assert.match(styles, /grid-template-columns:\s*minmax\(0, 1\.7fr\) minmax\(680px, \.95fr\)/);
+  assert.match(styles, /height:\s*clamp\(440px,\s*48vh,\s*540px\)/);
+  assert.match(styles, /\.tt-primary-market-surface/);
+  assert.match(styles, /min-height:\s*clamp\(268px,\s*25vh,\s*280px\)/);
   assert.match(styles, /height:\s*clamp\(205px,\s*20vh,\s*220px\)/);
   assert.match(styles, /grid-template-columns:\s*64px/);
+  assert.match(styles, /@media \(max-width: 1600px\) \{[\s\S]*?\.tt-terminal-topbar \{ grid-template-columns: minmax\(0, 1fr\); gap: 4px; \}/);
+  const narrowObservedFlowRules = styles.match(/@media \(max-width: 1380px\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.doesNotMatch(narrowObservedFlowRules, /\.dw-observed-flow-trust\s*\{[^}]*grid-template-columns:\s*1fr/);
 });
 
 test('Trader Terminal formal typography has an 11px floor', () => {
@@ -140,6 +149,16 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /terminalWrite\('tt-health-main', health, \{ reason: 'DATA_HEALTH_UNAVAILABLE'/);
   assert.match(app, /terminalWrite\('tt-futures-tx', lastPrice == null \? null : fmt\(lastPrice\)/);
   assert.match(read('public', 'index.html'), /id="dw-event-risk-state">RESEARCH_PENDING</);
+  assert.match(read('public', 'index.html'), /data-terminal-card="observed-flow"/);
+  assert.match(read('public', 'index.html'), /−1 ← 0 → \+1/);
+  assert.match(read('public', 'index.html'), /window displacement/);
+  assert.match(read('public', 'index.html'), /0 winding · 1 direct/);
+  assert.match(read('public', 'index.html'), /id="dw-observed-flow-truth"/);
+  assert.match(app, /function renderObservedFlow\(flow\)/);
+  assert.match(app, /非目前盤勢 · historical snapshot/);
+  assert.match(app, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
+  assert.match(app, /renderObservedFlow\(workspace\?\.observedFlow\)/);
+  assert.match(app, /\$\('refresh-button'\)\.addEventListener\('click',[\s\S]*?catch \(error\) \{\s*reportDashboardLoadError\(error, 'DASHBOARD_REFRESH'\);/);
   assert.match(app, /show-optional-levels/);
   assert.match(app, /const hasDayLevels =/);
   assert.match(app, /trader-terminal:levels/);
@@ -222,6 +241,23 @@ test('Owner review launcher reuses local prerequisites without enabling mock or 
   assert.doesNotMatch(launcher, /safe\.directory=\*|config\s+--global/);
   assert.match(launcher, /Press Ctrl\+C/);
   assert.doesNotMatch(launcher, /shioaji|broker|order|executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/i);
+});
+
+test('CRU-35 owner review launcher requires one governed historical artifact and fails closed', () => {
+  const launcher = read('scripts', 'start-cru35-owner-review.ps1');
+  const guide = read('docs', 'product', 'CRU_35_OWNER_BROWSER_REVIEW_GUIDE.md');
+  assert.match(launcher, /\[Parameter\(Mandatory = \$true\)\]\s*\[string\]\$ArtifactPath/);
+  assert.match(launcher, /CRU34_SNAPSHOT_ARTIFACT_PATH = \$artifact/);
+  assert.match(launcher, /loadDashboardObservedFlow/);
+  assert.match(launcher, /\['HISTORICAL','STALE'\]\.includes/);
+  assert.match(launcher, /NODE_ENV = 'production'/);
+  assert.match(launcher, /MOCK_DATA = '0'/);
+  assert.match(launcher, /REFRESH_INTERVAL_SECONDS = '0'/);
+  assert.match(launcher, /safe\.directory=\$project/);
+  assert.doesNotMatch(launcher, /safe\.directory=\*|config\s+--global/);
+  assert.match(guide, /QUALITY_INSUFFICIENT/);
+  assert.match(guide, /NOT PROMOTED/);
+  assert.match(guide, /1920, 1680, 1536, 1440, and 1366/);
 });
 
 test('preview mode transitions reject stale chart loads and gate evidence copy', () => {

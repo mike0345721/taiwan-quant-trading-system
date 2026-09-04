@@ -217,6 +217,39 @@
                 </div>
               </section>
 
+              <section class="dw-card dw-observed-flow" data-terminal-card="observed-flow" aria-labelledby="dw-observed-flow-title">
+                <div class="dw-section-heading compact">
+                  <div><p class="eyebrow">OBSERVED FLOW · RESEARCH</p><h3 id="dw-observed-flow-title">Observed Flow</h3></div>
+                  <span id="dw-observed-flow-state" class="dw-status-pill is-unavailable">LOADING</span>
+                </div>
+                <p class="dw-observed-flow-boundary">描述性已執行流量證據 · NOT A TRADING SIGNAL</p>
+                <p id="dw-observed-flow-truth" class="dw-observed-flow-truth is-unavailable" role="status">
+                  <strong>LOADING</strong><span>等待 bounded historical snapshot</span>
+                </p>
+                <div class="dw-observed-flow-chain" role="table" aria-label="60 秒與 300 秒 Observed Flow 比較">
+                  <div class="dw-observed-flow-chain-head" role="row">
+                    <span role="columnheader">視窗</span>
+                    <span role="columnheader"><strong>Pressure ratio</strong><small>−1 ← 0 → +1</small></span>
+                    <span role="columnheader"><strong>Δ Price</strong><small>window displacement</small></span>
+                    <span role="columnheader"><strong>Path efficiency</strong><small>0 winding · 1 direct</small></span>
+                  </div>
+                  <div class="dw-observed-flow-chain-row" role="row">
+                    <strong role="rowheader">60s</strong><b id="dw-observed-flow-pressure-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-response-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-path-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b>
+                  </div>
+                  <div class="dw-observed-flow-chain-row" role="row">
+                    <strong role="rowheader">300s</strong><b id="dw-observed-flow-pressure-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-response-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-path-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b>
+                  </div>
+                </div>
+                <div class="dw-observed-flow-trust" aria-live="polite">
+                  <span>Classified Coverage <strong id="dw-observed-flow-coverage">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>Evidence Quality <strong id="dw-observed-flow-quality">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>Source <strong id="dw-observed-flow-source">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>Formal Direction <strong id="dw-observed-flow-promotion">NOT PROMOTED</strong></span>
+                </div>
+                <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="Observed Flow Evidence">查看證據 &gt;</button>
+                <div id="dw-observed-flow-detail" class="dw-observed-flow-detail tt-detail-only" aria-label="Observed Flow 技術證據"></div>
+              </section>
+
               <section class="dw-card dw-leadership" aria-labelledby="dw-leadership-title">
                 <div class="dw-section-heading compact">
                   <div><p class="eyebrow">IX0001 · RAW LEADERSHIP</p><h3 id="dw-leadership-title">指數領漲／領跌</h3></div>

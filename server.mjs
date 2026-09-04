@@ -26,6 +26,7 @@ import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
+import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import {
   SessionStore,
   LoginRateLimiter,
@@ -68,6 +69,10 @@ const chartCalendarExceptionPath = path.join(config.appRoot, 'data', 'market-sta
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
+const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
+  ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
+  : null;
+const cru34SnapshotFreshnessCutoff = process.env.CRU34_SNAPSHOT_FRESHNESS_CUTOFF || null;
 const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
@@ -107,8 +112,13 @@ async function decisionWorkspacePayload(snapshot, service) {
   });
   const feed = buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
+  const observedFlow = loadDashboardObservedFlow({
+    artifactPath: cru34SnapshotArtifactPath,
+    freshnessCutoff: cru34SnapshotFreshnessCutoff,
+  });
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
+    observedFlow,
   });
 }
 
