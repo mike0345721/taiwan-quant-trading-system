@@ -55,7 +55,8 @@
     "shioaji:check": "node scripts/check-shioaji-readiness.mjs",
     "shioaji:continuity:candidate": "node scripts/run-shioaji-market-data-continuity.mjs",
     "current:audit": "node scripts/audit-current-readiness.mjs",
-    "project:status": "node scripts/project-status.mjs"
+    "project:status": "node scripts/project-status.mjs",
+    "data:requirements:validate": "node scripts/validate-data-requirements-v1.mjs --check"
   },
   "dependencies": {
     "lightweight-charts": "5.2.0"
