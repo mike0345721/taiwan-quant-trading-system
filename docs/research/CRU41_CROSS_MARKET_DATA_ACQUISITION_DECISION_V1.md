@@ -6,210 +6,213 @@
 > Scope: decision preparation only. No vendor contact, registration, purchase, paid entitlement, collector, runtime, scheduler, strategy, risk or execution change.  
 > Safety: `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false`, `orderRoutesEnabled=false`.
 
-## 1. Decision question
+## 1. Owner decision update
 
-The first acquisition decision is not “which vendor has the most data?” It is:
+Owner direction on 2026-09-06:
 
-> What is the minimum lawful historical package required to falsify the first Cross-Market hypothesis without overbuying microstructure data?
+> Prefer free resources first. Paid historical market data is currently too expensive and is not under consideration.
 
-First governed hypothesis:
+This changes the acquisition decision from a vendor-quote gate to a **free-first / paid-deferred** policy.
+
+Current governing states:
+
+`PAID_HISTORICAL_DATA = DEFER_BY_OWNER`
+
+`VENDOR_CONTACT = NOT_AUTHORIZED`
+
+`OWNER_SPEND_DECISION = DEFER`
+
+`FREE_FIRST = REQUIRED`
+
+## 2. First governed hypothesis
 
 `TWN 14:00–15:00 repricing -> TX 15:00 night-open response`
 
-## 2. Minimum sufficient dataset
+The minimum data needed to test this hypothesis rigorously remains:
 
-For the first falsification, the minimum sufficient TWN dataset is:
-
-- canonical actual SGX TWN contract identity;
-- individual expiry identity, not a silently stitched synthetic-only series;
+- canonical actual SGX TWN identity;
+- actual expiry / contract identity;
 - 1-minute OHLC price path;
-- trade volume only if the vendor can explain the bar-volume semantics adequately;
-- full T / T+1 session coverage relevant to 14:00–15:00;
-- stable timezone/session mapping;
-- 2020-07-20 to current is sufficient because TWN inception is 2020;
-- lawful local retention and deterministic replay for Owner-only quantitative research.
+- full T / T+1 session coverage around 14:00–15:00;
+- stable timezone/session semantics;
+- lawful retention/replay for research.
 
-Not required for the first falsification:
-
-- Tick-by-tick trades;
-- Bid/Ask;
-- Level 1;
-- Depth;
-- MBO;
-- a new live collector.
+Tick, BBO, Level 1, Depth and MBO are **not required** for the first falsification.
 
 `TICK_BBO_DEPTH_REQUIRED = NO_FOR_FIRST_PROTOCOL`
 
-## 3. NQ necessity decision
+## 3. Free-source audit result
 
-NQ should **not** be bundled into the first acquisition merely because Portara can supply it in the same format.
+The current public/free landscape is useful, but it does **not** yet provide a verified governed substitute for multi-year actual-contract TWN 1-minute history.
 
-Reasoning:
+| Free / near-free path | What is available | Why it is not yet the formal answer |
+|---|---|---|
+| **SGX official product / delayed-price pages** | Canonical TWN identity, contract specs, delayed current prices, OHLC/volume/OI fields and downloadable delayed-price tables | Public evidence does not establish multi-year 1-minute historical coverage, durable automated retention, or deterministic replay rights for the required study |
+| **SGX public charts / settlement history** | Official daily/settlement context | Daily data cannot test 14:00–15:00 intraday repricing |
+| **Investing.com free historical TWN page** | Free daily OHLC/volume display | Identified as CFD/derived presentation and daily-only; not canonical SGX actual-contract 1-minute evidence |
+| **Barchart** | Actual TWN contracts and long 1-minute capability exist | The needed intraday download capability is tied to paid Premier/commercial products; not free, and default downloadable intraday is not complete Time & Sales |
+| **Public/community datasets if found later** | Potential exploratory data | Must not enter formal research until provenance, identity, timestamp semantics, license, retention and contract mapping are verified |
 
-1. The first question is specifically offshore-Taiwan repricing into TX night open.
-2. TWN is the causal/structural comparison object for that first falsification.
-3. NQ is useful as a global-technology-context covariate, but it is not required to determine whether TWN contains incremental information over TX itself.
-4. Buying NQ at the same time increases ingestion, normalization and licensing scope before the TWN hypothesis has demonstrated value.
-5. Existing daily global context can remain sufficient during the first TWN-only falsification.
+Current conclusion:
 
-Decision:
+`FREE_GOVERNED_TWN_MULTIYEAR_1M = NOT_VERIFIED`
+
+This does **not** mean the data does not exist somewhere for free. It means no source has yet passed the project truth gate for the required use.
+
+## 4. Paid-source disposition
+
+The following remain technically viable but are now deferred by Owner policy:
+
+- Portara/CQG TWN 1m;
+- Tick Data TWN trades / quotes;
+- Barchart Premier;
+- paid CME DataMine NQ;
+- paid SOX intraday GIDS;
+- paid USD/TWD intraday feeds.
+
+No quote request is needed now.
+
+`PORTARA_TWN = DEFER_PAID`
+
+`TICKDATA_TWN = DEFER_PAID`
+
+`BARCHART_PREMIER = DEFER_PAID`
+
+## 5. NQ decision
+
+NQ remains **deferred** from the first protocol.
+
+Reasons:
+
+1. The first hypothesis is specifically TWN -> TX.
+2. Buying or adding NQ increases scope before TWN incremental value is established.
+3. Existing free/daily global context can remain a control layer during early exploratory work.
+4. If TWN-only evidence later survives, intraday NQ can be reconsidered using free sources first.
 
 `NQ_FIRST_PROTOCOL_NECESSITY = DEFER`
 
-NQ should move to acquisition only if either:
+## 6. Free-first research path
 
-- the TWN-only study shows an effect that needs global-tech confound control; or
-- a separately governed hypothesis explicitly requires intraday NQ.
+The project should now proceed in this order:
 
-## 4. Candidate comparison
+### Path A — exploit already-free official data
 
-| Candidate | Best role | Strength | Limitation | Decision |
-|---|---|---|---|---|
-| **Portara / CQG TWN 1m** | First governed TWN historical acquisition | Actual TWN; 2020-07-20 to current; individual/continuous; 1m + volume; timezone formatting; public one-off full-history pricing range | Exact TWN quote, retention/internal-research/non-display/correction terms still need written confirmation | **Preferred acquisition candidate** |
-| **Barchart Premier** | Cheap manual sanity check | Low monthly cost; long 1m history; actual expired futures contracts addressable | Default personal/non-commercial; website automation prohibited; downloadable intraday stream is not complete Time & Sales | **Do not use as formal canonical acquisition** |
-| **Tick Data LLC** | Higher-fidelity upgrade | Actual TWN trades + quotes from Aug-2020; Tick/L1 | Quote/license required; fidelity exceeds first hypothesis need | **Defer** |
-| **Portara / CQG NQ 1m** | Same-vendor NQ later | NQ history from 1999; same 1m delivery model | Not needed in first protocol | **Defer** |
-| **CME DataMine NQ** | Official NQ canonical upgrade | Official CME identity/reference; T&S/BBO/Depth/MBO options | Exact dataset price/license product-dependent; not needed yet | **Defer** |
+Use free official data where it is already sufficient:
 
-## 5. Current public cost evidence
+- TX / TXO: TAIFEX official historical downloads and existing governed project data;
+- SOX daily: official Nasdaq historical context;
+- USD/TWD daily: official CBC closing-rate history;
+- SGX TWN daily/delayed official data: identity / settlement / coarse regime context only.
 
-Portara publicly advertises one-off 1-minute full-history futures data around **USD 220–330 per commodity**, with individual or continuous files, roll service, timezone formatting and FTP delivery.
+### Path B — search for a lawful free TWN intraday source
 
-Important boundary:
+A candidate may proceed only if it can satisfy:
 
-- This is public generic pricing evidence, **not** an exact TWN quote.
-- It is not proof that our intended internal quantitative use, indefinite local retention, replay, future derived-data retention or future commercial reuse are licensed.
-- No purchase should be approved from the public price alone.
+1. actual TWN, not CFD/proxy;
+2. 1-minute or better;
+3. contract-month / expiry identity;
+4. usable 14:00–15:00 T+1 coverage;
+5. known timezone;
+6. multi-year history or a useful bounded historical window;
+7. lawful local retention and replay;
+8. stable provenance.
 
-Provisional spend logic:
+Until then it remains exploratory only.
 
-`PUBLIC_JUSTIFIED_TWN_1M_BAND = USD_220_TO_330`
+### Path C — if no governed free multi-year 1m source exists
 
-If an exact TWN one-off quote is materially above the currently advertised full-history band, the acquisition should return to Owner review rather than being accepted automatically.
+Do **not** automatically buy data.
 
-This is not a standing budget authorization.
+Instead choose between:
 
-## 6. Written terms required before any purchase decision
+- **DEFER the TWN historical falsification** while retaining the hypothesis;
+- **ACCUMULATE forward TWN evidence later** only if an already-owned / no-incremental-cost lawful feed becomes available;
+- use official daily TWN context for lower-granularity research questions that do not pretend to answer the 14:00–15:00 intraday hypothesis.
 
-Portara/CQG must confirm in writing:
+Historical absence must never be replaced with synthetic certainty.
 
-1. exact one-off price for TWN 2020-07-20 to current, 1-minute, individual-contract files;
-2. contract/expiry identity fields and delivery layout;
-3. bar-volume semantics and whether any trade classes are excluded;
-4. timezone / DST / T and T+1 session treatment;
-5. right to retain raw purchased files indefinitely on Owner local storage;
-6. right to retain derived datasets and backtest outputs;
-7. Owner-only internal quantitative research / replay permission;
-8. whether SGX non-display or exchange fees apply to this historical purchase/use;
-9. whether future commercial/product use requires a separate license;
-10. correction/revision policy and whether delivered historical files may later be regenerated or changed.
+## 7. What not to do
 
-Until these are answered:
+- Do not scrape SGX merely because the webpage is public.
+- Do not relabel Investing.com CFD/derived data as canonical TWN.
+- Do not buy Portara, Barchart, Tick Data, CME DataMine or GIDS under CRU-41.
+- Do not substitute daily data for the intraday TWN->TX hypothesis.
+- Do not infer missing intraday history from settlement data.
+- Do not create a new collector unless a separate Owner gate authorizes it.
 
-`PORTARA_TWN_LICENSE = LICENSE_UNKNOWN`
+## 8. Cost-value decision
 
-## 7. Acquisition recommendation
+Owner policy dominates the previous public-price analysis.
 
-Current recommendation:
+The prior Portara public range around USD 220–330 per commodity remains useful only as future reference. It is **not** a current spend target.
 
-`TWN_ACQUISITION_RECOMMENDATION = PROCEED_TO_WRITTEN_TERMS_GATE`
+Current state:
 
-This means:
+`COST_VALUE_DECISION = DEFER_PAID_FREE_FIRST`
 
-- do not buy yet;
-- do not register or enable a paid feed yet;
-- do not request Tick/L1;
-- do not bundle NQ yet;
-- ask only for the minimum TWN 1m actual-contract package and the ten written terms above after Owner explicitly authorizes vendor contact.
+`MAX_CURRENT_INCREMENTAL_DATA_SPEND = 0`
 
-If written terms are acceptable and the exact price remains near the published one-off band, the recommended first acquisition becomes:
+This is a project-stage preference, not a permanent lifetime ban on paid data.
 
-`TWN actual-contract 1-minute, 2020-07-20 -> current`
+## 9. Astra review decision
 
-for the bounded TWN->TX falsification study.
+Astra is **not needed now** for vendor selection because no paid vendor selection is being made.
 
-## 8. What not to buy now
+Its higher-value future use would be either:
 
-- NQ just because the same vendor carries it;
-- TWN Tick / Level 1 / Depth;
-- SOX intraday GIDS;
-- USD/TWD paid intraday feed;
-- recurring live subscriptions when a one-off historical package is sufficient;
-- Barchart as formal canonical volume/pressure evidence.
+- after a genuinely free TWN source is found and needs adversarial semantic review; or
+- if Owner later reopens a paid acquisition decision with exact terms/cost.
 
-## 9. Cost-value decision
+`ASTRA_ADVERSARIAL_REVIEW = NOT_RUN_NOT_NEEDED_AT_CURRENT_GATE`
 
-The research value of TWN historical data is high enough to justify proceeding to a terms/quote gate because it directly tests a unique Taiwan-specific cross-market hypothesis and cannot be reconstructed from TX alone.
+## 10. Owner decision packet
 
-However, the value is **not** high enough to justify an institutional Tick/L1 package before 1-minute evidence establishes incremental predictive/explanatory value.
+### Current recommendation
 
-`COST_VALUE_DECISION = PASS_FOR_TERMS_GATE_ONLY`
+**Do not acquire paid TWN/NQ historical data now.**
 
-## 10. Astra adversarial review contract
-
-Astra, if used, must review this decision packet as an independent adversarial auditor.
-
-It must **not** redesign project governance, invent a new data architecture, or expand the first protocol.
-
-It should attack only:
-
-1. whether TWN 1-minute is truly sufficient for the stated hypothesis;
-2. whether NQ is being deferred correctly;
-3. hidden licensing / retention / point-in-time risks;
-4. vendor lock-in / correction risks;
-5. whether the spend threshold is justified;
-6. whether any cheaper lawful source makes Portara unnecessary;
-7. whether the first study can be run without purchase at all.
-
-Allowed findings:
-
-- BLOCKING
-- SIGNIFICANT
-- NON_BLOCKING
-
-Current status:
-
-`ASTRA_ADVERSARIAL_REVIEW = NOT_RUN`
-
-## 11. Owner decision packet
-
-### Recommended next action
-
-Authorize **vendor contact only** for Portara/CQG TWN 1-minute written terms and exact quote.
-
-### Do not authorize yet
-
-- payment;
-- data purchase;
-- account entitlement;
-- paid download;
-- import;
-- collector/runtime work.
+Continue with a free-first evidence search and only use sources that preserve project truth boundaries.
 
 ### Current gate state
 
-`TWN_ACQUISITION_RECOMMENDATION = PASS`
+`TWN_ACQUISITION_RECOMMENDATION = DEFER_PAID_FREE_FIRST`
 
 `NQ_FIRST_PROTOCOL_NECESSITY = DEFER`
 
-`MINIMUM_SUFFICIENT_PACKAGE = PASS_TWN_1M_ONLY`
+`MINIMUM_SUFFICIENT_PACKAGE = TWN_ACTUAL_CONTRACT_1M_IF_FREE_GOVERNED_SOURCE_FOUND`
+
+`FREE_GOVERNED_TWN_MULTIYEAR_1M = NOT_VERIFIED`
 
 `LICENSE_GAP_LIST = PASS`
 
-`COST_VALUE_DECISION = PASS_FOR_TERMS_GATE_ONLY`
+`COST_VALUE_DECISION = DEFER_PAID_FREE_FIRST`
 
-`ASTRA_ADVERSARIAL_REVIEW = NOT_RUN`
+`ASTRA_ADVERSARIAL_REVIEW = NOT_RUN_NOT_NEEDED_AT_CURRENT_GATE`
 
-`OWNER_VENDOR_CONTACT_DECISION = PENDING`
+`OWNER_VENDOR_CONTACT_DECISION = DO_NOT_CONTACT_PAID_VENDOR_NOW`
 
-`OWNER_SPEND_DECISION = NOT_READY`
+`OWNER_SPEND_DECISION = DEFER`
 
-## 12. Public source references
+## 11. Next research gate
 
-- Portara TWN historical data: https://portaracqg.com/futures/int/twn
-- Portara pricing: https://portaracqg.com/pricing/
-- Portara NQ history: https://portaracqg.com/futures/tto/enq
-- Barchart historical download documentation: https://help.barchart.com/support/solutions/articles/242748-how-can-i-download-historical-data-
-- Barchart terms: https://www.barchart.com/terms
-- CME DataMine licensing: https://www.cmegroup.com/market-data/license-data.html
-- CME historical/non-display licensing FAQ: https://www.cmegroup.com/market-data/distributor/files/cme-group-data-licensing-policy-guidelines-and-non-display-licensing-faq.pdf
+The next bounded work should be **Free Cross-Market Data Feasibility**, not paid acquisition.
+
+Completion question:
+
+> Can we obtain lawful, canonical, reproducible TWN intraday evidence at zero incremental cost, or must the 1-minute historical hypothesis remain deferred?
+
+Possible valid outcomes:
+
+- `FREE_TWN_1M = PASS`
+- `FREE_TWN_1M = EXPLORATORY_ONLY`
+- `FREE_TWN_1M = NOT_AVAILABLE / NOT_VERIFIED`
+
+Any of these is acceptable if truthfully evidenced.
+
+## 12. Public references checked
+
+- SGX FTSE Taiwan Index Futures product / delayed market information: https://www.sgx.com/derivatives/products/twnfc
+- SGX delayed futures prices: https://www.sgx.com/derivatives/delayed-prices-futures
+- Investing.com SGX FTSE Taiwan Futures historical page: https://www.investing.com/indices/sgx-ftse-taiwan-futures-historical-data
+- Barchart TWN historical-download capability: https://www.barchart.com/futures/quotes/T1X26/historical-download
+- Portara TWN historical catalog (paid, deferred): https://portaracqg.com/futures/int/twn
