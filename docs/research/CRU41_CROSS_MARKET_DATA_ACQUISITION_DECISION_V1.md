@@ -10,19 +10,23 @@
 
 Owner direction on 2026-09-06:
 
-> Prefer free resources first. Paid historical market data is currently too expensive and is not under consideration.
+> Prefer free resources first. Paid historical market data is **not rejected in principle**; it should be purchased only when the project can show that the paid data is necessary or provides enough incremental research/product value to justify the cost. At the current stage, the known paid TWN options are not yet justified.
 
-This changes the acquisition decision from a vendor-quote gate to a **free-first / paid-deferred** policy.
+This changes the acquisition decision from an immediate vendor-quote gate to a **free-first / paid-conditional** policy.
 
 Current governing states:
 
-`PAID_HISTORICAL_DATA = DEFER_BY_OWNER`
-
-`VENDOR_CONTACT = NOT_AUTHORIZED`
-
-`OWNER_SPEND_DECISION = DEFER`
+`PAID_HISTORICAL_DATA = CONDITIONAL_FUTURE_OPTION`
 
 `FREE_FIRST = REQUIRED`
+
+`VENDOR_CONTACT = NOT_AUTHORIZED_AT_CURRENT_GATE`
+
+`OWNER_SPEND_DECISION = DEFER_PENDING_VALUE_JUSTIFICATION`
+
+`MAX_CURRENT_INCREMENTAL_DATA_SPEND = 0`
+
+The zero-spend state is a **current-gate limit**, not a permanent budget rule.
 
 ## 2. First governed hypothesis
 
@@ -61,7 +65,9 @@ This does **not** mean the data does not exist somewhere for free. It means no s
 
 ## 4. Paid-source disposition
 
-The following remain technically viable but are now deferred by Owner policy:
+Paid sources remain technically viable **future options**, but are deferred at the current stage because their incremental value has not yet been demonstrated relative to free/owned alternatives.
+
+Candidates retained for future reconsideration:
 
 - Portara/CQG TWN 1m;
 - Tick Data TWN trades / quotes;
@@ -70,13 +76,22 @@ The following remain technically viable but are now deferred by Owner policy:
 - paid SOX intraday GIDS;
 - paid USD/TWD intraday feeds.
 
-No quote request is needed now.
+Current state:
 
-`PORTARA_TWN = DEFER_PAID`
+`PORTARA_TWN = DEFER_PENDING_VALUE_JUSTIFICATION`
 
-`TICKDATA_TWN = DEFER_PAID`
+`TICKDATA_TWN = DEFER_PENDING_VALUE_JUSTIFICATION`
 
-`BARCHART_PREMIER = DEFER_PAID`
+`BARCHART_PREMIER = DEFER_PENDING_VALUE_JUSTIFICATION`
+
+A paid-source gate may be reopened only when at least one of the following is true:
+
+1. no lawful free/owned source can answer a high-value governed hypothesis;
+2. a free source exists but fails a material truth requirement that the paid source resolves;
+3. the expected research/product value of the paid dataset is high enough to justify its full cost, license and integration burden;
+4. a downstream validated research result specifically requires higher fidelity such as Tick/L1/BBO/Depth.
+
+Until then, no quote request is needed.
 
 ## 5. NQ decision
 
@@ -87,7 +102,7 @@ Reasons:
 1. The first hypothesis is specifically TWN -> TX.
 2. Buying or adding NQ increases scope before TWN incremental value is established.
 3. Existing free/daily global context can remain a control layer during early exploratory work.
-4. If TWN-only evidence later survives, intraday NQ can be reconsidered using free sources first.
+4. If TWN-only evidence later survives, intraday NQ can be reconsidered using free sources first, then paid sources if the added control value is justified.
 
 `NQ_FIRST_PROTOCOL_NECESSITY = DEFER`
 
@@ -127,7 +142,8 @@ Instead choose between:
 
 - **DEFER the TWN historical falsification** while retaining the hypothesis;
 - **ACCUMULATE forward TWN evidence later** only if an already-owned / no-incremental-cost lawful feed becomes available;
-- use official daily TWN context for lower-granularity research questions that do not pretend to answer the 14:00–15:00 intraday hypothesis.
+- use official daily TWN context for lower-granularity research questions that do not pretend to answer the 14:00–15:00 intraday hypothesis;
+- **REOPEN PAID ACQUISITION** only when the expected incremental value of TWN 1m is high enough to justify the price and licensing burden.
 
 Historical absence must never be replaced with synthetic certainty.
 
@@ -135,24 +151,27 @@ Historical absence must never be replaced with synthetic certainty.
 
 - Do not scrape SGX merely because the webpage is public.
 - Do not relabel Investing.com CFD/derived data as canonical TWN.
-- Do not buy Portara, Barchart, Tick Data, CME DataMine or GIDS under CRU-41.
+- Do not buy Portara, Barchart, Tick Data, CME DataMine or GIDS under the current CRU-41 gate.
+- Do not interpret that deferral as a permanent ban on paid data.
 - Do not substitute daily data for the intraday TWN->TX hypothesis.
 - Do not infer missing intraday history from settlement data.
 - Do not create a new collector unless a separate Owner gate authorizes it.
 
 ## 8. Cost-value decision
 
-Owner policy dominates the previous public-price analysis.
+Free-first is the current default because the project has not yet demonstrated that paid TWN history produces enough incremental value to justify acquisition.
 
-The prior Portara public range around USD 220–330 per commodity remains useful only as future reference. It is **not** a current spend target.
+The prior Portara public range around USD 220–330 per commodity remains useful as future reference. It is **not** a current spend target and is **not** considered permanently unacceptable.
 
 Current state:
 
-`COST_VALUE_DECISION = DEFER_PAID_FREE_FIRST`
+`COST_VALUE_DECISION = DEFER_UNTIL_INCREMENTAL_VALUE_JUSTIFIED`
 
 `MAX_CURRENT_INCREMENTAL_DATA_SPEND = 0`
 
-This is a project-stage preference, not a permanent lifetime ban on paid data.
+Future decision rule:
+
+> Pay only when the expected incremental research/product value is materially greater than the full acquisition, licensing, integration and maintenance cost, and when a free/owned substitute cannot answer the governed question with adequate truth.
 
 ## 9. Astra review decision
 
@@ -161,7 +180,7 @@ Astra is **not needed now** for vendor selection because no paid vendor selectio
 Its higher-value future use would be either:
 
 - after a genuinely free TWN source is found and needs adversarial semantic review; or
-- if Owner later reopens a paid acquisition decision with exact terms/cost.
+- when a paid acquisition gate is reopened with a concrete research-value case plus exact terms/cost.
 
 `ASTRA_ADVERSARIAL_REVIEW = NOT_RUN_NOT_NEEDED_AT_CURRENT_GATE`
 
@@ -169,37 +188,37 @@ Its higher-value future use would be either:
 
 ### Current recommendation
 
-**Do not acquire paid TWN/NQ historical data now.**
+**Use free resources first and do not acquire paid TWN/NQ historical data at the current stage.**
 
-Continue with a free-first evidence search and only use sources that preserve project truth boundaries.
+Paid data remains a valid future option if it becomes necessary or can demonstrate enough incremental value.
 
 ### Current gate state
 
-`TWN_ACQUISITION_RECOMMENDATION = DEFER_PAID_FREE_FIRST`
+`TWN_ACQUISITION_RECOMMENDATION = DEFER_CURRENT_PAID_FREE_FIRST`
 
 `NQ_FIRST_PROTOCOL_NECESSITY = DEFER`
 
-`MINIMUM_SUFFICIENT_PACKAGE = TWN_ACTUAL_CONTRACT_1M_IF_FREE_GOVERNED_SOURCE_FOUND`
+`MINIMUM_SUFFICIENT_PACKAGE = TWN_ACTUAL_CONTRACT_1M_IF_GOVERNED_SOURCE_FOUND`
 
 `FREE_GOVERNED_TWN_MULTIYEAR_1M = NOT_VERIFIED`
 
 `LICENSE_GAP_LIST = PASS`
 
-`COST_VALUE_DECISION = DEFER_PAID_FREE_FIRST`
+`COST_VALUE_DECISION = DEFER_UNTIL_INCREMENTAL_VALUE_JUSTIFIED`
 
 `ASTRA_ADVERSARIAL_REVIEW = NOT_RUN_NOT_NEEDED_AT_CURRENT_GATE`
 
 `OWNER_VENDOR_CONTACT_DECISION = DO_NOT_CONTACT_PAID_VENDOR_NOW`
 
-`OWNER_SPEND_DECISION = DEFER`
+`OWNER_SPEND_DECISION = DEFER_PENDING_VALUE_JUSTIFICATION`
 
 ## 11. Next research gate
 
-The next bounded work should be **Free Cross-Market Data Feasibility**, not paid acquisition.
+The next bounded work should be **Free Cross-Market Data Feasibility**, not a paid quotation exercise.
 
 Completion question:
 
-> Can we obtain lawful, canonical, reproducible TWN intraday evidence at zero incremental cost, or must the 1-minute historical hypothesis remain deferred?
+> Can we obtain lawful, canonical, reproducible TWN intraday evidence at zero incremental cost, or must the 1-minute historical hypothesis remain deferred / later reopen a paid acquisition gate?
 
 Possible valid outcomes:
 
@@ -209,10 +228,12 @@ Possible valid outcomes:
 
 Any of these is acceptable if truthfully evidenced.
 
+A `NOT_AVAILABLE / NOT_VERIFIED` result does not automatically authorize purchase. It only creates the evidence needed to decide whether the research value is high enough to justify reopening paid acquisition.
+
 ## 12. Public references checked
 
 - SGX FTSE Taiwan Index Futures product / delayed market information: https://www.sgx.com/derivatives/products/twnfc
 - SGX delayed futures prices: https://www.sgx.com/derivatives/delayed-prices-futures
 - Investing.com SGX FTSE Taiwan Futures historical page: https://www.investing.com/indices/sgx-ftse-taiwan-futures-historical-data
 - Barchart TWN historical-download capability: https://www.barchart.com/futures/quotes/T1X26/historical-download
-- Portara TWN historical catalog (paid, deferred): https://portaracqg.com/futures/int/twn
+- Portara TWN historical catalog (paid, future conditional option): https://portaracqg.com/futures/int/twn
