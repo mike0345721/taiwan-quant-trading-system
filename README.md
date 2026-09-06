@@ -1,53 +1,173 @@
-# 台股籌碼面板 V1（安全獨立版）
+# 台股／台指市場情報與量化交易系統
 
-這是從 CubeLV 原型分離出的第一個正式版本。它刻意只做一件事：
+> Taiwan Market Intelligence & Quantitative Trading System
 
-> **安全地整理台股、台指期與選擇權籌碼資料，形成可追蹤的研究面板。**
+本專案以台指期／台指選擇權為核心，建立一套 **Data Truth → Market Intelligence → Forward Validation → Validated Strategy → Risk-first Operations** 的本機量化研究與決策系統。
 
-V1 **不連接券商、不提供下單、不保存券商憑證**。
+它已不只是「籌碼指標面板」。現在的核心問題是：
 
-## Windows 新手快速啟動
+> **市場上有哪些部位與壓力？實際價格如何回應？跨市場是否確認？這些狀態未來結果如何？哪些證據真正值得進入策略與風控？**
 
-1. 安裝 Node.js 20 以上 LTS。
-2. 雙擊 `1_SETUP.bat` 設定登入密碼。
-3. 雙擊 `OPEN_DASHBOARD.bat`，它會在需要時背景啟動服務並開啟瀏覽器。
-4. 瀏覽器開啟 `http://127.0.0.1:8787`，輸入剛設定的密碼。
+## 核心責任鏈
 
-若希望之後只開桌面捷徑或瀏覽器書籤：
+```text
+Data / Reference / Truth
+        ↓
+Position
+        ↓
+Pressure
+        ↓
+Expected vs Actual Response
+        ↓
+Cross-Market
+        ↓
+Path Efficiency
+        ↓
+Market Control
+        ↓
+Market State
+        ↓
+Decision / Strategy Candidate
+        ↓
+Risk
+        ↓
+Paper / Future Execution
+        ↓
+Outcome / Reconciliation / Failure Evidence
+        ↓
+Research
+```
 
-1. 雙擊一次 `10_INSTALL_AUTO_START.bat`。
-2. Windows登入後會自動啟動本機面板。
-3. 週一至週五08:30自動補齊前一交易日官方資料。
-4. 桌面會出現 `Taiwan Stock Dashboard` 一鍵捷徑。
-5. 如需取消，雙擊 `11_REMOVE_AUTO_START.bat`。
+## 核心原則
 
-`2_START.bat`仍保留作為顯示啟動錯誤的故障排除工具。
+- **Truth 不能打折；Intelligence 可以漸進成熟。**
+  - Identity、Contract、Timestamp、`availableAt`、Missing、Source、Replay、Lineage 必須 fail-closed。
+  - Market Control、Market State、Confidence 等解讀能力可以逐步成熟，但不能假裝已驗證。
+- **活著 > 勝率 > 報酬率。** Risk 最終應擁有交易否決權。
+- **Historical-first acquisition。** 先查官方、Vendor、Existing Data 是否已足以回測；只有必要缺口才 Forward Collect。
+- **No Fake Intelligence。** 有資料 ≠ 可正式研究；有模型 ≠ 有 Edge；有 UI ≠ 有正式交易能力。
+- **No persisted evidence = NOT_VERIFIED。** 未持久化的本機結果不能升格成正式專案事實。
 
-也可閱讀 `0_READ_ME_FIRST.txt`。
+## Data Acquisition & Evidence
 
-## 已完成
+Data 部門不是「什麼都自己收」。正式取得策略分成：
 
-- 私人登入與登入嘗試限制
-- `scrypt` 密碼雜湊
-- HttpOnly／SameSite Session Cookie
-- CSRF 防護
-- 前端零秘密
-- 所有市場資料由後端統一抓取
-- 固定上游來源白名單與請求逾時
-- TWSE 三大法人，並拆開自營商自行與避險
-- TAIFEX 期貨行情、法人部位與大額交易人
-- TXO 依到期契約分組，不混加週選與月選
-- OI Put／Call Ratio、Call／Put OI 牆與 Max Pain
-- 上市／上櫃市場寬度
-- 融資融券、美元／台幣與 VIX
-- 每一來源的資料日期、抓取時間、失敗與舊快取狀態
-- 透明籌碼分數與「等待／觀察觸發」狀態
-- 本機 JSON 快取與最多 400 日歷史檔案
-- Docker 安全預設與秘密掃描腳本
+```text
+Official Download
+Historical Vendor
+Existing Data
+Forward Capture
+Derived
+Own Record
+        ↓
+Canonicalization
+        ↓
+Quality / Lineage
+        ↓
+Replay
+```
 
-## 本機啟動
+全專案 Dataset requirement 的 canonical registry：
 
-需要 Node.js 20 以上。
+- `config/data-requirements-v1.json`
+- `docs/data/MASTER_DATA_REQUIREMENTS_V1.md`
+
+新增資料需求必須先進 Master Data Requirements，不得由各 Research / Collector 自行重複定義。
+
+## 目前產品階段
+
+### CURRENT Product lane
+
+**CRU-5 P0 Forward Paper Validation**。
+
+目前主要 blocker：**CRU-9 fresh eligible real-trading-day acceptance**。通過後才進入：
+
+```text
+CRU-10 P0 5-Day Smoke
+        ↓
+CRU-11 P0 20-Day Operational Gate
+```
+
+### Isolated Research lane
+
+**CRU-38 Cross-Market Source Readiness V1**。
+
+目前採 Historical-first，依 Master Dataset IDs 評估 TWN / NQ / SOX / USD-TWD 的歷史資料、授權、粒度、成本與 Forward necessity。
+
+### 已完成的重要 foundation
+
+- CRU-34：TX Intraday Pressure / Price Response / Path Efficiency Research Engine V1
+- CRU-35：Observed Flow Evidence UI Preview V1
+- CRU-36：Historical immutable CRU-34 materialization + bounded adapter
+- CRU-37：Cross-Market Data Foundation V1
+- CRU-39：Master Data Requirements V1
+
+## 目前仍沒有
+
+- 已 Promotion、可正式上線的穩健交易策略。
+- 完整 Risk Engine V1。
+- Broker Live Order Route。
+- 已授權自動下單。
+- 可被宣稱為真實 Dealer Position / Dealer Cost 的資料。
+
+安全狀態維持：
+
+```text
+formalWeight=0        # 對未 Promotion 的研究能力
+researchOnly=true
+executionAuthorized=false
+orderRoutesEnabled=false
+```
+
+## 系統能力概覽
+
+目前專案包含：
+
+- 本機 Node.js Dashboard / API。
+- Login / Session / CSRF / security headers / secrets scan。
+- TWSE / TPEx / TAIFEX 官方資料與研究資料層。
+- Shioaji market-data-only bridge 與 append-only live event evidence。
+- TX / TXO / TAIEX / institutional / OI / breadth / IV / Greeks research foundations。
+- Deterministic replay、Walk-Forward、Holdout、Stress、MAE/MFE、Outcome research tooling。
+- Pressure / Response / Path Efficiency descriptive evidence。
+- Paper Trading / Forward Observer operational foundation。
+- Cross-Market TWN / NQ / SOX / USD-TWD semantics and source-readiness research。
+- Dashboard Decision Workspace / Observed Flow evidence surfaces。
+
+## Source of Truth
+
+- **Notion**：產品願景、Owner Decision、架構、研究結論。
+- **Linear**：唯一 CURRENT / NEXT、Work Package、Bug、Blocker、Acceptance State。
+- **GitHub `main`**：Owner-approved code、tests、config、migration、manifest、registry、spec 與實作。
+- **Immutable Manifest / Ledger / Frozen Artifact**：研究與執行證據。
+- **Local Runtime / Preservation Evidence**：本機 operational truth。
+
+GitHub 的 roadmap / status 文件只是 snapshot，不得覆蓋 Linear CURRENT 或 immutable evidence。
+
+## 新工作如何開始
+
+一般維護／開發先讀最小集合：
+
+1. [`AGENTS.md`](AGENTS.md)
+2. [`CURRENT_STATUS.md`](CURRENT_STATUS.md)
+3. [`docs/product/PROJECT_NARRATIVE_V1.md`](docs/product/PROJECT_NARRATIVE_V1.md)
+4. 與該工作相關的 Linear Issue / Master Dataset IDs
+
+再依任務選讀專項規格。
+
+長期願景與歷史設計背景仍可參考 [`PROJECT_VISION.md`](PROJECT_VISION.md)；它不是 CURRENT 授權來源。
+
+## Windows 本機啟動
+
+需要 Node.js 20 以上 LTS。
+
+快速方式：
+
+1. `1_SETUP.bat`：初始化登入密碼。
+2. `OPEN_DASHBOARD.bat`：啟動服務並開啟瀏覽器。
+3. 預設網址：`http://127.0.0.1:8787`
+
+也可手動：
 
 ```bash
 cd standalone-v1
@@ -55,36 +175,11 @@ cp .env.example .env
 npm run password:hash -- "請換成至少12字元的高強度密碼"
 ```
 
-將輸出的完整字串放到 `.env`：
-
-```dotenv
-DASHBOARD_PASSWORD_HASH=scrypt-v1$...
-COOKIE_SECURE=0
-MOCK_DATA=1
-```
-
-載入環境變數並啟動：
+將輸出的 hash 放入 `.env`，再啟動：
 
 ```bash
-set -a
-source .env
-set +a
 npm start
 ```
-
-瀏覽：`http://127.0.0.1:8787`
-
-初次測試建議 `MOCK_DATA=1`；確認介面與登入正常後，再改成 `MOCK_DATA=0` 讀取正式來源。
-
-## Docker 啟動
-
-```bash
-cp .env.example .env
-# 設定 DASHBOARD_PASSWORD_HASH，並保留 COOKIE_SECURE=1 給 HTTPS 正式環境
-docker compose up -d --build
-```
-
-Compose 只綁定 `127.0.0.1:8787`。正式遠端使用應透過 HTTPS 反向代理、Tailscale 或 VPN，不要直接暴露連接埠。
 
 ## 驗證
 
@@ -95,20 +190,10 @@ npm run security:scan
 
 ## 重要限制
 
-- V1 的籌碼分數是透明規則，不是已證明有正期望值的策略。
-- 官方資料發布時間不同，假日或尚未公布時會顯示最近資料並標記為舊資料。
-- Yahoo 資料適合作為面板背景資訊；正式量化與實單階段應評估授權行情來源。
-- V1 使用 JSON 快取；V2目前使用本機SQLite研究資料庫與不可覆寫的原始快照。只有在資料頻率、規模或部署需求明顯增加時，才依正式決策重新評估PostgreSQL。
+- 公開 OI 無法辨識真正 Dealer 的持有人與買賣方向。
+- GEX / DEX / Gamma Wall / Dealer Position 類能力若缺乏可驗證資料，只能標為模型推估或情境研究。
+- Missing / Unknown 不得轉成 0 或 Neutral。
+- 歷史資料可以補市場路徑，但不能補「系統當時真的知道什麼」。
+- 未經 Product Owner 明確批准，不得建立或啟用 Broker Live Order Route。
 
-詳見 [`SECURITY.md`](SECURITY.md) 與 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
-
-## 專案交接與進度
-
-Codex或開發者開始一般維護時，只讀最小集合：
-
-1. [`AGENTS.md`](AGENTS.md)
-2. [`ROADMAP.md`](ROADMAP.md)
-3. [`CURRENT_STATUS.md`](CURRENT_STATUS.md)
-4. [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)
-
-再依任務選讀專項規格。`NEXT_TASKS.md`只作歷史索引；`DECISIONS.md`與`CHANGELOG.md`應依主題搜尋，不應在一般任務中全文載入。欄位定義見[`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)，驗收規則見[`VALIDATION_CHECKLIST.md`](VALIDATION_CHECKLIST.md)，詳細路由見[`docs/WORKFLOW.md`](docs/WORKFLOW.md)。
+詳細治理見 [`AGENTS.md`](AGENTS.md)；欄位與 Dataset 定義見 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) 與 [`docs/data/MASTER_DATA_REQUIREMENTS_V1.md`](docs/data/MASTER_DATA_REQUIREMENTS_V1.md)。
