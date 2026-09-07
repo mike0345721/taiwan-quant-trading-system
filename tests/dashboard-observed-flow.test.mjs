@@ -78,11 +78,13 @@ function governedReadResult(truthState = 'HISTORICAL') {
   };
 }
 
-test('quality-insufficient historical evidence keeps lawful descriptive 60s and 300s values', () => {
+test('quality-insufficient historical evidence keeps lawful descriptive 1分 and 5分 values', () => {
   const contract = buildDashboardObservedFlow(governedReadResult());
   assert.equal(contract.sourceState, 'HISTORICAL');
   assert.equal(contract.researchQuality.status, 'QUALITY_INSUFFICIENT');
   assert.deepEqual(contract.researchQuality.reasons, ['PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE']);
+  assert.equal(contract.windows.primary60s.label, '1分');
+  assert.equal(contract.windows.context300s.label, '5分');
   assert.equal(contract.windows.primary60s.pressure.pressureRatio, 0.1888111888111888);
   assert.equal(contract.windows.primary60s.pressure.classifiedCoverage, 0.9794520547945206);
   assert.equal(contract.windows.primary60s.response.displacementPoints, 22);
