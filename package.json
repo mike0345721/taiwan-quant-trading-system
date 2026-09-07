@@ -18,6 +18,7 @@
     "test:lanes": "node scripts/run-test-lane.mjs list",
     "diagnostics": "node scripts/collect-development-diagnostics.mjs",
     "chart:runtime:audit": "node scripts/audit-dashboard-chart-runtime.mjs",
+    "chart:payload:audit": "node scripts/audit-tx-chart-payload.mjs",
     "rvol:baseline:audit": "node scripts/audit-tx-rvol-baseline-readiness.mjs",
     "password:hash": "node scripts/hash-password.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
