@@ -219,32 +219,32 @@
 
               <section class="dw-card dw-observed-flow" data-terminal-card="observed-flow" aria-labelledby="dw-observed-flow-title">
                 <div class="dw-section-heading compact">
-                  <div><p class="eyebrow">OBSERVED FLOW · RESEARCH</p><h3 id="dw-observed-flow-title">Observed Flow</h3></div>
+                  <div><p class="eyebrow">OBSERVED FLOW · RESEARCH</p><h3 id="dw-observed-flow-title">台指期盤中力道</h3></div>
                   <span id="dw-observed-flow-state" class="dw-status-pill is-unavailable">LOADING</span>
                 </div>
-                <p class="dw-observed-flow-boundary">描述性已執行流量證據 · NOT A TRADING SIGNAL</p>
+                <p class="dw-observed-flow-boundary">成交力道 → 價格反應 → 路徑效率 · 僅描述觀察事實，非交易訊號</p>
                 <p id="dw-observed-flow-truth" class="dw-observed-flow-truth is-unavailable" role="status">
-                  <strong>LOADING</strong><span>等待 bounded historical snapshot</span>
+                  <strong>載入中</strong><span>等待受治理的即時或歷史資料</span>
                 </p>
                 <div class="dw-observed-flow-chain" role="table" aria-label="60 秒與 300 秒 Observed Flow 比較">
                   <div class="dw-observed-flow-chain-head" role="row">
                     <span role="columnheader">視窗</span>
-                    <span role="columnheader"><strong>Pressure ratio</strong><small>−1 ← 0 → +1</small></span>
-                    <span role="columnheader"><strong>Δ Price</strong><small>window displacement</small></span>
-                    <span role="columnheader"><strong>Path efficiency</strong><small>0 winding · 1 direct</small></span>
+                    <span role="columnheader"><strong>成交力道</strong><small>偏賣方 −1 ← 0 → +1 偏買方</small></span>
+                    <span role="columnheader"><strong>價格反應</strong><small>觀察窗位移 · window displacement</small></span>
+                    <span role="columnheader"><strong>路徑效率</strong><small>0 來回較多 · 1 接近單向 · 0 winding · 1 direct</small></span>
                   </div>
                   <div class="dw-observed-flow-chain-row" role="row">
-                    <strong role="rowheader">60s</strong><b id="dw-observed-flow-pressure-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-response-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-path-60" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b>
+                    <strong role="rowheader">60 秒</strong><span class="dw-pressure-cell" role="cell"><b id="dw-observed-flow-pressure-60">UNAVAILABLE · DASHBOARD_LOADING</b><span class="dw-pressure-track" aria-hidden="true"><i id="dw-observed-flow-pressure-marker-60"></i></span><small id="dw-observed-flow-pressure-side-60">不可判定</small></span><span class="dw-response-cell" role="cell"><b id="dw-observed-flow-response-60">UNAVAILABLE · DASHBOARD_LOADING</b><small id="dw-observed-flow-relation-60">不可判定</small></span><b id="dw-observed-flow-path-60" role="cell" title="越接近 1 路徑越接近單向；越接近 0 來回較多；不代表趨勢強度或未來方向。">UNAVAILABLE · DASHBOARD_LOADING</b>
                   </div>
                   <div class="dw-observed-flow-chain-row" role="row">
-                    <strong role="rowheader">300s</strong><b id="dw-observed-flow-pressure-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-response-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b><b id="dw-observed-flow-path-300" role="cell">UNAVAILABLE · DASHBOARD_LOADING</b>
+                    <strong role="rowheader">300 秒</strong><span class="dw-pressure-cell" role="cell"><b id="dw-observed-flow-pressure-300">UNAVAILABLE · DASHBOARD_LOADING</b><span class="dw-pressure-track" aria-hidden="true"><i id="dw-observed-flow-pressure-marker-300"></i></span><small id="dw-observed-flow-pressure-side-300">不可判定</small></span><span class="dw-response-cell" role="cell"><b id="dw-observed-flow-response-300">UNAVAILABLE · DASHBOARD_LOADING</b><small id="dw-observed-flow-relation-300">不可判定</small></span><b id="dw-observed-flow-path-300" role="cell" title="越接近 1 路徑越接近單向；越接近 0 來回較多；不代表趨勢強度或未來方向。">UNAVAILABLE · DASHBOARD_LOADING</b>
                   </div>
                 </div>
                 <div class="dw-observed-flow-trust" aria-live="polite">
-                  <span>Classified Coverage <strong id="dw-observed-flow-coverage">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
-                  <span>Evidence Quality <strong id="dw-observed-flow-quality">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
-                  <span>Source <strong id="dw-observed-flow-source">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
-                  <span>Formal Direction <strong id="dw-observed-flow-promotion">NOT PROMOTED</strong></span>
+                  <span>可判定成交占比 <strong id="dw-observed-flow-coverage">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>資料品質 <strong id="dw-observed-flow-quality">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>資料來源 <strong id="dw-observed-flow-source">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
+                  <span>正式驗證狀態 <strong id="dw-observed-flow-promotion">尚未通過正式方向驗證</strong></span>
                 </div>
                 <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="Observed Flow Evidence">查看證據 &gt;</button>
                 <div id="dw-observed-flow-detail" class="dw-observed-flow-detail tt-detail-only" aria-label="Observed Flow 技術證據"></div>

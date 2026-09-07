@@ -1,4 +1,7 @@
+import fs from 'node:fs';
 import { readCru34SnapshotArtifact } from './cru34-snapshot-artifact.mjs';
+import { cru34LiveHash } from './cru34-live-checkpoint.mjs';
+import { CRU34_LIVE_SNAPSHOT_VERSION } from './cru34-live-projection-worker.mjs';
 
 export const DASHBOARD_OBSERVED_FLOW_SCHEMA_VERSION = 'dashboard-observed-flow-v1';
 
@@ -100,8 +103,13 @@ export function buildDashboardObservedFlow(readResult) {
     return unavailable(readResult?.unavailableReason || 'ARTIFACT_MISSING');
   }
   const snapshot = readResult.snapshot;
-  if (!['HISTORICAL', 'STALE'].includes(readResult.truthState)
-      || snapshot.sourceMode !== 'HISTORICAL') {
+  const historical = ['HISTORICAL', 'STALE'].includes(readResult.truthState)
+    && snapshot.sourceMode === 'HISTORICAL';
+  const live = ['LIVE', 'WARMING_UP', 'STALE'].includes(readResult.truthState)
+    && snapshot.sourceMode === 'LIVE'
+    && typeof readResult.operational?.checkpointIdentity === 'string'
+    && typeof readResult.operational?.validUntil === 'string';
+  if (!historical && !live) {
     return unavailable('SOURCE_MODE_NOT_AUTHORIZED');
   }
   return freeze({
@@ -114,6 +122,8 @@ export function buildDashboardObservedFlow(readResult) {
       tradeDate: snapshot.tradeDate,
       availableAt: snapshot.availableAt,
       materializedAt: snapshot.materializedAt,
+      observedAt: readResult.operational?.observedAt || null,
+      validUntil: readResult.operational?.validUntil || null,
     },
     identity: {
       instrument: snapshot.instrument,
@@ -142,16 +152,85 @@ export function buildDashboardObservedFlow(readResult) {
       sourceLedgerIdentity: snapshot.sourceLedgerIdentity,
     },
     artifact: {
-      artifactIdentity: snapshot.artifactIdentity,
-      semanticContentHash: snapshot.semanticContentHash,
-      artifactHash: snapshot.artifactHash,
+      artifactIdentity: snapshot.artifactIdentity || null,
+      semanticContentHash: snapshot.semanticContentHash || readResult.operational?.semanticContentHash || null,
+      artifactHash: snapshot.artifactHash || null,
     },
+    operational: readResult.operational || null,
     methodology: snapshot.methodology,
     limitations: snapshot.limitations || [],
     ...safetyBoundary(),
   });
 }
 
-export function loadDashboardObservedFlow({ artifactPath = null, freshnessCutoff = null } = {}) {
+function readJson(filePath, maxBytes = 4 * 1024 * 1024) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile() || stat.size <= 0 || stat.size > maxBytes) throw new Error('LIVE_SNAPSHOT_SIZE_INVALID');
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+export function readCru34LiveSnapshot({ snapshotPath, statusPath = null, now = new Date() } = {}) {
+  try {
+    const snapshot = readJson(snapshotPath);
+    if (!snapshot) return { truthState: 'UNAVAILABLE', unavailableReason: 'LIVE_SNAPSHOT_MISSING', snapshot: null };
+    const { snapshotHash, ...body } = snapshot;
+    const observedMs = Date.parse(snapshot.observedAt);
+    const validUntilMs = Date.parse(snapshot.validUntil);
+    const availableMs = Date.parse(snapshot.semanticPayload?.availableAt);
+    if (snapshot.schemaVersion !== CRU34_LIVE_SNAPSHOT_VERSION
+        || cru34LiveHash(body) !== snapshotHash
+        || cru34LiveHash(snapshot.semanticPayload) !== snapshot.semanticContentHash
+        || snapshot.semanticPayload?.sourceMode !== 'LIVE'
+        || !['LIVE', 'WARMING_UP', 'STALE'].includes(snapshot.truthState)
+        || !Number.isFinite(observedMs) || !Number.isFinite(validUntilMs) || !Number.isFinite(availableMs)
+        || validUntilMs < availableMs
+        || !/^[a-f0-9]{64}$/.test(snapshot.checkpointIdentity || '')
+        || snapshot.formalWeight !== 0 || snapshot.researchOnly !== true
+        || snapshot.executionAuthorized !== false || snapshot.orderRoutesEnabled !== false) {
+      return { truthState: 'UNAVAILABLE', unavailableReason: 'LIVE_SNAPSHOT_INVALID', snapshot: null };
+    }
+    const workerStatus = readJson(statusPath, 64 * 1024);
+    if (workerStatus?.status === 'UNAVAILABLE'
+        && Date.parse(workerStatus.observedAt) >= Date.parse(snapshot.observedAt)) {
+      return { truthState: 'UNAVAILABLE', unavailableReason: workerStatus.reason || 'LIVE_WORKER_UNAVAILABLE', snapshot: null };
+    }
+    const expired = now.getTime() > validUntilMs;
+    return {
+      truthState: expired ? 'STALE' : snapshot.truthState,
+      unavailableReason: null,
+      snapshot: { ...snapshot.semanticPayload, semanticContentHash: snapshot.semanticContentHash },
+      operational: {
+        observedAt: snapshot.observedAt,
+        validUntil: snapshot.validUntil,
+        semanticContentHash: snapshot.semanticContentHash,
+        heartbeatAgeMs: Math.max(0, now.getTime() - availableMs),
+        staleAfterMs: snapshot.staleAfterMs,
+        lagBytes: snapshot.lagBytes,
+        checkpointIdentity: snapshot.checkpointIdentity,
+        checkpointOrdinal: snapshot.checkpointOrdinal,
+        checkpointRecordHash: snapshot.checkpointRecordHash,
+        warmup: snapshot.warmup,
+      },
+    };
+  } catch (error) {
+    return { truthState: 'UNAVAILABLE', unavailableReason: String(error?.message || 'LIVE_SNAPSHOT_UNREADABLE'), snapshot: null };
+  }
+}
+
+export function loadDashboardObservedFlow({
+  artifactPath = null,
+  freshnessCutoff = null,
+  liveSnapshotPath = null,
+  liveStatusPath = null,
+  now = new Date(),
+} = {}) {
+  if (liveSnapshotPath) {
+    return buildDashboardObservedFlow(readCru34LiveSnapshot({
+      snapshotPath: liveSnapshotPath,
+      statusPath: liveStatusPath,
+      now,
+    }));
+  }
   return buildDashboardObservedFlow(readCru34SnapshotArtifact({ artifactPath, freshnessCutoff }));
 }

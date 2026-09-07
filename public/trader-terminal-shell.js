@@ -468,7 +468,11 @@
       shell.hidden = true;
       shell.setAttribute('aria-hidden', 'true');
       root.classList.remove('is-drawer-open');
-      if (returnFocus?.isConnected) returnFocus.focus();
+      if (returnFocus?.isConnected) {
+        const sourceCard = returnFocus.closest('.dw-card');
+        returnFocus.focus({ preventScroll: true });
+        if (sourceCard) sourceCard.scrollTop = 0;
+      }
     };
     close.addEventListener('click', closeDrawer);
     scrim.addEventListener('click', closeDrawer);

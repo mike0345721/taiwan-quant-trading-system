@@ -86,23 +86,28 @@ function identityFor(record, eventTime, resolveSessionTradeDate) {
 export function materializeTxCanonicalObservations(records, {
   sourceLedgerIdentity,
   resolveSessionTradeDate = null,
+  ledgerOrdinalOffset = 0,
+  initialState = null,
 } = {}) {
   if (!Array.isArray(records)) throw new Error('CRU34_RECORDS_REQUIRED');
   const sourceIdentity = text(sourceLedgerIdentity);
   if (!sourceIdentity) throw new Error('CRU34_SOURCE_LEDGER_IDENTITY_REQUIRED');
 
+  if (!Number.isInteger(ledgerOrdinalOffset) || ledgerOrdinalOffset < 0) {
+    throw new Error('CRU34_LEDGER_ORDINAL_OFFSET_INVALID');
+  }
   const events = [];
-  let epoch = 1;
-  let breakPending = false;
-  let breakReason = 'LEDGER_PREFIX_START';
-  let seenTick = false;
-  let seenBidAsk = false;
-  let lastReceivedMs = null;
-  let epochLineageInvalid = false;
+  let epoch = Number.isInteger(initialState?.epoch) && initialState.epoch > 0 ? initialState.epoch : 1;
+  let breakPending = initialState?.breakPending === true;
+  let breakReason = text(initialState?.breakReason) || 'LEDGER_PREFIX_START';
+  let seenTick = initialState?.seenTick === true;
+  let seenBidAsk = initialState?.seenBidAsk === true;
+  let lastReceivedMs = Number.isFinite(initialState?.lastReceivedMs) ? initialState.lastReceivedMs : null;
+  let epochLineageInvalid = initialState?.epochLineageInvalid === true;
 
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
-    const ledgerOrdinal = index + 1;
+    const ledgerOrdinal = ledgerOrdinalOffset + index + 1;
 
     // Every physical record can influence observation order, wall-clock lineage, or continuity.
     // Enforce the research-only safety boundary before any such state mutation.
@@ -191,6 +196,10 @@ export function materializeTxCanonicalObservations(records, {
       payload,
       qualityReasons: Object.freeze([...new Set(qualityReasons)]),
       rawRecord: record,
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+      orderRoutesEnabled: false,
     }));
   }
 
@@ -198,6 +207,15 @@ export function materializeTxCanonicalObservations(records, {
     schemaVersion: 'cru34-canonical-observation-lineage-v1',
     sourceLedgerIdentity: sourceIdentity,
     events: Object.freeze(events),
+    terminalState: Object.freeze({
+      epoch,
+      breakPending,
+      breakReason,
+      seenTick,
+      seenBidAsk,
+      lastReceivedMs,
+      epochLineageInvalid,
+    }),
     formalWeight: 0,
     researchOnly: true,
     executionAuthorized: false,

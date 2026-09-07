@@ -73,6 +73,12 @@ const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
   : null;
 const cru34SnapshotFreshnessCutoff = process.env.CRU34_SNAPSHOT_FRESHNESS_CUTOFF || null;
+const cru34LiveSnapshotPath = process.env.CRU34_LIVE_SNAPSHOT_PATH
+  ? path.resolve(process.env.CRU34_LIVE_SNAPSHOT_PATH)
+  : null;
+const cru34LiveStatusPath = process.env.CRU34_LIVE_STATUS_PATH
+  ? path.resolve(process.env.CRU34_LIVE_STATUS_PATH)
+  : null;
 const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
@@ -115,6 +121,8 @@ async function decisionWorkspacePayload(snapshot, service) {
   const observedFlow = loadDashboardObservedFlow({
     artifactPath: cru34SnapshotArtifactPath,
     freshnessCutoff: cru34SnapshotFreshnessCutoff,
+    liveSnapshotPath: cru34LiveSnapshotPath,
+    liveStatusPath: cru34LiveStatusPath,
   });
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,

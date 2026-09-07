@@ -2801,7 +2801,7 @@ function renderObservedFlowDetail(flow) {
   target.replaceChildren(...nodes, methodology, limitations);
 }
 
-function renderObservedFlow(flow) {
+function renderObservedFlowLegacy(flow) {
   const value = flow || { sourceState: 'UNAVAILABLE', unavailableReason: 'ARTIFACT_MISSING', windows: null };
   const available = ['HISTORICAL', 'STALE'].includes(value.sourceState) && value.windows;
   const reason = value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE';
@@ -2849,6 +2849,91 @@ function renderObservedFlow(flow) {
     ? `${value.sourceState} · ${value.identity?.actualContract || 'CONTRACT_NOT_REPORTED'} · ${value.source?.tradeDate || 'DATE_NOT_REPORTED'} · ${timeLabel(value.source?.availableAt)}`
     : null, { reason });
   terminalWrite('dw-observed-flow-promotion', 'NOT PROMOTED', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
+  renderObservedFlowDetail(value);
+}
+
+function observedFlowStateLabel(state) {
+  return ({ LIVE: '即時', WARMING_UP: '暖機中', STALE: '資料過舊',
+    UNAVAILABLE: '資料不可用', HISTORICAL: '歷史資料｜非目前盤勢' })[state] || '資料不可用';
+}
+
+function observedFlowPressureSide(pressure) {
+  if (pressure?.status !== 'READY' || pressure?.classifiedCoverage !== 1) return '不可判定';
+  return ({ BUY_SIDE: '偏買方', SELL_SIDE: '偏賣方', BALANCED: '均衡' })[pressure.direction]
+    || '不可判定';
+}
+
+function observedFlowRelation(response) {
+  return ({ SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
+    FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定' })[response?.directionRelation]
+    || '成交力道不可判定';
+}
+
+function renderObservedFlowPressure(window, suffix, available, reason) {
+  const pressure = window?.pressure || {};
+  const ratio = Number(pressure.pressureRatio);
+  const legal = available && Number.isFinite(ratio) && ratio >= -1 && ratio <= 1;
+  terminalWrite(`dw-observed-flow-pressure-${suffix}`, legal
+    ? observedFlowMetric(ratio, { signedValue: true, digits: 3 }) : null,
+  { reason: legal ? (pressure.unavailableReason || 'FIELD_UNAVAILABLE') : reason });
+  const marker = $(`dw-observed-flow-pressure-marker-${suffix}`);
+  marker?.style.setProperty('--pressure-position', `${legal ? (ratio + 1) * 50 : 50}%`);
+  marker?.classList.toggle('is-unavailable', !legal);
+  dwText(`dw-observed-flow-pressure-side-${suffix}`, legal ? observedFlowPressureSide(pressure) : '不可判定');
+  dwText(`dw-observed-flow-relation-${suffix}`, available ? observedFlowRelation(window?.response) : '不可判定');
+}
+
+function renderObservedFlow(flow) {
+  const value = flow || { sourceState: 'UNAVAILABLE', unavailableReason: 'ARTIFACT_MISSING', windows: null };
+  const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
+  const reason = value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE';
+  const state = $('dw-observed-flow-state');
+  if (state) {
+    state.textContent = available ? observedFlowStateLabel(value.sourceState) : `資料不可用 · UNAVAILABLE · ${reason}`;
+    state.className = `dw-status-pill is-${available ? value.sourceState.toLowerCase() : 'unavailable'}`;
+  }
+  const primary = value.windows?.primary60s;
+  const context = value.windows?.context300s;
+  const truth = $('dw-observed-flow-truth');
+  if (truth) {
+    const title = truth.querySelector('strong');
+    const note = truth.querySelector('span');
+    const tradeDate = value.identity?.tradeDate || value.source?.tradeDate || 'DATE_NOT_REPORTED';
+    const contract = value.identity?.actualContract || 'CONTRACT_NOT_REPORTED';
+    const session = value.identity?.session || 'SESSION_NOT_REPORTED';
+    if (available) {
+      title.textContent = `${observedFlowStateLabel(value.sourceState)} · ${value.sourceState} · ${tradeDate}`;
+      const updated = timeLabel(value.source?.availableAt);
+      note.textContent = value.sourceState === 'HISTORICAL'
+        ? `${contract} · ${session} · 非目前盤勢`
+        : value.sourceState === 'STALE'
+          ? `${contract} · ${session} · 最後合法更新 ${updated}`
+          : `${contract} · ${session} · 更新 ${updated}`;
+      truth.className = `dw-observed-flow-truth is-${value.sourceState.toLowerCase()}`;
+    } else {
+      title.textContent = '資料不可用 · UNAVAILABLE';
+      note.textContent = ` · 原因 · ${dwHumanize(reason)}`;
+      truth.className = 'dw-observed-flow-truth is-unavailable';
+    }
+  }
+  for (const [id, metric, metricReason] of [
+    ['dw-observed-flow-response-60', observedFlowMetric(primary?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['dw-observed-flow-path-60', observedFlowMetric(primary?.pathEfficiency?.value, { digits: 3 }), primary?.pathEfficiency?.unavailableReason],
+    ['dw-observed-flow-response-300', observedFlowMetric(context?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['dw-observed-flow-path-300', observedFlowMetric(context?.pathEfficiency?.value, { digits: 3 }), context?.pathEfficiency?.unavailableReason],
+  ]) terminalWrite(id, available ? metric : null, { reason: available ? (metricReason || 'FIELD_UNAVAILABLE') : reason });
+  renderObservedFlowPressure(primary, '60', available, reason);
+  renderObservedFlowPressure(context, '300', available, reason);
+  terminalWrite('dw-observed-flow-coverage', available
+    ? `60 秒 ${observedFlowCoverage(primary?.pressure?.classifiedCoverage) || terminalUnavailable(primary?.pressure?.unavailableReason)} · 300 秒 ${observedFlowCoverage(context?.pressure?.classifiedCoverage) || terminalUnavailable(context?.pressure?.unavailableReason)}`
+    : null, { reason });
+  const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[value.researchQuality?.status];
+  terminalWrite('dw-observed-flow-quality', available ? qualityLabel : null, { reason });
+  $('dw-observed-flow-quality')?.classList.toggle('is-quality', value.researchQuality?.status === 'QUALITY_INSUFFICIENT');
+  terminalWrite('dw-observed-flow-source', available
+    ? `${observedFlowStateLabel(value.sourceState)} · ${value.identity?.actualContract || 'CONTRACT_NOT_REPORTED'} · ${value.source?.tradeDate || 'DATE_NOT_REPORTED'} · ${timeLabel(value.source?.availableAt)}`
+    : null, { reason });
+  terminalWrite('dw-observed-flow-promotion', '尚未通過正式方向驗證', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
   renderObservedFlowDetail(value);
 }
 

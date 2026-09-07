@@ -1082,7 +1082,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /window displacement/);
   assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /0 winding · 1 direct/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
-  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /非目前盤勢 · stale snapshot/);
+  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);

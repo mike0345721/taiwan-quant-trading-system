@@ -123,6 +123,23 @@ test('consumer rejects a future unapproved LIVE producer even when a snapshot ob
   assert.equal(contract.windows, null);
 });
 
+test('authorized live envelope preserves LIVE WARMING_UP and STALE as separate source truth states', () => {
+  for (const truthState of ['LIVE', 'WARMING_UP', 'STALE']) {
+    const result = governedReadResult();
+    result.truthState = truthState;
+    result.snapshot.sourceMode = 'LIVE';
+    result.operational = {
+      checkpointIdentity: 'f'.repeat(64),
+      validUntil: '2026-09-07T02:00:00.000Z',
+      warmup: { primary60sComplete: truthState !== 'WARMING_UP', context300sComplete: truthState !== 'WARMING_UP' },
+    };
+    const contract = buildDashboardObservedFlow(result);
+    assert.equal(contract.sourceState, truthState);
+    assert.equal(contract.source.sourceMode, 'LIVE');
+    assert.equal(contract.executionAuthorized, false);
+  }
+});
+
 test('missing configured artifact fails closed without fallback', () => {
   const contract = loadDashboardObservedFlow({ artifactPath: null });
   assert.equal(contract.sourceState, 'UNAVAILABLE');

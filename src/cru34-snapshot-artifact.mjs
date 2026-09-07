@@ -5,6 +5,7 @@ import path from 'node:path';
 export const CRU34_SNAPSHOT_CONTRACT_VERSION = 'cru34-snapshot-contract-v1';
 export const CRU34_ARTIFACT_SCHEMA_VERSION = 'cru34-snapshot-artifact-v1';
 export const CRU34_SOURCE_MODE_HISTORICAL = 'HISTORICAL';
+export const CRU34_SOURCE_MODE_LIVE = 'LIVE';
 export const CRU34_MAX_ARTIFACT_BYTES = 4 * 1024 * 1024;
 export const CRU34_MAX_DIRECTORY_ENTRIES = 4_096;
 export const CRU34_MAX_SELECTION_CANDIDATES = 128;
@@ -473,14 +474,16 @@ function containsForbiddenKey(value) {
   ));
 }
 
-function validateSemanticPayload(payload) {
+function validateSemanticPayload(payload, {
+  allowedSourceModes = [CRU34_SOURCE_MODE_HISTORICAL],
+} = {}) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('CRU36_SEMANTIC_PAYLOAD_INVALID');
   }
   if (payload.schemaVersion !== CRU34_SNAPSHOT_CONTRACT_VERSION) {
     throw new Error('CRU36_CONTRACT_SCHEMA_UNSUPPORTED');
   }
-  if (payload.sourceMode !== CRU34_SOURCE_MODE_HISTORICAL) {
+  if (!allowedSourceModes.includes(payload.sourceMode)) {
     throw new Error('CRU36_SOURCE_MODE_INVALID');
   }
   requireExactKeys(payload, [
@@ -591,7 +594,13 @@ function validateSemanticPayload(payload) {
   return payload;
 }
 
-export function buildCru34HistoricalSemanticPayload(snapshot, { tickSize } = {}) {
+export function buildCru34SemanticPayload(snapshot, {
+  tickSize,
+  sourceMode = CRU34_SOURCE_MODE_HISTORICAL,
+} = {}) {
+  if (![CRU34_SOURCE_MODE_HISTORICAL, CRU34_SOURCE_MODE_LIVE].includes(sourceMode)) {
+    throw new Error('CRU36_SOURCE_MODE_INVALID');
+  }
   if (snapshot?.schemaVersion !== 'cru34-tx-intraday-research-snapshot-v1') {
     throw new Error('CRU36_CRU34_SNAPSHOT_SCHEMA_UNSUPPORTED');
   }
@@ -607,7 +616,7 @@ export function buildCru34HistoricalSemanticPayload(snapshot, { tickSize } = {})
   const context300s = snapshot.windows?.context300s;
   const payload = {
     schemaVersion: CRU34_SNAPSHOT_CONTRACT_VERSION,
-    sourceMode: CRU34_SOURCE_MODE_HISTORICAL,
+    sourceMode,
     instrument: identity.instrument,
     actualContract: identity.actualContract,
     tradeDate: identity.tradeDate,
@@ -645,8 +654,15 @@ export function buildCru34HistoricalSemanticPayload(snapshot, { tickSize } = {})
     orderRoutesEnabled: false,
   };
   const canonical = canonicalValue(payload);
-  validateSemanticPayload(canonical);
+  validateSemanticPayload(canonical, { allowedSourceModes: [sourceMode] });
   return deepFreeze(canonical);
+}
+
+export function buildCru34HistoricalSemanticPayload(snapshot, { tickSize } = {}) {
+  return buildCru34SemanticPayload(snapshot, {
+    tickSize,
+    sourceMode: CRU34_SOURCE_MODE_HISTORICAL,
+  });
 }
 
 function identityMaterial(semanticPayload, semanticContentHash) {
