@@ -17,6 +17,7 @@
     "test:runtime": "node scripts/run-test-lane.mjs runtime",
     "test:lanes": "node scripts/run-test-lane.mjs list",
     "diagnostics": "node scripts/collect-development-diagnostics.mjs",
+    "chart:runtime:audit": "node scripts/audit-dashboard-chart-runtime.mjs",
     "password:hash": "node scripts/hash-password.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
     "history:backfill": "node scripts/backfill-history.mjs",
