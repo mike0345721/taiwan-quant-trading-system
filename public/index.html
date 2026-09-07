@@ -180,6 +180,15 @@
                 </div>
                 <span id="dw-chart-mode" class="dw-chart-mode">LIVE · READ ONLY</span>
               </div>
+              <div id="dw-flow-window-strip" class="dw-flow-window-strip" role="tablist" aria-label="台指期多時間成交力道">
+                <button type="button" role="tab" aria-selected="false" data-flow-window="1m"><strong>1分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
+                <button type="button" role="tab" aria-selected="true" class="is-selected" data-flow-window="5m"><strong>5分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
+                <button type="button" role="tab" aria-selected="false" data-flow-window="15m"><strong>15分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button type="button" role="tab" aria-selected="false" data-flow-window="30m"><strong>30分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button type="button" role="tab" aria-selected="false" data-flow-window="1h"><strong>1小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button type="button" role="tab" aria-selected="false" data-flow-window="4h"><strong>4小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button type="button" role="tab" aria-selected="false" data-flow-window="tradingDay" title="本交易日語意待 CRU-44 定義"><strong>本交易日</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待定義</small></button>
+              </div>
               <div class="dw-chart-stage">
                 <div class="dw-chart-price"><small>最新成交</small><strong id="dw-reference-price">—</strong></div>
                 <div id="dw-chart-canvas" class="dw-chart-canvas" aria-label="台指期 governed multi-timeframe K 線圖"></div>
@@ -226,28 +235,32 @@
                 <p id="dw-observed-flow-truth" class="dw-observed-flow-truth is-unavailable" role="status">
                   <strong>載入中</strong><span>等待受治理的即時或歷史資料</span>
                 </p>
-                <div class="dw-observed-flow-chain" role="table" aria-label="60 秒與 300 秒 Observed Flow 比較">
-                  <div class="dw-observed-flow-chain-head" role="row">
-                    <span role="columnheader">視窗</span>
-                    <span role="columnheader"><strong>成交力道</strong><small>偏賣方 −1 ← 0 → +1 偏買方</small></span>
-                    <span role="columnheader"><strong>價格反應</strong><small>觀察窗位移 · window displacement</small></span>
-                    <span role="columnheader"><strong>路徑效率</strong><small>0 來回較多 · 1 接近單向 · 0 winding · 1 direct</small></span>
-                  </div>
-                  <div class="dw-observed-flow-chain-row" role="row">
-                    <strong role="rowheader">60 秒</strong><span class="dw-pressure-cell" role="cell"><b id="dw-observed-flow-pressure-60">UNAVAILABLE · DASHBOARD_LOADING</b><span class="dw-pressure-track" aria-hidden="true"><i id="dw-observed-flow-pressure-marker-60"></i></span><small id="dw-observed-flow-pressure-side-60">不可判定</small></span><span class="dw-response-cell" role="cell"><b id="dw-observed-flow-response-60">UNAVAILABLE · DASHBOARD_LOADING</b><small id="dw-observed-flow-relation-60">不可判定</small></span><b id="dw-observed-flow-path-60" role="cell" title="越接近 1 路徑越接近單向；越接近 0 來回較多；不代表趨勢強度或未來方向。">UNAVAILABLE · DASHBOARD_LOADING</b>
-                  </div>
-                  <div class="dw-observed-flow-chain-row" role="row">
-                    <strong role="rowheader">300 秒</strong><span class="dw-pressure-cell" role="cell"><b id="dw-observed-flow-pressure-300">UNAVAILABLE · DASHBOARD_LOADING</b><span class="dw-pressure-track" aria-hidden="true"><i id="dw-observed-flow-pressure-marker-300"></i></span><small id="dw-observed-flow-pressure-side-300">不可判定</small></span><span class="dw-response-cell" role="cell"><b id="dw-observed-flow-response-300">UNAVAILABLE · DASHBOARD_LOADING</b><small id="dw-observed-flow-relation-300">不可判定</small></span><b id="dw-observed-flow-path-300" role="cell" title="越接近 1 路徑越接近單向；越接近 0 來回較多；不代表趨勢強度或未來方向。">UNAVAILABLE · DASHBOARD_LOADING</b>
-                  </div>
+                <div class="dw-flow-horizon-summary" aria-label="近中遠成交力道摘要">
+                  <article><span>近端</span><strong id="dw-flow-summary-near">等待資料</strong><small id="dw-flow-summary-near-note">1分／5分／15分</small></article>
+                  <article><span>中端</span><strong id="dw-flow-summary-mid">待驗證</strong><small>30分／1小時</small></article>
+                  <article><span>遠端</span><strong id="dw-flow-summary-far">待驗證</strong><small>4小時／本交易日</small></article>
                 </div>
+                <section id="dw-flow-selected-detail" class="dw-flow-selected-detail" aria-live="polite" aria-labelledby="dw-flow-selected-title">
+                  <header><span>選取時窗</span><strong id="dw-flow-selected-title">5分</strong></header>
+                  <div class="dw-flow-selected-pressure"><span>成交力道｜誰比較主動</span><div id="dw-flow-selected-bar" class="dw-pressure-segments" aria-hidden="true"></div><strong id="dw-flow-selected-ratio">不可判定</strong><small id="dw-flow-selected-side">不可判定</small></div>
+                  <dl>
+                    <div><dt>價格反應｜價格有沒有跟上</dt><dd><strong id="dw-flow-selected-response">不可用</strong><small id="dw-flow-selected-relation">成交力道不可判定</small></dd></div>
+                    <div><dt>路徑效率｜走勢乾不乾淨</dt><dd><strong id="dw-flow-selected-path">不可用</strong><small>僅表示路徑直接程度</small></dd></div>
+                    <div><dt>可判定成交占比</dt><dd id="dw-flow-selected-coverage">不可用</dd></div>
+                    <div><dt>資料品質</dt><dd id="dw-flow-selected-quality">不可用</dd></div>
+                    <div><dt>最後更新</dt><dd id="dw-flow-selected-updated">不可用</dd></div>
+                  </dl>
+                  <p id="dw-flow-selected-pending" class="dw-flow-selected-pending hidden">待驗證｜CRU-44 尚未啟用</p>
+                </section>
+                <div class="tt-detail-only" aria-hidden="true"><span id="dw-observed-flow-pressure-60"></span><span id="dw-observed-flow-response-60"></span><span id="dw-observed-flow-path-60"></span><span id="dw-observed-flow-pressure-300"></span><span id="dw-observed-flow-response-300"></span><span id="dw-observed-flow-path-300"></span><span id="dw-observed-flow-pressure-side-60"></span><span id="dw-observed-flow-pressure-side-300"></span><span id="dw-observed-flow-relation-60"></span><span id="dw-observed-flow-relation-300"></span></div>
                 <div class="dw-observed-flow-trust" aria-live="polite">
                   <span>可判定成交占比 <strong id="dw-observed-flow-coverage">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>資料品質 <strong id="dw-observed-flow-quality">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>資料來源 <strong id="dw-observed-flow-source">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>正式驗證狀態 <strong id="dw-observed-flow-promotion">尚未通過正式方向驗證</strong></span>
                 </div>
-                <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="Observed Flow Evidence">查看證據 &gt;</button>
-                <div id="dw-observed-flow-detail" class="dw-observed-flow-detail tt-detail-only" aria-label="Observed Flow 技術證據"></div>
+                <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="台指期盤中力道｜證據">查看證據 &gt;</button>
+                <div id="dw-observed-flow-detail" class="dw-observed-flow-detail tt-detail-only" aria-label="台指期盤中力道技術證據"></div>
               </section>
 
               <section class="dw-card dw-leadership" aria-labelledby="dw-leadership-title">

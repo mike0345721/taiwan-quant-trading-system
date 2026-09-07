@@ -2719,25 +2719,25 @@ function observedFlowWindowDetail(window) {
   const conflict = pressure.conflict || {};
   const response = window?.response || {};
   const path = window?.pathEfficiency || {};
-  return observedFlowDetailSection(`${window?.label || 'Window'} evidence`, [
-    ['BuyProxyVolume', pressure.buyProxyVolume, pressure.unavailableReason],
-    ['SellProxyVolume', pressure.sellProxyVolume, pressure.unavailableReason],
-    ['UnknownVolume', pressure.unknownVolume, pressure.unavailableReason],
-    ['classifiedVolume', pressure.classifiedVolume, pressure.unavailableReason],
-    ['netAggressiveFlowProxy', pressure.netAggressiveFlowProxy, pressure.unavailableReason],
-    ['Observed Pressure Ratio', pressure.pressureRatio, pressure.unavailableReason],
-    ['Classified Coverage', observedFlowCoverage(pressure.classifiedCoverage), pressure.unavailableReason],
-    ['BestQuoteMatchedCoverage', observedFlowCoverage(quote.matchedCoverage), 'BEST_QUOTE_MATCHED_COVERAGE_UNAVAILABLE'],
-    ['Best Quote unavailable volume', quote.unavailableVolume, 'BEST_QUOTE_UNAVAILABLE_VOLUME_NOT_REPORTED'],
-    ['Classification conflict count', conflict.count, 'CLASSIFICATION_CONFLICT_COUNT_NOT_REPORTED'],
-    ['Classification conflict rate', observedFlowCoverage(conflict.rate), 'CLASSIFICATION_CONFLICT_RATE_NOT_REPORTED'],
-    ['startPrice', response.startPrice, 'RESPONSE_START_PRICE_UNAVAILABLE'],
-    ['endPrice', response.endPrice, 'RESPONSE_END_PRICE_UNAVAILABLE'],
-    ['displacementPoints', response.displacementPoints, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
-    ['displacementTicks', response.displacementTicks, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
-    ['directionRelation', response.directionRelation, 'RESPONSE_DIRECTION_RELATION_UNAVAILABLE'],
-    ['Path Efficiency', path.value, path.unavailableReason],
-    ['Path unavailable reason', path.unavailableReason || 'none', path.status],
+  return observedFlowDetailSection(`${window?.label || '時窗'}｜成交與價格證據`, [
+    ['主動買方代理量', pressure.buyProxyVolume, pressure.unavailableReason],
+    ['主動賣方代理量', pressure.sellProxyVolume, pressure.unavailableReason],
+    ['不可分類量', pressure.unknownVolume, pressure.unavailableReason],
+    ['可分類成交量', pressure.classifiedVolume, pressure.unavailableReason],
+    ['主動成交淨差代理', pressure.netAggressiveFlowProxy, pressure.unavailableReason],
+    ['成交力道原始比值', pressure.pressureRatio, pressure.unavailableReason],
+    ['可判定成交占比', observedFlowCoverage(pressure.classifiedCoverage), pressure.unavailableReason],
+    ['最佳報價符合占比', observedFlowCoverage(quote.matchedCoverage), 'BEST_QUOTE_MATCHED_COVERAGE_UNAVAILABLE'],
+    ['最佳報價不可用量', quote.unavailableVolume, 'BEST_QUOTE_UNAVAILABLE_VOLUME_NOT_REPORTED'],
+    ['分類衝突筆數', conflict.count, 'CLASSIFICATION_CONFLICT_COUNT_NOT_REPORTED'],
+    ['分類衝突率', observedFlowCoverage(conflict.rate), 'CLASSIFICATION_CONFLICT_RATE_NOT_REPORTED'],
+    ['起始價格', response.startPrice, 'RESPONSE_START_PRICE_UNAVAILABLE'],
+    ['結束價格', response.endPrice, 'RESPONSE_END_PRICE_UNAVAILABLE'],
+    ['價格位移（點）', response.displacementPoints, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['價格位移（ticks）', response.displacementTicks, 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
+    ['價格反應關係', response.directionRelation, 'RESPONSE_DIRECTION_RELATION_UNAVAILABLE'],
+    ['路徑效率原始值', path.value, path.unavailableReason],
+    ['路徑不可用原因', path.unavailableReason || '無', path.status],
   ]);
 }
 
@@ -2745,10 +2745,10 @@ function renderObservedFlowDetail(flow) {
   const target = $('dw-observed-flow-detail');
   if (!target) return;
   if (!flow || flow.sourceState === 'UNAVAILABLE' || !flow.windows) {
-    target.replaceChildren(observedFlowDetailSection('Evidence unavailable', [
-      ['Reason', flow?.unavailableReason || 'ARTIFACT_MISSING'],
-      ['Meaning', dwHumanize(flow?.unavailableReason || 'ARTIFACT_MISSING')],
-      ['Formal Direction', 'NOT PROMOTED'],
+    target.replaceChildren(observedFlowDetailSection('證據不可用', [
+      ['原因代碼', flow?.unavailableReason || 'ARTIFACT_MISSING'],
+      ['中文說明', dwHumanize(flow?.unavailableReason || 'ARTIFACT_MISSING')],
+      ['正式方向', '尚未通過正式驗證'],
     ]));
     return;
   }
@@ -2757,25 +2757,25 @@ function renderObservedFlowDetail(flow) {
   const lineage = flow.lineage || {};
   const artifact = flow.artifact || {};
   const nodes = [
-    observedFlowDetailSection('Identity / Source', [
-      ['Source state', flow.sourceState],
-      ['sourceMode', source.sourceMode],
-      ['actualContract', identity.actualContract],
-      ['tradeDate', identity.tradeDate],
-      ['session', identity.session],
-      ['continuityEpoch', identity.continuityEpoch],
-      ['availableAt', source.availableAt],
-      ['materializedAt', source.materializedAt],
+    observedFlowDetailSection('資料身分與來源', [
+      ['資料狀態', flow.sourceState],
+      ['來源模式', source.sourceMode],
+      ['實際契約', identity.actualContract],
+      ['交易日', identity.tradeDate],
+      ['盤別', identity.session],
+      ['連續性區段', identity.continuityEpoch],
+      ['資料可用時間', source.availableAt],
+      ['產製時間', source.materializedAt],
     ]),
     observedFlowWindowDetail(flow.windows.primary60s),
     observedFlowWindowDetail(flow.windows.context300s),
-    observedFlowDetailSection('Quality / Promotion', [
-      ['Research Quality', flow.researchQuality?.status],
-      ['Quality reasons', (flow.researchQuality?.reasons || []).join(', ') || 'none'],
-      ['Formal Direction', flow.formalDirection || 'NOT_PROMOTED'],
-      ['Promotion state', JSON.stringify(flow.promotionState || {})],
+    observedFlowDetailSection('資料品質與正式驗證', [
+      ['研究資料品質', flow.researchQuality?.status],
+      ['品質原因', (flow.researchQuality?.reasons || []).join(', ') || '無'],
+      ['正式方向', flow.formalDirection || 'NOT_PROMOTED'],
+      ['驗證狀態', JSON.stringify(flow.promotionState || {})],
     ]),
-    observedFlowDetailSection('Technical lineage', [
+    observedFlowDetailSection('技術 lineage', [
       ['cutoffLedgerOrdinal', lineage.cutoffLedgerOrdinal],
       ['cutoffRecordHash', lineage.cutoffRecordHash],
       ['maxUsedLedgerOrdinal', lineage.maxUsedLedgerOrdinal],
@@ -2786,10 +2786,10 @@ function renderObservedFlowDetail(flow) {
       ['artifactHash', artifact.artifactHash],
     ]),
   ];
-  const methodology = observedFlowDetailSection('Research contract', Object.entries(flow.methodology || {})
+  const methodology = observedFlowDetailSection('研究契約', Object.entries(flow.methodology || {})
     .map(([key, value]) => [key, value]));
   const limitations = document.createElement('section');
-  const limitationsHeading = document.createElement('h3'); limitationsHeading.textContent = 'Limitations';
+  const limitationsHeading = document.createElement('h3'); limitationsHeading.textContent = '限制';
   const limitationsList = document.createElement('ul');
   for (const value of flow.limitations || []) {
     const item = document.createElement('li'); item.textContent = value; limitationsList.append(item);
@@ -2857,10 +2857,50 @@ function observedFlowStateLabel(state) {
     UNAVAILABLE: '資料不可用', HISTORICAL: '歷史資料｜非目前盤勢' })[state] || '資料不可用';
 }
 
-function observedFlowPressureSide(pressure) {
-  if (pressure?.status !== 'READY' || pressure?.classifiedCoverage !== 1) return '不可判定';
+const OBSERVED_FLOW_WINDOW_REGISTRY = Object.freeze([
+  Object.freeze({ key: '1m', label: '1分', group: 'NEAR', source: 'primary60s', data: 'GOVERNED' }),
+  Object.freeze({ key: '5m', label: '5分', group: 'NEAR', source: 'context300s', data: 'GOVERNED' }),
+  Object.freeze({ key: '15m', label: '15分', group: 'NEAR', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: '30m', label: '30分', group: 'MID', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: '1h', label: '1小時', group: 'MID', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: '4h', label: '4小時', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: 'tradingDay', label: '本交易日', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
+]);
+let observedFlowSelectedWindow = '5m';
+let lastObservedFlowValue = null;
+
+function observedFlowRatio(pressure) {
+  if (pressure?.pressureRatio === null || pressure?.pressureRatio === undefined) return null;
+  const ratio = Number(pressure.pressureRatio);
+  return Number.isFinite(ratio) && ratio >= -1 && ratio <= 1 ? ratio : null;
+}
+
+function renderObservedFlowSegments(host, ratio, options = {}) {
+  if (!host) return;
+  const cells = ratio == null ? 0 : Math.min(5, Math.ceil(Math.abs(ratio) * 5));
+  const nodes = [];
+  for (let index = 0; index < 11; index += 1) {
+    const cell = document.createElement('i');
+    if (index !== 5 && ((ratio > 0 && index > 5 && index <= 5 + cells)
+      || (ratio < 0 && index < 5 && index >= 5 - cells))) cell.className = 'is-filled';
+    nodes.push(cell);
+  }
+  host.replaceChildren(...nodes);
+  host.className = `${options.mini ? 'dw-flow-mini-bar' : 'dw-pressure-segments'} ${ratio > 0 ? 'is-positive' : ratio < 0 ? 'is-negative' : 'is-neutral'}`;
+  host.classList.toggle('is-limited', Boolean(options.limited));
+  host.classList.toggle('is-inactive', Boolean(options.inactive));
+}
+
+function observedFlowWindowByKey(value, key) {
+  const definition = OBSERVED_FLOW_WINDOW_REGISTRY.find((item) => item.key === key);
+  return { definition, window: definition?.source ? value?.windows?.[definition.source] : null };
+}
+
+function observedFlowPressureSide(pressure, sourceState = 'LIVE') {
+  if (['WARMING_UP', 'STALE', 'UNAVAILABLE'].includes(sourceState)) return '方向判定受限';
+  if (pressure?.status !== 'READY' || pressure?.classifiedCoverage !== 1) return '方向判定受限';
   return ({ BUY_SIDE: '偏買方', SELL_SIDE: '偏賣方', BALANCED: '均衡' })[pressure.direction]
-    || '不可判定';
+    || '方向判定受限';
 }
 
 function observedFlowRelation(response) {
@@ -2871,16 +2911,84 @@ function observedFlowRelation(response) {
 
 function renderObservedFlowPressure(window, suffix, available, reason) {
   const pressure = window?.pressure || {};
-  const ratio = Number(pressure.pressureRatio);
-  const legal = available && Number.isFinite(ratio) && ratio >= -1 && ratio <= 1;
+  const ratio = observedFlowRatio(pressure);
+  const legal = available && ratio != null;
   terminalWrite(`dw-observed-flow-pressure-${suffix}`, legal
     ? observedFlowMetric(ratio, { signedValue: true, digits: 3 }) : null,
   { reason: legal ? (pressure.unavailableReason || 'FIELD_UNAVAILABLE') : reason });
-  const marker = $(`dw-observed-flow-pressure-marker-${suffix}`);
-  marker?.style.setProperty('--pressure-position', `${legal ? (ratio + 1) * 50 : 50}%`);
-  marker?.classList.toggle('is-unavailable', !legal);
   dwText(`dw-observed-flow-pressure-side-${suffix}`, legal ? observedFlowPressureSide(pressure) : '不可判定');
   dwText(`dw-observed-flow-relation-${suffix}`, available ? observedFlowRelation(window?.response) : '不可判定');
+}
+
+function renderObservedFlowStrip(value, available) {
+  for (const definition of OBSERVED_FLOW_WINDOW_REGISTRY) {
+    const button = document.querySelector(`[data-flow-window="${definition.key}"]`);
+    if (!button) continue;
+    button.classList.toggle('is-selected', definition.key === observedFlowSelectedWindow);
+    button.setAttribute('aria-selected', String(definition.key === observedFlowSelectedWindow));
+    button.dataset.truthState = value?.sourceState || 'UNAVAILABLE';
+    const note = button.querySelector('small');
+    const bar = button.querySelector('.dw-flow-mini-bar');
+    if (definition.data !== 'GOVERNED') {
+      note.textContent = definition.key === 'tradingDay' ? '待定義' : '待驗證';
+      renderObservedFlowSegments(bar, null, { mini: true, inactive: true });
+      continue;
+    }
+    const window = value?.windows?.[definition.source];
+    const ratio = available ? observedFlowRatio(window?.pressure) : null;
+    const coverage = window?.pressure?.classifiedCoverage;
+    const limited = coverage !== 1 || window?.pressure?.status !== 'READY';
+    note.textContent = ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 2 });
+    renderObservedFlowSegments(bar, ratio, {
+      mini: true, limited, inactive: value?.sourceState !== 'LIVE',
+    });
+  }
+}
+
+function renderObservedFlowSummary(value, available) {
+  const primaryRatio = available ? observedFlowRatio(value?.windows?.primary60s?.pressure) : null;
+  const contextRatio = available ? observedFlowRatio(value?.windows?.context300s?.pressure) : null;
+  let relation = 'raw 比值不可比較';
+  if (primaryRatio != null && contextRatio != null) {
+    if (primaryRatio === 0 || contextRatio === 0) relation = 'raw 比值含 0';
+    else relation = Math.sign(primaryRatio) === Math.sign(contextRatio) ? 'raw 比值同側' : 'raw 比值方向不同';
+  }
+  dwText('dw-flow-summary-near', available ? `已驗證 2/3 · ${relation}` : '資料不可用');
+  dwText('dw-flow-summary-near-note', '1分、5分已驗證；15分待驗證');
+  dwText('dw-flow-summary-mid', '待驗證');
+  dwText('dw-flow-summary-far', '待驗證');
+}
+
+function renderObservedFlowSelected(value, available, reason) {
+  const { definition, window } = observedFlowWindowByKey(value, observedFlowSelectedWindow);
+  const panel = $('dw-flow-selected-detail');
+  if (!panel || !definition) return;
+  dwText('dw-flow-selected-title', definition.label);
+  const pending = definition.data !== 'GOVERNED';
+  panel.classList.toggle('is-pending', pending);
+  $('dw-flow-selected-pending')?.classList.toggle('hidden', !pending);
+  if (pending) return;
+  const pressure = window?.pressure || {};
+  const ratio = available ? observedFlowRatio(pressure) : null;
+  const coverage = pressure.classifiedCoverage;
+  const limited = coverage !== 1 || pressure.status !== 'READY' || value.sourceState !== 'LIVE';
+  renderObservedFlowSegments($('dw-flow-selected-bar'), ratio, {
+    limited, inactive: value.sourceState !== 'LIVE',
+  });
+  dwText('dw-flow-selected-ratio', ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 3 }));
+  dwText('dw-flow-selected-side', ratio == null ? '成交力道不可判定' : observedFlowPressureSide(pressure, value.sourceState));
+  terminalWrite('dw-flow-selected-response', available
+    ? observedFlowMetric(window?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }) : null,
+  { reason: available ? 'RESPONSE_DISPLACEMENT_UNAVAILABLE' : reason });
+  dwText('dw-flow-selected-relation', available ? observedFlowRelation(window?.response) : '成交力道不可判定');
+  terminalWrite('dw-flow-selected-path', available ? observedFlowMetric(window?.pathEfficiency?.value, { digits: 3 }) : null,
+    { reason: available ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE') : reason });
+  dwText('dw-flow-selected-coverage', available
+    ? (observedFlowCoverage(coverage) || `不可用 · ${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}`)
+    : `不可用 · ${dwHumanize(reason)}`);
+  const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[window?.status || value.researchQuality?.status] || '不可用';
+  dwText('dw-flow-selected-quality', available ? qualityLabel : `不可用 · ${dwHumanize(reason)}`);
+  dwText('dw-flow-selected-updated', available ? timeLabel(value.source?.availableAt) : '不可用');
 }
 
 function renderObservedFlow(flow) {
@@ -2894,6 +3002,7 @@ function renderObservedFlow(flow) {
   }
   const primary = value.windows?.primary60s;
   const context = value.windows?.context300s;
+  lastObservedFlowValue = value;
   const truth = $('dw-observed-flow-truth');
   if (truth) {
     const title = truth.querySelector('strong');
@@ -2924,6 +3033,9 @@ function renderObservedFlow(flow) {
   ]) terminalWrite(id, available ? metric : null, { reason: available ? (metricReason || 'FIELD_UNAVAILABLE') : reason });
   renderObservedFlowPressure(primary, '60', available, reason);
   renderObservedFlowPressure(context, '300', available, reason);
+  renderObservedFlowStrip(value, available);
+  renderObservedFlowSummary(value, available);
+  renderObservedFlowSelected(value, available, reason);
   terminalWrite('dw-observed-flow-coverage', available
     ? `60 秒 ${observedFlowCoverage(primary?.pressure?.classifiedCoverage) || terminalUnavailable(primary?.pressure?.unavailableReason)} · 300 秒 ${observedFlowCoverage(context?.pressure?.classifiedCoverage) || terminalUnavailable(context?.pressure?.unavailableReason)}`
     : null, { reason });
@@ -4129,6 +4241,13 @@ document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.a
   state.txChartTimeframe = button.dataset.chartTimeframe;
   document.querySelectorAll('[data-chart-timeframe]').forEach((item) => item.classList.toggle('is-selected', item === button));
   loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+}));
+document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
+  observedFlowSelectedWindow = button.dataset.flowWindow;
+  const value = lastObservedFlowValue || { sourceState: 'UNAVAILABLE', unavailableReason: 'OBSERVED_FLOW_UNAVAILABLE', windows: null };
+  const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
+  renderObservedFlowStrip(value, available);
+  renderObservedFlowSelected(value, available, value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE');
 }));
 document.querySelectorAll('[data-review-intent]').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('[data-review-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));
