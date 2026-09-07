@@ -134,8 +134,8 @@ export function buildDashboardObservedFlow(readResult) {
       tickSize: snapshot.tickSize,
     },
     windows: {
-      primary60s: windowContract('60s', snapshot.primary60s),
-      context300s: windowContract('300s', snapshot.context300s),
+      primary60s: windowContract('1分', snapshot.primary60s),
+      context300s: windowContract('5分', snapshot.context300s),
     },
     researchQuality: {
       status: snapshot.quality?.status || 'UNAVAILABLE',
