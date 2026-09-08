@@ -3623,6 +3623,23 @@ function renderRuntimeVersion(version = {}) {
   dwText('dw-version-runtime', runtime || 'UNKNOWN');
   dwText('dw-version-started', version.runtimeStartedAt || 'UNKNOWN');
   dwText('dw-version-sync', sync);
+  const preview = $('cru46-preview-version');
+  const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW';
+  preview?.classList.toggle('hidden', !isIntegrationPreview);
+  if (!isIntegrationPreview) return;
+  dwText('cru46-preview-badge', version.previewLabel || 'INTEGRATION OWNER PREVIEW');
+  dwText('cru46-version-product', version.productVersion || 'UNKNOWN');
+  dwText('cru46-version-type', version.previewType || 'UNKNOWN');
+  dwText('cru46-version-branch', version.branch || 'UNKNOWN');
+  dwText('cru46-version-head', version.exactHead || 'UNKNOWN');
+  dwText('cru46-version-base', version.baseMainCommit || 'UNKNOWN');
+  dwText('cru46-version-build', version.buildCommit || 'UNKNOWN');
+  dwText('cru46-version-runtime', version.runtimeCommit || 'UNKNOWN');
+  dwText('cru46-version-cru43', version.includedSources?.cru43 || 'UNKNOWN');
+  dwText('cru46-version-cru45', version.includedSources?.cru45 || 'UNKNOWN');
+  dwText('cru46-version-pending', Array.isArray(version.pendingCapabilities) ? version.pendingCapabilities.join(' / ') : 'UNKNOWN');
+  dwText('cru46-version-data-mode', version.dataMode || 'UNKNOWN');
+  dwText('cru46-version-complete', version.complete === false ? 'NOT COMPLETE' : 'UNKNOWN');
 }
 
 function renderDw4FamilyList(id, values) {

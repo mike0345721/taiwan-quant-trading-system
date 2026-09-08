@@ -19,7 +19,8 @@ test('DW-2 exposes seven timeframes, governed chart context and TradingView attr
 });
 
 test('timeframe switching updates chart only and preserves Decision Summary/Data Health state', () => {
-  assert.match(app, /state\.txChartTimeframe = button\.dataset\.chartTimeframe/);
+  assert.match(app, /function selectChartTimeframe\(timeframe\)[\s\S]*state\.txChartTimeframe = timeframe/);
+  assert.match(app, /selectChartTimeframe\(button\.dataset\.chartTimeframe\)|selectChartTimeframe\(timeframe\)/);
   assert.match(app, /loadTxDecisionChart\(\{ fit: true \}\)/);
   const switchBlock = app.slice(app.indexOf("document.querySelectorAll('[data-chart-timeframe]')"), app.indexOf("document.querySelectorAll('[data-review-intent]')"));
   assert.doesNotMatch(switchBlock, /loadDashboard|renderDecisionWorkspace|location\.reload/);

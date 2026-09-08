@@ -675,6 +675,31 @@
 .tt-drawer-body .dw-observed-flow-detail { display: grid !important; }
 
 /* Preview identity stays explicit but occupies only one thin row. */
+.cru46-preview-version {
+  margin: 0 0 4px;
+  border: 1px solid rgba(246, 196, 83, .48);
+  border-radius: 4px;
+  background: #101820;
+  color: #9eabb9;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.cru46-preview-version > summary {
+  padding: 4px 7px;
+  color: #ffd66b;
+  cursor: pointer;
+  font-weight: 850;
+  letter-spacing: .045em;
+}
+.cru46-preview-version-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 12px;
+  padding: 6px 8px 8px;
+  border-top: 1px solid rgba(246, 196, 83, .24);
+}
+.cru46-preview-version-grid span { min-width: 0; overflow-wrap: anywhere; }
+.cru46-preview-version-grid code { color: #d8e3ee; }
+
 .tt-preview-identity {
   position: sticky;
   z-index: 20;
@@ -769,6 +794,7 @@
 }
 
 @media (max-width: 720px) {
+  .cru46-preview-version-grid { grid-template-columns: 1fr; }
   .tt-summary-line,
   .tt-tier-one-grid,
   .tt-tier-two-grid,

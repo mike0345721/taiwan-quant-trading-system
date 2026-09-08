@@ -20,6 +20,7 @@
     "chart:runtime:audit": "node scripts/audit-dashboard-chart-runtime.mjs",
     "chart:payload:audit": "node scripts/audit-tx-chart-payload.mjs",
     "rvol:baseline:audit": "node scripts/audit-tx-rvol-baseline-readiness.mjs",
+    "cru46:contract:test": "node --test tests/cru46-dashboard-integration-contract.test.mjs",
     "password:hash": "node scripts/hash-password.mjs",
     "security:scan": "node scripts/scan-secrets.mjs",
     "history:backfill": "node scripts/backfill-history.mjs",

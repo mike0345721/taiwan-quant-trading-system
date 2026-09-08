@@ -25,6 +25,10 @@ import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-c
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
+import {
+  buildIntegrationPreviewVersion,
+  CRU46_PRODUCT_SURFACE_CONTRACT,
+} from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import {
@@ -83,7 +87,13 @@ const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightwei
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
-const runtimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
+const baseRuntimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
+const runtimeVersion = buildIntegrationPreviewVersion({
+  runtimeVersion: baseRuntimeVersion,
+  enabled: process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW',
+  branch: process.env.DASHBOARD_PREVIEW_BRANCH,
+  dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase(),
+});
 let lastRefreshError = null;
 
 function readLocalJson(filePath) {
@@ -126,6 +136,7 @@ async function decisionWorkspacePayload(snapshot, service) {
   });
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
+    productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
     observedFlow,
   });
 }
@@ -233,6 +244,8 @@ const server = http.createServer(async (req, res) => {
         approvedMainCommit: runtimeVersion.approvedMainCommit,
         runtimeStartedAt: runtimeVersion.runtimeStartedAt,
         syncState: runtimeVersion.syncState,
+        versionTruth: runtimeVersion,
+        productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
       });
       return;
     }
@@ -306,6 +319,7 @@ const server = http.createServer(async (req, res) => {
           lastRefreshError,
           prelive: preliveStatus(latestSnapshot, shioaji),
           runtimeVersion,
+          productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
           indexLeadership,
         };
         const decisionWorkspace = clientSnapshot
