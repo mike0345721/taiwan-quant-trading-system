@@ -91,7 +91,9 @@ test('production surface exposes first-layer preview badge and machine-readable 
   assert.match(launcher, /identityReady\.ready -eq \$true/);
   assert.match(launcher, /runtimePreflightReady\.ready -eq \$true/);
   assert.match(launcher, /BROWSER_ACCEPTANCE_REQUIRED/);
-  assert.doesNotMatch(launcher, /Url\s*=\s*"http:\/\/127\.0\.0\.1/);
+  assert.match(launcher, /READY_FOR_INTEGRATION_OWNER_PREVIEW_REV_B/);
+  assert.match(launcher, /ownerPreviewReady\.ready -eq \$true/);
+  assert.match(launcher, /CRU46_EXISTING_PREVIEW_NOT_READY/);
   assert.match(launcher, /\$exactHead -eq \$expectedHead/);
   assert.match(launcher, /\$buildCommit -eq \$expectedHead/);
   assert.match(launcher, /\$runtimeCommit -eq \$expectedHead/);

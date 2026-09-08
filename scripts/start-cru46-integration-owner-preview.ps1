@@ -13,7 +13,19 @@ $expectedHead = (& git -c "safe.directory=$root" -C $root rev-parse HEAD).Trim()
 if ($expectedHead -notmatch '^[0-9a-f]{40}$') { throw 'CRU46_EXPECTED_HEAD_UNVERIFIED' }
 
 $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-if ($listener) { throw "CRU46_PORT_ALREADY_IN_USE:$Port" }
+if ($listener) {
+  try {
+    $existing = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/healthz" -TimeoutSec 15
+    if ($existing.versionTruth.exactHead -eq $expectedHead -and $existing.ownerPreviewReady.ready -eq $true) {
+      [pscustomobject]@{ ProcessId = $listener.OwningProcess; Url = "http://127.0.0.1:$Port/";
+        ExactHead = $expectedHead; Gate = 'READY_FOR_INTEGRATION_OWNER_PREVIEW_REV_B'; OwnerPreviewReady = $true }
+      exit 0
+    }
+    throw "CRU46_EXISTING_PREVIEW_NOT_READY:$($existing.ownerPreviewReady.reasons -join ',')"
+  } catch {
+    throw "CRU46_PORT_ALREADY_IN_USE:${Port}:$($_.Exception.Message)"
+  }
+}
 
 $processPath = $env:Path
 [Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
@@ -64,7 +76,7 @@ $health = "http://127.0.0.1:$Port/healthz"
 for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
   Start-Sleep -Milliseconds 250
   try {
-    $response = Invoke-RestMethod -Uri $health -TimeoutSec 2
+    $response = Invoke-RestMethod -Uri $health -TimeoutSec 15
     $truth = $response.versionTruth
     $exactHead = [string]$truth.exactHead
     $buildCommit = [string]$truth.buildCommit
