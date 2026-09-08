@@ -4202,6 +4202,31 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }
 }
 
+async function reportCru46BrowserRuntimeProof() {
+  const version = state.decisionWorkspace?.runtimeVersion;
+  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW') return;
+  const target = $('dw-chart-canvas');
+  const rect = target?.getBoundingClientRect();
+  const api = window.LightweightCharts;
+  const flow = lastObservedFlowValue;
+  await apiRequestCru46Proof({
+    lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
+    canvasCount: target?.querySelectorAll('canvas').length || 0,
+    chartWidth: Math.round(rect?.width || 0),
+    chartHeight: Math.round(rect?.height || 0),
+    candleCount: state.txChartBarCount,
+    volumeCount: chartSeriesData(state.txChartPayload || {}).volumes.length,
+    observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE'),
+    observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE'),
+  });
+}
+
+async function apiRequestCru46Proof(body) {
+  try {
+    await api('/api/v1/cru46-browser-runtime-proof', { method: 'POST', body: JSON.stringify(body) });
+  } catch { /* health stays fail-closed; acceptance tooling reads the reason */ }
+}
+
 function renderDecisionWorkspace(workspace) {
   state.decisionWorkspace = workspace || null;
   state.lockedDecisionSnapshot = null;
@@ -4338,6 +4363,7 @@ async function loadDashboard() {
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+  await reportCru46BrowserRuntimeProof();
   await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
   if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);

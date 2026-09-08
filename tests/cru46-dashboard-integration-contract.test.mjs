@@ -9,6 +9,12 @@ import {
   CRU46_PRODUCT_SURFACE_CONTRACT,
   validateIntegrationPreviewVersionTruth,
 } from '../src/dashboard-integration-contract.mjs';
+import {
+  buildCru46Readiness,
+  inspectChartPayload,
+  inspectObservedFlowPayload,
+  validateBrowserRuntimeProof,
+} from '../src/dashboard-runtime-readiness.mjs';
 
 const RUNTIME_HEAD = 'f'.repeat(40);
 
@@ -75,14 +81,50 @@ test('production surface exposes first-layer preview badge and machine-readable 
   assert.match(app, /version\.previewType === 'INTEGRATION_OWNER_PREVIEW'/);
   assert.match(app, /version\.complete === false \? 'NOT COMPLETE'/);
   assert.match(server, /versionTruth: runtimeVersion/);
-  assert.match(server, /ownerPreviewReadiness: validateIntegrationPreviewVersionTruth/);
+  assert.match(server, /identityReady: readiness\.identityReady/);
+  assert.match(server, /runtimeReady: readiness\.runtimeReady/);
+  assert.match(server, /ownerPreviewReady: readiness\.ownerPreviewReady/);
+  assert.match(server, /cru46-browser-runtime-proof/);
   assert.match(server, /productSurface: CRU46_PRODUCT_SURFACE_CONTRACT/);
   assert.match(launcher, /DASHBOARD_PREVIEW_TYPE = 'INTEGRATION_OWNER_PREVIEW'/);
   assert.match(launcher, /CRU46_EXPECTED_HEAD_UNVERIFIED/);
-  assert.match(launcher, /ownerPreviewReadiness\.ready -eq \$true/);
+  assert.match(launcher, /identityReady\.ready -eq \$true/);
+  assert.match(launcher, /runtimePreflightReady\.ready -eq \$true/);
+  assert.match(launcher, /BROWSER_ACCEPTANCE_REQUIRED/);
+  assert.doesNotMatch(launcher, /Url\s*=\s*"http:\/\/127\.0\.0\.1/);
   assert.match(launcher, /\$exactHead -eq \$expectedHead/);
   assert.match(launcher, /\$buildCommit -eq \$expectedHead/);
   assert.match(launcher, /\$runtimeCommit -eq \$expectedHead/);
   assert.match(launcher, /MOCK_DATA = 'false'/);
   assert.doesNotMatch(launcher, /executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/i);
+});
+
+test('Rev-B readiness separates identity, runtime, and Owner Preview gates', () => {
+  const identity = { ready: true, reasons: [] };
+  const vendor = { ready: true, reasons: [] };
+  const producer = { ready: true, reasons: [] };
+  const chart = inspectChartPayload({ status: 'READY', bars: [
+    { time: '2026-09-09T00:00:00.000Z', open: 1, high: 2, low: 1, close: 2, volume: 3 },
+  ] });
+  const observedFlow = inspectObservedFlowPayload({ sourceState: 'STALE', windows: {
+    primary60s: { status: 'READY' }, context300s: { status: 'QUALITY_INSUFFICIENT' },
+  } });
+  const pendingBrowser = validateBrowserRuntimeProof(null,
+    { exactHead: RUNTIME_HEAD, runtimeStartedAt: '2026-09-09T00:00:00.000Z' });
+  const pending = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser: pendingBrowser });
+  assert.equal(pending.identityReady.ready, true);
+  assert.equal(pending.runtimePreflightReady.ready, true);
+  assert.equal(pending.runtimeReady.ready, false);
+  assert.equal(pending.ownerPreviewReady.ready, false);
+  assert.match(pending.runtimeReady.reasons.join(','), /BROWSER_PROOF_MISSING/);
+
+  const browser = validateBrowserRuntimeProof({
+    schemaVersion: 'cru46-owner-browser-runtime-proof-v1', exactHead: RUNTIME_HEAD,
+    runtimeStartedAt: '2026-09-09T00:00:00.000Z', lightweightChartsApiMajor: 5,
+    canvasCount: 4, chartWidth: 900, chartHeight: 420, candleCount: 1, volumeCount: 1,
+    observedFlow1m: true, observedFlow5m: true,
+  }, { exactHead: RUNTIME_HEAD, runtimeStartedAt: '2026-09-09T00:00:00.000Z' });
+  const accepted = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
+  assert.equal(accepted.runtimeReady.ready, true);
+  assert.equal(accepted.ownerPreviewReady.ready, true);
 });

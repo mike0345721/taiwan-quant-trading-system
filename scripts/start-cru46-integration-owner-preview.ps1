@@ -22,12 +22,35 @@ $env:HOST = '127.0.0.1'
 $env:PORT = [string]$Port
 $env:DASHBOARD_ENV_PATH = Join-Path $SharedRoot '.env'
 $env:TX_CHART_DATA_ROOT = Join-Path $SharedRoot 'data'
+$env:CRU34_LIVE_DATA_ROOT = Join-Path $SharedRoot 'data'
 $env:CRU34_LIVE_SNAPSHOT_PATH = Join-Path $SharedRoot 'data\runtime\cru34-live\latest.json'
 $env:CRU34_LIVE_STATUS_PATH = Join-Path $SharedRoot 'data\runtime\cru34-live\status.json'
+$env:DASHBOARD_LIGHTWEIGHT_CHARTS_PATH = Join-Path $SharedRoot 'node_modules\lightweight-charts\dist\lightweight-charts.standalone.production.js'
+$env:DASHBOARD_LIGHTWEIGHT_CHARTS_PACKAGE_PATH = Join-Path $SharedRoot 'node_modules\lightweight-charts\package.json'
 $env:DASHBOARD_PREVIEW_TYPE = 'INTEGRATION_OWNER_PREVIEW'
 $env:DASHBOARD_PREVIEW_BRANCH = $expectedBranch
 $env:DASHBOARD_PREVIEW_DATA_MODE = 'GOVERNED_LOCAL_DATA'
 $env:MOCK_DATA = 'false'
+
+$vendorPackage = Get-Content -LiteralPath $env:DASHBOARD_LIGHTWEIGHT_CHARTS_PACKAGE_PATH -Raw | ConvertFrom-Json
+if ($vendorPackage.version -ne '5.2.0') { throw "CRU46_CHART_VENDOR_VERSION_MISMATCH:$($vendorPackage.version)" }
+$vendor = Get-Item -LiteralPath $env:DASHBOARD_LIGHTWEIGHT_CHARTS_PATH -ErrorAction Stop
+if ($vendor.Length -le 0) { throw 'CRU46_CHART_VENDOR_BUNDLE_EMPTY' }
+
+$projectionRoot = Split-Path $env:CRU34_LIVE_SNAPSHOT_PATH -Parent
+& (Join-Path $PSScriptRoot 'start-cru34-live-projection-hidden.ps1') `
+  -DataRoot $env:CRU34_LIVE_DATA_ROOT -ProjectionRoot $projectionRoot -WorkingRoot $root
+for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
+  Start-Sleep -Milliseconds 500
+  if ((Test-Path -LiteralPath $env:CRU34_LIVE_SNAPSHOT_PATH) -and (Test-Path -LiteralPath $env:CRU34_LIVE_STATUS_PATH)) {
+    $producerStatus = Get-Content -LiteralPath $env:CRU34_LIVE_STATUS_PATH -Raw | ConvertFrom-Json
+    if ($producerStatus.status -eq 'AVAILABLE' -and $producerStatus.snapshotPath -eq $env:CRU34_LIVE_SNAPSHOT_PATH `
+      -and $producerStatus.statusPath -eq $env:CRU34_LIVE_STATUS_PATH) { break }
+  }
+}
+if (!$producerStatus -or $producerStatus.status -ne 'AVAILABLE') {
+  throw "CRU46_LIVE_PROJECTION_PREFLIGHT_FAILED:$($producerStatus.reason)"
+}
 
 $logDir = Join-Path $root 'data\automation-logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -49,12 +72,13 @@ for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
     $sourceTruthMatches = $truth.baseMainCommit -eq 'a6984a44c21ec3d012ca5d30acb86ae71215f64f' `
       -and $truth.includedSources.cru43 -eq 'e2427bef6b7659da684e9c82f7fa11680e4688f0' `
       -and $truth.includedSources.cru45 -eq '9f244e1171b2ecfab5c982343a42682858a489c2'
-    if ($response.ok -and $response.ownerPreviewReadiness.ready -eq $true `
+    if ($response.ok -and $response.identityReady.ready -eq $true `
+      -and $response.runtimePreflightReady.ready -eq $true `
       -and $truth.previewType -eq 'INTEGRATION_OWNER_PREVIEW' `
       -and $exactHead -match '^[0-9a-f]{40}$' -and $buildCommit -match '^[0-9a-f]{40}$' `
       -and $runtimeCommit -match '^[0-9a-f]{40}$' -and $exactHead -eq $expectedHead `
       -and $buildCommit -eq $expectedHead -and $runtimeCommit -eq $expectedHead -and $sourceTruthMatches) {
-      [pscustomobject]@{ ProcessId = $process.Id; Url = "http://127.0.0.1:$Port/"; ExactHead = $response.versionTruth.exactHead }
+      [pscustomobject]@{ ProcessId = $process.Id; Port = $Port; ExactHead = $response.versionTruth.exactHead; Gate = 'BROWSER_ACCEPTANCE_REQUIRED'; OwnerPreviewReady = $false }
       exit 0
     }
   } catch { }

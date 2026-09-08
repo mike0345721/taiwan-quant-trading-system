@@ -33,6 +33,14 @@ import {
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import {
+  buildCru46Readiness,
+  inspectChartPayload,
+  inspectChartVendorRuntime,
+  inspectCru34LiveProducer,
+  inspectObservedFlowPayload,
+  validateBrowserRuntimeProof,
+} from './src/dashboard-runtime-readiness.mjs';
+import {
   SessionStore,
   LoginRateLimiter,
   verifyPassword,
@@ -84,7 +92,12 @@ const cru34LiveSnapshotPath = process.env.CRU34_LIVE_SNAPSHOT_PATH
 const cru34LiveStatusPath = process.env.CRU34_LIVE_STATUS_PATH
   ? path.resolve(process.env.CRU34_LIVE_STATUS_PATH)
   : null;
-const lightweightChartsDir = path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist');
+const lightweightChartsPath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHARTS_PATH
+  || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist', 'lightweight-charts.standalone.production.js'));
+const lightweightChartsPackagePath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHARTS_PACKAGE_PATH
+  || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'package.json'));
+const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || path.join(config.appRoot, 'data'));
+const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(config.appRoot, 'data', 'runtime', 'cru34-live', 'latest.json'));
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
@@ -96,6 +109,24 @@ const runtimeVersion = buildIntegrationPreviewVersion({
   dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase(),
 });
 let lastRefreshError = null;
+let browserRuntimeProof = null;
+
+function currentCru46RuntimeReadiness() {
+  const identity = validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
+  const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
+    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const flow = loadDashboardObservedFlow({ liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
+  const vendor = inspectChartVendorRuntime({ bundlePath: lightweightChartsPath,
+    packagePath: lightweightChartsPackagePath, expectedVersion: '5.2.0' });
+  const producer = inspectCru34LiveProducer({ snapshotPath: cru34LiveSnapshotPath, statusPath: cru34LiveStatusPath,
+    dataRoot: cru34LiveDataRoot, projectionRoot: cru34LiveProjectionRoot });
+  const chart = inspectChartPayload(chartPayload);
+  const observedFlow = inspectObservedFlowPayload(flow);
+  const browser = validateBrowserRuntimeProof(browserRuntimeProof,
+    { exactHead: runtimeIdentity.commit, runtimeStartedAt });
+  return { ...buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser }),
+    vendor, producer, chart, observedFlow, browser };
+}
 
 function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
@@ -237,6 +268,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && pathname === '/healthz') {
+      const readiness = currentCru46RuntimeReadiness();
       sendJson(res, 200, {
         ok: true,
         service: 'tw-chip-dashboard-v1',
@@ -246,7 +278,13 @@ const server = http.createServer(async (req, res) => {
         runtimeStartedAt: runtimeVersion.runtimeStartedAt,
         syncState: runtimeVersion.syncState,
         versionTruth: runtimeVersion,
-        ownerPreviewReadiness: validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit),
+        identityReady: readiness.identityReady,
+        runtimePreflightReady: readiness.runtimePreflightReady,
+        runtimeReady: readiness.runtimeReady,
+        ownerPreviewReady: readiness.ownerPreviewReady,
+        ownerPreviewReadiness: readiness.ownerPreviewReady,
+        runtimeEvidence: { vendor: readiness.vendor, producer: readiness.producer,
+          chart: readiness.chart, observedFlow: readiness.observedFlow, browser: readiness.browser },
         productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
       });
       return;
@@ -333,6 +371,30 @@ const server = http.createServer(async (req, res) => {
           service: servicePayload,
           decisionWorkspace,
         });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/api/v1/cru46-browser-runtime-proof') {
+        if (!requireCsrf(req, res, session)) return;
+        const candidate = await readJson(req, { maxBytes: 16 * 1024 });
+        const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
+          calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+        const chart = inspectChartPayload(chartPayload);
+        const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
+          liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }));
+        const normalized = { ...candidate, schemaVersion: 'cru46-owner-browser-runtime-proof-v1',
+          exactHead: runtimeIdentity.commit, runtimeStartedAt, candleCount: chart.candleCount,
+          volumeCount: chart.volumeCount, observedFlow1m: flow.oneMinuteStatus !== 'UNAVAILABLE',
+          observedFlow5m: flow.fiveMinuteStatus !== 'UNAVAILABLE', receivedAt: new Date().toISOString() };
+        const validated = validateBrowserRuntimeProof(normalized,
+          { exactHead: runtimeIdentity.commit, runtimeStartedAt });
+        if (!validated.ready || !chart.ready || !flow.ready) {
+          sendJson(res, 422, { ok: false, error: 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED',
+            reasons: [...validated.reasons, ...chart.reasons, ...flow.reasons] });
+          return;
+        }
+        browserRuntimeProof = Object.freeze(normalized);
+        sendJson(res, 200, { ok: true, data: browserRuntimeProof });
         return;
       }
 
@@ -494,7 +556,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET') {
       if (pathname === '/vendor/lightweight-charts.js') {
-        const served = await serveStatic(res, lightweightChartsDir, '/lightweight-charts.standalone.production.js');
+        const served = await serveStatic(res, path.dirname(lightweightChartsPath), `/${path.basename(lightweightChartsPath)}`);
         if (served) return;
       }
       const served = await serveStatic(res, config.publicDir, pathname);

@@ -67,17 +67,21 @@ function pathsForToday() {
   };
 }
 
-function unavailable(reason) {
+function writeStatus(status, fields = {}) {
   fs.mkdirSync(projectionRoot, { recursive: true });
   const target = path.join(projectionRoot, 'status.json');
   const temp = `${target}.${process.pid}.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify({
-    schemaVersion: 'cru34-live-worker-status-v1', status: 'UNAVAILABLE', reason,
+    schemaVersion: 'cru34-live-worker-status-v1', status, pid: process.pid,
+    dataRoot, projectionRoot, snapshotPath: path.join(projectionRoot, 'latest.json'), statusPath: target,
     observedAt: new Date().toISOString(), formalWeight: 0, researchOnly: true,
     executionAuthorized: false, orderRoutesEnabled: false,
+    ...fields,
   })}\n`, 'utf8');
   fs.renameSync(temp, target);
 }
+
+function unavailable(reason) { writeStatus('UNAVAILABLE', { reason }); }
 
 function run() {
   const paths = pathsForToday();
@@ -92,6 +96,12 @@ function run() {
       staleAfterMs,
       maxBatchBytes,
       maxBatchRecords,
+    });
+    writeStatus('AVAILABLE', {
+      reason: null, truthState: result.status,
+      checkpointOrdinal: result.checkpoint?.lastVerifiedLedgerOrdinal || 0,
+      checkpointRecordHash: result.checkpoint?.lastVerifiedRecordHash || null,
+      snapshotHash: result.snapshot?.snapshotHash || null,
     });
     process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), status: result.status,
       ordinal: result.checkpoint?.lastVerifiedLedgerOrdinal || 0 })}\n`);
