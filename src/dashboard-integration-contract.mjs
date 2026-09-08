@@ -54,3 +54,18 @@ export function buildIntegrationPreviewVersion({ runtimeVersion, enabled = false
     safety: CRU46_PRODUCT_SURFACE_CONTRACT.safety,
   });
 }
+
+export function validateIntegrationPreviewVersionTruth(version, expectedHead) {
+  const sha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+  const reasons = [];
+  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW') reasons.push('PREVIEW_TYPE_MISMATCH');
+  if (!sha(expectedHead)) reasons.push('EXPECTED_HEAD_UNVERIFIED');
+  for (const field of ['exactHead', 'buildCommit', 'runtimeCommit']) {
+    if (!sha(version?.[field])) reasons.push(`${field.toUpperCase()}_UNVERIFIED`);
+    else if (version[field] !== expectedHead) reasons.push(`${field.toUpperCase()}_MISMATCH`);
+  }
+  if (version?.baseMainCommit !== CRU46_INTEGRATION_BASE_MAIN) reasons.push('BASE_MAIN_MISMATCH');
+  if (version?.includedSources?.cru43 !== CRU46_INCLUDED_SOURCES.cru43) reasons.push('CRU43_SOURCE_MISMATCH');
+  if (version?.includedSources?.cru45 !== CRU46_INCLUDED_SOURCES.cru45) reasons.push('CRU45_SOURCE_MISMATCH');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
+}

@@ -2963,6 +2963,7 @@ function renderObservedFlowStrip(value, available) {
     button.classList.toggle('is-selected', selected);
     button.setAttribute('aria-selected', String(selected));
     button.tabIndex = selected ? 0 : -1;
+    if (selected && button.id) $('dw-flow-selected-detail')?.setAttribute('aria-labelledby', button.id);
     button.dataset.truthState = value?.sourceState || 'UNAVAILABLE';
     const note = button.querySelector('small');
     const bar = button.querySelector('.dw-flow-mini-bar');

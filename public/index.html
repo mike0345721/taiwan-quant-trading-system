@@ -193,18 +193,18 @@
               </div>
               <div class="dw-chart-toolbar">
                 <div id="dw-chart-timeframes" class="dw-timeframe-switch" role="group" aria-label="TX 圖表週期">
-                  <button type="button" data-chart-timeframe="1m">1m</button><button type="button" class="is-selected" data-chart-timeframe="5m">5m</button><button type="button" data-chart-timeframe="15m">15m</button><button type="button" data-chart-timeframe="30m">30m</button><button type="button" data-chart-timeframe="1h">1h</button><button type="button" data-chart-timeframe="4h">4h</button><button type="button" data-chart-timeframe="1D">1D</button>
+                  <button type="button" aria-pressed="false" data-chart-timeframe="1m">1m</button><button type="button" class="is-selected" aria-pressed="true" data-chart-timeframe="5m">5m</button><button type="button" aria-pressed="false" data-chart-timeframe="15m">15m</button><button type="button" aria-pressed="false" data-chart-timeframe="30m">30m</button><button type="button" aria-pressed="false" data-chart-timeframe="1h">1h</button><button type="button" aria-pressed="false" data-chart-timeframe="4h">4h</button><button type="button" aria-pressed="false" data-chart-timeframe="1D">1D</button>
                 </div>
                 <span id="dw-chart-mode" class="dw-chart-mode">LIVE · READ ONLY</span>
               </div>
               <div id="dw-flow-window-strip" class="dw-flow-window-strip" role="tablist" aria-label="台指期多時間成交力道">
-                <button type="button" role="tab" aria-selected="false" data-flow-window="1m"><strong>1分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
-                <button type="button" role="tab" aria-selected="true" class="is-selected" data-flow-window="5m"><strong>5分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
-                <button type="button" role="tab" aria-selected="false" data-flow-window="15m"><strong>15分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
-                <button type="button" role="tab" aria-selected="false" data-flow-window="30m"><strong>30分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
-                <button type="button" role="tab" aria-selected="false" data-flow-window="1h"><strong>1小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
-                <button type="button" role="tab" aria-selected="false" data-flow-window="4h"><strong>4小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
-                <button type="button" role="tab" aria-selected="false" data-flow-window="tradingDay" title="本交易日語意待 CRU-44 定義"><strong>本交易日</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待定義</small></button>
+                <button id="dw-flow-tab-1m" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="1m"><strong>1分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
+                <button id="dw-flow-tab-5m" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="true" class="is-selected" data-flow-window="5m"><strong>5分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>等待資料</small></button>
+                <button id="dw-flow-tab-15m" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="15m"><strong>15分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button id="dw-flow-tab-30m" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="30m"><strong>30分</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button id="dw-flow-tab-1h" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="1h"><strong>1小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button id="dw-flow-tab-4h" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="4h"><strong>4小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
+                <button id="dw-flow-tab-tradingDay" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="tradingDay" title="本交易日語意待 CRU-44 定義"><strong>本交易日</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待定義</small></button>
               </div>
               <div class="dw-chart-stage">
                 <div class="dw-chart-price"><small>最新成交</small><strong id="dw-reference-price">—</strong></div>
@@ -257,7 +257,7 @@
                   <article><span>中端</span><strong id="dw-flow-summary-mid">待驗證</strong><small>30分／1小時</small></article>
                   <article><span>遠端</span><strong id="dw-flow-summary-far">待驗證</strong><small>4小時／本交易日</small></article>
                 </div>
-                <section id="dw-flow-selected-detail" class="dw-flow-selected-detail" aria-live="polite" aria-labelledby="dw-flow-selected-title">
+                <section id="dw-flow-selected-detail" class="dw-flow-selected-detail" role="tabpanel" aria-live="polite" aria-labelledby="dw-flow-tab-5m">
                   <header><span>選取時窗</span><strong id="dw-flow-selected-title">5分</strong></header>
                   <p id="dw-flow-selected-summary" class="dw-flow-selected-summary">等待受治理的時窗證據。</p>
                   <div class="dw-flow-selected-pressure"><span>成交壓力｜誰比較主動</span><div id="dw-flow-selected-bar" class="dw-pressure-segments" aria-hidden="true"></div><strong id="dw-flow-selected-ratio">不可判定</strong><small id="dw-flow-selected-side">不可判定</small></div>

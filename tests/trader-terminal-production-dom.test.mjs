@@ -795,6 +795,8 @@ async function runProductionInteractionRegression() {
         chart: document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe,
         focused: document.activeElement?.dataset?.flowWindow,
         tabbable: [...document.querySelectorAll('[data-flow-window]')].filter((item) => item.tabIndex === 0).map((item) => item.dataset.flowWindow),
+        panelLabelledBy: document.getElementById('dw-flow-selected-detail')?.getAttribute('aria-labelledby'),
+        controls: document.activeElement?.getAttribute('aria-controls'),
       };
       focusBeforeKeyboard?.focus();
       document.querySelector('[data-flow-window="1m"]').click();
@@ -1369,7 +1371,10 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     { flowKey: 'tradingDay', chartKey: '1D', stateTimeframe: '1D', selectedChart: '1D' },
   ]);
   assert.ok(matrix.flowToChart.every(({ selectedChartCount }) => selectedChartCount === 1));
-  assert.deepEqual(matrix.keyboardSelection, { flow: '15m', chart: '15m', focused: '15m', tabbable: ['15m'] });
+  assert.deepEqual(matrix.keyboardSelection, {
+    flow: '15m', chart: '15m', focused: '15m', tabbable: ['15m'],
+    panelLabelledBy: 'dw-flow-tab-15m', controls: 'dw-flow-selected-detail',
+  });
   assert.equal(matrix.selected1m.title, '1分');
   assert.equal(matrix.selected15m.title, '15分');
   assert.equal(matrix.selected15m.pendingVisible, true);

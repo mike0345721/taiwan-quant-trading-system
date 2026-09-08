@@ -28,6 +28,7 @@ import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-id
 import {
   buildIntegrationPreviewVersion,
   CRU46_PRODUCT_SURFACE_CONTRACT,
+  validateIntegrationPreviewVersionTruth,
 } from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
@@ -245,6 +246,7 @@ const server = http.createServer(async (req, res) => {
         runtimeStartedAt: runtimeVersion.runtimeStartedAt,
         syncState: runtimeVersion.syncState,
         versionTruth: runtimeVersion,
+        ownerPreviewReadiness: validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit),
         productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
       });
       return;
