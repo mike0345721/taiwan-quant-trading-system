@@ -2866,6 +2866,12 @@ const OBSERVED_FLOW_WINDOW_REGISTRY = Object.freeze([
   Object.freeze({ key: '4h', label: '4小時', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
   Object.freeze({ key: 'tradingDay', label: '本交易日', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
 ]);
+const CHART_TO_FLOW_WINDOW = Object.freeze({
+  '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1h', '4h': '4h', '1D': 'tradingDay',
+});
+const FLOW_TO_CHART_TIMEFRAME = Object.freeze(Object.fromEntries(
+  Object.entries(CHART_TO_FLOW_WINDOW).map(([chart, flow]) => [flow, chart]),
+));
 let observedFlowSelectedWindow = '5m';
 let lastObservedFlowValue = null;
 
@@ -2907,6 +2913,34 @@ function observedFlowRelation(response) {
   return ({ SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定' })[response?.directionRelation]
     || '成交力道不可判定';
+}
+
+function observedFlowSelectedSummary(value, definition, window, available, reason) {
+  if (definition.data !== 'GOVERNED') {
+    const state = definition.key === 'tradingDay' ? '待定義' : '待驗證';
+    return `成交壓力${state}；價格反應${state}；路徑效率${state}；可判定成交占比與 Data Trust ${state}。`;
+  }
+  if (!available) {
+    const unavailable = dwHumanize(reason);
+    return `成交壓力不可用；價格反應不可用；路徑效率不可用；可判定成交占比與 Data Trust 不可用（${unavailable}）。`;
+  }
+  const pressure = window?.pressure || {};
+  const ratio = observedFlowRatio(pressure);
+  const side = observedFlowPressureSide(pressure, value.sourceState);
+  const pressureText = ratio == null
+    ? '成交壓力不可判定'
+    : `成交壓力 ${observedFlowMetric(ratio, { signedValue: true, digits: 3 })}（${side}）`;
+  const displacement = window?.response?.displacementPoints;
+  const responseText = displacement !== null && displacement !== undefined && Number.isFinite(Number(displacement))
+    ? `價格反應 ${observedFlowMetric(displacement, { signedValue: true, suffix: ' 點', digits: 0 })}（${observedFlowRelation(window?.response)}）`
+    : '價格反應不可用';
+  const path = window?.pathEfficiency?.value;
+  const pathText = path !== null && path !== undefined && Number.isFinite(Number(path))
+    ? `路徑效率 ${observedFlowMetric(path, { digits: 3 })}`
+    : `路徑效率不可用（${dwHumanize(window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE')}）`;
+  const coverage = observedFlowCoverage(pressure.classifiedCoverage)
+    || `不可用（${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}）`;
+  return `${pressureText} → ${responseText} → ${pathText} → 可判定成交占比 ${coverage} / Data Trust ${observedFlowStateLabel(value.sourceState)}。`;
 }
 
 function renderObservedFlowPressure(window, suffix, available, reason) {
@@ -2967,6 +3001,7 @@ function renderObservedFlowSelected(value, available, reason) {
   const pending = definition.data !== 'GOVERNED';
   panel.classList.toggle('is-pending', pending);
   $('dw-flow-selected-pending')?.classList.toggle('hidden', !pending);
+  dwText('dw-flow-selected-summary', observedFlowSelectedSummary(value, definition, window, available, reason));
   if (pending) return;
   const pressure = window?.pressure || {};
   const ratio = available ? observedFlowRatio(pressure) : null;
@@ -3037,7 +3072,7 @@ function renderObservedFlow(flow) {
   renderObservedFlowSummary(value, available);
   renderObservedFlowSelected(value, available, reason);
   terminalWrite('dw-observed-flow-coverage', available
-    ? `60 秒 ${observedFlowCoverage(primary?.pressure?.classifiedCoverage) || terminalUnavailable(primary?.pressure?.unavailableReason)} · 300 秒 ${observedFlowCoverage(context?.pressure?.classifiedCoverage) || terminalUnavailable(context?.pressure?.unavailableReason)}`
+    ? `1分 ${observedFlowCoverage(primary?.pressure?.classifiedCoverage) || terminalUnavailable(primary?.pressure?.unavailableReason)} · 5分 ${observedFlowCoverage(context?.pressure?.classifiedCoverage) || terminalUnavailable(context?.pressure?.unavailableReason)}`
     : null, { reason });
   const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[value.researchQuality?.status];
   terminalWrite('dw-observed-flow-quality', available ? qualityLabel : null, { reason });
@@ -4237,17 +4272,33 @@ document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventL
   $('dw-focus-mode').classList.toggle('hidden', mode !== 'FOCUS');
   $('dw-review-mode').classList.toggle('hidden', mode !== 'REVIEW');
 }));
-document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
-  state.txChartTimeframe = button.dataset.chartTimeframe;
-  document.querySelectorAll('[data-chart-timeframe]').forEach((item) => item.classList.toggle('is-selected', item === button));
-  loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
-}));
-document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
-  observedFlowSelectedWindow = button.dataset.flowWindow;
+function selectObservedFlowWindow(windowKey) {
+  observedFlowSelectedWindow = windowKey;
   const value = lastObservedFlowValue || { sourceState: 'UNAVAILABLE', unavailableReason: 'OBSERVED_FLOW_UNAVAILABLE', windows: null };
   const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
   renderObservedFlowStrip(value, available);
   renderObservedFlowSelected(value, available, value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE');
+}
+
+function selectChartTimeframe(timeframe) {
+  state.txChartTimeframe = timeframe;
+  document.querySelectorAll('[data-chart-timeframe]').forEach((item) => {
+    const selected = item.dataset.chartTimeframe === timeframe;
+    item.classList.toggle('is-selected', selected);
+    item.setAttribute('aria-pressed', String(selected));
+  });
+  loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+}
+
+document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
+  const timeframe = button.dataset.chartTimeframe;
+  selectChartTimeframe(timeframe);
+  selectObservedFlowWindow(CHART_TO_FLOW_WINDOW[timeframe]);
+}));
+document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
+  const windowKey = button.dataset.flowWindow;
+  selectObservedFlowWindow(windowKey);
+  selectChartTimeframe(FLOW_TO_CHART_TIMEFRAME[windowKey]);
 }));
 document.querySelectorAll('[data-review-intent]').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('[data-review-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));

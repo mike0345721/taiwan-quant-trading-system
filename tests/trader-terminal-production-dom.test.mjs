@@ -307,6 +307,8 @@ const layoutMeasurementExpression = `(() => {
     ownerWidth: round(ownerRect?.width || 0),
     observedHeight: round(observedRect?.height || 0),
     observedWidth: round(observedRect?.width || 0),
+    observedClientHeight: observed?.clientHeight || 0,
+    observedScrollHeight: observed?.scrollHeight || 0,
     visualPrimaryRatio: observedRect?.width && observedRect?.height
       ? round((ownerRect.width * ownerRect.height) / (observedRect.width * observedRect.height))
       : null,
@@ -684,6 +686,7 @@ async function runProductionInteractionRegression() {
         response: document.getElementById('dw-flow-selected-response')?.textContent || '',
         relation: document.getElementById('dw-flow-selected-relation')?.textContent || '',
         path: document.getElementById('dw-flow-selected-path')?.textContent || '',
+        summary: document.getElementById('dw-flow-selected-summary')?.textContent || '',
         pending: document.getElementById('dw-flow-selected-pending')?.textContent || '',
         pendingVisible: !document.getElementById('dw-flow-selected-pending')?.classList.contains('hidden'),
         barClass: document.getElementById('dw-flow-selected-bar')?.className || '',
@@ -724,14 +727,38 @@ async function runProductionInteractionRegression() {
         unavailableReason: 'QUALITY_INSUFFICIENT_LONG_GAP',
       };
       renderObservedFlow(pathUnavailableValue);
-      const pathUnavailable = selected().path;
+      const pathUnavailable = selected();
+      const chartToFlow = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['4h', '4h'], ['1D', 'tradingDay']]
+        .map(([chartKey, flowKey]) => {
+          document.querySelector('[data-chart-timeframe="' + chartKey + '"]').click();
+          return {
+            chartKey, flowKey,
+            selectedFlow: document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow,
+            selectedFlowCount: document.querySelectorAll('[data-flow-window].is-selected').length,
+            ariaSelectedCount: document.querySelectorAll('[data-flow-window][aria-selected="true"]').length,
+          };
+        });
+      const flowToChart = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['4h', '4h'], ['tradingDay', '1D']]
+        .map(([flowKey, chartKey]) => {
+          document.querySelector('[data-flow-window="' + flowKey + '"]').click();
+          return {
+            flowKey, chartKey, stateTimeframe: state.txChartTimeframe,
+            selectedChart: document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe,
+            selectedChartCount: document.querySelectorAll('[data-chart-timeframe].is-selected').length,
+          };
+        });
       document.querySelector('[data-flow-window="1m"]').click();
       const selected1m = selected();
       document.querySelector('[data-flow-window="15m"]').click();
       const selected15m = selected();
+      const chartSelectionAfterPendingFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
       document.querySelector('[data-flow-window="5m"]').click();
       const selected5m = selected();
       const chartSelectionAfterFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
+      document.querySelector('[data-chart-timeframe="1D"]').click();
+      const flowSelectionAfterChart = document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow;
+      const selectedTradingDay = selected();
+      document.querySelector('[data-chart-timeframe="5m"]').click();
       renderObservedFlow(base);
       const live = selected();
       renderObservedFlow({ ...base, sourceState: 'STALE' });
@@ -743,8 +770,10 @@ async function runProductionInteractionRegression() {
       renderObservedFlow({ sourceState: 'UNAVAILABLE', unavailableReason: 'FIXTURE_UNAVAILABLE', windows: null });
       const unavailable = selected();
       renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
-      return { pressure, response, pathUnavailable, selected1m, selected15m, selected5m,
-        chartSelectionAfterFlow, live, stale, warming, historical, unavailable };
+      return { pressure, response, pathUnavailable, chartToFlow, flowToChart,
+        selected1m, selected15m, selected5m, selectedTradingDay,
+        chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
+        live, stale, warming, historical, unavailable };
     })()`);
 
     const refreshFailureEvidence = await evaluate(cdp, `(() => {
@@ -1173,20 +1202,54 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.doesNotMatch(matrix.pressure.null.ratio, /0\.000/);
   assert.equal(matrix.pressure.limitedPositive.side, '方向判定受限');
   assert.match(matrix.pressure.limitedPositive.barClass, /is-positive.*is-limited/);
+  assert.match(matrix.pressure.limitedPositive.summary, /方向判定受限/);
+  assert.doesNotMatch(matrix.pressure.limitedPositive.summary, /偏買方/);
   assert.equal(matrix.pressure.limitedNegative.side, '方向判定受限');
   assert.match(matrix.pressure.limitedNegative.barClass, /is-negative.*is-limited/);
   assert.deepEqual(matrix.response, {
     SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定',
   });
-  assert.match(matrix.pathUnavailable, /QUALITY_INSUFFICIENT_LONG_GAP/);
+  assert.match(matrix.pathUnavailable.path, /QUALITY_INSUFFICIENT_LONG_GAP/);
+  assert.match(matrix.pathUnavailable.summary, /路徑效率不可用/);
+  assert.doesNotMatch(matrix.pathUnavailable.summary, /路徑效率 0(?:\.0+)?/);
+  assert.deepEqual(matrix.chartToFlow.map(({ chartKey, flowKey, selectedFlow }) => ({ chartKey, flowKey, selectedFlow })), [
+    { chartKey: '1m', flowKey: '1m', selectedFlow: '1m' },
+    { chartKey: '5m', flowKey: '5m', selectedFlow: '5m' },
+    { chartKey: '15m', flowKey: '15m', selectedFlow: '15m' },
+    { chartKey: '30m', flowKey: '30m', selectedFlow: '30m' },
+    { chartKey: '1h', flowKey: '1h', selectedFlow: '1h' },
+    { chartKey: '4h', flowKey: '4h', selectedFlow: '4h' },
+    { chartKey: '1D', flowKey: 'tradingDay', selectedFlow: 'tradingDay' },
+  ]);
+  assert.ok(matrix.chartToFlow.every(({ selectedFlowCount, ariaSelectedCount }) => selectedFlowCount === 1 && ariaSelectedCount === 1));
+  assert.deepEqual(matrix.flowToChart.map(({ flowKey, chartKey, stateTimeframe, selectedChart }) => ({ flowKey, chartKey, stateTimeframe, selectedChart })), [
+    { flowKey: '1m', chartKey: '1m', stateTimeframe: '1m', selectedChart: '1m' },
+    { flowKey: '5m', chartKey: '5m', stateTimeframe: '5m', selectedChart: '5m' },
+    { flowKey: '15m', chartKey: '15m', stateTimeframe: '15m', selectedChart: '15m' },
+    { flowKey: '30m', chartKey: '30m', stateTimeframe: '30m', selectedChart: '30m' },
+    { flowKey: '1h', chartKey: '1h', stateTimeframe: '1h', selectedChart: '1h' },
+    { flowKey: '4h', chartKey: '4h', stateTimeframe: '4h', selectedChart: '4h' },
+    { flowKey: 'tradingDay', chartKey: '1D', stateTimeframe: '1D', selectedChart: '1D' },
+  ]);
+  assert.ok(matrix.flowToChart.every(({ selectedChartCount }) => selectedChartCount === 1));
   assert.equal(matrix.selected1m.title, '1分');
   assert.equal(matrix.selected15m.title, '15分');
   assert.equal(matrix.selected15m.pendingVisible, true);
   assert.match(matrix.selected15m.pending, /CRU-44 尚未啟用/);
+  assert.match(matrix.selected15m.summary, /成交壓力待驗證；價格反應待驗證；路徑效率待驗證/);
+  assert.equal(matrix.chartSelectionAfterPendingFlow, '15m');
   assert.equal(matrix.selected5m.title, '5分');
   assert.equal(matrix.selected5m.pendingVisible, false);
+  assert.match(matrix.selected5m.summary, /成交壓力/);
+  assert.match(matrix.selected5m.summary, /價格反應/);
+  assert.match(matrix.selected5m.summary, /路徑效率/);
+  assert.match(matrix.selected5m.summary, /可判定成交占比/);
+  assert.match(matrix.selected5m.summary, /Data Trust/);
   assert.equal(matrix.chartSelectionAfterFlow, '5m');
+  assert.equal(matrix.flowSelectionAfterChart, 'tradingDay');
+  assert.equal(matrix.selectedTradingDay.title, '本交易日');
+  assert.match(matrix.selectedTradingDay.summary, /待定義/);
   assert.match(matrix.live.barClass, /is-negative/);
   assert.doesNotMatch(matrix.live.barClass, /is-inactive/);
   assert.match(matrix.stale.barClass, /is-inactive/);

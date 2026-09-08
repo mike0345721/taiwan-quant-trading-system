@@ -154,10 +154,15 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(read('public', 'index.html'), /data-flow-window="tradingDay"/);
   assert.match(read('public', 'index.html'), /價格反應｜價格有沒有跟上/);
   assert.match(read('public', 'index.html'), /路徑效率｜走勢乾不乾淨/);
+  assert.match(read('public', 'index.html'), /id="dw-flow-selected-summary"/);
   assert.match(read('public', 'index.html'), /id="dw-observed-flow-truth"/);
   assert.match(app, /function renderObservedFlow\(flow\)/);
   assert.match(app, /HISTORICAL: '歷史資料｜非目前盤勢'/);
   assert.match(app, /PENDING_CRU44/);
+  assert.match(app, /CHART_TO_FLOW_WINDOW/);
+  assert.match(app, /FLOW_TO_CHART_TIMEFRAME/);
+  assert.match(app, /Data Trust \$\{observedFlowStateLabel\(value\.sourceState\)\}/);
+  assert.doesNotMatch(app, /`60 秒 \$\{observedFlowCoverage/);
   assert.match(app, /pressureRatio === null/);
   assert.match(app, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
   assert.match(app, /renderObservedFlow\(workspace\?\.observedFlow\)/);
