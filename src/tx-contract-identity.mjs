@@ -23,11 +23,15 @@ export function compareTxContractIdentity({
   eodContract,
 } = {}) {
   const rawLiveContract = clean(liveContract);
-  const canonicalLiveMonth = normalizeTxEodContractMonth(liveContractMonth)
+  const derivedLiveMonth = normalizeTxEodContractMonth(rawLiveContract)
     || txLiveContractMonth(rawLiveContract, tradeDate);
+  const declaredLiveMonth = normalizeTxEodContractMonth(liveContractMonth);
+  const liveIdentityConsistent = Boolean(derivedLiveMonth
+    && (!declaredLiveMonth || declaredLiveMonth === derivedLiveMonth));
+  const canonicalLiveMonth = liveIdentityConsistent ? declaredLiveMonth || derivedLiveMonth : null;
   const canonicalEodMonth = normalizeTxEodContractMonth(eodContract);
 
-  if (!rawLiveContract || !canonicalLiveMonth || !canonicalEodMonth) {
+  if (!rawLiveContract || !liveIdentityConsistent || !canonicalLiveMonth || !canonicalEodMonth) {
     return Object.freeze({
       compatible: false,
       state: 'UNAVAILABLE',

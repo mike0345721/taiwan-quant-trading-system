@@ -372,7 +372,7 @@
     }
     const stage = root.querySelector('.dw-chart-stage');
     if (stage && !root.querySelector('#dw-chart-crosshair')) {
-      const crosshair = element('div', 'dw-chart-crosshair tt-chart-legend', '移到 K 棒查看 Time / OHLCV / VWAP / Distance');
+      const crosshair = element('div', 'dw-chart-crosshair tt-chart-legend', '移到 K 棒查看目前／收盤、漲跌、最高、最低、振幅與成交量');
       crosshair.id = 'dw-chart-crosshair';
       crosshair.setAttribute('aria-live', 'polite');
       stage.append(crosshair);

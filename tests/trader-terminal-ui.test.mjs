@@ -131,6 +131,10 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(terminalSource, /terminalBreadthCounts/);
   assert.match(terminalSource, /terminalHealthSummary/);
   assert.match(terminalSource, /ACTUAL_CONTRACT_MISMATCH/);
+  assert.match(terminalSource, /CONTRACT_IDENTITY_INCOMPLETE/);
+  assert.match(terminalSource, /chart\?\.contractMonth/);
+  assert.match(terminalSource, /chartContractMonth === snapshotContractMonth/);
+  assert.doesNotMatch(terminalSource, /chartContract === snapshotContract/);
   assert.match(terminalSource, /TRADE_DATE_OR_SOURCE_MISMATCH/);
   assert.match(terminalSource, /DERIVATION_NOT_IMPLEMENTED/);
   assert.match(terminalSource, /BREAKDOWN_NOT_IMPLEMENTED/);
@@ -162,7 +166,14 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /show-optional-levels/);
   assert.match(app, /const hasDayLevels =/);
   assert.match(app, /trader-terminal:levels/);
-  assert.match(app, /ΔVWAP/);
+  assert.match(app, /距 VWAP/);
+  assert.match(app, /function txChartRuntimeReason\(\)/);
+  assert.match(app, /CHART_RUNTIME_API_MISMATCH/);
+  assert.match(app, /visibleRenderReady/);
+  assert.match(app, /requestId !== state\.txChartRequestId \|\| timeframe !== state\.txChartTimeframe/);
+  assert.match(app, /state\.txChartPendingFit = state\.txChartPendingFit \|\| fit/);
+  assert.match(app, /目前／收盤/);
+  assert.match(app, /完整 開/);
   assert.match(app, /時段高\|時段低\|VWAP/);
   assert.match(app, /typeof value === 'boolean'/);
   assert.doesNotMatch(read('public', 'trader-terminal-shell.js'), /executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/);

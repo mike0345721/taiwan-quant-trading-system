@@ -48,7 +48,8 @@ const rows = dayFiles.map(({ name, tradeDate }) => {
   };
 });
 
-const governedCandidates = rows.filter((row) => row.auditPassed && row.fullDay60Bars && row.validVolumeBars === 60);
+const governedCandidates = rows.filter((row) => row.auditPassed && row.fullDay60Bars
+  && row.validVolumeBars === 60 && /^\d{6}$/.test(String(row.contract || '')));
 const bucketCounts = new Map();
 for (const row of governedCandidates) {
   for (const bucket of new Set(row.buckets)) bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
@@ -61,6 +62,30 @@ const medianCount = counts.length
 const contractCounts = Object.fromEntries([...new Set(governedCandidates.map((row) => row.contract).filter(Boolean))]
   .sort()
   .map((contract) => [contract, governedCandidates.filter((row) => row.contract === contract).length]));
+const ineligibleCatalogDays = rows.filter((row) => !(row.auditPassed && row.fullDay60Bars
+  && row.validVolumeBars === 60 && /^\d{6}$/.test(String(row.contract || ''))))
+  .map((row) => ({
+    tradeDate: row.tradeDate,
+    reasons: [
+      !row.auditPassed ? `AUDIT_${String(row.auditState).toUpperCase()}` : null,
+      !row.fullDay60Bars ? `EXPECTED_60_BARS_GOT_${row.bars}` : null,
+      row.validVolumeBars !== 60 ? `EXPECTED_60_VALID_VOLUME_BARS_GOT_${row.validVolumeBars}` : null,
+      !/^\d{6}$/.test(String(row.contract || '')) ? 'CONTRACT_IDENTITY_INCOMPLETE' : null,
+    ].filter(Boolean),
+  }));
+const contractTransitions = [];
+for (let index = 1; index < governedCandidates.length; index += 1) {
+  const previous = governedCandidates[index - 1];
+  const current = governedCandidates[index];
+  if (previous.contract && current.contract && previous.contract !== current.contract) {
+    contractTransitions.push({
+      fromTradeDate: previous.tradeDate,
+      toTradeDate: current.tradeDate,
+      fromContract: previous.contract,
+      toContract: current.contract,
+    });
+  }
+}
 
 const report = {
   schemaVersion: 'cru45-tx-rvol-baseline-readiness-v1',
@@ -72,6 +97,25 @@ const report = {
   firstCandidateDate: governedCandidates[0]?.tradeDate || null,
   lastCandidateDate: governedCandidates.at(-1)?.tradeDate || null,
   contractDayCounts: contractCounts,
+  missingDays: {
+    state: 'UNASSESSED',
+    reason: 'GOVERNED_TRADING_CALENDAR_NOT_CONFIGURED',
+    explanation: 'catalog inspection can identify ineligible files but cannot infer absent trading dates without an authoritative calendar',
+  },
+  ineligibleCatalogDays,
+  rolloverBehavior: {
+    transitionCount: contractTransitions.length,
+    transitions: contractTransitions,
+    existingCandidatePooling: 'previous up-to-20 eligible days may span a contract transition; roll-day identity remains descriptive evidence',
+    promotionRequirement: 'freeze an explicit rollover inclusion/exclusion policy before formal promotion',
+  },
+  sessionBehavior: {
+    auditedSession: 'DAY',
+    timeframe: '5m',
+    expectedBarsPerSession: 60,
+    bucketIdentityCurrent: 'UTC_ISO_HH_MM_SUBSTRING_DERIVED_FROM_ASIA_TAIPEI_SOURCE',
+    promotionRequirement: 'replace serialized substring matching with explicit Asia/Taipei or session-relative bucket identity',
+  },
   sameTimeBucketCount: sortedBucketCounts.length,
   sameTimeSampleDays: {
     min: counts[0] || 0,
@@ -79,8 +123,8 @@ const report = {
     max: counts.at(-1) || 0,
   },
   bucketSamples: Object.fromEntries(sortedBucketCounts),
-  candidateRule: 'auditPassed && exactly 60 day-session 5m bars && all 60 bars have finite volume',
-  baselineMethodExistingCandidate: 'historical replay currently uses previous up-to-20 catalog days and same HH:MM median volume',
+  candidateRule: 'auditPassed && exactly 60 day-session 5m bars && all 60 bars have finite volume && canonical YYYYMM contract identity',
+  baselineMethodExistingCandidate: 'historical replay currently uses previous up-to-20 catalog days and same-time median volume',
   promotionState: 'RESEARCH_PENDING',
   warning: 'This audit reports sample readiness only. It does not define a minimum sample threshold, label 爆量/量縮, or authorize live RVOL promotion.',
   researchOnly: true,
