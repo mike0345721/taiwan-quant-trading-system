@@ -190,19 +190,28 @@ async function setViewport(cdp, width, height) {
 }
 
 async function clickSelector(cdp, selector) {
+  await evaluate(cdp, `(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) return false;
+    node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+    return true;
+  })()`);
+  await waitAnimationFrames(cdp, 4);
   const point = await evaluate(cdp, `(() => {
     const node = document.querySelector(${JSON.stringify(selector)});
     if (!node) return null;
-    node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
     const rect = node.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
     return {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
+      x,
+      y,
       width: rect.width,
       height: rect.height,
+      hit: node === document.elementFromPoint(x, y) || node.contains(document.elementFromPoint(x, y)),
     };
   })()`);
-  assert.ok(point && point.width > 0 && point.height > 0, `Clickable selector is not visible: ${selector}`);
+  assert.ok(point && point.width > 0 && point.height > 0 && point.hit, `Clickable selector is not visible: ${selector}`);
   await cdp.command('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
   await cdp.command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
   await waitAnimationFrames(cdp, 4);
@@ -676,6 +685,7 @@ async function runProductionInteractionRegression() {
     })()`);
 
     const observedFlowStateMatrix = await evaluate(cdp, `(() => {
+      const focusBeforeKeyboard = document.activeElement;
       const base = structuredClone(globalThis.__ui1Workspace.observedFlow);
       base.sourceState = 'LIVE';
       base.source.sourceMode = 'LIVE';
@@ -747,6 +757,16 @@ async function runProductionInteractionRegression() {
             selectedChartCount: document.querySelectorAll('[data-chart-timeframe].is-selected').length,
           };
         });
+      document.querySelector('[data-flow-window="5m"]').click();
+      document.querySelector('[data-flow-window="5m"]').focus();
+      document.querySelector('[data-flow-window="5m"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      const keyboardSelection = {
+        flow: document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow,
+        chart: document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe,
+        focused: document.activeElement?.dataset?.flowWindow,
+        tabbable: [...document.querySelectorAll('[data-flow-window]')].filter((item) => item.tabIndex === 0).map((item) => item.dataset.flowWindow),
+      };
+      focusBeforeKeyboard?.focus();
       document.querySelector('[data-flow-window="1m"]').click();
       const selected1m = selected();
       document.querySelector('[data-flow-window="15m"]').click();
@@ -770,12 +790,11 @@ async function runProductionInteractionRegression() {
       renderObservedFlow({ sourceState: 'UNAVAILABLE', unavailableReason: 'FIXTURE_UNAVAILABLE', windows: null });
       const unavailable = selected();
       renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
-      return { pressure, response, pathUnavailable, chartToFlow, flowToChart,
+      return { pressure, response, pathUnavailable, chartToFlow, flowToChart, keyboardSelection,
         selected1m, selected15m, selected5m, selectedTradingDay,
         chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
         live, stale, warming, historical, unavailable };
     })()`);
-
     const refreshFailureEvidence = await evaluate(cdp, `(() => {
       const pulseIds = [
         'dw-pulse-price', 'dw-pulse-vwap', 'dw-pulse-session', 'dw-pulse-breadth',
@@ -1182,9 +1201,10 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /HISTORICAL · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /非目前盤勢/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /TXFI6 · DAY/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交力道｜誰比較主動/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應｜價格有沒有跟上/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率｜走勢乾不乾淨/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力｜誰比較主動/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應｜價格最後往哪裡走/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率｜過程有多直接/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /可判定成交占比 \/ Data Trust/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
@@ -1233,6 +1253,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     { flowKey: 'tradingDay', chartKey: '1D', stateTimeframe: '1D', selectedChart: '1D' },
   ]);
   assert.ok(matrix.flowToChart.every(({ selectedChartCount }) => selectedChartCount === 1));
+  assert.deepEqual(matrix.keyboardSelection, { flow: '15m', chart: '15m', focused: '15m', tabbable: ['15m'] });
   assert.equal(matrix.selected1m.title, '1分');
   assert.equal(matrix.selected15m.title, '15分');
   assert.equal(matrix.selected15m.pendingVisible, true);

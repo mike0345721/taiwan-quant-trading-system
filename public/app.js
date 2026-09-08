@@ -2958,8 +2958,10 @@ function renderObservedFlowStrip(value, available) {
   for (const definition of OBSERVED_FLOW_WINDOW_REGISTRY) {
     const button = document.querySelector(`[data-flow-window="${definition.key}"]`);
     if (!button) continue;
-    button.classList.toggle('is-selected', definition.key === observedFlowSelectedWindow);
-    button.setAttribute('aria-selected', String(definition.key === observedFlowSelectedWindow));
+    const selected = definition.key === observedFlowSelectedWindow;
+    button.classList.toggle('is-selected', selected);
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
     button.dataset.truthState = value?.sourceState || 'UNAVAILABLE';
     const note = button.querySelector('small');
     const bar = button.querySelector('.dw-flow-mini-bar');
@@ -4299,6 +4301,17 @@ document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEv
   const windowKey = button.dataset.flowWindow;
   selectObservedFlowWindow(windowKey);
   selectChartTimeframe(FLOW_TO_CHART_TIMEFRAME[windowKey]);
+}));
+document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('keydown', (event) => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const tabs = [...document.querySelectorAll('[data-flow-window]')];
+  const current = tabs.indexOf(button);
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? tabs.length - 1
+      : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next]?.focus();
+  tabs[next]?.click();
 }));
 document.querySelectorAll('[data-review-intent]').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('[data-review-intent]').forEach((item) => item.classList.toggle('is-selected', item === button));

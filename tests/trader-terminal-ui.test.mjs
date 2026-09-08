@@ -152,8 +152,10 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(read('public', 'index.html'), /data-terminal-card="observed-flow"/);
   assert.match(read('public', 'index.html'), /台指期多時間成交力道/);
   assert.match(read('public', 'index.html'), /data-flow-window="tradingDay"/);
-  assert.match(read('public', 'index.html'), /價格反應｜價格有沒有跟上/);
-  assert.match(read('public', 'index.html'), /路徑效率｜走勢乾不乾淨/);
+  assert.match(read('public', 'index.html'), /成交壓力｜誰比較主動/);
+  assert.match(read('public', 'index.html'), /價格反應｜價格最後往哪裡走/);
+  assert.match(read('public', 'index.html'), /路徑效率｜過程有多直接/);
+  assert.match(read('public', 'index.html'), /可判定成交占比 \/ Data Trust/);
   assert.match(read('public', 'index.html'), /id="dw-flow-selected-summary"/);
   assert.match(read('public', 'index.html'), /id="dw-observed-flow-truth"/);
   assert.match(app, /function renderObservedFlow\(flow\)/);
@@ -161,6 +163,8 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /PENDING_CRU44/);
   assert.match(app, /CHART_TO_FLOW_WINDOW/);
   assert.match(app, /FLOW_TO_CHART_TIMEFRAME/);
+  assert.match(app, /\['ArrowLeft', 'ArrowRight', 'Home', 'End'\]/);
+  assert.match(app, /button\.tabIndex = selected \? 0 : -1/);
   assert.match(app, /Data Trust \$\{observedFlowStateLabel\(value\.sourceState\)\}/);
   assert.doesNotMatch(app, /`60 秒 \$\{observedFlowCoverage/);
   assert.match(app, /pressureRatio === null/);
