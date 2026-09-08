@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.join(root, '.env');
+const envPath = process.env.DASHBOARD_ENV_PATH
+  ? path.resolve(process.env.DASHBOARD_ENV_PATH)
+  : path.join(root, '.env');
 const shioajiEnvPath = path.join(root, '.shioaji.credentials.json');
 
 if (!fs.existsSync(envPath)) {

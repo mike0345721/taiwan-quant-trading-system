@@ -43,7 +43,7 @@ function rawTxTick(record) {
   return Boolean(code && /^TXF/i.test(code));
 }
 
-function effectiveCutoffOrdinal(records, requested) {
+function effectiveCutoffOrdinal(records, requested, ledgerOrdinalOffset = 0) {
   if (requested != null) {
     if (!Number.isInteger(requested) || requested < 1) {
       throw new Error('CRU34_CUTOFF_LEDGER_ORDINAL_INVALID');
@@ -51,17 +51,17 @@ function effectiveCutoffOrdinal(records, requested) {
     return requested;
   }
   for (let index = records.length - 1; index >= 0; index -= 1) {
-    if (rawTxTick(records[index])) return index + 1;
+    if (rawTxTick(records[index])) return ledgerOrdinalOffset + index + 1;
   }
   return null;
 }
 
-function exactPhysicalPrefix(records, cutoffLedgerOrdinal) {
+function exactPhysicalPrefix(records, cutoffLedgerOrdinal, ledgerOrdinalOffset = 0) {
   if (cutoffLedgerOrdinal == null) return records;
-  return records.slice(0, cutoffLedgerOrdinal);
+  return records.slice(0, cutoffLedgerOrdinal - ledgerOrdinalOffset);
 }
 
-function verifyPhysicalLedgerPrefix(records) {
+function verifyPhysicalLedgerPrefix(records, { expectedPreviousHash = 'GENESIS' } = {}) {
   if (!records.length) {
     return Object.freeze({
       status: 'UNAVAILABLE_EMPTY_PREFIX',
@@ -71,7 +71,7 @@ function verifyPhysicalLedgerPrefix(records) {
       failingLedgerOrdinal: null,
     });
   }
-  let previousHash = 'GENESIS';
+  let previousHash = expectedPreviousHash;
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const recordHash = nonEmptyText(record?.recordHash);
@@ -333,6 +333,11 @@ export function buildTxIntradayResearchSnapshot(records, {
   maxQuoteAgeMs = 2_000,
   minPathTickCount = MIN_PATH_TICK_COUNT,
   maxPathGapMs = MAX_PATH_GAP_MS,
+  ledgerOrdinalOffset = 0,
+  expectedPreviousHash = 'GENESIS',
+  initialCanonicalState = null,
+  checkpointCanonicalEvents = null,
+  verifiedPrefixProof = null,
 } = {}) {
   if (!Array.isArray(records)) throw new Error('CRU34_SNAPSHOT_RECORDS_REQUIRED');
   const profile = profileOf(instrumentProfile);
@@ -343,23 +348,50 @@ export function buildTxIntradayResearchSnapshot(records, {
     throw new Error('CRU34_V1_PATH_CONTRACT_INVALID');
   }
 
-  const effectiveCutoff = effectiveCutoffOrdinal(records, cutoffLedgerOrdinal);
-  const prefix = exactPhysicalPrefix(records, effectiveCutoff);
-  const prefixProof = verifyPhysicalLedgerPrefix(prefix);
-  if (!prefixProof.verified) {
-    return unavailableSnapshot(
-      profile,
-      'PHYSICAL_LEDGER_PREFIX_UNVERIFIED',
-      null,
-      sourceLedgerIdentity,
-      prefixProof,
-    );
+  if (!Number.isInteger(ledgerOrdinalOffset) || ledgerOrdinalOffset < 0) {
+    throw new Error('CRU34_LEDGER_ORDINAL_OFFSET_INVALID');
   }
-
-  const canonical = materializeTxCanonicalObservations(prefix, {
-    sourceLedgerIdentity,
-    resolveSessionTradeDate,
-  });
+  let effectiveCutoff;
+  let prefixProof;
+  let canonical;
+  if (checkpointCanonicalEvents != null) {
+    if (!Array.isArray(checkpointCanonicalEvents) || !checkpointCanonicalEvents.length
+        || !verifiedPrefixProof?.verified || verifiedPrefixProof.status !== 'VERIFIED_CHECKPOINT_PREFIX') {
+      throw new Error('CRU43_VERIFIED_CHECKPOINT_INPUT_INVALID');
+    }
+    effectiveCutoff = cutoffLedgerOrdinal;
+    prefixProof = Object.freeze({ ...verifiedPrefixProof });
+    let previousOrdinal = 0;
+    for (const event of checkpointCanonicalEvents) {
+      if (!Number.isInteger(event?.ledgerOrdinal) || event.ledgerOrdinal <= previousOrdinal
+          || event.sourceLedgerIdentity !== sourceLedgerIdentity
+          || event.formalWeight !== 0 || event.researchOnly !== true
+          || event.executionAuthorized !== false || event.orderRoutesEnabled !== false) {
+        throw new Error('CRU43_CHECKPOINT_CANONICAL_EVENT_INVALID');
+      }
+      previousOrdinal = event.ledgerOrdinal;
+    }
+    canonical = Object.freeze({ events: Object.freeze(checkpointCanonicalEvents) });
+  } else {
+    effectiveCutoff = effectiveCutoffOrdinal(records, cutoffLedgerOrdinal, ledgerOrdinalOffset);
+    const prefix = exactPhysicalPrefix(records, effectiveCutoff, ledgerOrdinalOffset);
+    prefixProof = verifyPhysicalLedgerPrefix(prefix, { expectedPreviousHash });
+    if (!prefixProof.verified) {
+      return unavailableSnapshot(
+        profile,
+        'PHYSICAL_LEDGER_PREFIX_UNVERIFIED',
+        null,
+        sourceLedgerIdentity,
+        prefixProof,
+      );
+    }
+    canonical = materializeTxCanonicalObservations(prefix, {
+      sourceLedgerIdentity,
+      resolveSessionTradeDate,
+      ledgerOrdinalOffset,
+      initialState: initialCanonicalState,
+    });
+  }
   const cutoff = cutoffTick(canonical.events, effectiveCutoff);
   if (!cutoff) {
     return unavailableSnapshot(

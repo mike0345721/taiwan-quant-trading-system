@@ -468,7 +468,11 @@
       shell.hidden = true;
       shell.setAttribute('aria-hidden', 'true');
       root.classList.remove('is-drawer-open');
-      if (returnFocus?.isConnected) returnFocus.focus();
+      if (returnFocus?.isConnected) {
+        const sourceCard = returnFocus.closest('.dw-card');
+        returnFocus.focus({ preventScroll: true });
+        if (sourceCard) sourceCard.scrollTop = 0;
+      }
     };
     close.addEventListener('click', closeDrawer);
     scrim.addEventListener('click', closeDrawer);
@@ -605,7 +609,7 @@
     chartControls(root);
     removePulseDuplicates(root);
     relabelExistingCard(pulse, '即時盤況', 'Market Pulse', '');
-    relabelExistingCard(observedFlow, '已執行流量證據', 'Observed Flow', 'Research · descriptive only');
+    relabelExistingCard(observedFlow, '台指期盤中力道', '成交觀測', '研究觀測 · 非交易訊號');
     relabelExistingCard(leadership, '現貨 / 指數貢獻', 'Spot Contribution', '');
     relabelExistingCard(conflict, '風險監控', 'Risk / Conflict', '');
     relabelExistingCard(ask, 'Ask GPT', 'Snapshot Discussion', '');

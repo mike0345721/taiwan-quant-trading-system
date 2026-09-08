@@ -190,19 +190,28 @@ async function setViewport(cdp, width, height) {
 }
 
 async function clickSelector(cdp, selector) {
+  await evaluate(cdp, `(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) return false;
+    node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+    return true;
+  })()`);
+  await waitAnimationFrames(cdp, 4);
   const point = await evaluate(cdp, `(() => {
     const node = document.querySelector(${JSON.stringify(selector)});
     if (!node) return null;
-    node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
     const rect = node.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
     return {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
+      x,
+      y,
       width: rect.width,
       height: rect.height,
+      hit: node === document.elementFromPoint(x, y) || node.contains(document.elementFromPoint(x, y)),
     };
   })()`);
-  assert.ok(point && point.width > 0 && point.height > 0, `Clickable selector is not visible: ${selector}`);
+  assert.ok(point && point.width > 0 && point.height > 0 && point.hit, `Clickable selector is not visible: ${selector}`);
   await cdp.command('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
   await cdp.command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
   await waitAnimationFrames(cdp, 4);
@@ -307,6 +316,8 @@ const layoutMeasurementExpression = `(() => {
     ownerWidth: round(ownerRect?.width || 0),
     observedHeight: round(observedRect?.height || 0),
     observedWidth: round(observedRect?.width || 0),
+    observedClientHeight: observed?.clientHeight || 0,
+    observedScrollHeight: observed?.scrollHeight || 0,
     visualPrimaryRatio: observedRect?.width && observedRect?.height
       ? round((ownerRect.width * ownerRect.height) / (observedRect.width * observedRect.height))
       : null,
@@ -651,7 +662,7 @@ async function runProductionInteractionRegression() {
         return [id, { text: node?.textContent || '', title: node?.title || '' }];
       }));
       evidence['dw-observed-flow-semantics'] = {
-        text: document.querySelector('.dw-observed-flow-chain-head')?.textContent || '', title: '',
+        text: document.querySelector('.dw-flow-selected-detail')?.textContent || '', title: '',
       };
       renderObservedFlow({ ...workspace.observedFlow, sourceState: 'STALE' });
       evidence['dw-observed-flow-stale-truth'] = {
@@ -673,6 +684,117 @@ async function runProductionInteractionRegression() {
       return evidence;
     })()`);
 
+    const observedFlowStateMatrix = await evaluate(cdp, `(() => {
+      const focusBeforeKeyboard = document.activeElement;
+      const base = structuredClone(globalThis.__ui1Workspace.observedFlow);
+      base.sourceState = 'LIVE';
+      base.source.sourceMode = 'LIVE';
+      const selected = () => ({
+        title: document.getElementById('dw-flow-selected-title')?.textContent || '',
+        ratio: document.getElementById('dw-flow-selected-ratio')?.textContent || '',
+        side: document.getElementById('dw-flow-selected-side')?.textContent || '',
+        response: document.getElementById('dw-flow-selected-response')?.textContent || '',
+        relation: document.getElementById('dw-flow-selected-relation')?.textContent || '',
+        path: document.getElementById('dw-flow-selected-path')?.textContent || '',
+        summary: document.getElementById('dw-flow-selected-summary')?.textContent || '',
+        pending: document.getElementById('dw-flow-selected-pending')?.textContent || '',
+        pendingVisible: !document.getElementById('dw-flow-selected-pending')?.classList.contains('hidden'),
+        barClass: document.getElementById('dw-flow-selected-bar')?.className || '',
+        filledCells: document.querySelectorAll('#dw-flow-selected-bar .is-filled').length,
+        truthClass: document.getElementById('dw-observed-flow-truth')?.className || '',
+        truth: document.getElementById('dw-observed-flow-truth')?.textContent || '',
+      });
+      const renderPressure = (ratio, coverage, direction) => {
+        const value = structuredClone(base);
+        Object.assign(value.windows.context300s.pressure, {
+          status: coverage === 1 ? 'READY' : 'QUALITY_INSUFFICIENT',
+          pressureRatio: ratio, classifiedCoverage: coverage, direction,
+        });
+        renderObservedFlow(value);
+        return selected();
+      };
+      const pressure = {
+        positive: renderPressure(0.42, 1, 'BUY_SIDE'),
+        negative: renderPressure(-0.27, 1, 'SELL_SIDE'),
+        zero: renderPressure(0, 1, 'BALANCED'),
+        null: renderPressure(null, 0, 'UNAVAILABLE'),
+        limitedPositive: renderPressure(0.42, 0.96, 'UNAVAILABLE'),
+        limitedNegative: renderPressure(-0.27, 0.96, 'UNAVAILABLE'),
+      };
+      const response = {};
+      for (const relation of ['SAME_DIRECTION', 'OPPOSITE_DIRECTION', 'FLAT_PRICE', 'PRESSURE_UNAVAILABLE']) {
+        const value = structuredClone(base);
+        value.windows.context300s.pressure.status = 'READY';
+        value.windows.context300s.pressure.classifiedCoverage = 1;
+        value.windows.context300s.pressure.direction = 'BUY_SIDE';
+        value.windows.context300s.response.directionRelation = relation;
+        renderObservedFlow(value);
+        response[relation] = selected().relation;
+      }
+      const pathUnavailableValue = structuredClone(base);
+      pathUnavailableValue.windows.context300s.pathEfficiency = {
+        status: 'QUALITY_INSUFFICIENT', value: null,
+        unavailableReason: 'QUALITY_INSUFFICIENT_LONG_GAP',
+      };
+      renderObservedFlow(pathUnavailableValue);
+      const pathUnavailable = selected();
+      const chartToFlow = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['4h', '4h'], ['1D', 'tradingDay']]
+        .map(([chartKey, flowKey]) => {
+          document.querySelector('[data-chart-timeframe="' + chartKey + '"]').click();
+          return {
+            chartKey, flowKey,
+            selectedFlow: document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow,
+            selectedFlowCount: document.querySelectorAll('[data-flow-window].is-selected').length,
+            ariaSelectedCount: document.querySelectorAll('[data-flow-window][aria-selected="true"]').length,
+          };
+        });
+      const flowToChart = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['4h', '4h'], ['tradingDay', '1D']]
+        .map(([flowKey, chartKey]) => {
+          document.querySelector('[data-flow-window="' + flowKey + '"]').click();
+          return {
+            flowKey, chartKey, stateTimeframe: state.txChartTimeframe,
+            selectedChart: document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe,
+            selectedChartCount: document.querySelectorAll('[data-chart-timeframe].is-selected').length,
+          };
+        });
+      document.querySelector('[data-flow-window="5m"]').click();
+      document.querySelector('[data-flow-window="5m"]').focus();
+      document.querySelector('[data-flow-window="5m"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      const keyboardSelection = {
+        flow: document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow,
+        chart: document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe,
+        focused: document.activeElement?.dataset?.flowWindow,
+        tabbable: [...document.querySelectorAll('[data-flow-window]')].filter((item) => item.tabIndex === 0).map((item) => item.dataset.flowWindow),
+      };
+      focusBeforeKeyboard?.focus();
+      document.querySelector('[data-flow-window="1m"]').click();
+      const selected1m = selected();
+      document.querySelector('[data-flow-window="15m"]').click();
+      const selected15m = selected();
+      const chartSelectionAfterPendingFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
+      document.querySelector('[data-flow-window="5m"]').click();
+      const selected5m = selected();
+      const chartSelectionAfterFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
+      document.querySelector('[data-chart-timeframe="1D"]').click();
+      const flowSelectionAfterChart = document.querySelector('[data-flow-window].is-selected')?.dataset.flowWindow;
+      const selectedTradingDay = selected();
+      document.querySelector('[data-chart-timeframe="5m"]').click();
+      renderObservedFlow(base);
+      const live = selected();
+      renderObservedFlow({ ...base, sourceState: 'STALE' });
+      const stale = selected();
+      renderObservedFlow({ ...base, sourceState: 'WARMING_UP' });
+      const warming = selected();
+      renderObservedFlow({ ...base, sourceState: 'HISTORICAL' });
+      const historical = selected();
+      renderObservedFlow({ sourceState: 'UNAVAILABLE', unavailableReason: 'FIXTURE_UNAVAILABLE', windows: null });
+      const unavailable = selected();
+      renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
+      return { pressure, response, pathUnavailable, chartToFlow, flowToChart, keyboardSelection,
+        selected1m, selected15m, selected5m, selectedTradingDay,
+        chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
+        live, stale, warming, historical, unavailable };
+    })()`);
     const refreshFailureEvidence = await evaluate(cdp, `(() => {
       const pulseIds = [
         'dw-pulse-price', 'dw-pulse-vwap', 'dw-pulse-session', 'dw-pulse-breadth',
@@ -846,6 +968,7 @@ async function runProductionInteractionRegression() {
     return {
       initialState,
       wiringEvidence,
+      observedFlowStateMatrix,
       refreshFailureEvidence,
       leadershipRefreshFailureEvidence,
       drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
@@ -1078,12 +1201,83 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /HISTORICAL · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /非目前盤勢/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /TXFI6 · DAY/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /−1 ← 0 → \+1/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /window displacement/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /0 winding · 1 direct/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力｜誰比較主動/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應｜價格最後往哪裡走/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率｜過程有多直接/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /可判定成交占比 \/ Data Trust/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
-  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /非目前盤勢 · stale snapshot/);
+  assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
+  const matrix = result.observedFlowStateMatrix;
+  assert.match(matrix.pressure.positive.ratio, /\+0\.420/);
+  assert.equal(matrix.pressure.positive.side, '偏買方');
+  assert.match(matrix.pressure.positive.barClass, /is-positive/);
+  assert.equal(matrix.pressure.positive.filledCells, 3);
+  assert.match(matrix.pressure.negative.ratio, /-0\.270/);
+  assert.equal(matrix.pressure.negative.side, '偏賣方');
+  assert.match(matrix.pressure.negative.barClass, /is-negative/);
+  assert.equal(matrix.pressure.zero.ratio, '0.000');
+  assert.equal(matrix.pressure.zero.side, '均衡');
+  assert.equal(matrix.pressure.null.ratio, '不可判定');
+  assert.doesNotMatch(matrix.pressure.null.ratio, /0\.000/);
+  assert.equal(matrix.pressure.limitedPositive.side, '方向判定受限');
+  assert.match(matrix.pressure.limitedPositive.barClass, /is-positive.*is-limited/);
+  assert.match(matrix.pressure.limitedPositive.summary, /方向判定受限/);
+  assert.doesNotMatch(matrix.pressure.limitedPositive.summary, /偏買方/);
+  assert.equal(matrix.pressure.limitedNegative.side, '方向判定受限');
+  assert.match(matrix.pressure.limitedNegative.barClass, /is-negative.*is-limited/);
+  assert.deepEqual(matrix.response, {
+    SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
+    FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定',
+  });
+  assert.match(matrix.pathUnavailable.path, /QUALITY_INSUFFICIENT_LONG_GAP/);
+  assert.match(matrix.pathUnavailable.summary, /路徑效率不可用/);
+  assert.doesNotMatch(matrix.pathUnavailable.summary, /路徑效率 0(?:\.0+)?/);
+  assert.deepEqual(matrix.chartToFlow.map(({ chartKey, flowKey, selectedFlow }) => ({ chartKey, flowKey, selectedFlow })), [
+    { chartKey: '1m', flowKey: '1m', selectedFlow: '1m' },
+    { chartKey: '5m', flowKey: '5m', selectedFlow: '5m' },
+    { chartKey: '15m', flowKey: '15m', selectedFlow: '15m' },
+    { chartKey: '30m', flowKey: '30m', selectedFlow: '30m' },
+    { chartKey: '1h', flowKey: '1h', selectedFlow: '1h' },
+    { chartKey: '4h', flowKey: '4h', selectedFlow: '4h' },
+    { chartKey: '1D', flowKey: 'tradingDay', selectedFlow: 'tradingDay' },
+  ]);
+  assert.ok(matrix.chartToFlow.every(({ selectedFlowCount, ariaSelectedCount }) => selectedFlowCount === 1 && ariaSelectedCount === 1));
+  assert.deepEqual(matrix.flowToChart.map(({ flowKey, chartKey, stateTimeframe, selectedChart }) => ({ flowKey, chartKey, stateTimeframe, selectedChart })), [
+    { flowKey: '1m', chartKey: '1m', stateTimeframe: '1m', selectedChart: '1m' },
+    { flowKey: '5m', chartKey: '5m', stateTimeframe: '5m', selectedChart: '5m' },
+    { flowKey: '15m', chartKey: '15m', stateTimeframe: '15m', selectedChart: '15m' },
+    { flowKey: '30m', chartKey: '30m', stateTimeframe: '30m', selectedChart: '30m' },
+    { flowKey: '1h', chartKey: '1h', stateTimeframe: '1h', selectedChart: '1h' },
+    { flowKey: '4h', chartKey: '4h', stateTimeframe: '4h', selectedChart: '4h' },
+    { flowKey: 'tradingDay', chartKey: '1D', stateTimeframe: '1D', selectedChart: '1D' },
+  ]);
+  assert.ok(matrix.flowToChart.every(({ selectedChartCount }) => selectedChartCount === 1));
+  assert.deepEqual(matrix.keyboardSelection, { flow: '15m', chart: '15m', focused: '15m', tabbable: ['15m'] });
+  assert.equal(matrix.selected1m.title, '1分');
+  assert.equal(matrix.selected15m.title, '15分');
+  assert.equal(matrix.selected15m.pendingVisible, true);
+  assert.match(matrix.selected15m.pending, /CRU-44 尚未啟用/);
+  assert.match(matrix.selected15m.summary, /成交壓力待驗證；價格反應待驗證；路徑效率待驗證/);
+  assert.equal(matrix.chartSelectionAfterPendingFlow, '15m');
+  assert.equal(matrix.selected5m.title, '5分');
+  assert.equal(matrix.selected5m.pendingVisible, false);
+  assert.match(matrix.selected5m.summary, /成交壓力/);
+  assert.match(matrix.selected5m.summary, /價格反應/);
+  assert.match(matrix.selected5m.summary, /路徑效率/);
+  assert.match(matrix.selected5m.summary, /可判定成交占比/);
+  assert.match(matrix.selected5m.summary, /Data Trust/);
+  assert.equal(matrix.chartSelectionAfterFlow, '5m');
+  assert.equal(matrix.flowSelectionAfterChart, 'tradingDay');
+  assert.equal(matrix.selectedTradingDay.title, '本交易日');
+  assert.match(matrix.selectedTradingDay.summary, /待定義/);
+  assert.match(matrix.live.barClass, /is-negative/);
+  assert.doesNotMatch(matrix.live.barClass, /is-inactive/);
+  assert.match(matrix.stale.barClass, /is-inactive/);
+  assert.match(matrix.stale.truthClass, /is-stale/);
+  assert.match(matrix.warming.truth, /暖機中/);
+  assert.match(matrix.historical.truth, /歷史資料｜非目前盤勢/);
+  assert.match(matrix.unavailable.truth, /FIXTURE_UNAVAILABLE/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.breadth, /904/);
@@ -1098,16 +1292,16 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   for (const [id, value] of Object.entries(result.refreshFailureEvidence.observedAfterFailure)) {
     assert.match(value, /UNAVAILABLE .* DASHBOARD_REFRESH/, `${id}:${value}`);
   }
-  assert.match(result.refreshFailureEvidence.observedDetail, /Evidence unavailable/);
+  assert.match(result.refreshFailureEvidence.observedDetail, /證據不可用/);
   assert.match(result.refreshFailureEvidence.observedDetail, /DASHBOARD_REFRESH:GOVERNED_DASHBOARD_FIXTURE_FAILURE/);
-  assert.doesNotMatch(result.refreshFailureEvidence.observedDetail, /BuyProxyVolume/);
+  assert.doesNotMatch(result.refreshFailureEvidence.observedDetail, /主動買方代理量/);
   assert.equal(result.leadershipRefreshFailureEvidence.before.state, 'LIVE');
   assert.match(result.leadershipRefreshFailureEvidence.before.bars, /2330/);
   assert.match(result.leadershipRefreshFailureEvidence.state, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.match(result.leadershipRefreshFailureEvidence.bars, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.doesNotMatch(result.leadershipRefreshFailureEvidence.bars, /2330/);
   assert.equal(result.drawerEvidence.opened.drawerOpen, true);
-  assert.match(result.drawerEvidence.opened.drawerText, /BuyProxyVolume/);
+  assert.match(result.drawerEvidence.opened.drawerText, /主動買方代理量/);
   assert.match(result.drawerEvidence.opened.drawerText, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
   assert.match(result.drawerEvidence.opened.drawerText, /NOT_PROMOTED/);
   assert.deepEqual(result.drawerEvidence.openLayout.clippedCore, []);
@@ -1117,7 +1311,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
   assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
   assert.equal(result.drawerEvidence.closed.drawerOpen, false);
-  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, 'Observed Flow Evidence');
+  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '台指期盤中力道｜證據');
   assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
   assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');
   assert.equal(result.progressiveEvidence.opened.progressiveOpen, true);

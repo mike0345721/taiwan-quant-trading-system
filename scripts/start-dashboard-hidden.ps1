@@ -1,7 +1,13 @@
 $ErrorActionPreference = 'Stop'
+$processPath = $env:Path
+[Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
+[Environment]::SetEnvironmentVariable('Path', $processPath, 'Process')
 $root = Split-Path $PSScriptRoot -Parent
 $health = 'http://127.0.0.1:8787/healthz'
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
+$projectionRoot = Join-Path $root 'data\runtime\cru34-live'
+$env:CRU34_LIVE_SNAPSHOT_PATH = Join-Path $projectionRoot 'latest.json'
+$env:CRU34_LIVE_STATUS_PATH = Join-Path $projectionRoot 'status.json'
 
 Start-Process -FilePath $powershell `
   -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($PSScriptRoot)\run-startup-recovery-hidden.ps1`"" `
