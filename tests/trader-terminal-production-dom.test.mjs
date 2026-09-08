@@ -557,7 +557,7 @@ async function runProductionInteractionRegression() {
       const availableAt = '2026-08-28T05:45:00.000Z';
       const health = (sourceId, freshnessState) => ({
         sourceId, sourceAvailability: 'SOURCE_AVAILABLE', readinessState: 'READY',
-        freshnessState, availableAt,
+        freshnessState, quality: 'PASS', availableAt,
       });
       state.snapshot = {
         futuresMarket: {
@@ -626,7 +626,7 @@ async function runProductionInteractionRegression() {
         },
       };
       const chart = {
-        status: 'READY', source: 'GOVERNED_TX_CHART_FIXTURE', actualContract: '202608',
+        status: 'READY', source: 'GOVERNED_TX_CHART_FIXTURE', actualContract: '202608', contractMonth: '202608',
         tradeDate: '2026-08-28', session: 'DAY', availableAt, qualityStatus: 'PASS',
         lastPrice: 24000, bars: [{ volume: 1200 }],
         levels: {
@@ -681,6 +681,23 @@ async function runProductionInteractionRegression() {
         const node = document.getElementById(id);
         evidence[id] = { text: node?.textContent || '', title: node?.title || '' };
       }
+      renderTerminalShell(workspace, { ...chart, contractMonth: '202609' });
+      evidence['tt-basis-contradictory-contract'] = {
+        text: document.getElementById('tt-top-basis')?.textContent || '', title: '',
+      };
+      renderTerminalShell(workspace, { ...chart, tradeDate: '2026-08-29' });
+      evidence['tt-basis-trade-date-mismatch'] = {
+        text: document.getElementById('tt-top-basis')?.textContent || '', title: '',
+      };
+      const degradedWorkspace = structuredClone(workspace);
+      degradedWorkspace.snapshot.dataHealth.items = degradedWorkspace.snapshot.dataHealth.items.map((item) => (
+        item.sourceId === 'futuresMarket' ? { ...item, quality: 'DEGRADED' } : item
+      ));
+      renderTerminalShell(degradedWorkspace, chart);
+      evidence['tt-basis-source-quality'] = {
+        text: document.getElementById('tt-top-basis')?.textContent || '', title: '',
+      };
+      renderTerminalShell(workspace, chart);
       return evidence;
     })()`);
 
@@ -962,6 +979,70 @@ async function runProductionInteractionRegression() {
       cycleEvidence.push({ cycle, expanded, restored });
     }
 
+    const chartVisibleTruthEvidence = await evaluate(cdp, `(() => {
+      state.txChartApi = null;
+      state.txChartSeries = null;
+      state.txChartMarkers = null;
+      state.txChartIdentity = null;
+      state.txChartBarCount = 0;
+      const base = {
+        status: 'READY', mode: 'LIVE', timeframe: '5m', tradeDate: '2026-09-08',
+        session: 'DAY', sessionId: '2026-09-08-DAY', actualContract: 'TXFI6',
+        contractMonth: '202609', qualityStatus: 'PASS', levels: {}, vwap: [],
+      };
+      renderTxDecisionChart({ ...base, bars: [{ time: 'not-a-time', open: 1, high: 2, low: 0, close: 1, volume: 10 }] });
+      const invalidBars = {
+        status: document.getElementById('dw-chart-status')?.textContent || '',
+        overlayHidden: document.getElementById('dw-chart-empty')?.classList.contains('hidden'),
+        reason: document.getElementById('dw-chart-empty-reason')?.textContent || '',
+      };
+      const originalSetData = state.txChartSeries.candle.setData.bind(state.txChartSeries.candle);
+      state.txChartSeries.candle.setData = () => { throw new Error('EXPECTED_SERIES_WRITE_FAILURE'); };
+      renderTxDecisionChart({ ...base, bars: [{ time: '2026-09-08T00:45:00.000Z', open: 1, high: 2, low: 0, close: 1, volume: 10 }] });
+      const writeFailure = {
+        status: document.getElementById('dw-chart-status')?.textContent || '',
+        overlayHidden: document.getElementById('dw-chart-empty')?.classList.contains('hidden'),
+        reason: document.getElementById('dw-chart-empty-reason')?.textContent || '',
+      };
+      state.txChartSeries.candle.setData = originalSetData;
+      state.txChartApi.remove();
+      state.txChartApi = window.__ui1LayoutChart;
+      state.txChartSeries = null;
+      state.txChartMarkers = null;
+      return { invalidBars, writeFailure };
+    })()`);
+
+    const chartRequestRaceEvidence = await evaluate(cdp, `(async () => {
+      const originalApi = api;
+      state.txChartLoading = false;
+      state.txChartRequestId = 0;
+      state.txChartPendingFit = false;
+      let rejectStale;
+      let resolveCurrent;
+      api = (url) => new Promise((resolve, reject) => {
+        if (String(url).includes('timeframe=1m')) rejectStale = reject;
+        else if (String(url).includes('timeframe=5m')) resolveCurrent = resolve;
+        else reject(new Error('UNEXPECTED_TEST_REQUEST'));
+      });
+      state.txChartTimeframe = '1m';
+      const stale = loadTxDecisionChart().catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: 'STALE_' + error.message, bars: [], levels: {} }));
+      state.txChartTimeframe = '5m';
+      const queued = loadTxDecisionChart().catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: 'CURRENT_' + error.message, bars: [], levels: {} }));
+      rejectStale(new Error('OLD_REQUEST_FAILED'));
+      await Promise.resolve();
+      await Promise.resolve();
+      if (typeof resolveCurrent !== 'function') throw new Error('QUEUED_REQUEST_NOT_STARTED');
+      resolveCurrent({ data: { status: 'UNAVAILABLE', reason: 'CURRENT_PAYLOAD', mode: 'LIVE', timeframe: '5m', bars: [], levels: {} } });
+      await stale;
+      await queued;
+      const result = {
+        status: document.getElementById('dw-chart-status')?.textContent || '',
+        mode: document.getElementById('dw-chart-mode')?.textContent || '',
+      };
+      api = originalApi;
+      return result;
+    })()`);
+
     const finalState = await evaluate(cdp, interactiveStateExpression);
     const runtimeErrors = await evaluate(cdp, 'window.__ui1RuntimeErrors || []');
     const apiRequests = await evaluate(cdp, 'window.__ui1ApiRequests || []');
@@ -978,6 +1059,8 @@ async function runProductionInteractionRegression() {
       resizeSweepEvidence,
       viewportEvidence,
       cycleEvidence,
+      chartVisibleTruthEvidence,
+      chartRequestRaceEvidence,
       finalState,
       apiRequests,
       exceptions: [...exceptions, ...runtimeErrors],
@@ -1184,6 +1267,15 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.deepEqual(result.initialState.duplicateIds, []);
   assert.equal(result.initialState.trendInProgressive, true);
   assert.equal(result.initialState.visibleFixtureOnly, 0);
+  assert.equal(result.chartVisibleTruthEvidence.invalidBars.overlayHidden, false);
+  assert.match(result.chartVisibleTruthEvidence.invalidBars.status, /CHART_VALID_CANDLES_UNAVAILABLE/);
+  assert.match(result.chartVisibleTruthEvidence.invalidBars.reason, /CHART_VALID_CANDLES_UNAVAILABLE/);
+  assert.equal(result.chartVisibleTruthEvidence.writeFailure.overlayHidden, false);
+  assert.match(result.chartVisibleTruthEvidence.writeFailure.status, /CHART_SERIES_WRITE_FAILED/);
+  assert.match(result.chartVisibleTruthEvidence.writeFailure.reason, /CHART_SERIES_WRITE_FAILED/);
+  assert.match(result.chartRequestRaceEvidence.status, /CURRENT_PAYLOAD/);
+  assert.doesNotMatch(result.chartRequestRaceEvidence.status, /OLD_REQUEST_FAILED/);
+  assert.match(result.chartRequestRaceEvidence.mode, /5m/);
 
   for (const [id, evidence] of Object.entries(result.wiringEvidence)) {
     assert.ok(evidence.text && evidence.text !== '—', `${id}:${JSON.stringify(evidence)}`);
@@ -1192,6 +1284,9 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     }
   }
   assert.match(result.wiringEvidence['tt-top-change'].text, /50\.00/);
+  assert.match(result.wiringEvidence['tt-basis-contradictory-contract'].text, /CONTRACT_IDENTITY_INCOMPLETE/);
+  assert.match(result.wiringEvidence['tt-basis-trade-date-mismatch'].text, /TRADE_DATE_OR_SOURCE_MISMATCH/);
+  assert.match(result.wiringEvidence['tt-basis-source-quality'].text, /SOURCE_QUALITY_INSUFFICIENT/);
   assert.match(result.wiringEvidence['tt-top-oi'].text, /83,520 口 · EOD · DELAYED/);
   assert.match(result.wiringEvidence['tt-options-oi'].text, /1\.25 P\/C · EOD · STALE/);
   assert.equal(result.wiringEvidence['tt-futures-trust-position'].text, '0 口 · EOD · DELAYED');

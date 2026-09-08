@@ -7,7 +7,8 @@ const state = {
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
-  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartLoading: false,
+  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0,
+  txChartLoading: false, txChartRequestId: 0, txChartPendingFit: false,
   txChartPalette: 'red-up',
   marketChangeFeed: null,
   indexLeadership: null, indexLeadershipLoading: false,
@@ -3119,6 +3120,22 @@ function terminalHealthUsable(item) {
   return Boolean(item && item.sourceAvailability !== 'SOURCE_MISSING' && item.freshnessState !== 'UNAVAILABLE');
 }
 
+function terminalEodHealthUsable(item) {
+  return terminalHealthUsable(item) && item.readinessState === 'READY' && item.quality === 'PASS';
+}
+
+function terminalTxLiveContractMonth(actualContract, tradeDate) {
+  const normalized = String(actualContract || '').trim().toUpperCase();
+  if (/^\d{6}$/.test(normalized)) return normalized;
+  const match = normalized.match(/^TXF([A-L])(\d)$/);
+  if (!match || !/^\d{4}-\d{2}-\d{2}$/.test(String(tradeDate || ''))) return null;
+  const tradeYear = Number(String(tradeDate).slice(0, 4));
+  let year = Math.floor(tradeYear / 10) * 10 + Number(match[2]);
+  if (year < tradeYear - 5) year += 10;
+  if (year > tradeYear + 5) year -= 10;
+  return `${year}${String(match[1].charCodeAt(0) - 64).padStart(2, '0')}`;
+}
+
 function terminalSourceMode(item, baseMode = null) {
   const freshness = item?.freshnessState;
   return [baseMode, freshness && !['FRESH', 'SESSION_CLOSED'].includes(freshness) ? freshness : null].filter(Boolean).join(' · ');
@@ -3239,16 +3256,34 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   const previousClose = levelValue(chart?.levels?.previousClose);
   const chartContract = chart?.actualContract || null;
   const snapshotContract = txDay.contract || null;
+  const declaredChartContractMonth = /^\d{6}$/.test(String(chart?.contractMonth || '')) ? String(chart.contractMonth) : null;
+  const derivedChartContractMonth = terminalTxLiveContractMonth(chartContract, chart?.tradeDate);
+  const chartContractMonth = declaredChartContractMonth && declaredChartContractMonth === derivedChartContractMonth
+    ? declaredChartContractMonth : null;
+  const snapshotContractMonth = /^\d{6}$/.test(String(snapshotContract || '')) ? String(snapshotContract) : null;
+  const chartTradeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(chart?.tradeDate || '')) ? String(chart.tradeDate) : null;
   const futuresTradeDate = snapshot?.futuresMarket?.dataDate || snapshot?.futuresMarket?.sourceDataDate || null;
   const marketTradeDate = snapshot?.marketOverview?.dataDate || snapshot?.marketOverview?.sourceDataDate || null;
   const futuresMarketHealth = terminalHealthItem(workspace, 'futuresMarket');
   const marketOverviewHealth = terminalHealthItem(workspace, 'marketOverview');
   const positioningHealth = terminalHealthItem(workspace, 'futuresPositioning');
   const optionsHealth = terminalHealthItem(workspace, 'optionsEod');
-  const contractCompatible = Boolean(chartContract && snapshotContract && chartContract === snapshotContract);
-  const futuresMarketUsable = snapshot?.futuresMarket?.ok === true && terminalHealthUsable(futuresMarketHealth) && contractCompatible;
+  const contractIdentityComplete = Boolean(chartContract && chartContractMonth && snapshotContractMonth);
+  const contractCompatible = contractIdentityComplete && chartContractMonth === snapshotContractMonth;
+  const contractIdentityReason = !contractIdentityComplete ? 'CONTRACT_IDENTITY_INCOMPLETE' : 'ACTUAL_CONTRACT_MISMATCH';
+  const futuresDateCompatible = Boolean(chartTradeDate && futuresTradeDate && chartTradeDate === futuresTradeDate);
+  const basisTradeDateCompatible = futuresDateCompatible && Boolean(marketTradeDate && chartTradeDate === marketTradeDate);
+  const futuresSourceUsable = snapshot?.futuresMarket?.ok === true && terminalEodHealthUsable(futuresMarketHealth);
+  const marketSourceUsable = snapshot?.marketOverview?.ok === true && terminalEodHealthUsable(marketOverviewHealth);
+  const futuresMarketUsable = futuresSourceUsable && contractCompatible && futuresDateCompatible;
   const basisIdentityCompatible = futuresMarketUsable && snapshot?.marketOverview?.ok === true
-    && terminalHealthUsable(marketOverviewHealth) && Boolean(futuresTradeDate && marketTradeDate && futuresTradeDate === marketTradeDate);
+    && marketSourceUsable && basisTradeDateCompatible;
+  const futuresUnavailableReason = !contractCompatible ? contractIdentityReason
+    : !futuresDateCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH'
+      : !futuresSourceUsable ? 'SOURCE_QUALITY_INSUFFICIENT' : 'OPEN_INTEREST_UNAVAILABLE';
+  const basisUnavailableReason = !contractCompatible ? contractIdentityReason
+    : !basisTradeDateCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH'
+      : !(futuresSourceUsable && marketSourceUsable) ? 'SOURCE_QUALITY_INSUFFICIENT' : 'BASIS_UNAVAILABLE';
   const batchMode = (item) => terminalSourceMode(item, 'EOD');
   const futuresContext = terminalSourceContext(futuresMarketHealth, { tradeDate: futuresTradeDate, contract: snapshotContract });
   const basisContext = `${futuresContext} | ${terminalSourceContext(marketOverviewHealth, { tradeDate: marketTradeDate })}`;
@@ -3264,11 +3299,11 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-top-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
   const marketOi = futuresMarketUsable && finiteNumber(txDay.openInterest) > 0 ? finiteNumber(txDay.openInterest) : null;
   terminalWrite('tt-top-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : futuresMarketHealth?.reason || 'OPEN_INTEREST_UNAVAILABLE', title: futuresContext,
+    reason: futuresMarketHealth?.reason || futuresUnavailableReason, title: futuresContext,
   });
   const basis = basisIdentityCompatible ? finiteNumber(derived?.market?.basis) : null;
   terminalWrite('tt-top-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+    reason: basisUnavailableReason, title: basisContext,
   });
   terminalWrite('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || null, { reason: 'TRADE_DATE_OR_SESSION_UNAVAILABLE' });
   terminalWrite('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
@@ -3318,7 +3353,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
 
   dwText('tt-pulse-rvol', terminalUnavailable('DERIVATION_NOT_IMPLEMENTED'));
   terminalWrite('tt-pulse-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+    reason: basisUnavailableReason, title: basisContext,
   });
   terminalWrite('tt-futures-tx', lastPrice == null ? null : fmt(lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
   const vwapDelta = lastPrice != null && vwap != null ? lastPrice - vwap : null;
@@ -3326,7 +3361,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE', title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.vwap?.source || chart?.source }),
   });
   terminalWrite('tt-futures-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : !basisIdentityCompatible ? 'TRADE_DATE_OR_SOURCE_MISMATCH' : 'BASIS_UNAVAILABLE', title: basisContext,
+    reason: basisUnavailableReason, title: basisContext,
   });
   const positioningUsable = snapshot?.futuresInstitutional?.ok === true && terminalHealthUsable(positioningHealth);
   const positioningDate = snapshot?.futuresInstitutional?.dataDate || snapshot?.futuresInstitutional?.sourceDataDate || null;
@@ -3342,11 +3377,11 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     });
   }
   terminalWrite('tt-futures-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : futuresMarketHealth?.reason || 'OPEN_INTEREST_UNAVAILABLE', title: futuresContext,
+    reason: futuresMarketHealth?.reason || futuresUnavailableReason, title: futuresContext,
   });
   const oiDelta = futuresMarketUsable ? finiteNumber(derived?.futures?.openInterestDelta) : null;
   terminalWrite('tt-futures-oi-change', oiDelta == null ? null : `${signed(oiDelta, ' 口')} · ${batchMode(futuresMarketHealth)}`, {
-    reason: !contractCompatible ? 'ACTUAL_CONTRACT_MISMATCH' : 'COMPARISON_UNAVAILABLE', title: futuresContext,
+    reason: futuresMarketUsable ? 'COMPARISON_UNAVAILABLE' : futuresUnavailableReason, title: futuresContext,
   });
 
   const optionsUsable = snapshot?.options?.ok === true && terminalHealthUsable(optionsHealth);
@@ -3713,12 +3748,27 @@ function activeCandlePalette() {
     || { up: '#ff6b6b', down: '#37d67a', upVolume: 'rgba(255,107,107,.34)', downVolume: 'rgba(55,214,122,.34)' };
 }
 
+function txChartRuntimeReason() {
+  const target = $('dw-chart-canvas');
+  if (!target) return 'CHART_DOM_MOUNT_UNAVAILABLE';
+  const L = window.LightweightCharts;
+  if (!L) return 'CHART_RUNTIME_UNAVAILABLE';
+  if (typeof L.createChart !== 'function'
+    || !L.CandlestickSeries
+    || !L.HistogramSeries
+    || !L.LineSeries) return 'CHART_RUNTIME_API_MISMATCH';
+  return null;
+}
+
 function ensureTxChart() {
   if (state.txChartApi) return state.txChartApi;
+  state.txChartRuntimeReason = txChartRuntimeReason();
+  if (state.txChartRuntimeReason) return null;
   const target = $('dw-chart-canvas');
-  if (!target || !window.LightweightCharts) return null;
   const L = window.LightweightCharts;
-  const chart = L.createChart(target, {
+  let chart = null;
+  try {
+    chart = L.createChart(target, {
     autoSize: true,
     layout: { background: { type: L.ColorType.Solid, color: '#090f18' }, textColor: '#8290a4', attributionLogo: true },
     grid: { vertLines: { color: 'rgba(138,167,255,.055)' }, horzLines: { color: 'rgba(138,167,255,.055)' } },
@@ -3732,23 +3782,23 @@ function ensureTxChart() {
     localization: { timeFormatter: (time) => chartTimeLabel(time) },
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
   });
-  const palette = activeCandlePalette();
-  const candle = chart.addSeries(L.CandlestickSeries, {
+    const palette = activeCandlePalette();
+    const candle = chart.addSeries(L.CandlestickSeries, {
     upColor: palette.up, downColor: palette.down, borderVisible: false,
     wickUpColor: palette.up, wickDownColor: palette.down, priceLineVisible: true,
   });
-  const volume = chart.addSeries(L.HistogramSeries, {
+    const volume = chart.addSeries(L.HistogramSeries, {
     priceScaleId: 'volume', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false,
   });
-  chart.priceScale('volume').applyOptions({ scaleMargins: { top: .8, bottom: 0 } });
-  const vwap = chart.addSeries(L.LineSeries, {
+    chart.priceScale('volume').applyOptions({ scaleMargins: { top: .8, bottom: 0 } });
+    const vwap = chart.addSeries(L.LineSeries, {
     color: '#f5c86b', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'VWAP',
   });
-  const markers = typeof L.createSeriesMarkers === 'function' ? L.createSeriesMarkers(candle, []) : null;
-  chart.subscribeCrosshairMove((parameter) => {
+    const markers = typeof L.createSeriesMarkers === 'function' ? L.createSeriesMarkers(candle, []) : null;
+    chart.subscribeCrosshairMove((parameter) => {
     const bar = parameter.seriesData?.get(candle);
     if (!bar || parameter.time == null) {
-      dwText('dw-chart-crosshair', '移到 K 棒查看 Time / OHLCV / VWAP / OR');
+      dwText('dw-chart-crosshair', '移到 K 棒查看目前／收盤、漲跌、最高、最低、振幅與成交量');
       return;
     }
     const volumePoint = parameter.seriesData?.get(volume);
@@ -3762,14 +3812,28 @@ function ensureTxChart() {
       ? `OR H ${fmt(openingRange.high)} L ${fmt(openingRange.low)}`
       : 'OR UNAVAILABLE_AT_SELECTED_TIME';
     const close = finiteNumber(bar.close);
+    const open = finiteNumber(bar.open);
+    const high = finiteNumber(bar.high);
+    const low = finiteNumber(bar.low);
+    const change = close == null || open == null ? null : close - open;
+    const range = high == null || low == null ? null : high - low;
     const selectedVwap = finiteNumber(vwapPoint?.value);
     const distance = close == null || selectedVwap == null ? 'UNAVAILABLE' : signed(close - selectedVwap, '', 2);
-    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · O ${fmt(bar.open)} H ${fmt(bar.high)} L ${fmt(bar.low)} C ${fmt(bar.close)} · V ${fmt(volumePoint?.value)} · VWAP ${fmt(selectedVwap, 2)} · ΔVWAP ${distance} · ${openingRangeText}`);
-  });
-  state.txChartApi = chart;
-  state.txChartSeries = { candle, volume, vwap };
-  state.txChartMarkers = markers;
-  return chart;
+    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · 目前／收盤 ${fmt(close)} · 漲跌 ${change == null ? 'UNAVAILABLE' : signed(change, ' 點', 2)} · 最高 ${fmt(high)} · 最低 ${fmt(low)} · 振幅 ${range == null ? 'UNAVAILABLE' : fmt(range, 2)} 點 · 成交量 ${fmt(volumePoint?.value)} · 完整 開 ${fmt(open)} / 高 ${fmt(high)} / 低 ${fmt(low)} / 收 ${fmt(close)} · VWAP ${fmt(selectedVwap, 2)} · 距 VWAP ${distance} · ${openingRangeText}`);
+    });
+    state.txChartApi = chart;
+    state.txChartSeries = { candle, volume, vwap };
+    state.txChartMarkers = markers;
+    state.txChartRuntimeReason = null;
+    return chart;
+  } catch {
+    try { chart?.remove(); } catch { /* best-effort disposal of a partially initialized renderer */ }
+    state.txChartApi = null;
+    state.txChartSeries = null;
+    state.txChartMarkers = null;
+    state.txChartRuntimeReason = 'CHART_RENDER_INITIALIZATION_FAILED';
+    return null;
+  }
 }
 
 function levelValue(level) {
@@ -4040,8 +4104,6 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
   const chartReason = payload?.reason || 'TX_CHART_UNAVAILABLE';
   const chartUnavailable = terminalUnavailable(chartReason);
-  dwText('dw-chart-status', payload?.status && payload.status !== 'UNAVAILABLE' ? payload.status : chartUnavailable);
-  $('dw-chart-status').className = `dw-status-pill ${payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
   dwText('dw-chart-session', payload?.session || chartUnavailable);
   dwText('dw-chart-contract', payload?.actualContract ? `TX ${payload.actualContract}` : chartUnavailable);
   dwText('dw-chart-mode', `${payload?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${payload?.timeframe || state.txChartTimeframe} · READ ONLY`);
@@ -4054,36 +4116,72 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
     renderTerminalShell(state.decisionWorkspace, payload);
   }
 
-  const visualizable = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
-  $('dw-chart-empty').classList.toggle('hidden', visualizable);
-  dwText('dw-chart-empty-reason', dwHumanize(payload?.reason || 'TX_TICK_SOURCE_UNAVAILABLE'));
-  if (!chart || !state.txChartSeries) return;
-  const data = chartSeriesData(payload || {});
-  const identity = `${payload?.timeframe}|${payload?.tradeDate}|${payload?.sessionId}|${payload?.actualContract}`;
-  const mustReset = !visualizable || state.txChartIdentity !== identity || data.candles.length < state.txChartBarCount;
-  if (mustReset) {
-    state.txChartSeries.candle.setData(visualizable ? data.candles : []);
-    state.txChartSeries.volume.setData(visualizable ? data.volumes : []);
-    state.txChartSeries.vwap.setData(visualizable ? data.vwap : []);
-  } else if (data.candles.length) {
-    state.txChartSeries.candle.update(data.candles.at(-1));
-    if (data.volumes.length) state.txChartSeries.volume.update(data.volumes.at(-1));
-    if (data.vwap.length) state.txChartSeries.vwap.update(data.vwap.at(-1));
+  const payloadEligible = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(payload?.status) && payload?.bars?.length > 0;
+  let visibleRenderReady = false;
+  let visibleFailureReason = payload?.reason || 'TX_TICK_SOURCE_UNAVAILABLE';
+  if (!chart || !state.txChartSeries) {
+    visibleFailureReason = state.txChartRuntimeReason || 'CHART_RENDER_INITIALIZATION_FAILED';
   }
-  if (state.txChartMarkers) state.txChartMarkers.setMarkers(visualizable ? marketChangeMarkerData(state.marketChangeFeed, payload?.timeframe) : []);
-  state.txChartIdentity = identity;
-  state.txChartBarCount = data.candles.length;
-  if ((mustReset || fit) && visualizable) chart.timeScale().fitContent();
+  const data = chartSeriesData(payload || {});
+  const dataEligible = payloadEligible && data.candles.length > 0;
+  if (payloadEligible && !dataEligible) visibleFailureReason = 'CHART_VALID_CANDLES_UNAVAILABLE';
+  const identity = `${payload?.timeframe}|${payload?.tradeDate}|${payload?.sessionId}|${payload?.actualContract}`;
+  const mustReset = !dataEligible || state.txChartIdentity !== identity || data.candles.length < state.txChartBarCount;
+  if (chart && state.txChartSeries) {
+    try {
+      if (mustReset) {
+        state.txChartSeries.candle.setData(dataEligible ? data.candles : []);
+        state.txChartSeries.volume.setData(dataEligible ? data.volumes : []);
+        state.txChartSeries.vwap.setData(dataEligible ? data.vwap : []);
+      } else if (data.candles.length) {
+        state.txChartSeries.candle.update(data.candles.at(-1));
+        if (data.volumes.length) state.txChartSeries.volume.update(data.volumes.at(-1));
+        if (data.vwap.length) state.txChartSeries.vwap.update(data.vwap.at(-1));
+      }
+      if (state.txChartMarkers) state.txChartMarkers.setMarkers(dataEligible ? marketChangeMarkerData(state.marketChangeFeed, payload?.timeframe) : []);
+      state.txChartIdentity = dataEligible ? identity : null;
+      state.txChartBarCount = dataEligible ? data.candles.length : 0;
+      if ((mustReset || fit) && dataEligible) chart.timeScale().fitContent();
+      visibleRenderReady = dataEligible;
+    } catch {
+      state.txChartIdentity = null;
+      state.txChartBarCount = 0;
+      visibleFailureReason = 'CHART_SERIES_WRITE_FAILED';
+    }
+  }
+  const visibleStatus = visibleRenderReady
+    ? payload.status
+    : payloadEligible ? terminalUnavailable(visibleFailureReason) : payload?.status && payload.status !== 'UNAVAILABLE' ? payload.status : chartUnavailable;
+  dwText('dw-chart-status', visibleStatus);
+  $('dw-chart-status').className = `dw-status-pill ${visibleRenderReady && payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
+  $('dw-chart-empty').classList.toggle('hidden', visibleRenderReady);
+  dwText('dw-chart-empty-reason', dwHumanize(visibleFailureReason));
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
-  if (state.txChartLoading) return;
+  const requestId = ++state.txChartRequestId;
+  if (state.txChartLoading) {
+    state.txChartPendingFit = state.txChartPendingFit || fit;
+    return;
+  }
+  const timeframe = state.txChartTimeframe;
   state.txChartLoading = true;
-  const params = new URLSearchParams({ timeframe: state.txChartTimeframe, mode: 'LIVE' });
+  const params = new URLSearchParams({ timeframe, mode: 'LIVE' });
   try {
     const payload = await api(`/api/v1/tx-chart?${params}`);
+    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
     renderTxDecisionChart(payload.data, { fit });
-  } finally { state.txChartLoading = false; }
+  } catch (error) {
+    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    throw error;
+  } finally {
+    state.txChartLoading = false;
+    if (requestId !== state.txChartRequestId) {
+      const pendingFit = state.txChartPendingFit;
+      state.txChartPendingFit = false;
+      await loadTxDecisionChart({ fit: pendingFit });
+    }
+  }
 }
 
 function renderDecisionWorkspace(workspace) {
