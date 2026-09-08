@@ -583,6 +583,16 @@ async function runProductionInteractionRegression() {
         decisionSummary: { risk: 'ELEVATED' },
         currentMarketFactSummary: {},
         chatGptCopy: 'IMMUTABLE GOVERNED SNAPSHOT',
+        runtimeVersion: {
+          productVersion: 'CRU-46 Dashboard Integration Mainline V1',
+          previewType: 'INTEGRATION_OWNER_PREVIEW', previewLabel: 'INTEGRATION OWNER PREVIEW',
+          branch: 'codex/cru-46-dashboard-integration-mainline-v1',
+          exactHead: '${'f'.repeat(40)}', buildCommit: '${'f'.repeat(40)}', runtimeCommit: '${'f'.repeat(40)}',
+          approvedMainCommit: '${'a'.repeat(40)}', baseMainCommit: '${'a'.repeat(40)}', syncState: 'MISMATCH',
+          includedSources: { cru43: '${'c'.repeat(40)}', cru45: '${'d'.repeat(40)}' },
+          pendingCapabilities: ['CRU-44', 'CVD', 'RVOL', '15m+ observed-flow backend'],
+          dataMode: 'GOVERNED_LOCAL_DATA', complete: false,
+        },
         observedFlow: {
           schemaVersion: 'dashboard-observed-flow-v1', sourceState: 'HISTORICAL', unavailableReason: null,
           source: { sourceMode: 'HISTORICAL', tradeDate: '2026-08-28', availableAt, materializedAt: '2026-08-31T23:57:00.000Z' },
@@ -638,12 +648,15 @@ async function runProductionInteractionRegression() {
       globalThis.__ui1Chart = chart;
       renderObservedFlow(workspace.observedFlow);
       renderTerminalShell(workspace, chart);
+      renderRuntimeVersion(workspace.runtimeVersion);
       renderMarketPulse(workspace, chart);
       dwText('dw-chart-session', chart.tradeDate + ' · ' + chart.session);
       dwText('dw-chart-contract', chart.actualContract);
       dwText('dw-reference-price', fmt(chart.lastPrice));
       dwText('dw-leadership-time', 'UNAVAILABLE · SOURCE_NOT_RUNNING');
       const ids = [
+        'cru46-preview-badge', 'cru46-version-head', 'cru46-version-base', 'cru46-version-cru43',
+        'cru46-version-cru45', 'cru46-version-pending', 'cru46-version-data-mode', 'cru46-version-complete',
         'tt-top-change', 'tt-top-oi', 'tt-top-basis', 'tt-pulse-basis',
         'tt-futures-vwap', 'tt-futures-basis', 'tt-futures-foreign', 'tt-futures-dealer',
         'tt-futures-trust-position', 'tt-futures-oi', 'tt-futures-oi-change',
@@ -1303,6 +1316,14 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
+  assert.equal(result.wiringEvidence['cru46-preview-badge'].text, 'INTEGRATION OWNER PREVIEW');
+  assert.equal(result.wiringEvidence['cru46-version-head'].text, 'f'.repeat(40));
+  assert.equal(result.wiringEvidence['cru46-version-base'].text, 'a'.repeat(40));
+  assert.equal(result.wiringEvidence['cru46-version-cru43'].text, 'c'.repeat(40));
+  assert.equal(result.wiringEvidence['cru46-version-cru45'].text, 'd'.repeat(40));
+  assert.match(result.wiringEvidence['cru46-version-pending'].text, /CRU-44 \/ CVD \/ RVOL \/ 15m\+ observed-flow backend/);
+  assert.equal(result.wiringEvidence['cru46-version-data-mode'].text, 'GOVERNED_LOCAL_DATA');
+  assert.equal(result.wiringEvidence['cru46-version-complete'].text, 'NOT COMPLETE');
   const matrix = result.observedFlowStateMatrix;
   assert.match(matrix.pressure.positive.ratio, /\+0\.420/);
   assert.equal(matrix.pressure.positive.side, '偏買方');
