@@ -734,6 +734,8 @@ async function runProductionInteractionRegression() {
         response: document.getElementById('dw-flow-selected-response')?.textContent || '',
         relation: document.getElementById('dw-flow-selected-relation')?.textContent || '',
         path: document.getElementById('dw-flow-selected-path')?.textContent || '',
+        reason: document.getElementById('dw-flow-selected-reason')?.textContent || '',
+        reasonCode: document.getElementById('dw-flow-selected-reason-code')?.textContent || '',
         summary: document.getElementById('dw-flow-selected-summary')?.textContent || '',
         pending: document.getElementById('dw-flow-selected-pending')?.textContent || '',
         pendingVisible: !document.getElementById('dw-flow-selected-pending')?.classList.contains('hidden'),
@@ -1319,10 +1321,11 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /HISTORICAL · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /非目前盤勢/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /TXFI6 · DAY/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力｜誰比較主動/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應｜價格最後往哪裡走/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率｜過程有多直接/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /可判定成交占比 \/ Data Trust/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /分類覆蓋率/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /查看證據 \/ Detail/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
@@ -1356,7 +1359,9 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定',
   });
-  assert.match(matrix.pathUnavailable.path, /QUALITY_INSUFFICIENT_LONG_GAP/);
+  assert.equal(matrix.pathUnavailable.path, '不可用');
+  assert.equal(matrix.pathUnavailable.reason, '不可用｜路徑存在過長間隔');
+  assert.equal(matrix.pathUnavailable.reasonCode, 'QUALITY_INSUFFICIENT_LONG_GAP');
   assert.match(matrix.pathUnavailable.summary, /路徑效率不可用/);
   assert.doesNotMatch(matrix.pathUnavailable.summary, /路徑效率 0(?:\.0+)?/);
   assert.deepEqual(matrix.chartToFlow.map(({ chartKey, flowKey, selectedFlow }) => ({ chartKey, flowKey, selectedFlow })), [

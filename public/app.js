@@ -2532,6 +2532,7 @@ const DW_REASON_LABELS = Object.freeze({
   SOURCE_MODE_NOT_AUTHORIZED: '此來源模式未獲准用於 Observed Flow',
   FRESHNESS_CUTOFF_INVALID: 'Observed Flow freshness cutoff 無效',
   PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE: '分類成交量覆蓋尚未達 100%，正式方向不晉升',
+  QUALITY_INSUFFICIENT_LONG_GAP: '路徑存在過長間隔',
 });
 
 function dwHumanize(value, fallback = '目前無法取得') {
@@ -3021,7 +3022,12 @@ function renderObservedFlowSelected(value, available, reason) {
   panel.classList.toggle('is-pending', pending);
   $('dw-flow-selected-pending')?.classList.toggle('hidden', !pending);
   dwText('dw-flow-selected-summary', observedFlowSelectedSummary(value, definition, window, available, reason));
-  if (pending) return;
+  if (pending) {
+    const pendingReason = definition.key === 'tradingDay' ? '語意尚待定義' : '尚待治理驗證';
+    dwText('dw-flow-selected-reason', `待驗證｜${pendingReason}`);
+    dwText('dw-flow-selected-reason-code', definition.key === 'tradingDay' ? 'TRADING_DAY_SEMANTICS_PENDING' : 'WINDOW_NOT_PROMOTED');
+    return;
+  }
   const windowAvailable = available && window?.truthState !== 'WARMING_UP'
     && window?.truthState !== 'UNAVAILABLE';
   const pressure = window?.pressure || {};
@@ -3033,19 +3039,50 @@ function renderObservedFlowSelected(value, available, reason) {
   });
   dwText('dw-flow-selected-ratio', ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 3 }));
   dwText('dw-flow-selected-side', ratio == null ? '成交力道不可判定' : observedFlowPressureSide(pressure, value.sourceState));
-  terminalWrite('dw-flow-selected-response', windowAvailable
-    ? observedFlowMetric(window?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }) : null,
-  { reason: available ? 'RESPONSE_DISPLACEMENT_UNAVAILABLE' : reason });
+  const rawResponsePoints = window?.response?.displacementPoints;
+  const responsePoints = Number(rawResponsePoints);
+  const responseReady = windowAvailable && rawResponsePoints !== null && rawResponsePoints !== undefined
+    && Number.isFinite(responsePoints);
+  dwText('dw-flow-selected-response', responseReady
+    ? observedFlowMetric(responsePoints, { signedValue: true, suffix: ' 點', digits: 0 }) : '不可用');
   dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response) : '成交力道不可判定');
-  terminalWrite('dw-flow-selected-path', windowAvailable ? observedFlowMetric(window?.pathEfficiency?.value, { digits: 3 }) : null,
-    { reason: windowAvailable ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE') : (window?.unavailableReason || reason) });
+  const rawPathValue = window?.pathEfficiency?.value;
+  const pathValue = Number(rawPathValue);
+  const pathReady = windowAvailable && rawPathValue !== null && rawPathValue !== undefined
+    && Number.isFinite(pathValue);
+  dwText('dw-flow-selected-path', pathReady ? observedFlowMetric(pathValue, { digits: 3 }) : '不可用');
   dwText('dw-flow-selected-coverage', windowAvailable
     ? (observedFlowCoverage(coverage) || `不可用 · ${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}`)
     : `不可用 · ${dwHumanize(reason)}`);
+  const selectedReasonCode = !windowAvailable
+    ? (window?.unavailableReason || reason)
+    : ratio == null
+      ? (pressure.unavailableReason || 'PRESSURE_UNAVAILABLE')
+      : !responseReady
+        ? (window?.response?.unavailableReason || 'RESPONSE_DISPLACEMENT_UNAVAILABLE')
+        : !pathReady
+          ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE')
+          : null;
+  dwText('dw-flow-selected-reason', selectedReasonCode
+    ? `不可用｜${dwHumanize(selectedReasonCode)}`
+    : limited ? '有限制｜分類覆蓋尚未完整' : '資料可用');
+  dwText('dw-flow-selected-reason-code', selectedReasonCode || (limited ? 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE' : 'READY'));
+  dwText('dw-flow-selected-lineage', value?.lineage?.cutoffLedgerOrdinal != null
+    ? `ordinal ${value.lineage.cutoffLedgerOrdinal}` : '請由完整證據查看');
   const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[window?.status || value.researchQuality?.status] || '不可用';
   dwText('dw-flow-selected-quality', window?.truthState === 'WARMING_UP' ? '暖機中'
     : windowAvailable ? qualityLabel : `不可用 · ${dwHumanize(window?.unavailableReason || reason)}`);
   dwText('dw-flow-selected-updated', windowAvailable ? timeLabel(value.source?.availableAt) : '不可用');
+}
+
+function updateTerminalSummaryDisclosure() {
+  const line = document.querySelector('.tt-summary-line');
+  const label = $('tt-summary-exception');
+  if (!line || !label) return;
+  const exceptions = [...line.querySelectorAll('.tt-summary-metrics strong')].filter((node) =>
+    /^(UNAVAILABLE|STALE|DEGRADED|QUALITY_INSUFFICIENT|BLOCKED)/.test(node.textContent.trim()));
+  line.classList.toggle('has-exception', exceptions.length > 0);
+  label.textContent = exceptions.length ? `${exceptions.length} 項需注意` : '正常項目已收合';
 }
 
 function renderObservedFlow(flow) {
@@ -3338,6 +3375,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-summary-breadth', breadthAvailability && breadthAvailability !== 'UNAVAILABLE' ? breadthAvailability : null, { reason: 'PARTICIPATION_BREADTH_UNAVAILABLE' });
   terminalWrite('tt-summary-flow', flowAvailability && flowAvailability !== 'UNAVAILABLE' ? flowAvailability : null, { reason: 'FUTURES_INSTITUTIONAL_UNAVAILABLE' });
   terminalWrite('tt-summary-risk', decision.risk && decision.risk !== 'UNAVAILABLE' ? decision.risk : null, { reason: 'RISK_STATUS_UNAVAILABLE' });
+  updateTerminalSummaryDisclosure();
 
   dwText('tt-trend-main', 'RESEARCH_PENDING');
   dwText('tt-trend-direction', 'RESEARCH_PENDING');

@@ -51,8 +51,14 @@
   }
 
   function summaryLine() {
-    const line = element('section', 'tt-summary-line');
+    const line = element('details', 'tt-summary-line');
     line.setAttribute('aria-label', '市場摘要 Market Summary');
+    const toggle = element('summary', 'tt-summary-toggle');
+    toggle.append(
+      element('strong', '', '資料狀態'),
+      Object.assign(element('span', '', '正常項目已收合'), { id: 'tt-summary-exception' }),
+    );
+    const metrics = element('div', 'tt-summary-metrics');
     const labels = [
       ['價格', 'Price', 'tt-summary-price'],
       ['趨勢強度', 'Strength', 'tt-summary-strength'],
@@ -62,10 +68,11 @@
       ['風險衝突', 'Risk', 'tt-summary-risk'],
     ];
     labels.forEach(([label, subtitle, id], index) => {
-      const metric = appendMetric(line, label, id, label === '趨勢強度' ? 'RESEARCH_PENDING' : 'UNAVAILABLE', subtitle);
+      const metric = appendMetric(metrics, label, id, label === '趨勢強度' ? 'RESEARCH_PENDING' : 'UNAVAILABLE', subtitle);
       metric.classList.add('tt-ribbon-item');
       metric.dataset.ribbonIndex = String(index);
     });
+    line.append(toggle, metrics);
     return line;
   }
 
@@ -78,21 +85,24 @@
     identity.append(
       Object.assign(element('strong', '', '台指期貨'), { id: 'tt-top-contract' }),
       Object.assign(element('b', '', 'LOADING'), { id: 'tt-top-price' }),
-      Object.assign(element('span', '', 'UNAVAILABLE'), { id: 'tt-top-change' }),
+      Object.assign(element('span', 'tt-top-session-main', 'Session UNAVAILABLE'), { id: 'tt-top-session' }),
+      Object.assign(element('span', 'dw-status-pill is-unavailable', 'UNAVAILABLE'), { id: 'tt-top-trust' }),
     );
     const facts = element('div', 'tt-top-facts');
     for (const [label, id] of [
-      ['成交量', 'tt-top-volume'], ['OI', 'tt-top-oi'], ['基差', 'tt-top-basis'], ['Session', 'tt-top-session'],
+      ['漲跌', 'tt-top-change'], ['成交量', 'tt-top-volume'], ['OI', 'tt-top-oi'], ['基差', 'tt-top-basis'],
     ]) facts.append(compactMetric(label, id));
-    const status = element('div', 'tt-top-status');
-    status.append(
+    const details = element('details', 'tt-top-details');
+    details.append(element('summary', '', '次要資料 / Detail'));
+    const status = element('div', 'tt-top-detail-body');
+    status.append(facts,
       Object.assign(element('small', '', '更新 LOADING'), { id: 'tt-top-updated' }),
-      Object.assign(element('span', 'dw-status-pill is-unavailable', 'UNAVAILABLE'), { id: 'tt-top-trust' }),
       element('span', 'tt-descriptive-only', 'DESCRIPTIVE ONLY'),
       element('span', 'tt-no-signal', 'NOT A TRADING SIGNAL'),
     );
     if (modeSwitch) status.append(modeSwitch);
-    heading.replaceChildren(identity, facts, status);
+    details.append(status);
+    heading.replaceChildren(identity, details);
     return heading;
   }
 
