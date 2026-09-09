@@ -2,8 +2,8 @@
   'use strict';
 
   const PALETTES = Object.freeze({
-    'red-up': Object.freeze({ up: '#ff6b6b', down: '#37d67a', upVolume: 'rgba(255,107,107,.34)', downVolume: 'rgba(55,214,122,.34)' }),
-    'green-up': Object.freeze({ up: '#37d67a', down: '#ff6b6b', upVolume: 'rgba(55,214,122,.34)', downVolume: 'rgba(255,107,107,.34)' }),
+    'red-up': Object.freeze({ label: '台股（紅漲綠跌）', up: '#ff6b6b', down: '#37d67a', upSoft: '#ff9aa0', upStrong: '#b92e3b', downSoft: '#87dfb7', downStrong: '#197c55', upVolume: 'rgba(255,107,107,.34)', downVolume: 'rgba(55,214,122,.34)' }),
+    'green-up': Object.freeze({ label: '國際（綠漲紅跌）', up: '#37d67a', down: '#ff6b6b', upSoft: '#87dfb7', upStrong: '#197c55', downSoft: '#ff9aa0', downStrong: '#b92e3b', upVolume: 'rgba(55,214,122,.34)', downVolume: 'rgba(255,107,107,.34)' }),
   });
   const STORAGE_KEY = 'trader-terminal-candle-palette';
 
@@ -359,15 +359,6 @@
     const toolbar = root.querySelector('.dw-chart-toolbar');
     if (!toolbar || toolbar.querySelector('.tt-chart-actions')) return;
     const actions = element('div', 'tt-chart-actions');
-    const palettes = element('div', 'tt-palette-switch');
-    palettes.setAttribute('role', 'group');
-    palettes.setAttribute('aria-label', 'K 線配色');
-    for (const [value, label] of [['red-up', '紅漲綠跌'], ['green-up', '綠漲紅跌']]) {
-      const button = element('button', '', label);
-      button.type = 'button';
-      button.dataset.candlePalette = value;
-      palettes.append(button);
-    }
     const expand = element('button', 'tt-expand-chart', '⛶ 放大圖表');
     expand.type = 'button';
     expand.id = 'tt-chart-expand';
@@ -375,7 +366,7 @@
     levels.type = 'button';
     levels.id = 'tt-level-toggle';
     levels.setAttribute('aria-pressed', 'false');
-    actions.append(palettes, levels, expand);
+    actions.append(levels, expand);
     toolbar.append(actions);
     for (const id of ['dw-prior-levels', 'dw-or-state']) {
       root.querySelector(`#${id}`)?.closest('article')?.classList.add('tt-optional-level');
@@ -558,13 +549,23 @@
     const selected = PALETTES[name] ? name : 'red-up';
     const palette = PALETTES[selected];
     root.dataset.candlePalette = selected;
+    document.documentElement.dataset.marketPalette = selected;
     root.style.setProperty('--candle-up', palette.up);
     root.style.setProperty('--candle-down', palette.down);
-    root.querySelectorAll('button[data-candle-palette]').forEach((button) => {
-      const active = button.dataset.candlePalette === selected;
-      button.classList.toggle('is-selected', active);
-      button.setAttribute('aria-pressed', String(active));
-    });
+    const globalStyle = document.documentElement.style;
+    globalStyle.setProperty('--positive', palette.up);
+    globalStyle.setProperty('--negative', palette.down);
+    globalStyle.setProperty('--market-up', palette.up);
+    globalStyle.setProperty('--market-down', palette.down);
+    globalStyle.setProperty('--market-up-soft', palette.upSoft);
+    globalStyle.setProperty('--market-up-strong', palette.upStrong);
+    globalStyle.setProperty('--market-down-soft', palette.downSoft);
+    globalStyle.setProperty('--market-down-strong', palette.downStrong);
+    const control = document.getElementById('market-palette-select');
+    if (control) {
+      control.value = selected;
+      control.setAttribute('aria-label', `漲跌配色：${palette.label}`);
+    }
     if (persist) {
       try { global.localStorage?.setItem(STORAGE_KEY, selected); } catch { /* presentation preference only */ }
     }
@@ -579,7 +580,8 @@
       expand.setAttribute('aria-pressed', String(expanded));
       global.dispatchEvent(new CustomEvent('trader-terminal:chart-layout', { detail: { expanded } }));
     });
-    root.querySelectorAll('[data-candle-palette]').forEach((button) => button.addEventListener('click', () => applyPalette(root, button.dataset.candlePalette)));
+    const paletteControl = document.getElementById('market-palette-select');
+    paletteControl?.addEventListener('change', () => applyPalette(root, paletteControl.value));
     const levels = root.querySelector('#tt-level-toggle');
     levels?.addEventListener('click', () => {
       const visible = root.classList.toggle('show-optional-levels');

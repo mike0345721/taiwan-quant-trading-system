@@ -2887,12 +2887,16 @@ function observedFlowRatio(pressure) {
 
 function renderObservedFlowSegments(host, ratio, options = {}) {
   if (!host) return;
-  const cells = ratio == null ? 0 : Math.min(5, Math.ceil(Math.abs(ratio) * 5));
+  const cells = ratio == null ? 0 : Math.min(4, Math.ceil(Math.abs(ratio) * 4));
   const nodes = [];
-  for (let index = 0; index < 11; index += 1) {
+  for (let index = 0; index < 9; index += 1) {
     const cell = document.createElement('i');
-    if (index !== 5 && ((ratio > 0 && index > 5 && index <= 5 + cells)
-      || (ratio < 0 && index < 5 && index >= 5 - cells))) cell.className = 'is-filled';
+    if (index === 4) cell.className = 'is-neutral-cell';
+    const level = ratio > 0 ? index - 4 : 4 - index;
+    if (index !== 4 && level >= 1 && level <= cells
+      && ((ratio > 0 && index > 4) || (ratio < 0 && index < 4))) {
+      cell.className = `is-filled is-level-${level}`;
+    }
     nodes.push(cell);
   }
   host.replaceChildren(...nodes);
@@ -3378,6 +3382,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     reason: chart?.levels?.previousClose?.reason || 'PREVIOUS_CLOSE_UNAVAILABLE',
     title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.previousClose?.source || chart?.source }),
   });
+  tone('tt-top-change', lastPrice != null && previousClose != null ? lastPrice - previousClose : 0);
   terminalWrite('tt-top-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
   const marketOi = futuresMarketUsable && finiteNumber(txDay.openInterest) > 0 ? finiteNumber(txDay.openInterest) : null;
   terminalWrite('tt-top-oi', marketOi == null ? null : `${fmt(marketOi)} 口 · ${batchMode(futuresMarketHealth)}`, {
@@ -3387,6 +3392,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-top-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
     reason: basisUnavailableReason, title: basisContext,
   });
+  tone('tt-top-basis', basis ?? 0);
   terminalWrite('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || null, { reason: 'TRADE_DATE_OR_SESSION_UNAVAILABLE' });
   terminalWrite('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
   terminalWrite('tt-top-trust', chart?.qualityStatus || global.dataHealth || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });

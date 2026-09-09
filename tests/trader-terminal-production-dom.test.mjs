@@ -740,7 +740,9 @@ async function runProductionInteractionRegression() {
         pending: document.getElementById('dw-flow-selected-pending')?.textContent || '',
         pendingVisible: !document.getElementById('dw-flow-selected-pending')?.classList.contains('hidden'),
         barClass: document.getElementById('dw-flow-selected-bar')?.className || '',
+        cellCount: document.querySelectorAll('#dw-flow-selected-bar > i').length,
         filledCells: document.querySelectorAll('#dw-flow-selected-bar .is-filled').length,
+        filledLevels: [...document.querySelectorAll('#dw-flow-selected-bar .is-filled')].map((node) => node.className),
         truthClass: document.getElementById('dw-observed-flow-truth')?.className || '',
         truth: document.getElementById('dw-observed-flow-truth')?.textContent || '',
       });
@@ -836,6 +838,37 @@ async function runProductionInteractionRegression() {
         selected1m, selected15m, selected5m, selectedTradingDay,
         chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
         live, stale, warming, historical, unavailable };
+    })()`);
+    const paletteEvidence = await evaluate(cdp, `(() => {
+      const control = document.getElementById('market-palette-select');
+      const capture = () => {
+        renderObservedFlowSegments(document.getElementById('dw-flow-selected-bar'), 0.8);
+        renderObservedFlowEnergy(document.getElementById('dw-flow-response-energy'), 24, { range: 50 });
+        const palette = activeCandlePalette();
+        const volume = chartSeriesData({ bars: [{ time: '2026-09-09T01:00:00.000Z', open: 100, high: 102, low: 99, close: 101, volume: 10 }] }).volumes[0];
+        const rootStyle = getComputedStyle(document.documentElement);
+        return {
+          selected: control?.value,
+          mode: document.documentElement.dataset.marketPalette,
+          positive: rootStyle.getPropertyValue('--positive').trim(),
+          negative: rootStyle.getPropertyValue('--negative').trim(),
+          paletteUp: palette.up,
+          paletteDown: palette.down,
+          volumeColor: volume.color,
+          segmentClass: document.getElementById('dw-flow-selected-bar')?.className || '',
+          segmentCount: document.querySelectorAll('#dw-flow-selected-bar > i').length,
+          segmentLevels: [...document.querySelectorAll('#dw-flow-selected-bar .is-filled')].map((node) => node.className),
+          energyClass: document.getElementById('dw-flow-response-energy')?.className || '',
+        };
+      };
+      control.value = 'green-up';
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      const international = capture();
+      control.value = 'red-up';
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      const taiwan = capture();
+      renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
+      return { international, taiwan };
     })()`);
     const refreshFailureEvidence = await evaluate(cdp, `(() => {
       const pulseIds = [
@@ -1075,6 +1108,7 @@ async function runProductionInteractionRegression() {
       initialState,
       wiringEvidence,
       observedFlowStateMatrix,
+      paletteEvidence,
       refreshFailureEvidence,
       leadershipRefreshFailureEvidence,
       drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
@@ -1341,10 +1375,14 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.pressure.positive.ratio, /\+0\.420/);
   assert.equal(matrix.pressure.positive.side, '偏買方');
   assert.match(matrix.pressure.positive.barClass, /is-positive/);
-  assert.equal(matrix.pressure.positive.filledCells, 3);
+  assert.equal(matrix.pressure.positive.cellCount, 9);
+  assert.equal(matrix.pressure.positive.filledCells, 2);
+  assert.deepEqual(matrix.pressure.positive.filledLevels, ['is-filled is-level-1', 'is-filled is-level-2']);
   assert.match(matrix.pressure.negative.ratio, /-0\.270/);
   assert.equal(matrix.pressure.negative.side, '偏賣方');
   assert.match(matrix.pressure.negative.barClass, /is-negative/);
+  assert.equal(matrix.pressure.negative.cellCount, 9);
+  assert.equal(matrix.pressure.negative.filledCells, 2);
   assert.equal(matrix.pressure.zero.ratio, '0.000');
   assert.equal(matrix.pressure.zero.side, '均衡');
   assert.equal(matrix.pressure.null.ratio, '不可判定');
@@ -1415,6 +1453,22 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.warming.truth, /暖機中/);
   assert.match(matrix.historical.truth, /歷史資料｜非目前盤勢/);
   assert.match(matrix.unavailable.truth, /FIXTURE_UNAVAILABLE/);
+  assert.deepEqual(result.paletteEvidence.international, {
+    selected: 'green-up', mode: 'green-up',
+    positive: '#37d67a', negative: '#ff6b6b', paletteUp: '#37d67a', paletteDown: '#ff6b6b',
+    volumeColor: 'rgba(55,214,122,.34)', segmentClass: 'dw-pressure-segments is-positive',
+    segmentCount: 9,
+    segmentLevels: ['is-filled is-level-1', 'is-filled is-level-2', 'is-filled is-level-3', 'is-filled is-level-4'],
+    energyClass: 'dw-flow-metric-energy is-positive',
+  });
+  assert.deepEqual(result.paletteEvidence.taiwan, {
+    selected: 'red-up', mode: 'red-up',
+    positive: '#ff6b6b', negative: '#37d67a', paletteUp: '#ff6b6b', paletteDown: '#37d67a',
+    volumeColor: 'rgba(255,107,107,.34)', segmentClass: 'dw-pressure-segments is-positive',
+    segmentCount: 9,
+    segmentLevels: ['is-filled is-level-1', 'is-filled is-level-2', 'is-filled is-level-3', 'is-filled is-level-4'],
+    energyClass: 'dw-flow-metric-energy is-positive',
+  });
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.breadth, /904/);
