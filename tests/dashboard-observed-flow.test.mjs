@@ -78,11 +78,13 @@ function governedReadResult(truthState = 'HISTORICAL') {
   };
 }
 
-test('quality-insufficient historical evidence keeps lawful descriptive 60s and 300s values', () => {
+test('quality-insufficient historical evidence keeps lawful descriptive 1分 and 5分 values', () => {
   const contract = buildDashboardObservedFlow(governedReadResult());
   assert.equal(contract.sourceState, 'HISTORICAL');
   assert.equal(contract.researchQuality.status, 'QUALITY_INSUFFICIENT');
   assert.deepEqual(contract.researchQuality.reasons, ['PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE']);
+  assert.equal(contract.windows.primary60s.label, '1分');
+  assert.equal(contract.windows.context300s.label, '5分');
   assert.equal(contract.windows.primary60s.pressure.pressureRatio, 0.1888111888111888);
   assert.equal(contract.windows.primary60s.pressure.classifiedCoverage, 0.9794520547945206);
   assert.equal(contract.windows.primary60s.response.displacementPoints, 22);
@@ -121,6 +123,23 @@ test('consumer rejects a future unapproved LIVE producer even when a snapshot ob
   assert.equal(contract.sourceState, 'UNAVAILABLE');
   assert.equal(contract.unavailableReason, 'SOURCE_MODE_NOT_AUTHORIZED');
   assert.equal(contract.windows, null);
+});
+
+test('authorized live envelope preserves LIVE WARMING_UP and STALE as separate source truth states', () => {
+  for (const truthState of ['LIVE', 'WARMING_UP', 'STALE']) {
+    const result = governedReadResult();
+    result.truthState = truthState;
+    result.snapshot.sourceMode = 'LIVE';
+    result.operational = {
+      checkpointIdentity: 'f'.repeat(64),
+      validUntil: '2026-09-07T02:00:00.000Z',
+      warmup: { primary60sComplete: truthState !== 'WARMING_UP', context300sComplete: truthState !== 'WARMING_UP' },
+    };
+    const contract = buildDashboardObservedFlow(result);
+    assert.equal(contract.sourceState, truthState);
+    assert.equal(contract.source.sourceMode, 'LIVE');
+    assert.equal(contract.executionAuthorized, false);
+  }
 });
 
 test('missing configured artifact fails closed without fallback', () => {

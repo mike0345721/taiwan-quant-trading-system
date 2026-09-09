@@ -513,7 +513,7 @@ function discussionObservedFlow(observedFlow) {
 export function buildDecisionWorkspace({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null,
   dw4EvidenceObservations = null, liveBreadth = null, indexLeadership = null, observedFlow = null,
-  runtimeVersion = null, now = new Date(),
+  runtimeVersion = null, productSurface = null, now = new Date(),
 } = {}) {
   const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
     observations: dw4EvidenceObservations,
@@ -560,6 +560,7 @@ export function buildDecisionWorkspace({
       unavailableCount: dataHealth.unavailableCount,
     },
     runtimeVersion,
+    productSurface,
     decisionSummary,
     currentMarketFactSummary,
     indexLeadership,
