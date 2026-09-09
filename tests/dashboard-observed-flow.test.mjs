@@ -142,6 +142,23 @@ test('authorized live envelope preserves LIVE WARMING_UP and STALE as separate s
   }
 });
 
+test('dashboard exposes independently governed 15m LIVE and 30m WARMING states', () => {
+  const result = governedReadResult();
+  result.truthState = 'LIVE';
+  result.snapshot.sourceMode = 'LIVE';
+  result.snapshot.window900s = { truthState: 'LIVE', unavailableReason: null, evidence: window(900_000, 0.2, 1, 15, 0.5) };
+  result.snapshot.window1800s = { truthState: 'WARMING_UP', unavailableReason: 'WARMING_UP_WINDOW_INCOMPLETE', evidence: null };
+  result.operational = { checkpointIdentity: 'f'.repeat(64), validUntil: '2026-09-07T02:00:00.000Z' };
+  const contract = buildDashboardObservedFlow(result);
+  assert.equal(contract.windows.window900s.label, '15分');
+  assert.equal(contract.windows.window900s.truthState, 'LIVE');
+  assert.equal(contract.windows.window900s.pressure.pressureRatio, 0.2);
+  assert.equal(contract.windows.window1800s.label, '30分');
+  assert.equal(contract.windows.window1800s.truthState, 'WARMING_UP');
+  assert.equal(contract.windows.window1800s.pressure.pressureRatio, null);
+  assert.equal(contract.windows.window1800s.unavailableReason, 'WARMING_UP_WINDOW_INCOMPLETE');
+});
+
 test('missing configured artifact fails closed without fallback', () => {
   const contract = loadDashboardObservedFlow({ artifactPath: null });
   assert.equal(contract.sourceState, 'UNAVAILABLE');

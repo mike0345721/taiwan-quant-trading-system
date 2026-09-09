@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { readCru34SnapshotArtifact } from './cru34-snapshot-artifact.mjs';
 import { cru34LiveHash } from './cru34-live-checkpoint.mjs';
 import { CRU34_LIVE_SNAPSHOT_VERSION } from './cru34-live-projection-worker.mjs';
+import { CRU44_MULTI_WINDOW_SCHEMA_VERSION } from './cru44-multi-window-observed-flow.mjs';
 
 export const DASHBOARD_OBSERVED_FLOW_SCHEMA_VERSION = 'dashboard-observed-flow-v1';
 
@@ -44,15 +45,16 @@ function unavailable(reason = 'ARTIFACT_MISSING') {
   });
 }
 
-function windowContract(label, source) {
+function windowContract(label, source, truthState = null, unavailableReason = null) {
   const pressure = source?.pressure || {};
   const response = source?.response || {};
   const pathEfficiency = source?.pathEfficiency || {};
   return {
     label,
+    truthState,
     windowMs: source?.windowMs ?? pressure.windowMs ?? null,
     status: source?.status || 'UNAVAILABLE',
-    unavailableReason: source?.unavailableReason || null,
+    unavailableReason: unavailableReason || source?.unavailableReason || null,
     pressure: {
       status: pressure.status || 'UNAVAILABLE',
       unavailableReason: pressure.unavailableReason || null,
@@ -136,6 +138,12 @@ export function buildDashboardObservedFlow(readResult) {
     windows: {
       primary60s: windowContract('1分', snapshot.primary60s),
       context300s: windowContract('5分', snapshot.context300s),
+      window900s: windowContract('15分', snapshot.window900s?.evidence,
+        readResult.truthState === 'STALE' ? 'STALE' : snapshot.window900s?.truthState,
+        snapshot.window900s?.unavailableReason),
+      window1800s: windowContract('30分', snapshot.window1800s?.evidence,
+        readResult.truthState === 'STALE' ? 'STALE' : snapshot.window1800s?.truthState,
+        snapshot.window1800s?.unavailableReason),
     },
     researchQuality: {
       status: snapshot.quality?.status || 'UNAVAILABLE',
@@ -196,10 +204,24 @@ export function readCru34LiveSnapshot({ snapshotPath, statusPath = null, now = n
       return { truthState: 'UNAVAILABLE', unavailableReason: workerStatus.reason || 'LIVE_WORKER_UNAVAILABLE', snapshot: null };
     }
     const expired = now.getTime() > validUntilMs;
+    const multi = snapshot.multiWindowPayload || null;
+    if (multi && (multi.schemaVersion !== CRU44_MULTI_WINDOW_SCHEMA_VERSION
+        || cru34LiveHash(Object.fromEntries(Object.entries(multi).filter(([key]) => key !== 'contentHash'))) !== multi.contentHash
+        || multi.compatibility?.cru34SemanticPayloadHash !== snapshot.semanticContentHash
+        || multi.formalWeight !== 0 || multi.researchOnly !== true
+        || multi.executionAuthorized !== false || multi.orderRoutesEnabled !== false)) {
+      return { truthState: 'UNAVAILABLE', unavailableReason: 'CRU44_MULTI_WINDOW_PAYLOAD_INVALID', snapshot: null };
+    }
     return {
       truthState: expired ? 'STALE' : snapshot.truthState,
       unavailableReason: null,
-      snapshot: { ...snapshot.semanticPayload, semanticContentHash: snapshot.semanticContentHash },
+      snapshot: {
+        ...snapshot.semanticPayload,
+        window900s: multi?.windows?.window900s || null,
+        window1800s: multi?.windows?.window1800s || null,
+        semanticContentHash: snapshot.semanticContentHash,
+        multiWindowContentHash: multi?.contentHash || null,
+      },
       operational: {
         observedAt: snapshot.observedAt,
         validUntil: snapshot.validUntil,

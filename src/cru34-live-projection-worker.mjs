@@ -11,6 +11,10 @@ import {
 import { buildCru34SemanticPayload, CRU34_SOURCE_MODE_LIVE } from './cru34-snapshot-artifact.mjs';
 import { buildTxIntradayResearchSnapshot, CONTEXT_WINDOW_MS } from './tx-intraday-research-snapshot.mjs';
 import { materializeTxCanonicalObservations } from './tx-intraday-pressure-path-efficiency.mjs';
+import {
+  buildCru44MultiWindowFromCanonical,
+  CRU44_WINDOW_REGISTRY,
+} from './cru44-multi-window-observed-flow.mjs';
 
 export const CRU34_LIVE_SNAPSHOT_VERSION = 'cru34-live-snapshot-v1';
 export const DEFAULT_MAX_BATCH_BYTES = 8 * 1024 * 1024;
@@ -45,8 +49,9 @@ function sourceIdentity(firstRecord) {
   })}`;
 }
 
-function readCompleteBatch(filePath, offset, maxBytes, maxRecords) {
-  const size = fs.statSync(filePath).size;
+function readCompleteBatch(filePath, offset, maxBytes, maxRecords, maxLedgerBytes = null) {
+  const physicalSize = fs.statSync(filePath).size;
+  const size = maxLedgerBytes == null ? physicalSize : Math.min(physicalSize, maxLedgerBytes);
   if (offset > size) throw new Error('CRU43_LEDGER_TRUNCATED');
   const readLength = Math.min(maxBytes, size - offset);
   if (readLength <= 0) return { rows: [], nextOffset: offset, observedSize: size };
@@ -96,19 +101,37 @@ function verifyCheckpointAnchor(ledgerPath, checkpoint) {
 
 function checkpointEvent(event) {
   const { rawRecord: ignored, ...safe } = event;
-  return safe;
+  const payload = event.kind === 'futures_tick'
+    ? {
+        price: event.payload?.price ?? event.payload?.close ?? null,
+        close: event.payload?.close ?? event.payload?.price ?? null,
+        executedVolume: event.payload?.executedVolume ?? event.payload?.volume ?? null,
+        volume: event.payload?.volume ?? event.payload?.executedVolume ?? null,
+        tick_type: event.payload?.tick_type ?? null,
+      }
+    : event.kind === 'futures_bidask'
+      ? {
+          bid_price: Array.isArray(event.payload?.bid_price) ? event.payload.bid_price.slice(0, 1) : [],
+          ask_price: Array.isArray(event.payload?.ask_price) ? event.payload.ask_price.slice(0, 1) : [],
+        }
+      : {};
+  return { ...safe, payload };
 }
 
 function pruneRolling(events, cutoff) {
   if (!cutoff) return [];
-  const floor = cutoff.availableMs - CONTEXT_WINDOW_MS - 2_000;
+  const floor = cutoff.availableMs - CRU44_WINDOW_REGISTRY.window1800s.windowMs - 2_000;
   const matching = events.filter((event) => event.actualContract === cutoff.actualContract
     && event.tradeDate === cutoff.tradeDate && event.session === cutoff.session
     && event.continuityEpoch === cutoff.continuityEpoch && event.availableMs <= cutoff.availableMs);
   let start = matching.findIndex((event) => event.availableMs >= floor);
   if (start < 0) start = Math.max(0, matching.length - 1);
-  const priorQuote = matching.slice(0, start).findLast((event) => event.kind === 'futures_bidask');
-  return [...(priorQuote ? [priorQuote] : []), ...matching.slice(start)].map(checkpointEvent);
+  const before = matching.slice(0, start);
+  const anchors = [
+    before.findLast((event) => event.kind === 'futures_tick'),
+    before.findLast((event) => event.kind === 'futures_bidask'),
+  ].filter(Boolean).sort((left, right) => left.ledgerOrdinal - right.ledgerOrdinal);
+  return [...anchors, ...matching.slice(start)].map(checkpointEvent);
 }
 
 function warmupFor(events, cutoff) {
@@ -120,6 +143,8 @@ function warmupFor(events, cutoff) {
     observedSpanMs: Math.max(0, spanMs),
     primary60sComplete: spanMs >= 60_000,
     context300sComplete: spanMs >= 300_000,
+    window900sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window900s.warmupMs,
+    window1800sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window1800s.warmupMs,
   });
 }
 
@@ -148,6 +173,7 @@ export function projectCru34LiveBatch({
   resolveSessionTradeDate = null,
   maxBatchBytes = DEFAULT_MAX_BATCH_BYTES,
   maxBatchRecords = DEFAULT_MAX_BATCH_RECORDS,
+  maxLedgerBytes = null,
   staleAfterMs = DEFAULT_STALE_AFTER_MS,
   now = new Date(),
 } = {}) {
@@ -156,6 +182,7 @@ export function projectCru34LiveBatch({
   }
   if (!Number.isInteger(maxBatchBytes) || maxBatchBytes < 1024
       || !Number.isInteger(maxBatchRecords) || maxBatchRecords < 1
+      || (maxLedgerBytes != null && (!Number.isInteger(maxLedgerBytes) || maxLedgerBytes < 1))
       || !Number.isInteger(staleAfterMs) || staleAfterMs < 1_000) {
     throw new Error('CRU43_LIVE_PROJECTION_BOUNDS_INVALID');
   }
@@ -163,7 +190,7 @@ export function projectCru34LiveBatch({
   let checkpoint = readCru34LiveCheckpoint(checkpointPath);
   if (checkpoint) verifyCheckpointAnchor(ledgerPath, checkpoint);
   const offset = checkpoint?.lastVerifiedEndByteOffset || 0;
-  const batch = readCompleteBatch(ledgerPath, offset, maxBatchBytes, maxBatchRecords);
+  const batch = readCompleteBatch(ledgerPath, offset, maxBatchBytes, maxBatchRecords, maxLedgerBytes);
   if (!batch.rows.length) return Object.freeze({ status: 'NO_COMPLETE_SUFFIX', checkpoint, snapshot: null });
 
   let previousHash = checkpoint?.lastVerifiedRecordHash || 'GENESIS';
@@ -225,12 +252,20 @@ export function projectCru34LiveBatch({
   const heartbeatAgeMs = Math.max(0, now.getTime() - Date.parse(semanticPayload.availableAt));
   const truthState = !warmup.context300sComplete ? 'WARMING_UP'
     : heartbeatAgeMs > staleAfterMs ? 'STALE' : 'LIVE';
+  const multiWindowPayload = buildCru44MultiWindowFromCanonical({
+    canonicalEvents: rollingCanonicalEvents,
+    cutoffLedgerOrdinal: cutoff.ledgerOrdinal,
+    instrumentProfile,
+    sourceTruthState: heartbeatAgeMs > staleAfterMs ? 'STALE' : 'LIVE',
+    compatibilitySemanticHash: semanticContentHash,
+  });
   const operational = {
     schemaVersion: CRU34_LIVE_SNAPSHOT_VERSION,
     truthState,
     unavailableReason: null,
     semanticPayload,
     semanticContentHash,
+    multiWindowPayload,
     observedAt: now.toISOString(),
     validUntil: new Date(Date.parse(semanticPayload.availableAt) + staleAfterMs).toISOString(),
     heartbeatAgeMs,

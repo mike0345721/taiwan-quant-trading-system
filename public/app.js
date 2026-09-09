@@ -2770,6 +2770,8 @@ function renderObservedFlowDetail(flow) {
     ]),
     observedFlowWindowDetail(flow.windows.primary60s),
     observedFlowWindowDetail(flow.windows.context300s),
+    observedFlowWindowDetail(flow.windows.window900s),
+    observedFlowWindowDetail(flow.windows.window1800s),
     observedFlowDetailSection('資料品質與正式驗證', [
       ['研究資料品質', flow.researchQuality?.status],
       ['品質原因', (flow.researchQuality?.reasons || []).join(', ') || '無'],
@@ -2861,8 +2863,8 @@ function observedFlowStateLabel(state) {
 const OBSERVED_FLOW_WINDOW_REGISTRY = Object.freeze([
   Object.freeze({ key: '1m', label: '1分', group: 'NEAR', source: 'primary60s', data: 'GOVERNED' }),
   Object.freeze({ key: '5m', label: '5分', group: 'NEAR', source: 'context300s', data: 'GOVERNED' }),
-  Object.freeze({ key: '15m', label: '15分', group: 'NEAR', source: null, data: 'PENDING_CRU44' }),
-  Object.freeze({ key: '30m', label: '30分', group: 'MID', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: '15m', label: '15分', group: 'NEAR', source: 'window900s', data: 'GOVERNED' }),
+  Object.freeze({ key: '30m', label: '30分', group: 'MID', source: 'window1800s', data: 'GOVERNED' }),
   Object.freeze({ key: '1h', label: '1小時', group: 'MID', source: null, data: 'PENDING_CRU44' }),
   Object.freeze({ key: '4h', label: '4小時', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
   Object.freeze({ key: 'tradingDay', label: '本交易日', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
@@ -2921,6 +2923,9 @@ function observedFlowSelectedSummary(value, definition, window, available, reaso
     const state = definition.key === 'tradingDay' ? '待定義' : '待驗證';
     return `成交壓力${state}；價格反應${state}；路徑效率${state}；可判定成交占比與 Data Trust ${state}。`;
   }
+  if (window?.truthState === 'WARMING_UP') {
+    return `成交壓力暖機中；價格反應暖機中；路徑效率暖機中；完整 ${definition.label} 歷史尚未累積完成。`;
+  }
   if (!available) {
     const unavailable = dwHumanize(reason);
     return `成交壓力不可用；價格反應不可用；路徑效率不可用；可判定成交占比與 Data Trust 不可用（${unavailable}）。`;
@@ -2973,10 +2978,12 @@ function renderObservedFlowStrip(value, available) {
       continue;
     }
     const window = value?.windows?.[definition.source];
-    const ratio = available ? observedFlowRatio(window?.pressure) : null;
+    const windowAvailable = available && ['LIVE', 'STALE', null, undefined].includes(window?.truthState);
+    const ratio = windowAvailable ? observedFlowRatio(window?.pressure) : null;
     const coverage = window?.pressure?.classifiedCoverage;
     const limited = coverage !== 1 || window?.pressure?.status !== 'READY';
-    note.textContent = ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 2 });
+    note.textContent = window?.truthState === 'WARMING_UP' ? '暖機中'
+      : ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 2 });
     renderObservedFlowSegments(bar, ratio, {
       mini: true, limited, inactive: value?.sourceState !== 'LIVE',
     });
@@ -2991,9 +2998,17 @@ function renderObservedFlowSummary(value, available) {
     if (primaryRatio === 0 || contextRatio === 0) relation = 'raw 比值含 0';
     else relation = Math.sign(primaryRatio) === Math.sign(contextRatio) ? 'raw 比值同側' : 'raw 比值方向不同';
   }
-  dwText('dw-flow-summary-near', available ? `已驗證 2/3 · ${relation}` : '資料不可用');
-  dwText('dw-flow-summary-near-note', '1分、5分已驗證；15分待驗證');
-  dwText('dw-flow-summary-mid', '待驗證');
+  const fifteen = value?.windows?.window900s;
+  const thirty = value?.windows?.window1800s;
+  const fifteenGoverned = fifteen?.status !== 'UNAVAILABLE' || fifteen?.truthState === 'WARMING_UP';
+  const thirtyGoverned = thirty?.status !== 'UNAVAILABLE' || thirty?.truthState === 'WARMING_UP';
+  const fifteenState = fifteen?.truthState === 'WARMING_UP' ? '15分暖機中'
+    : fifteenGoverned ? '15分已治理' : '15分不可用';
+  const thirtyState = thirty?.truthState === 'WARMING_UP' ? '30分暖機中'
+    : thirtyGoverned ? '30分已治理' : '30分不可用';
+  dwText('dw-flow-summary-near', available ? `已治理 ${fifteenGoverned ? '3/3' : '2/3'} · ${relation}` : '資料不可用');
+  dwText('dw-flow-summary-near-note', `1分、5分已驗證；${fifteenState}`);
+  dwText('dw-flow-summary-mid', thirtyState);
   dwText('dw-flow-summary-far', '待驗證');
 }
 
@@ -3007,8 +3022,10 @@ function renderObservedFlowSelected(value, available, reason) {
   $('dw-flow-selected-pending')?.classList.toggle('hidden', !pending);
   dwText('dw-flow-selected-summary', observedFlowSelectedSummary(value, definition, window, available, reason));
   if (pending) return;
+  const windowAvailable = available && window?.truthState !== 'WARMING_UP'
+    && window?.truthState !== 'UNAVAILABLE';
   const pressure = window?.pressure || {};
-  const ratio = available ? observedFlowRatio(pressure) : null;
+  const ratio = windowAvailable ? observedFlowRatio(pressure) : null;
   const coverage = pressure.classifiedCoverage;
   const limited = coverage !== 1 || pressure.status !== 'READY' || value.sourceState !== 'LIVE';
   renderObservedFlowSegments($('dw-flow-selected-bar'), ratio, {
@@ -3016,18 +3033,19 @@ function renderObservedFlowSelected(value, available, reason) {
   });
   dwText('dw-flow-selected-ratio', ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 3 }));
   dwText('dw-flow-selected-side', ratio == null ? '成交力道不可判定' : observedFlowPressureSide(pressure, value.sourceState));
-  terminalWrite('dw-flow-selected-response', available
+  terminalWrite('dw-flow-selected-response', windowAvailable
     ? observedFlowMetric(window?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }) : null,
   { reason: available ? 'RESPONSE_DISPLACEMENT_UNAVAILABLE' : reason });
-  dwText('dw-flow-selected-relation', available ? observedFlowRelation(window?.response) : '成交力道不可判定');
-  terminalWrite('dw-flow-selected-path', available ? observedFlowMetric(window?.pathEfficiency?.value, { digits: 3 }) : null,
-    { reason: available ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE') : reason });
-  dwText('dw-flow-selected-coverage', available
+  dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response) : '成交力道不可判定');
+  terminalWrite('dw-flow-selected-path', windowAvailable ? observedFlowMetric(window?.pathEfficiency?.value, { digits: 3 }) : null,
+    { reason: windowAvailable ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE') : (window?.unavailableReason || reason) });
+  dwText('dw-flow-selected-coverage', windowAvailable
     ? (observedFlowCoverage(coverage) || `不可用 · ${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}`)
     : `不可用 · ${dwHumanize(reason)}`);
   const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[window?.status || value.researchQuality?.status] || '不可用';
-  dwText('dw-flow-selected-quality', available ? qualityLabel : `不可用 · ${dwHumanize(reason)}`);
-  dwText('dw-flow-selected-updated', available ? timeLabel(value.source?.availableAt) : '不可用');
+  dwText('dw-flow-selected-quality', window?.truthState === 'WARMING_UP' ? '暖機中'
+    : windowAvailable ? qualityLabel : `不可用 · ${dwHumanize(window?.unavailableReason || reason)}`);
+  dwText('dw-flow-selected-updated', windowAvailable ? timeLabel(value.source?.availableAt) : '不可用');
 }
 
 function renderObservedFlow(flow) {
@@ -3625,7 +3643,8 @@ function renderRuntimeVersion(version = {}) {
   dwText('dw-version-started', version.runtimeStartedAt || 'UNKNOWN');
   dwText('dw-version-sync', sync);
   const preview = $('cru46-preview-version');
-  const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW';
+  const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW'
+    || version.previewType === 'CRU44_OWNER_PREVIEW';
   preview?.classList.toggle('hidden', !isIntegrationPreview);
   if (!isIntegrationPreview) return;
   dwText('cru46-preview-badge', version.previewLabel || 'INTEGRATION OWNER PREVIEW');
@@ -4206,7 +4225,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 
 async function reportCru46BrowserRuntimeProof() {
   const version = state.decisionWorkspace?.runtimeVersion;
-  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW') return;
+  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW' && version?.previewType !== 'CRU44_OWNER_PREVIEW') return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -4215,6 +4234,8 @@ async function reportCru46BrowserRuntimeProof() {
   const chartStatus = $('dw-chart-status');
   const flow1m = $('dw-flow-tab-1m');
   const flow5m = $('dw-flow-tab-5m');
+  const flow15m = $('dw-flow-tab-15m');
+  const flow30m = $('dw-flow-tab-30m');
   await apiRequestCru46Proof({
     lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
     canvasCount: target?.querySelectorAll('canvas').length || 0,
@@ -4225,6 +4246,12 @@ async function reportCru46BrowserRuntimeProof() {
     chartStatusVisible: visible(chartStatus) && chartStatus?.textContent === state.txChartPayload?.status,
     observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE' && visible(flow1m)),
     observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE' && visible(flow5m)),
+    observedFlow15m: Boolean(flow?.windows?.window900s
+      && (flow.windows.window900s.status !== 'UNAVAILABLE' || flow.windows.window900s.truthState === 'WARMING_UP')
+      && visible(flow15m)),
+    observedFlow30m: Boolean(flow?.windows?.window1800s
+      && (flow.windows.window1800s.status !== 'UNAVAILABLE' || flow.windows.window1800s.truthState === 'WARMING_UP')
+      && visible(flow30m)),
   });
 }
 

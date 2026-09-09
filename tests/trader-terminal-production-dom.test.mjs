@@ -719,6 +719,14 @@ async function runProductionInteractionRegression() {
       const base = structuredClone(globalThis.__ui1Workspace.observedFlow);
       base.sourceState = 'LIVE';
       base.source.sourceMode = 'LIVE';
+      base.windows.window900s = structuredClone(base.windows.context300s);
+      base.windows.window900s.label = '15分';
+      base.windows.window900s.windowMs = 900000;
+      base.windows.window900s.truthState = 'LIVE';
+      base.windows.window1800s = structuredClone(base.windows.context300s);
+      base.windows.window1800s.label = '30分';
+      base.windows.window1800s.windowMs = 1800000;
+      base.windows.window1800s.truthState = 'LIVE';
       const selected = () => ({
         title: document.getElementById('dw-flow-selected-title')?.textContent || '',
         ratio: document.getElementById('dw-flow-selected-ratio')?.textContent || '',
@@ -1377,9 +1385,12 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   });
   assert.equal(matrix.selected1m.title, '1分');
   assert.equal(matrix.selected15m.title, '15分');
-  assert.equal(matrix.selected15m.pendingVisible, true);
-  assert.match(matrix.selected15m.pending, /CRU-44 尚未啟用/);
-  assert.match(matrix.selected15m.summary, /成交壓力待驗證；價格反應待驗證；路徑效率待驗證/);
+  assert.equal(matrix.selected15m.pendingVisible, false);
+  assert.match(matrix.selected15m.summary, /成交壓力/);
+  assert.match(matrix.selected15m.summary, /價格反應/);
+  assert.match(matrix.selected15m.summary, /路徑效率/);
+  assert.match(matrix.selected15m.summary, /可判定成交占比/);
+  assert.match(matrix.selected15m.summary, /Data Trust/);
   assert.equal(matrix.chartSelectionAfterPendingFlow, '15m');
   assert.equal(matrix.selected5m.title, '5分');
   assert.equal(matrix.selected5m.pendingVisible, false);
