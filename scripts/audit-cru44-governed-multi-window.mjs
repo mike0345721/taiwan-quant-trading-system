@@ -20,7 +20,8 @@ const auditCutoffBytes = Number.isInteger(configuredCutoff) && configuredCutoff 
 const configuredBatchBytes = Number.parseInt(process.env.CRU44_AUDIT_MAX_BATCH_BYTES || '', 10);
 const auditMaxBatchBytes = Number.isInteger(configuredBatchBytes) && configuredBatchBytes >= 1024
   ? configuredBatchBytes : 8 * 1024 * 1024;
-const checkpointPath = path.join(outputRoot, 'checkpoint.json');
+const ledgerDate = path.basename(ledgerPath, path.extname(ledgerPath));
+const checkpointPath = path.join(outputRoot, `${ledgerDate}.checkpoint.json`);
 const snapshotPath = path.join(outputRoot, 'latest.json');
 const calendar = loadGovernedTradingCalendar(calendarPath);
 const profile = { instrument: 'TX', product: 'TX', market: 'TAIFEX', tickSize: 1 };
