@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -56,4 +57,13 @@ test('CRU-44 long-window readiness fails closed when only one promoted window is
   } }, { requireLongWindows: true });
   assert.equal(result.ready, false);
   assert.deepEqual(result.reasons, ['OBSERVED_FLOW_1M_5M_15M_30M_UNAVAILABLE']);
+});
+
+test('CRU-44 launcher waits for identity catch-up and treats browser proof as a separate gate', () => {
+  const launcher = fs.readFileSync(new URL('../scripts/start-cru44-owner-preview.ps1', import.meta.url), 'utf8');
+  assert.match(launcher, /runtimePreflightReady\.ready -eq \$true/);
+  assert.match(launcher, /Gate = 'BROWSER_ACCEPTANCE_REQUIRED'/);
+  assert.match(launcher, /\$attempt -lt 300/);
+  assert.match(launcher, /CRU44_PREVIEW_START_FAILED:\$\{lastHealthReason\}/);
+  assert.doesNotMatch(launcher, /Get-CimInstance/);
 });

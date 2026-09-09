@@ -20,10 +20,17 @@ $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Sil
 if ($listener) {
   try {
     $existing = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/healthz" -TimeoutSec 15
-    if ($existing.versionTruth.exactHead -eq $expectedHead -and $existing.ownerPreviewReady.ready -eq $true) {
-      [pscustomobject]@{ ProcessId = $listener.OwningProcess; Url = "http://127.0.0.1:$Port/";
-        ExactHead = $expectedHead; Gate = 'READY_FOR_CRU44_15M_30M_OWNER_PREVIEW'; OwnerPreviewReady = $true }
-      exit 0
+    if ($existing.versionTruth.exactHead -eq $expectedHead) {
+      if ($existing.ownerPreviewReady.ready -eq $true) {
+        [pscustomobject]@{ ProcessId = $listener.OwningProcess; Url = "http://127.0.0.1:$Port/";
+          ExactHead = $expectedHead; Gate = 'READY_FOR_CRU44_15M_30M_OWNER_PREVIEW'; OwnerPreviewReady = $true }
+        exit 0
+      }
+      if ($existing.identityReady.ready -eq $true -and $existing.runtimePreflightReady.ready -eq $true) {
+        [pscustomobject]@{ ProcessId = $listener.OwningProcess; Url = "http://127.0.0.1:$Port/";
+          ExactHead = $expectedHead; Gate = 'BROWSER_ACCEPTANCE_REQUIRED'; OwnerPreviewReady = $false }
+        exit 0
+      }
     }
     throw "CRU44_EXISTING_PREVIEW_NOT_READY:$($existing.ownerPreviewReady.reasons -join ',')"
   } catch {
@@ -63,8 +70,8 @@ for ($attempt = 0; $attempt -lt 120; $attempt += 1) {
     if ($producerStatus.status -eq 'AVAILABLE' -and $producerStatus.snapshotPath -eq $env:CRU34_LIVE_SNAPSHOT_PATH `
       -and $producerStatus.statusPath -eq $env:CRU34_LIVE_STATUS_PATH `
       -and ((Get-Date) - [datetime]$producerStatus.observedAt).TotalSeconds -le 15) {
-      $producerProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($producerStatus.pid)" -ErrorAction SilentlyContinue
-      if ($producerProcess.CommandLine -like '*run-cru34-live-projection.mjs*') { break }
+      $producerProcess = Get-Process -Id $producerStatus.pid -ErrorAction SilentlyContinue
+      if ($producerProcess -and $producerStatus.workerInstanceId) { break }
     }
   }
 }
@@ -81,8 +88,9 @@ $process = Start-Process -FilePath $node -ArgumentList 'launcher.mjs' -WorkingDi
   -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
 
 $health = "http://127.0.0.1:$Port/healthz"
-for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
-  Start-Sleep -Milliseconds 250
+$lastHealthReason = 'HEALTH_NOT_OBSERVED'
+for ($attempt = 0; $attempt -lt 300; $attempt += 1) {
+  Start-Sleep -Seconds 1
   try {
     $response = Invoke-RestMethod -Uri $health -TimeoutSec 15
     $truth = $response.versionTruth
@@ -106,8 +114,10 @@ for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
         ExactHead = $exactHead; Gate = 'BROWSER_ACCEPTANCE_REQUIRED'; OwnerPreviewReady = $false }
       exit 0
     }
-  } catch { }
+    $lastHealthReason = ($response.runtimePreflightReady.reasons -join ',')
+    if (!$lastHealthReason) { $lastHealthReason = 'CRU44_PREFLIGHT_NOT_READY' }
+  } catch { $lastHealthReason = $_.Exception.Message }
 }
 
 if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
-throw "CRU44_PREVIEW_START_FAILED:$stderr"
+throw "CRU44_PREVIEW_START_FAILED:${lastHealthReason}:$stderr"
