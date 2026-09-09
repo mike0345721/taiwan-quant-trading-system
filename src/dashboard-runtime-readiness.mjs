@@ -115,8 +115,36 @@ export function validateBrowserRuntimeProof(proof, { exactHead, runtimeStartedAt
   if (proof?.lightweightChartsApiMajor !== 5) reasons.push('CHART_BROWSER_V5_API_UNAVAILABLE');
   if (proof?.canvasCount < 2 || proof?.chartWidth <= 0 || proof?.chartHeight <= 0) reasons.push('CHART_BROWSER_CANVAS_UNAVAILABLE');
   if (proof?.candleCount <= 0 || proof?.volumeCount <= 0) reasons.push('CHART_BROWSER_SERIES_EMPTY');
+  if (proof?.chartStatusVisible !== true) reasons.push('CHART_BROWSER_STATUS_NOT_VISIBLE');
   if (proof?.observedFlow1m !== true || proof?.observedFlow5m !== true) reasons.push('BROWSER_OBSERVED_FLOW_MISSING');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons), proof: proof || null });
+}
+
+export function normalizeBrowserRuntimeProof(candidate, { exactHead, runtimeStartedAt }) {
+  return Object.freeze({
+    schemaVersion: 'cru46-owner-browser-runtime-proof-v1', exactHead, runtimeStartedAt,
+    lightweightChartsApiMajor: candidate?.lightweightChartsApiMajor ?? null,
+    canvasCount: Number(candidate?.canvasCount) || 0,
+    chartWidth: Number(candidate?.chartWidth) || 0,
+    chartHeight: Number(candidate?.chartHeight) || 0,
+    candleCount: Number(candidate?.candleCount) || 0,
+    volumeCount: Number(candidate?.volumeCount) || 0,
+    chartStatusVisible: candidate?.chartStatusVisible === true,
+    observedFlow1m: candidate?.observedFlow1m === true,
+    observedFlow5m: candidate?.observedFlow5m === true,
+    receivedAt: new Date().toISOString(),
+  });
+}
+
+export function validateBrowserRuntimeParity(proof, { chart, observedFlow }) {
+  const reasons = [];
+  if (!Number.isInteger(proof?.candleCount) || proof.candleCount <= 0 || proof.candleCount > chart?.candleCount)
+    reasons.push('CHART_BROWSER_CANDLE_COUNT_MISMATCH');
+  if (!Number.isInteger(proof?.volumeCount) || proof.volumeCount <= 0 || proof.volumeCount > chart?.volumeCount)
+    reasons.push('CHART_BROWSER_VOLUME_COUNT_MISMATCH');
+  if (proof?.observedFlow1m !== true || observedFlow?.oneMinuteStatus === 'UNAVAILABLE') reasons.push('BROWSER_OBSERVED_FLOW_1M_MISMATCH');
+  if (proof?.observedFlow5m !== true || observedFlow?.fiveMinuteStatus === 'UNAVAILABLE') reasons.push('BROWSER_OBSERVED_FLOW_5M_MISMATCH');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }
 
 export function buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser, productSurfaceReady = true }) {

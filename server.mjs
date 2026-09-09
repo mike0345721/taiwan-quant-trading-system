@@ -38,6 +38,8 @@ import {
   inspectChartVendorRuntime,
   inspectCru34LiveProducer,
   inspectObservedFlowPayload,
+  normalizeBrowserRuntimeProof,
+  validateBrowserRuntimeParity,
   validateBrowserRuntimeProof,
 } from './src/dashboard-runtime-readiness.mjs';
 import {
@@ -382,15 +384,14 @@ const server = http.createServer(async (req, res) => {
         const chart = inspectChartPayload(chartPayload);
         const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
           liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }));
-        const normalized = { ...candidate, schemaVersion: 'cru46-owner-browser-runtime-proof-v1',
-          exactHead: runtimeIdentity.commit, runtimeStartedAt, candleCount: chart.candleCount,
-          volumeCount: chart.volumeCount, observedFlow1m: flow.oneMinuteStatus !== 'UNAVAILABLE',
-          observedFlow5m: flow.fiveMinuteStatus !== 'UNAVAILABLE', receivedAt: new Date().toISOString() };
+        const normalized = normalizeBrowserRuntimeProof(candidate,
+          { exactHead: runtimeIdentity.commit, runtimeStartedAt });
         const validated = validateBrowserRuntimeProof(normalized,
           { exactHead: runtimeIdentity.commit, runtimeStartedAt });
-        if (!validated.ready || !chart.ready || !flow.ready) {
+        const browserParity = validateBrowserRuntimeParity(normalized, { chart, observedFlow: flow });
+        if (!validated.ready || !browserParity.ready || !chart.ready || !flow.ready) {
           sendJson(res, 422, { ok: false, error: 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED',
-            reasons: [...validated.reasons, ...chart.reasons, ...flow.reasons] });
+            reasons: [...validated.reasons, ...browserParity.reasons, ...chart.reasons, ...flow.reasons] });
           return;
         }
         browserRuntimeProof = Object.freeze(normalized);

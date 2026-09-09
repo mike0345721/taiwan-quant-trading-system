@@ -13,6 +13,8 @@ import {
   buildCru46Readiness,
   inspectChartPayload,
   inspectObservedFlowPayload,
+  normalizeBrowserRuntimeProof,
+  validateBrowserRuntimeParity,
   validateProducerHeartbeat,
   validateBrowserRuntimeProof,
 } from '../src/dashboard-runtime-readiness.mjs';
@@ -86,6 +88,8 @@ test('production surface exposes first-layer preview badge and machine-readable 
   assert.match(server, /runtimeReady: readiness\.runtimeReady/);
   assert.match(server, /ownerPreviewReady: readiness\.ownerPreviewReady/);
   assert.match(server, /cru46-browser-runtime-proof/);
+  assert.doesNotMatch(server, /candleCount:\s*chart\.candleCount|volumeCount:\s*chart\.volumeCount/);
+  assert.match(app, /txChartVolumeCount/);
   assert.match(server, /productSurface: CRU46_PRODUCT_SURFACE_CONTRACT/);
   assert.match(launcher, /DASHBOARD_PREVIEW_TYPE = 'INTEGRATION_OWNER_PREVIEW'/);
   assert.match(launcher, /CRU46_EXPECTED_HEAD_UNVERIFIED/);
@@ -126,12 +130,29 @@ test('Rev-B readiness separates identity, runtime, and Owner Preview gates', () 
   const browser = validateBrowserRuntimeProof({
     schemaVersion: 'cru46-owner-browser-runtime-proof-v1', exactHead: RUNTIME_HEAD,
     runtimeStartedAt: '2026-09-09T00:00:00.000Z', lightweightChartsApiMajor: 5,
-    canvasCount: 4, chartWidth: 900, chartHeight: 420, candleCount: 1, volumeCount: 1,
+    canvasCount: 4, chartWidth: 900, chartHeight: 420, candleCount: 1, volumeCount: 1, chartStatusVisible: true,
     observedFlow1m: true, observedFlow5m: true,
   }, { exactHead: RUNTIME_HEAD, runtimeStartedAt: '2026-09-09T00:00:00.000Z' });
   const accepted = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
   assert.equal(accepted.runtimeReady.ready, true);
   assert.equal(accepted.ownerPreviewReady.ready, true);
+});
+
+test('Rev-B browser proof preserves rendered evidence and rejects backend-only eligibility', () => {
+  const proof = normalizeBrowserRuntimeProof({ lightweightChartsApiMajor: 5, canvasCount: 4,
+    chartWidth: 900, chartHeight: 420, candleCount: 0, volumeCount: 0, chartStatusVisible: false,
+    observedFlow1m: false, observedFlow5m: false },
+  { exactHead: RUNTIME_HEAD, runtimeStartedAt: '2026-09-09T00:00:00.000Z' });
+  assert.equal(proof.candleCount, 0);
+  assert.equal(proof.volumeCount, 0);
+  const validated = validateBrowserRuntimeProof(proof,
+    { exactHead: RUNTIME_HEAD, runtimeStartedAt: '2026-09-09T00:00:00.000Z' });
+  assert.equal(validated.ready, false);
+  assert.match(validated.reasons.join(','), /CHART_BROWSER_SERIES_EMPTY/);
+  const parity = validateBrowserRuntimeParity(proof, { chart: { candleCount: 10, volumeCount: 10 },
+    observedFlow: { oneMinuteStatus: 'READY', fiveMinuteStatus: 'READY' } });
+  assert.equal(parity.ready, false);
+  assert.match(parity.reasons.join(','), /CHART_BROWSER_CANDLE_COUNT_MISMATCH/);
 });
 
 test('Rev-B runtime gates reject null chart bars, identity drift, and stale or recycled producer instances', () => {

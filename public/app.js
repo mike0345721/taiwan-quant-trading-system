@@ -7,7 +7,7 @@ const state = {
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
   gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
-  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0,
+  txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartVolumeCount: 0,
   txChartLoading: false, txChartRequestId: 0, txChartPendingFit: false,
   txChartPalette: 'red-up',
   marketChangeFeed: null,
@@ -4159,11 +4159,13 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
       if (state.txChartMarkers) state.txChartMarkers.setMarkers(dataEligible ? marketChangeMarkerData(state.marketChangeFeed, payload?.timeframe) : []);
       state.txChartIdentity = dataEligible ? identity : null;
       state.txChartBarCount = dataEligible ? data.candles.length : 0;
+      state.txChartVolumeCount = dataEligible ? data.volumes.length : 0;
       if ((mustReset || fit) && dataEligible) chart.timeScale().fitContent();
       visibleRenderReady = dataEligible;
     } catch {
       state.txChartIdentity = null;
       state.txChartBarCount = 0;
+      state.txChartVolumeCount = 0;
       visibleFailureReason = 'CHART_SERIES_WRITE_FAILED';
     }
   }
@@ -4209,15 +4211,20 @@ async function reportCru46BrowserRuntimeProof() {
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
   const flow = lastObservedFlowValue;
+  const visible = (element) => Boolean(element && element.offsetParent !== null && element.getClientRects().length);
+  const chartStatus = $('dw-chart-status');
+  const flow1m = $('dw-flow-tab-1m');
+  const flow5m = $('dw-flow-tab-5m');
   await apiRequestCru46Proof({
     lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
     canvasCount: target?.querySelectorAll('canvas').length || 0,
     chartWidth: Math.round(rect?.width || 0),
     chartHeight: Math.round(rect?.height || 0),
     candleCount: state.txChartBarCount,
-    volumeCount: chartSeriesData(state.txChartPayload || {}).volumes.length,
-    observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE'),
-    observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE'),
+    volumeCount: state.txChartVolumeCount,
+    chartStatusVisible: visible(chartStatus) && chartStatus?.textContent === state.txChartPayload?.status,
+    observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE' && visible(flow1m)),
+    observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE' && visible(flow5m)),
   });
 }
 
