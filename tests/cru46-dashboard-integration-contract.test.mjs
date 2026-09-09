@@ -13,6 +13,7 @@ import {
   buildCru46Readiness,
   inspectChartPayload,
   inspectObservedFlowPayload,
+  validateProducerHeartbeat,
   validateBrowserRuntimeProof,
 } from '../src/dashboard-runtime-readiness.mjs';
 
@@ -105,10 +106,12 @@ test('Rev-B readiness separates identity, runtime, and Owner Preview gates', () 
   const identity = { ready: true, reasons: [] };
   const vendor = { ready: true, reasons: [] };
   const producer = { ready: true, reasons: [] };
-  const chart = inspectChartPayload({ status: 'READY', bars: [
+  const chart = inspectChartPayload({ status: 'READY', tradeDate: '2026-09-09', session: 'NIGHT', actualContract: 'TXFI6', bars: [
     { time: '2026-09-09T00:00:00.000Z', open: 1, high: 2, low: 1, close: 2, volume: 3 },
   ] });
-  const observedFlow = inspectObservedFlowPayload({ sourceState: 'STALE', windows: {
+  const observedFlow = inspectObservedFlowPayload({ sourceState: 'STALE', identity: {
+    tradeDate: '2026-09-09', session: 'NIGHT', actualContract: 'TXFI6',
+  }, windows: {
     primary60s: { status: 'READY' }, context300s: { status: 'QUALITY_INSUFFICIENT' },
   } });
   const pendingBrowser = validateBrowserRuntimeProof(null,
@@ -129,4 +132,36 @@ test('Rev-B readiness separates identity, runtime, and Owner Preview gates', () 
   const accepted = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
   assert.equal(accepted.runtimeReady.ready, true);
   assert.equal(accepted.ownerPreviewReady.ready, true);
+});
+
+test('Rev-B runtime gates reject null chart bars, identity drift, and stale or recycled producer instances', () => {
+  const nullChart = inspectChartPayload({ status: 'READY', tradeDate: '2026-09-09', session: 'NIGHT', actualContract: 'TXFI6',
+    bars: [{ time: '2026-09-09T00:00:00.000Z', open: null, high: null, low: null, close: null, volume: null }] });
+  assert.equal(nullChart.ready, false);
+  assert.equal(nullChart.candleCount, 0);
+  assert.equal(nullChart.volumeCount, 0);
+
+  const base = { ready: true, reasons: [] };
+  const browser = { ready: true, reasons: [] };
+  const flow = inspectObservedFlowPayload({ sourceState: 'LIVE', identity: {
+    tradeDate: '2026-09-09', session: 'NIGHT', actualContract: 'TXFI6',
+  }, windows: { primary60s: { status: 'READY' }, context300s: { status: 'READY' } } });
+  const mismatchedChart = inspectChartPayload({ status: 'READY', tradeDate: '2026-09-09', session: 'DAY', actualContract: 'TXFI6',
+    bars: [{ time: '2026-09-09T00:00:00.000Z', open: 1, high: 2, low: 1, close: 2, volume: 3 }] });
+  const drift = buildCru46Readiness({ identity: base, vendor: base, producer: base, chart: mismatchedChart,
+    observedFlow: flow, browser });
+  assert.equal(drift.ownerPreviewReady.ready, false);
+  assert.match(drift.ownerPreviewReady.reasons.join(','), /CHART_OBSERVED_FLOW_IDENTITY_MISMATCH/);
+
+  const paths = { snapshotPath: 'D:\\data\\latest.json', statusPath: 'D:\\data\\status.json',
+    dataRoot: 'D:\\data', projectionRoot: 'D:\\data\\runtime', now: new Date('2026-09-09T00:01:00.000Z'),
+    isProcessAlive: () => true };
+  const status = { schemaVersion: 'cru34-live-worker-status-v1', status: 'AVAILABLE', pid: 42,
+    workerInstanceId: '00000000-0000-4000-8000-000000000001', observedAt: '2026-09-09T00:00:00.000Z',
+    snapshotPath: paths.snapshotPath, statusPath: paths.statusPath, dataRoot: paths.dataRoot, projectionRoot: paths.projectionRoot };
+  const lock = { pid: 42, workerInstanceId: status.workerInstanceId, dataRoot: paths.dataRoot, projectionRoot: paths.projectionRoot };
+  assert.match(validateProducerHeartbeat(status, lock, paths).reasons.join(','), /LIVE_PRODUCER_HEARTBEAT_STALE/);
+  assert.match(validateProducerHeartbeat({ ...status, observedAt: '2026-09-09T00:00:59.000Z' },
+    { ...lock, workerInstanceId: '00000000-0000-4000-8000-000000000002' }, paths).reasons.join(','),
+  /LIVE_PRODUCER_INSTANCE_MISMATCH/);
 });

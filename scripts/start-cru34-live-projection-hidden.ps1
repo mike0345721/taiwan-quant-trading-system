@@ -17,9 +17,10 @@ $logDir = Join-Path $root 'data\automation-logs'
 New-Item -ItemType Directory -Force -Path $projectionRoot, $logDir | Out-Null
 
 if (Test-Path -LiteralPath $lockPath) {
-  $incumbentPid = [int](Get-Content -LiteralPath $lockPath -Raw)
-  $incumbent = Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue
-  if ($incumbent) { exit 0 }
+  $rawLock = Get-Content -LiteralPath $lockPath -Raw
+  try { $lock = $rawLock | ConvertFrom-Json; $incumbentPid = [int]$lock.pid } catch { $incumbentPid = [int]$rawLock }
+  $incumbent = Get-CimInstance Win32_Process -Filter "ProcessId = $incumbentPid" -ErrorAction SilentlyContinue
+  if ($incumbent -and $incumbent.CommandLine -like '*run-cru34-live-projection.mjs*') { exit 0 }
 }
 
 $env:CRU34_LIVE_DATA_ROOT = $dataRoot

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectCru34LiveBatch } from '../src/cru34-live-projection-worker.mjs';
@@ -16,14 +17,20 @@ const maxBatchBytes = Number.parseInt(process.env.CRU34_LIVE_MAX_BATCH_BYTES || 
 const maxBatchRecords = Number.parseInt(process.env.CRU34_LIVE_MAX_BATCH_RECORDS || '25000', 10);
 fs.mkdirSync(projectionRoot, { recursive: true });
 const lockPath = path.join(projectionRoot, 'worker.lock');
+const workerInstanceId = crypto.randomUUID();
+const workerStartedAt = new Date().toISOString();
 let ownsLock = false;
+function parseLock(raw) {
+  try { return JSON.parse(raw); } catch { return { pid: Number.parseInt(raw.trim(), 10), workerInstanceId: null }; }
+}
 try {
   const lockFd = fs.openSync(lockPath, 'wx');
-  try { fs.writeFileSync(lockFd, `${process.pid}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
+  try { fs.writeFileSync(lockFd, `${JSON.stringify({ pid: process.pid, workerInstanceId,
+    workerStartedAt, dataRoot, projectionRoot })}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
   ownsLock = true;
 } catch (error) {
   if (error?.code !== 'EEXIST') throw error;
-  const incumbentPid = Number.parseInt(fs.readFileSync(lockPath, 'utf8').trim(), 10);
+  const incumbentPid = Number(parseLock(fs.readFileSync(lockPath, 'utf8')).pid);
   let incumbentAlive = Number.isInteger(incumbentPid) && incumbentPid > 0;
   if (incumbentAlive) {
     try { process.kill(incumbentPid, 0); } catch { incumbentAlive = false; }
@@ -31,14 +38,16 @@ try {
   if (incumbentAlive) process.exit(0);
   fs.unlinkSync(lockPath);
   const lockFd = fs.openSync(lockPath, 'wx');
-  try { fs.writeFileSync(lockFd, `${process.pid}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
+  try { fs.writeFileSync(lockFd, `${JSON.stringify({ pid: process.pid, workerInstanceId,
+    workerStartedAt, dataRoot, projectionRoot })}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
   ownsLock = true;
 }
 
 function releaseLock() {
   if (!ownsLock) return;
   try {
-    if (Number.parseInt(fs.readFileSync(lockPath, 'utf8').trim(), 10) === process.pid) fs.unlinkSync(lockPath);
+    const lock = parseLock(fs.readFileSync(lockPath, 'utf8'));
+    if (Number(lock.pid) === process.pid && lock.workerInstanceId === workerInstanceId) fs.unlinkSync(lockPath);
   } catch { /* already removed */ }
   ownsLock = false;
 }
@@ -73,6 +82,7 @@ function writeStatus(status, fields = {}) {
   const temp = `${target}.${process.pid}.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify({
     schemaVersion: 'cru34-live-worker-status-v1', status, pid: process.pid,
+    workerInstanceId, workerStartedAt,
     dataRoot, projectionRoot, snapshotPath: path.join(projectionRoot, 'latest.json'), statusPath: target,
     observedAt: new Date().toISOString(), formalWeight: 0, researchOnly: true,
     executionAuthorized: false, orderRoutesEnabled: false,

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
 
 import { readCru34LiveSnapshot } from './dashboard-observed-flow.mjs';
 
@@ -44,17 +45,16 @@ export function inspectCru34LiveProducer({ snapshotPath, statusPath, dataRoot, p
   const snapshotIdentity = fileIdentity(snapshotPath);
   const statusIdentity = fileIdentity(statusPath);
   const status = readJson(statusPath);
+  const lockPath = path.join(projectionRoot, 'worker.lock');
+  const lock = readJson(lockPath);
   const readResult = readCru34LiveSnapshot({ snapshotPath, statusPath, now });
-  const reasons = [];
+  const heartbeat = validateProducerHeartbeat(status, lock, { snapshotPath, statusPath, dataRoot, projectionRoot, now });
+  const reasons = [...heartbeat.reasons];
   if (!snapshotIdentity.exists) reasons.push('LIVE_SNAPSHOT_MISSING');
   if (!statusIdentity.exists) reasons.push('LIVE_STATUS_MISSING');
-  if (status?.schemaVersion !== 'cru34-live-worker-status-v1' || status?.status !== 'AVAILABLE') reasons.push('LIVE_PRODUCER_STATUS_NOT_AVAILABLE');
-  if (status?.snapshotPath !== snapshotPath || status?.statusPath !== statusPath
-      || status?.dataRoot !== dataRoot || status?.projectionRoot !== projectionRoot) reasons.push('LIVE_PRODUCER_PATH_MISMATCH');
-  if (!processAlive(Number(status?.pid))) reasons.push('LIVE_PRODUCER_PROCESS_MISSING');
   if (readResult.truthState === 'UNAVAILABLE' || !readResult.snapshot) reasons.push(readResult.unavailableReason || 'LIVE_SNAPSHOT_INVALID');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze([...new Set(reasons)]),
-    pid: Number(status?.pid) || null, status: status?.status || 'UNAVAILABLE', worker: status,
+    pid: Number(status?.pid) || null, status: status?.status || 'UNAVAILABLE', worker: status, lock,
     snapshot: snapshotIdentity, statusFile: statusIdentity, truthState: readResult.truthState,
     observedFlowIdentity: readResult.snapshot ? Object.freeze({
       tradeDate: readResult.snapshot.tradeDate, session: readResult.snapshot.session,
@@ -63,12 +63,32 @@ export function inspectCru34LiveProducer({ snapshotPath, statusPath, dataRoot, p
     }) : null });
 }
 
+export function validateProducerHeartbeat(status, lock, {
+  snapshotPath, statusPath, dataRoot, projectionRoot, now = new Date(), isProcessAlive = processAlive,
+  maxHeartbeatAgeMs = 15_000,
+} = {}) {
+  const reasons = [];
+  if (status?.schemaVersion !== 'cru34-live-worker-status-v1' || status?.status !== 'AVAILABLE') reasons.push('LIVE_PRODUCER_STATUS_NOT_AVAILABLE');
+  if (status?.snapshotPath !== snapshotPath || status?.statusPath !== statusPath
+      || status?.dataRoot !== dataRoot || status?.projectionRoot !== projectionRoot) reasons.push('LIVE_PRODUCER_PATH_MISMATCH');
+  const observedMs = Date.parse(status?.observedAt);
+  const ageMs = now.getTime() - observedMs;
+  if (!Number.isFinite(observedMs) || ageMs < -5_000 || ageMs > maxHeartbeatAgeMs) reasons.push('LIVE_PRODUCER_HEARTBEAT_STALE');
+  if (!/^[0-9a-f-]{36}$/i.test(status?.workerInstanceId || '')
+      || lock?.workerInstanceId !== status?.workerInstanceId || Number(lock?.pid) !== Number(status?.pid)
+      || lock?.dataRoot !== dataRoot || lock?.projectionRoot !== projectionRoot) reasons.push('LIVE_PRODUCER_INSTANCE_MISMATCH');
+  if (!isProcessAlive(Number(status?.pid))) reasons.push('LIVE_PRODUCER_PROCESS_MISSING');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons),
+    heartbeatAgeMs: Number.isFinite(ageMs) ? ageMs : null, workerInstanceId: status?.workerInstanceId || null });
+}
+
 export function inspectChartPayload(chart) {
   const bars = Array.isArray(chart?.bars) ? chart.bars : [];
+  const finite = (value) => typeof value === 'number' && Number.isFinite(value);
   const candleCount = bars.filter((bar) => Number.isFinite(Date.parse(bar?.time))
-    && [bar?.open, bar?.high, bar?.low, bar?.close].every((value) => Number.isFinite(Number(value)))).length;
+    && [bar?.open, bar?.high, bar?.low, bar?.close].every(finite)).length;
   const volumeCount = bars.filter((bar) => Number.isFinite(Date.parse(bar?.time))
-    && Number.isFinite(Number(bar?.volume))).length;
+    && finite(bar?.volume)).length;
   const ready = ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(chart?.status)
     && candleCount > 0 && volumeCount > 0;
   return Object.freeze({ ready, reasons: Object.freeze(ready ? [] : ['CHART_PAYLOAD_NOT_ELIGIBLE']),
@@ -100,11 +120,17 @@ export function validateBrowserRuntimeProof(proof, { exactHead, runtimeStartedAt
 }
 
 export function buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser, productSurfaceReady = true }) {
-  const preflightReasons = [vendor, producer, chart, observedFlow].flatMap((item) => item?.reasons || []);
+  const chartIdentity = [chart?.tradeDate, chart?.session, chart?.actualContract];
+  const flowIdentity = [observedFlow?.identity?.tradeDate, observedFlow?.identity?.session, observedFlow?.identity?.actualContract];
+  const parity = Object.freeze({ ready: chartIdentity.every(Boolean) && chartIdentity.every((value, index) => value === flowIdentity[index]),
+    chart: Object.freeze({ tradeDate: chart?.tradeDate || null, session: chart?.session || null, actualContract: chart?.actualContract || null }),
+    observedFlow: observedFlow?.identity || null });
+  const parityReasons = parity.ready ? [] : ['CHART_OBSERVED_FLOW_IDENTITY_MISMATCH'];
+  const preflightReasons = [...[vendor, producer, chart, observedFlow].flatMap((item) => item?.reasons || []), ...parityReasons];
   const runtimePreflightReady = Object.freeze({ ready: preflightReasons.length === 0, reasons: Object.freeze([...new Set(preflightReasons)]) });
   const runtimeReasons = [...preflightReasons, ...(browser?.reasons || [])];
   const runtimeReady = Object.freeze({ ready: runtimeReasons.length === 0, reasons: Object.freeze([...new Set(runtimeReasons)]),
-    vendor, producer, chart, observedFlow, browser });
+    vendor, producer, chart, observedFlow, parity, browser });
   const ownerReasons = [...(identity?.reasons || []), ...runtimeReasons];
   if (!productSurfaceReady) ownerReasons.push('PRODUCT_SURFACE_CONTRACT_FAILED');
   return Object.freeze({ identityReady: identity, runtimePreflightReady, runtimeReady,

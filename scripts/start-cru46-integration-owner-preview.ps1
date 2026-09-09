@@ -57,7 +57,11 @@ for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
   if ((Test-Path -LiteralPath $env:CRU34_LIVE_SNAPSHOT_PATH) -and (Test-Path -LiteralPath $env:CRU34_LIVE_STATUS_PATH)) {
     $producerStatus = Get-Content -LiteralPath $env:CRU34_LIVE_STATUS_PATH -Raw | ConvertFrom-Json
     if ($producerStatus.status -eq 'AVAILABLE' -and $producerStatus.snapshotPath -eq $env:CRU34_LIVE_SNAPSHOT_PATH `
-      -and $producerStatus.statusPath -eq $env:CRU34_LIVE_STATUS_PATH) { break }
+      -and $producerStatus.statusPath -eq $env:CRU34_LIVE_STATUS_PATH `
+      -and ((Get-Date) - [datetime]$producerStatus.observedAt).TotalSeconds -le 15) {
+      $producerProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($producerStatus.pid)" -ErrorAction SilentlyContinue
+      if ($producerProcess.CommandLine -like '*run-cru34-live-projection.mjs*') { break }
+    }
   }
 }
 if (!$producerStatus -or $producerStatus.status -ne 'AVAILABLE') {

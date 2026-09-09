@@ -124,8 +124,8 @@ function currentCru46RuntimeReadiness() {
   const observedFlow = inspectObservedFlowPayload(flow);
   const browser = validateBrowserRuntimeProof(browserRuntimeProof,
     { exactHead: runtimeIdentity.commit, runtimeStartedAt });
-  return { ...buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser }),
-    vendor, producer, chart, observedFlow, browser };
+  const readiness = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
+  return { ...readiness, vendor, producer, chart, observedFlow, parity: readiness.runtimeReady.parity, browser };
 }
 
 function readLocalJson(filePath) {
@@ -284,7 +284,7 @@ const server = http.createServer(async (req, res) => {
         ownerPreviewReady: readiness.ownerPreviewReady,
         ownerPreviewReadiness: readiness.ownerPreviewReady,
         runtimeEvidence: { vendor: readiness.vendor, producer: readiness.producer,
-          chart: readiness.chart, observedFlow: readiness.observedFlow, browser: readiness.browser },
+          chart: readiness.chart, observedFlow: readiness.observedFlow, parity: readiness.parity, browser: readiness.browser },
         productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
       });
       return;
