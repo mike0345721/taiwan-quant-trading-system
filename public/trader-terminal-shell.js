@@ -478,6 +478,7 @@
       shell.hidden = true;
       shell.setAttribute('aria-hidden', 'true');
       root.classList.remove('is-drawer-open');
+      body.replaceChildren();
       if (returnFocus?.isConnected) {
         const sourceCard = returnFocus.closest('.dw-card');
         returnFocus.focus({ preventScroll: true });
@@ -494,6 +495,7 @@
     const clone = source.cloneNode(true);
     if (clone.id) clone.removeAttribute('id');
     clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+    clone.querySelectorAll('[data-terminal-drawer-source]').forEach((node) => node.remove());
     clone.querySelectorAll('button, input, select, textarea').forEach((node) => {
       node.disabled = true;
       node.removeAttribute('data-terminal-drawer-source');

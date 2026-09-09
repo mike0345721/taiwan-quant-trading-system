@@ -97,8 +97,12 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /height:\s*clamp\(205px,\s*20vh,\s*220px\)/);
   assert.match(styles, /grid-template-columns:\s*64px/);
   assert.match(styles, /@media \(max-width: 1600px\) \{[\s\S]*?\.tt-terminal-topbar \{ gap: 8px; \}/);
-  assert.match(styles, /grid-template-rows: auto auto auto minmax\(205px, 1fr\) auto/);
-  assert.match(styles, /\.dw-flow-window-strip button \{[\s\S]*?grid-template-columns: auto minmax\(22px, 1fr\) auto/);
+  assert.match(styles, /grid-template-rows: auto minmax\(205px, 1fr\) auto/);
+  assert.match(styles, /\.dw-chart-header \{[^}]*grid-template-rows: auto auto auto/);
+  assert.match(styles, /\.dw-flow-window-strip button \{[\s\S]*?grid-template-columns: auto minmax\(34px, 1fr\) auto/);
+  assert.match(styles, /\.dw-flow-mini-bar \{[^}]*height: 9px/);
+  assert.match(styles, /\.dw-flow-metric-energy\.is-positive i \{[^}]*linear-gradient/);
+  assert.match(styles, /\.dw-flow-metric-energy\.is-negative i \{[^}]*linear-gradient/);
   const narrowObservedFlowRules = styles.match(/@media \(max-width: 1380px\) \{([\s\S]*?)\n\}/)?.[1] || '';
   assert.doesNotMatch(narrowObservedFlowRules, /\.dw-observed-flow-trust\s*\{[^}]*grid-template-columns:\s*1fr/);
 });
@@ -164,6 +168,12 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(read('public', 'index.html'), /<span>路徑效率<\/span>/);
   assert.match(read('public', 'index.html'), /<span>分類覆蓋率<\/span>/);
   assert.match(read('public', 'index.html'), /查看證據 \/ Detail/);
+  assert.equal((read('public', 'index.html').match(/查看證據 \/ Detail/g) || []).length, 1);
+  assert.doesNotMatch(read('public', 'index.html'), /<details class="dw-flow-selected-evidence"/);
+  assert.match(read('public', 'index.html'), /id="dw-flow-response-energy"/);
+  assert.match(read('public', 'index.html'), /id="dw-flow-path-energy"/);
+  assert.match(read('public', 'app.js'), /dw-flow-path-energy[\s\S]*?tone: 'neutral'/);
+  assert.match(read('public', 'app.js'), /dw-flow-coverage-energy[\s\S]*?tone: 'neutral'/);
   assert.match(read('public', 'index.html'), /id="dw-flow-selected-reason-code"/);
   assert.match(read('public', 'index.html'), /id="dw-flow-selected-summary"/);
   assert.match(read('public', 'index.html'), /id="dw-observed-flow-truth"/);

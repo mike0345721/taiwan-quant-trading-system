@@ -2901,6 +2901,19 @@ function renderObservedFlowSegments(host, ratio, options = {}) {
   host.classList.toggle('is-inactive', Boolean(options.inactive));
 }
 
+function renderObservedFlowEnergy(host, value, options = {}) {
+  if (!host) return;
+  const numeric = Number(value);
+  const available = value !== null && value !== undefined && Number.isFinite(numeric);
+  const range = Math.max(Number(options.range) || 1, Number.EPSILON);
+  const strength = available ? Math.min(1, Math.abs(numeric) / range) : 0;
+  const tone = options.tone === 'neutral' ? 'neutral' : numeric > 0 ? 'positive' : numeric < 0 ? 'negative' : 'neutral';
+  host.style.setProperty('--flow-energy', `${Math.round(strength * 100)}%`);
+  host.className = `dw-flow-metric-energy is-${tone}`;
+  host.classList.toggle('is-limited', Boolean(options.limited));
+  host.classList.toggle('is-inactive', !available || Boolean(options.inactive));
+}
+
 function observedFlowWindowByKey(value, key) {
   const definition = OBSERVED_FLOW_WINDOW_REGISTRY.find((item) => item.key === key);
   return { definition, window: definition?.source ? value?.windows?.[definition.source] : null };
@@ -3026,6 +3039,10 @@ function renderObservedFlowSelected(value, available, reason) {
     const pendingReason = definition.key === 'tradingDay' ? '語意尚待定義' : '尚待治理驗證';
     dwText('dw-flow-selected-reason', `待驗證｜${pendingReason}`);
     dwText('dw-flow-selected-reason-code', definition.key === 'tradingDay' ? 'TRADING_DAY_SEMANTICS_PENDING' : 'WINDOW_NOT_PROMOTED');
+    renderObservedFlowSegments($('dw-flow-selected-bar'), null, { inactive: true });
+    renderObservedFlowEnergy($('dw-flow-response-energy'), null, { inactive: true });
+    renderObservedFlowEnergy($('dw-flow-path-energy'), null, { inactive: true });
+    renderObservedFlowEnergy($('dw-flow-coverage-energy'), null, { inactive: true });
     return;
   }
   const windowAvailable = available && window?.truthState !== 'WARMING_UP'
@@ -3046,14 +3063,23 @@ function renderObservedFlowSelected(value, available, reason) {
   dwText('dw-flow-selected-response', responseReady
     ? observedFlowMetric(responsePoints, { signedValue: true, suffix: ' 點', digits: 0 }) : '不可用');
   dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response) : '成交力道不可判定');
+  renderObservedFlowEnergy($('dw-flow-response-energy'), responseReady ? responsePoints : null, {
+    range: 50, limited, inactive: value.sourceState !== 'LIVE',
+  });
   const rawPathValue = window?.pathEfficiency?.value;
   const pathValue = Number(rawPathValue);
   const pathReady = windowAvailable && rawPathValue !== null && rawPathValue !== undefined
     && Number.isFinite(pathValue);
   dwText('dw-flow-selected-path', pathReady ? observedFlowMetric(pathValue, { digits: 3 }) : '不可用');
+  renderObservedFlowEnergy($('dw-flow-path-energy'), pathReady ? pathValue : null, {
+    range: 1, tone: 'neutral', limited, inactive: value.sourceState !== 'LIVE',
+  });
   dwText('dw-flow-selected-coverage', windowAvailable
     ? (observedFlowCoverage(coverage) || `不可用 · ${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}`)
     : `不可用 · ${dwHumanize(reason)}`);
+  renderObservedFlowEnergy($('dw-flow-coverage-energy'), windowAvailable ? coverage : null, {
+    range: 1, tone: 'neutral', limited, inactive: value.sourceState !== 'LIVE',
+  });
   const selectedReasonCode = !windowAvailable
     ? (window?.unavailableReason || reason)
     : ratio == null

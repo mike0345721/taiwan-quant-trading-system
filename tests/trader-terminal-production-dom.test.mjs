@@ -1325,7 +1325,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應/);
   assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率/);
   assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /分類覆蓋率/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /查看證據 \/ Detail/);
+  assert.doesNotMatch(result.wiringEvidence['dw-observed-flow-semantics'].text, /查看證據 \/ Detail/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
@@ -1448,6 +1448,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
   assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
   assert.equal(result.drawerEvidence.closed.drawerOpen, false);
+  assert.equal(result.drawerEvidence.closed.drawerText, '');
   assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '台指期盤中力道｜證據');
   assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
   assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');
