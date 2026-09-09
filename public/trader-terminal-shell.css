@@ -132,6 +132,7 @@
 /* Daily-use market header: one row, no landing-page hero. */
 .tt-terminal-topbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
@@ -141,14 +142,14 @@
   border-bottom: 1px solid var(--tt-line);
   background: rgba(5, 16, 28, .55);
 }
-.tt-market-identity { display: flex; gap: 11px; align-items: baseline; white-space: nowrap; }
+.tt-market-identity { display: flex; flex: 1 1 560px; min-width: 0; gap: 11px; align-items: baseline; white-space: nowrap; }
 .tt-market-identity strong { color: #e7eef7; font-size: 15px; }
 .tt-market-identity b { color: var(--tt-accent); font-size: 21px; letter-spacing: -.03em; }
 .tt-market-identity span { color: #9eb0c2; font-size: 11px; }
 .tt-market-identity .dw-status-pill { padding: 3px 7px; }
-.tt-top-details { flex: 0 1 auto; min-width: 0; color: #8395a8; font-size: 11px; }
+.tt-top-details { flex: 0 0 auto; min-width: 0; color: #8395a8; font-size: 11px; }
 .tt-top-details > summary { padding: 4px 7px; border: 1px solid var(--tt-border-section); border-radius: 4px; cursor: pointer; white-space: nowrap; }
-.tt-top-details[open] { flex-basis: 100%; }
+.tt-top-details[open] { flex: 1 0 100%; }
 .tt-top-detail-body { display: flex; flex-wrap: wrap; gap: 7px 12px; align-items: center; padding: 6px 0 2px; }
 .tt-top-facts { display: flex; flex-wrap: wrap; gap: var(--tt-space-lg); align-items: center; min-width: 0; }
 .tt-top-facts .tt-compact-metric { display: flex; gap: 6px; align-items: baseline; min-width: 0; padding: 0; background: none; }

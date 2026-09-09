@@ -101,6 +101,8 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /height:\s*clamp\(205px,\s*20vh,\s*220px\)/);
   assert.match(styles, /grid-template-columns:\s*64px/);
   assert.match(styles, /@media \(max-width: 1600px\) \{[\s\S]*?\.tt-terminal-topbar \{ gap: 8px; \}/);
+  assert.match(styles, /\.tt-terminal-topbar \{[\s\S]*?flex-wrap: wrap;/);
+  assert.match(styles, /\.tt-top-details \{[^}]*flex: 0 0 auto;/);
   assert.match(styles, /grid-template-rows: auto minmax\(205px, 1fr\) auto/);
   assert.match(styles, /\.dw-chart-header \{[^}]*grid-template-rows: auto auto auto/);
   assert.match(styles, /\.dw-flow-window-strip button \{[\s\S]*?grid-template-columns: auto minmax\(34px, 1fr\) auto/);
