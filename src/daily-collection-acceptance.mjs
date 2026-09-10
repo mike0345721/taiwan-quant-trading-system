@@ -164,9 +164,16 @@ function liveFeed(definition, session, context, evidence, registry) {
     ...context, session, expectedState: definition.datasetId ? 'REQUIRED' : 'UNKNOWN', expectedWindow: session,
   });
   const registryItem = registry.get(definition.datasetId);
-  const sessionWindow = evidence?.sessionWindows?.[session] || null;
+  const familySessionWindow = session === 'DAY' && ['2330', 'IX0001'].includes(definition.family) ? {
+    sessionStart: new Date(`${context.tradeDate}T09:00:00+08:00`).toISOString(),
+    sessionEnd: new Date(`${context.tradeDate}T13:30:00+08:00`).toISOString(),
+  } : null;
+  const sessionWindow = familySessionWindow || evidence?.sessionWindows?.[session] || null;
   const generatedMs = Date.parse(context.generatedAt);
   const expectedSessionEndMs = Date.parse(sessionWindow?.sessionEnd || '');
+  const sessionEvidence = evidence?.sessions?.[session] || {};
+  const sessionMetric = (metric) => nullableNumber(sessionEvidence[metric]) ?? nullableNumber(evidence?.[metric]) ?? 0;
+  const sessionMissingFiles = sessionEvidence.missingFiles || [];
   if (!evidence?.ledgerFound) {
     if (Number.isFinite(expectedSessionEndMs) && generatedMs < expectedSessionEndMs) {
       return closeFeed({
@@ -176,7 +183,19 @@ function liveFeed(definition, session, context, evidence, registry) {
         smallestNextCheck: `${session} session close 後重跑每日驗收`,
       });
     }
-    return closeFeed({ ...base, reasonCodes: ['LEDGER_NOT_FOUND'], downstreamImpact: [definition.datasetId], smallestNextCheck: '確認指定 calendarDate 的唯讀 ledger 路徑' });
+    if (sessionMissingFiles.length) {
+      return closeFeed({
+        ...base, recordCount: 0, bytes: 0, captureState: 'PARTIAL', persistenceState: 'PARTIAL',
+        researchEligibility: 'NOT_READY', reasonCodes: ['LEDGER_NOT_FOUND'], evidenceStrength: 'BOUNDED_LEDGER_SCAN',
+        sourceArtifactIdentity: evidence.sourceArtifactIdentity,
+        downstreamImpact: [definition.datasetId, 'derived_pressure_response_efficiency'].filter(Boolean),
+        smallestNextCheck: `確認 ${session} governed ledger 是否存在且含完整記錄`,
+      });
+    }
+    return closeFeed({
+      ...base, reasonCodes: ['LEDGER_NOT_FOUND'], sourceArtifactIdentity: evidence?.sourceArtifactIdentity || null,
+      downstreamImpact: [definition.datasetId], smallestNextCheck: '確認指定 calendarDate 的唯讀 ledger 路徑',
+    });
   }
   if (!item || item.recordCount === 0) {
     if (!definition.datasetId) {
@@ -195,6 +214,15 @@ function liveFeed(definition, session, context, evidence, registry) {
         smallestNextCheck: `${session} session close 後重跑每日驗收`,
       });
     }
+    if (sessionMissingFiles.length) {
+      return closeFeed({
+        ...base, recordCount: 0, bytes: 0, captureState: 'PARTIAL', persistenceState: 'PARTIAL',
+        researchEligibility: 'NOT_READY', reasonCodes: ['LEDGER_NOT_FOUND'], evidenceStrength: 'BOUNDED_LEDGER_SCAN',
+        sourceArtifactIdentity: evidence.sourceArtifactIdentity,
+        downstreamImpact: [definition.datasetId, 'derived_pressure_response_efficiency'].filter(Boolean),
+        smallestNextCheck: `確認 ${session} governed ledger 是否存在且含完整記錄`,
+      });
+    }
     return closeFeed({
       ...base, recordCount: 0, bytes: 0, captureState: 'FAIL', persistenceState: 'UNKNOWN',
       reasonCodes: ['CAPTURE_GAP_UNEXPLAINED'], evidenceStrength: 'BOUNDED_LEDGER_SCAN',
@@ -206,9 +234,6 @@ function liveFeed(definition, session, context, evidence, registry) {
   if (!definition.datasetId) reasons.push('CANONICAL_DATASET_ID_UNAVAILABLE');
   if (item.contracts.length !== 1) reasons.push('ACTUAL_CONTRACT_MISMATCH');
   if (item.nativeSequenceAvailable !== true || item.nativeSequenceMissing === true) reasons.push('NATIVE_SEQUENCE_UNAVAILABLE');
-  const sessionEvidence = evidence.sessions?.[session] || {};
-  const sessionMetric = (key) => nullableNumber(sessionEvidence[key]) ?? nullableNumber(evidence[key]) ?? 0;
-  const sessionMissingFiles = sessionEvidence.missingFiles || [];
   if (sessionMetric('callbackErrors') > 0) reasons.push('CALLBACK_ERROR');
   if (sessionMetric('writerErrors') > 0) reasons.push('WRITER_ERROR');
   if (sessionMetric('droppedEvents') > 0) reasons.push('QUEUE_DROP');
@@ -712,16 +737,17 @@ export async function streamDailyLedgerEvidence(filePaths, {
       const key = feedKey(record, identityContext.session);
       if (!key || record.duplicate === true || payload.simtrade === true) continue;
       totalRecords += 1;
-      const sequence = Number(record.sequence);
-      const validSequence = record.sequence != null && Number.isSafeInteger(sequence) && sequence >= 0;
+      const validSequence = typeof record.sequence === 'number'
+        && Number.isSafeInteger(record.sequence) && record.sequence >= 0;
       if (validSequence) nativeSequenceAvailable = true;
       const item = ensureFeedEvidence(feeds, key);
       if (!validSequence) item.nativeSequenceMissing = true;
       else {
         item.nativeSequenceAvailable = true;
-        const gap = Number(record.sequenceGap);
-        if (record.sequenceGap == null || !Number.isFinite(gap) || gap < 0) item.nativeSequenceGapUnknown = true;
-        else item.nativeSequenceGaps += gap;
+        const validGap = typeof record.sequenceGap === 'number'
+          && Number.isSafeInteger(record.sequenceGap) && record.sequenceGap >= 0;
+        if (!validGap) item.nativeSequenceGapUnknown = true;
+        else item.nativeSequenceGaps += record.sequenceGap;
       }
       item.recordCount += 1;
       item.bytes += Buffer.byteLength(line, 'utf8') + 1;

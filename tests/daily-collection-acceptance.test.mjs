@@ -498,13 +498,29 @@ test('zero delivery before the governed session close remains pending', () => {
   assert.equal(item.researchEligibility, 'UNKNOWN');
 });
 
+test('zero delivery after TWSE close fails while TAIFEX DAY remains pending', () => {
+  const report = buildDailyCollectionAcceptance({
+    ...context,
+    generatedAt: '2026-09-09T05:35:00.000Z',
+    liveEvidence: live({
+      ledgerFound: false,
+      feeds: {},
+      sessionWindows: { DAY: { sessionStart: '2026-09-09T00:45:00.000Z', sessionEnd: '2026-09-09T05:45:00.000Z' } },
+    }),
+  });
+  assert.equal(feed(report, 'tx_actual_trade', 'DAY').captureState, 'PENDING');
+  assert.equal(feed(report, 'equity_2330_raw_price', 'DAY').captureState, 'UNKNOWN');
+  assert.ok(feed(report, 'equity_2330_raw_price', 'DAY').reasonCodes.includes('LEDGER_NOT_FOUND'));
+  assert.equal(feed(report, 'taiex_index', 'DAY').captureState, 'UNKNOWN');
+});
+
 test('unsupported native sequence identity cannot produce integrity PASS', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-sequence-identity-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const ledger = path.join(directory, '2026-09-09.ndjson');
   const record = buildLiveEventRecord({
     kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T09:00:00+08:00',
-    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 'unknown', sequenceGap: 0, duplicate: false,
+    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: true, sequenceGap: 0, duplicate: false,
     formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
     payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T09:00:00+08:00', simtrade: false },
   }, 'GENESIS');
@@ -518,6 +534,27 @@ test('unsupported native sequence identity cannot produce integrity PASS', async
   const item = feed(buildDailyCollectionAcceptance({ ...context, liveEvidence: evidence }), 'tx_actual_trade', 'DAY');
   assert.equal(item.integrityState, 'UNKNOWN');
   assert.ok(item.reasonCodes.includes('NATIVE_SEQUENCE_UNAVAILABLE'));
+});
+
+test('boolean sequence gap cannot be coerced into proven zero continuity', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-gap-type-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const ledger = path.join(directory, '2026-09-09.ndjson');
+  const record = buildLiveEventRecord({
+    kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T09:00:00+08:00',
+    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 1, sequenceGap: false, duplicate: false,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T09:00:00+08:00', simtrade: false },
+  }, 'GENESIS');
+  fs.writeFileSync(ledger, `${JSON.stringify(record)}\n`, 'utf8');
+  const prefixSha256 = crypto.createHash('sha256').update(fs.readFileSync(ledger)).digest('hex');
+  const calendar = { payload: { sourceHash: 'fixture' }, fileHash: 'fixture', exceptions: new Map(), tradingDates: new Set(['2026-09-09']), nonTradingDates: new Set([]) };
+  const evidence = await streamDailyLedgerEvidence([ledger], {
+    calendar, tradeDate: '2026-09-09', generatedAt: context.generatedAt,
+    ledgerAudit: { sources: [{ sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size, latestHash: record.recordHash, sequenceGaps: 0, prefixSha256, ok: true }] },
+  });
+  assert.equal(evidence.feeds['TX:futures_tick:DAY'].nativeSequenceGapUnknown, true);
+  assert.equal(feed(buildDailyCollectionAcceptance({ ...context, liveEvidence: evidence }), 'tx_actual_trade', 'DAY').integrityState, 'UNKNOWN');
 });
 
 test('empty ledger identity and missing-file scope are deterministic', async (t) => {
@@ -542,6 +579,32 @@ test('empty ledger identity and missing-file scope are deterministic', async (t)
   assert.deepEqual(evidence.sessions.NIGHT.missingFiles, ['2026-09-04.ndjson', '2026-09-05.ndjson']);
   assert.equal(evidence.sourceArtifactIdentity.files.length, 0);
   assert.equal(evidence.sourceArtifactIdentity.unavailableFiles.length, 3);
+  const report = buildDailyCollectionAcceptance({
+    ...context, tradeDate: '2026-09-07', calendarDate: '2026-09-07', generatedAt: '2026-09-07T06:00:00.000Z',
+    sessions: ['DAY', 'NIGHT'], liveEvidence: evidence,
+  });
+  assert.deepEqual(feed(report, 'tx_actual_trade', 'DAY').sourceArtifactIdentity, evidence.sourceArtifactIdentity);
+});
+
+test('missing NIGHT ledgers remain session-scoped when an unrelated DAY feed exists', () => {
+  const identity = { type: 'fixture', files: [{ file: '2026-09-07.ndjson' }], missingFiles: ['2026-09-04.ndjson', '2026-09-05.ndjson'] };
+  const report = buildDailyCollectionAcceptance({
+    ...context, tradeDate: '2026-09-07', calendarDate: '2026-09-07', generatedAt: '2026-09-07T06:00:00.000Z',
+    sessions: ['DAY', 'NIGHT'],
+    liveEvidence: live({
+      feeds: { '2330:stock_tick:DAY': live().feeds['2330:stock_tick:DAY'] },
+      sessions: {
+        DAY: { callbackErrors: 0, writerErrors: 0, droppedEvents: 0, reconnectCount: 0, missingFiles: [] },
+        NIGHT: { callbackErrors: 0, writerErrors: 0, droppedEvents: 0, reconnectCount: 0, missingFiles: ['2026-09-04.ndjson', '2026-09-05.ndjson'] },
+      },
+      sourceArtifactIdentity: identity,
+    }),
+  });
+  const item = feed(report, 'tx_actual_trade', 'NIGHT');
+  assert.equal(item.captureState, 'PARTIAL');
+  assert.equal(item.persistenceState, 'PARTIAL');
+  assert.ok(item.reasonCodes.includes('LEDGER_NOT_FOUND'));
+  assert.deepEqual(item.sourceArtifactIdentity, identity);
 });
 
 test('CLI emits MARKET_CLOSED acceptance on a governed non-trading date', (t) => {
