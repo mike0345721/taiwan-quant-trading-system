@@ -26,8 +26,11 @@ import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
 import {
+  buildCru44PreviewVersion,
   buildIntegrationPreviewVersion,
+  CRU44_PRODUCT_SURFACE_CONTRACT,
   CRU46_PRODUCT_SURFACE_CONTRACT,
+  validateCru44PreviewVersionTruth,
   validateIntegrationPreviewVersionTruth,
 } from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
@@ -104,17 +107,22 @@ const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
 const baseRuntimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
-const runtimeVersion = buildIntegrationPreviewVersion({
-  runtimeVersion: baseRuntimeVersion,
-  enabled: process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW',
-  branch: process.env.DASHBOARD_PREVIEW_BRANCH,
-  dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase(),
-});
+const cru44PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU44_OWNER_PREVIEW';
+const integrationPreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW';
+const previewVersionOptions = { runtimeVersion: baseRuntimeVersion, branch: process.env.DASHBOARD_PREVIEW_BRANCH,
+  dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase() };
+const runtimeVersion = cru44PreviewEnabled
+  ? buildCru44PreviewVersion({ ...previewVersionOptions, enabled: true })
+  : buildIntegrationPreviewVersion({ ...previewVersionOptions, enabled: integrationPreviewEnabled });
+const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
+const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
 let lastRefreshError = null;
 let browserRuntimeProof = null;
 
 function currentCru46RuntimeReadiness() {
-  const identity = validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
+  const identity = cru44PreviewEnabled
+    ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
+    : validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
   const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
     calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
   const flow = loadDashboardObservedFlow({ liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
@@ -123,9 +131,9 @@ function currentCru46RuntimeReadiness() {
   const producer = inspectCru34LiveProducer({ snapshotPath: cru34LiveSnapshotPath, statusPath: cru34LiveStatusPath,
     dataRoot: cru34LiveDataRoot, projectionRoot: cru34LiveProjectionRoot });
   const chart = inspectChartPayload(chartPayload);
-  const observedFlow = inspectObservedFlowPayload(flow);
+  const observedFlow = inspectObservedFlowPayload(flow, { requireLongWindows: cru44PreviewEnabled });
   const browser = validateBrowserRuntimeProof(browserRuntimeProof,
-    { exactHead: runtimeIdentity.commit, runtimeStartedAt });
+    { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
   const readiness = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
   return { ...readiness, vendor, producer, chart, observedFlow, parity: readiness.runtimeReady.parity, browser };
 }
@@ -170,7 +178,7 @@ async function decisionWorkspacePayload(snapshot, service) {
   });
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
-    productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
+    productSurface: productSurfaceContract,
     observedFlow,
   });
 }
@@ -287,7 +295,7 @@ const server = http.createServer(async (req, res) => {
         ownerPreviewReadiness: readiness.ownerPreviewReady,
         runtimeEvidence: { vendor: readiness.vendor, producer: readiness.producer,
           chart: readiness.chart, observedFlow: readiness.observedFlow, parity: readiness.parity, browser: readiness.browser },
-        productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
+        productSurface: productSurfaceContract,
       });
       return;
     }
@@ -361,7 +369,7 @@ const server = http.createServer(async (req, res) => {
           lastRefreshError,
           prelive: preliveStatus(latestSnapshot, shioaji),
           runtimeVersion,
-          productSurface: CRU46_PRODUCT_SURFACE_CONTRACT,
+          productSurface: productSurfaceContract,
           indexLeadership,
         };
         const decisionWorkspace = clientSnapshot
@@ -383,14 +391,17 @@ const server = http.createServer(async (req, res) => {
           calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
         const chart = inspectChartPayload(chartPayload);
         const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
-          liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }));
+          liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }),
+        { requireLongWindows: cru44PreviewEnabled });
         const normalized = normalizeBrowserRuntimeProof(candidate,
           { exactHead: runtimeIdentity.commit, runtimeStartedAt });
         const validated = validateBrowserRuntimeProof(normalized,
-          { exactHead: runtimeIdentity.commit, runtimeStartedAt });
-        const browserParity = validateBrowserRuntimeParity(normalized, { chart, observedFlow: flow });
+          { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
+        const browserParity = validateBrowserRuntimeParity(normalized,
+          { chart, observedFlow: flow, requireLongWindows: cru44PreviewEnabled });
         if (!validated.ready || !browserParity.ready || !chart.ready || !flow.ready) {
-          sendJson(res, 422, { ok: false, error: 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED',
+          sendJson(res, 422, { ok: false, error: cru44PreviewEnabled
+            ? 'CRU44_BROWSER_RUNTIME_PROOF_REJECTED' : 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED',
             reasons: [...validated.reasons, ...browserParity.reasons, ...chart.reasons, ...flow.reasons] });
           return;
         }

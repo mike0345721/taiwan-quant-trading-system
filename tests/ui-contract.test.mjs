@@ -165,7 +165,7 @@ test('Decision Workspace exposes a compact descriptive IX0001 Leadership module'
   assert.match(html, /描述性原始資料 · NOT PROMOTED · NOT A TRADING SIGNAL/);
   assert.match(app, /\/api\/v1\/index-leadership/);
   assert.match(app, /BOUNDED|bounded latest cache|never reloads the full ledger/i);
-  assert.match(css, /--leadership-up: #ff6b6b/);
-  assert.match(css, /--leadership-down: #37d67a/);
+  assert.match(css, /--leadership-up: var\(--market-up\)/);
+  assert.match(css, /--leadership-down: var\(--market-down\)/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
 });

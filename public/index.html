@@ -44,6 +44,13 @@
           <small id="as-of"></small>
         </div>
         <div class="top-actions">
+          <label class="market-palette-control" for="market-palette-select">
+            <span>漲跌配色</span>
+            <select id="market-palette-select" aria-label="漲跌配色模式">
+              <option value="red-up">台股（紅漲綠跌）</option>
+              <option value="green-up">國際（綠漲紅跌）</option>
+            </select>
+          </label>
           <div class="security-pill"><span></span> 私人・只讀・無券商憑證</div>
           <button id="daily-update-button" class="secondary" type="button">每日資料更新</button>
           <button id="refresh-button" class="secondary" type="button">更新畫面</button>
@@ -187,6 +194,7 @@
 
           <div class="dw-main-grid">
             <section class="dw-price-region" aria-labelledby="dw-price-title">
+              <header class="dw-chart-header">
               <div class="dw-section-heading">
                 <div><p class="eyebrow">價格結構</p><h3 id="dw-price-title">決策價格圖</h3></div>
                 <div class="dw-chart-heading-status"><span id="dw-chart-session" class="dw-chart-context">—</span><span id="dw-chart-contract" class="dw-chart-context">TX —</span><span id="dw-chart-status" class="dw-status-pill is-unavailable">UNAVAILABLE</span></div>
@@ -206,6 +214,7 @@
                 <button id="dw-flow-tab-4h" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="4h"><strong>4小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
                 <button id="dw-flow-tab-tradingDay" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="tradingDay" title="本交易日語意待 CRU-44 定義"><strong>本交易日</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待定義</small></button>
               </div>
+              </header>
               <div class="dw-chart-stage">
                 <div class="dw-chart-price"><small>最新成交</small><strong id="dw-reference-price">—</strong></div>
                 <div id="dw-chart-canvas" class="dw-chart-canvas" aria-label="台指期 governed multi-timeframe K 線圖"></div>
@@ -252,32 +261,39 @@
                 <p id="dw-observed-flow-truth" class="dw-observed-flow-truth is-unavailable" role="status">
                   <strong>載入中</strong><span>等待受治理的即時或歷史資料</span>
                 </p>
-                <div class="dw-flow-horizon-summary" aria-label="近中遠成交力道摘要">
+                <div class="dw-flow-horizon-summary tt-detail-only" aria-label="近中遠成交力道摘要">
                   <article><span>近端</span><strong id="dw-flow-summary-near">等待資料</strong><small id="dw-flow-summary-near-note">1分／5分／15分</small></article>
                   <article><span>中端</span><strong id="dw-flow-summary-mid">待驗證</strong><small>30分／1小時</small></article>
                   <article><span>遠端</span><strong id="dw-flow-summary-far">待驗證</strong><small>4小時／本交易日</small></article>
                 </div>
                 <section id="dw-flow-selected-detail" class="dw-flow-selected-detail" role="tabpanel" aria-live="polite" aria-labelledby="dw-flow-tab-5m">
                   <header><span>選取時窗</span><strong id="dw-flow-selected-title">5分</strong></header>
-                  <p id="dw-flow-selected-summary" class="dw-flow-selected-summary">等待受治理的時窗證據。</p>
-                  <div class="dw-flow-selected-pressure"><span>成交壓力｜誰比較主動</span><div id="dw-flow-selected-bar" class="dw-pressure-segments" aria-hidden="true"></div><strong id="dw-flow-selected-ratio">不可判定</strong><small id="dw-flow-selected-side">不可判定</small></div>
-                  <dl>
-                    <div><dt>價格反應｜價格最後往哪裡走</dt><dd><strong id="dw-flow-selected-response">不可用</strong><small id="dw-flow-selected-relation">成交力道不可判定</small></dd></div>
-                    <div><dt>路徑效率｜過程有多直接</dt><dd><strong id="dw-flow-selected-path">不可用</strong><small>僅表示路徑直接程度</small></dd></div>
-                    <div><dt>可判定成交占比 / Data Trust</dt><dd id="dw-flow-selected-coverage">不可用</dd></div>
-                    <div><dt>資料品質</dt><dd id="dw-flow-selected-quality">不可用</dd></div>
-                    <div><dt>最後更新</dt><dd id="dw-flow-selected-updated">不可用</dd></div>
-                  </dl>
+                  <div class="dw-flow-selected-results">
+                    <article class="dw-flow-selected-pressure"><span>成交壓力</span><div id="dw-flow-selected-bar" class="dw-pressure-segments" aria-hidden="true"></div><strong id="dw-flow-selected-ratio">不可判定</strong><small id="dw-flow-selected-side">不可判定</small></article>
+                    <article><span>價格反應</span><strong id="dw-flow-selected-response">不可用</strong><div id="dw-flow-response-energy" class="dw-flow-metric-energy" aria-hidden="true"><i></i></div><small id="dw-flow-selected-relation">成交力道不可判定</small></article>
+                    <article><span>路徑效率</span><strong id="dw-flow-selected-path">不可用</strong><div id="dw-flow-path-energy" class="dw-flow-metric-energy" aria-hidden="true"><i></i></div><small>僅表示路徑直接程度</small></article>
+                    <article><span>分類覆蓋率</span><strong id="dw-flow-selected-coverage">不可用</strong><div id="dw-flow-coverage-energy" class="dw-flow-metric-energy" aria-hidden="true"><i></i></div><small>可判定成交占比</small></article>
+                  </div>
+                  <p id="dw-flow-selected-reason" class="dw-flow-selected-reason" role="status">等待受治理的時窗證據。</p>
+                  <section class="dw-flow-selected-evidence tt-detail-only" aria-label="選取時窗技術證據">
+                    <p id="dw-flow-selected-summary" class="dw-flow-selected-summary">等待受治理的時窗證據。</p>
+                    <dl>
+                      <div><dt>技術原因</dt><dd><code id="dw-flow-selected-reason-code">UNAVAILABLE</code></dd></div>
+                      <div><dt>資料品質</dt><dd id="dw-flow-selected-quality">不可用</dd></div>
+                      <div><dt>最後更新</dt><dd id="dw-flow-selected-updated">不可用</dd></div>
+                      <div><dt>Lineage</dt><dd id="dw-flow-selected-lineage">請由完整證據查看</dd></div>
+                    </dl>
+                  </section>
                   <p id="dw-flow-selected-pending" class="dw-flow-selected-pending hidden">待驗證｜CRU-44 尚未啟用</p>
                 </section>
                 <div class="tt-detail-only" aria-hidden="true"><span id="dw-observed-flow-pressure-60"></span><span id="dw-observed-flow-response-60"></span><span id="dw-observed-flow-path-60"></span><span id="dw-observed-flow-pressure-300"></span><span id="dw-observed-flow-response-300"></span><span id="dw-observed-flow-path-300"></span><span id="dw-observed-flow-pressure-side-60"></span><span id="dw-observed-flow-pressure-side-300"></span><span id="dw-observed-flow-relation-60"></span><span id="dw-observed-flow-relation-300"></span></div>
-                <div class="dw-observed-flow-trust" aria-live="polite">
+                <div class="dw-observed-flow-trust tt-detail-only" aria-live="polite">
                   <span>可判定成交占比 <strong id="dw-observed-flow-coverage">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>資料品質 <strong id="dw-observed-flow-quality">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>資料來源 <strong id="dw-observed-flow-source">UNAVAILABLE · DASHBOARD_LOADING</strong></span>
                   <span>正式驗證狀態 <strong id="dw-observed-flow-promotion">尚未通過正式方向驗證</strong></span>
                 </div>
-                <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="台指期盤中力道｜證據">查看證據 &gt;</button>
+                <button class="tt-more dw-observed-flow-more" type="button" data-terminal-drawer-source="[data-terminal-card=&quot;observed-flow&quot;]" data-terminal-drawer-title="台指期盤中力道｜證據">查看證據 / Detail</button>
                 <div id="dw-observed-flow-detail" class="dw-observed-flow-detail tt-detail-only" aria-label="台指期盤中力道技術證據"></div>
               </section>
 

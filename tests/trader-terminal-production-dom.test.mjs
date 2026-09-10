@@ -719,6 +719,14 @@ async function runProductionInteractionRegression() {
       const base = structuredClone(globalThis.__ui1Workspace.observedFlow);
       base.sourceState = 'LIVE';
       base.source.sourceMode = 'LIVE';
+      base.windows.window900s = structuredClone(base.windows.context300s);
+      base.windows.window900s.label = '15分';
+      base.windows.window900s.windowMs = 900000;
+      base.windows.window900s.truthState = 'LIVE';
+      base.windows.window1800s = structuredClone(base.windows.context300s);
+      base.windows.window1800s.label = '30分';
+      base.windows.window1800s.windowMs = 1800000;
+      base.windows.window1800s.truthState = 'LIVE';
       const selected = () => ({
         title: document.getElementById('dw-flow-selected-title')?.textContent || '',
         ratio: document.getElementById('dw-flow-selected-ratio')?.textContent || '',
@@ -726,11 +734,15 @@ async function runProductionInteractionRegression() {
         response: document.getElementById('dw-flow-selected-response')?.textContent || '',
         relation: document.getElementById('dw-flow-selected-relation')?.textContent || '',
         path: document.getElementById('dw-flow-selected-path')?.textContent || '',
+        reason: document.getElementById('dw-flow-selected-reason')?.textContent || '',
+        reasonCode: document.getElementById('dw-flow-selected-reason-code')?.textContent || '',
         summary: document.getElementById('dw-flow-selected-summary')?.textContent || '',
         pending: document.getElementById('dw-flow-selected-pending')?.textContent || '',
         pendingVisible: !document.getElementById('dw-flow-selected-pending')?.classList.contains('hidden'),
         barClass: document.getElementById('dw-flow-selected-bar')?.className || '',
+        cellCount: document.querySelectorAll('#dw-flow-selected-bar > i').length,
         filledCells: document.querySelectorAll('#dw-flow-selected-bar .is-filled').length,
+        filledLevels: [...document.querySelectorAll('#dw-flow-selected-bar .is-filled')].map((node) => node.className),
         truthClass: document.getElementById('dw-observed-flow-truth')?.className || '',
         truth: document.getElementById('dw-observed-flow-truth')?.textContent || '',
       });
@@ -751,6 +763,30 @@ async function runProductionInteractionRegression() {
         limitedPositive: renderPressure(0.42, 0.96, 'UNAVAILABLE'),
         limitedNegative: renderPressure(-0.27, 0.96, 'UNAVAILABLE'),
       };
+      const occupancy = (ratio) => {
+        renderObservedFlowSegments(document.getElementById('dw-flow-selected-bar'), ratio);
+        const bar = document.getElementById('dw-flow-selected-bar');
+        return {
+          ratio,
+          className: bar?.className || '',
+          displayCells: Number(bar?.dataset.displayCells || 0),
+          filledCells: bar?.querySelectorAll('.is-filled').length || 0,
+          levels: [...(bar?.querySelectorAll('.is-filled') || [])].map((node) => node.className),
+        };
+      };
+      const occupancyBoundaries = [0.099, 0.1, 0.324, 0.325, 0.549, 0.55, 0.774, 0.775, 0.99, -0.1, -0.325, -0.55, -0.775]
+        .map(occupancy);
+      const markerFixture = { markers: [
+        { text: 'OR↑', time: '2026-09-09T01:00:00.000Z', position: 'belowBar', color: '#8aa7ff', shape: 'circle' },
+        { text: 'OR↩', time: '2026-09-09T01:05:00.000Z', position: 'aboveBar', color: '#8aa7ff', shape: 'circle' },
+        { text: '品質↓', time: '2026-09-09T01:10:00.000Z', position: 'aboveBar', color: '#f5c86b', shape: 'circle' },
+      ] };
+      const workspaceRoot = document.getElementById('decision-workspace');
+      workspaceRoot?.classList.remove('show-optional-levels');
+      const hiddenOrMarkers = marketChangeMarkerData(markerFixture, '5m').map((marker) => marker.text);
+      workspaceRoot?.classList.add('show-optional-levels');
+      const shownOrMarkers = marketChangeMarkerData(markerFixture, '5m').map((marker) => marker.text);
+      workspaceRoot?.classList.remove('show-optional-levels');
       const response = {};
       for (const relation of ['SAME_DIRECTION', 'OPPOSITE_DIRECTION', 'FLAT_PRICE', 'PRESSURE_UNAVAILABLE']) {
         const value = structuredClone(base);
@@ -825,7 +861,39 @@ async function runProductionInteractionRegression() {
       return { pressure, response, pathUnavailable, chartToFlow, flowToChart, keyboardSelection,
         selected1m, selected15m, selected5m, selectedTradingDay,
         chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
-        live, stale, warming, historical, unavailable };
+        live, stale, warming, historical, unavailable, occupancyBoundaries,
+        overlay: { hiddenOrMarkers, shownOrMarkers } };
+    })()`);
+    const paletteEvidence = await evaluate(cdp, `(() => {
+      const control = document.getElementById('market-palette-select');
+      const capture = () => {
+        renderObservedFlowSegments(document.getElementById('dw-flow-selected-bar'), 0.8);
+        renderObservedFlowEnergy(document.getElementById('dw-flow-response-energy'), 24, { range: 50 });
+        const palette = activeCandlePalette();
+        const volume = chartSeriesData({ bars: [{ time: '2026-09-09T01:00:00.000Z', open: 100, high: 102, low: 99, close: 101, volume: 10 }] }).volumes[0];
+        const rootStyle = getComputedStyle(document.documentElement);
+        return {
+          selected: control?.value,
+          mode: document.documentElement.dataset.marketPalette,
+          positive: rootStyle.getPropertyValue('--positive').trim(),
+          negative: rootStyle.getPropertyValue('--negative').trim(),
+          paletteUp: palette.up,
+          paletteDown: palette.down,
+          volumeColor: volume.color,
+          segmentClass: document.getElementById('dw-flow-selected-bar')?.className || '',
+          segmentCount: document.querySelectorAll('#dw-flow-selected-bar > i').length,
+          segmentLevels: [...document.querySelectorAll('#dw-flow-selected-bar .is-filled')].map((node) => node.className),
+          energyClass: document.getElementById('dw-flow-response-energy')?.className || '',
+        };
+      };
+      control.value = 'green-up';
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      const international = capture();
+      control.value = 'red-up';
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+      const taiwan = capture();
+      renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
+      return { international, taiwan };
     })()`);
     const refreshFailureEvidence = await evaluate(cdp, `(() => {
       const pulseIds = [
@@ -1065,6 +1133,7 @@ async function runProductionInteractionRegression() {
       initialState,
       wiringEvidence,
       observedFlowStateMatrix,
+      paletteEvidence,
       refreshFailureEvidence,
       leadershipRefreshFailureEvidence,
       drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
@@ -1311,10 +1380,11 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /HISTORICAL · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /非目前盤勢/);
   assert.match(result.wiringEvidence['dw-observed-flow-truth'].text, /TXFI6 · DAY/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力｜誰比較主動/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應｜價格最後往哪裡走/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率｜過程有多直接/);
-  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /可判定成交占比 \/ Data Trust/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /成交壓力/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /價格反應/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /路徑效率/);
+  assert.match(result.wiringEvidence['dw-observed-flow-semantics'].text, /分類覆蓋率/);
+  assert.doesNotMatch(result.wiringEvidence['dw-observed-flow-semantics'].text, /查看證據 \/ Detail/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /STALE · 2026-08-28/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].text, /資料過舊 · STALE/);
   assert.match(result.wiringEvidence['dw-observed-flow-stale-truth'].title, /is-stale/);
@@ -1330,25 +1400,39 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.pressure.positive.ratio, /\+0\.420/);
   assert.equal(matrix.pressure.positive.side, '偏買方');
   assert.match(matrix.pressure.positive.barClass, /is-positive/);
-  assert.equal(matrix.pressure.positive.filledCells, 3);
+  assert.equal(matrix.pressure.positive.cellCount, 9);
+  assert.equal(matrix.pressure.positive.filledCells, 2);
+  assert.deepEqual(matrix.pressure.positive.filledLevels, ['is-filled is-level-1', 'is-filled is-level-2']);
   assert.match(matrix.pressure.negative.ratio, /-0\.270/);
   assert.equal(matrix.pressure.negative.side, '偏賣方');
   assert.match(matrix.pressure.negative.barClass, /is-negative/);
+  assert.equal(matrix.pressure.negative.cellCount, 9);
+  assert.equal(matrix.pressure.negative.filledCells, 1);
+  assert.deepEqual(matrix.pressure.negative.filledLevels, ['is-filled is-level-1']);
   assert.equal(matrix.pressure.zero.ratio, '0.000');
   assert.equal(matrix.pressure.zero.side, '均衡');
   assert.equal(matrix.pressure.null.ratio, '不可判定');
   assert.doesNotMatch(matrix.pressure.null.ratio, /0\.000/);
+  assert.match(matrix.pressure.null.barClass, /is-neutral.*is-inactive/);
   assert.equal(matrix.pressure.limitedPositive.side, '方向判定受限');
   assert.match(matrix.pressure.limitedPositive.barClass, /is-positive.*is-limited/);
   assert.match(matrix.pressure.limitedPositive.summary, /方向判定受限/);
   assert.doesNotMatch(matrix.pressure.limitedPositive.summary, /偏買方/);
   assert.equal(matrix.pressure.limitedNegative.side, '方向判定受限');
   assert.match(matrix.pressure.limitedNegative.barClass, /is-negative.*is-limited/);
+  assert.deepEqual(matrix.occupancyBoundaries.map(({ displayCells }) => displayCells), [0, 1, 1, 2, 2, 3, 3, 4, 4, 1, 2, 3, 4]);
+  assert.ok(matrix.occupancyBoundaries.every(({ filledCells, displayCells }) => filledCells === displayCells));
+  assert.match(matrix.occupancyBoundaries[0].className, /is-neutral/);
+  assert.match(matrix.occupancyBoundaries[9].className, /is-negative/);
+  assert.deepEqual(matrix.overlay.hiddenOrMarkers, ['品質↓']);
+  assert.deepEqual(matrix.overlay.shownOrMarkers, ['OR↑', 'OR↩', '品質↓']);
   assert.deepEqual(matrix.response, {
     SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定',
   });
-  assert.match(matrix.pathUnavailable.path, /QUALITY_INSUFFICIENT_LONG_GAP/);
+  assert.equal(matrix.pathUnavailable.path, '不可用');
+  assert.equal(matrix.pathUnavailable.reason, '不可用｜路徑存在過長間隔');
+  assert.equal(matrix.pathUnavailable.reasonCode, 'QUALITY_INSUFFICIENT_LONG_GAP');
   assert.match(matrix.pathUnavailable.summary, /路徑效率不可用/);
   assert.doesNotMatch(matrix.pathUnavailable.summary, /路徑效率 0(?:\.0+)?/);
   assert.deepEqual(matrix.chartToFlow.map(({ chartKey, flowKey, selectedFlow }) => ({ chartKey, flowKey, selectedFlow })), [
@@ -1377,9 +1461,12 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   });
   assert.equal(matrix.selected1m.title, '1分');
   assert.equal(matrix.selected15m.title, '15分');
-  assert.equal(matrix.selected15m.pendingVisible, true);
-  assert.match(matrix.selected15m.pending, /CRU-44 尚未啟用/);
-  assert.match(matrix.selected15m.summary, /成交壓力待驗證；價格反應待驗證；路徑效率待驗證/);
+  assert.equal(matrix.selected15m.pendingVisible, false);
+  assert.match(matrix.selected15m.summary, /成交壓力/);
+  assert.match(matrix.selected15m.summary, /價格反應/);
+  assert.match(matrix.selected15m.summary, /路徑效率/);
+  assert.match(matrix.selected15m.summary, /可判定成交占比/);
+  assert.match(matrix.selected15m.summary, /Data Trust/);
   assert.equal(matrix.chartSelectionAfterPendingFlow, '15m');
   assert.equal(matrix.selected5m.title, '5分');
   assert.equal(matrix.selected5m.pendingVisible, false);
@@ -1399,6 +1486,22 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.warming.truth, /暖機中/);
   assert.match(matrix.historical.truth, /歷史資料｜非目前盤勢/);
   assert.match(matrix.unavailable.truth, /FIXTURE_UNAVAILABLE/);
+  assert.deepEqual(result.paletteEvidence.international, {
+    selected: 'green-up', mode: 'green-up',
+    positive: '#37d67a', negative: '#ff6b6b', paletteUp: '#37d67a', paletteDown: '#ff6b6b',
+    volumeColor: 'rgba(55,214,122,.34)', segmentClass: 'dw-pressure-segments is-positive',
+    segmentCount: 9,
+    segmentLevels: ['is-filled is-level-1', 'is-filled is-level-2', 'is-filled is-level-3', 'is-filled is-level-4'],
+    energyClass: 'dw-flow-metric-energy is-positive',
+  });
+  assert.deepEqual(result.paletteEvidence.taiwan, {
+    selected: 'red-up', mode: 'red-up',
+    positive: '#ff6b6b', negative: '#37d67a', paletteUp: '#ff6b6b', paletteDown: '#37d67a',
+    volumeColor: 'rgba(255,107,107,.34)', segmentClass: 'dw-pressure-segments is-positive',
+    segmentCount: 9,
+    segmentLevels: ['is-filled is-level-1', 'is-filled is-level-2', 'is-filled is-level-3', 'is-filled is-level-4'],
+    energyClass: 'dw-flow-metric-energy is-positive',
+  });
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.price, /24,000/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.basis, /12\.50/);
   assert.match(result.refreshFailureEvidence.pulseBeforeFailure.breadth, /904/);
@@ -1432,6 +1535,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
   assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
   assert.equal(result.drawerEvidence.closed.drawerOpen, false);
+  assert.equal(result.drawerEvidence.closed.drawerText, '');
   assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '台指期盤中力道｜證據');
   assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
   assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');

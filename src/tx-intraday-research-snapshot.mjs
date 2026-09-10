@@ -207,10 +207,10 @@ function qualityFor(pressure, responseWindow) {
   });
 }
 
-function buildWindow(events, cutoffEvent, profile, windowMs, options) {
+export function buildTxObservedFlowWindow(events, cutoffEvent, profile, windowMs, options = {}) {
   const pressure = buildExecutedPressureWindow(events, cutoffEvent, {
     windowMs,
-    maxQuoteAgeMs: options.maxQuoteAgeMs,
+    maxQuoteAgeMs: options.maxQuoteAgeMs ?? 2_000,
   });
   const usablePressureRatio = pressure.status === 'READY' && pressure.classifiedCoverage === 1
     ? pressure.pressureRatio : null;
@@ -218,8 +218,8 @@ function buildWindow(events, cutoffEvent, profile, windowMs, options) {
     windowMs,
     tickSize: profile.tickSize,
     pressureRatio: usablePressureRatio,
-    minPathTickCount: options.minPathTickCount,
-    maxGapMs: options.maxPathGapMs,
+    minPathTickCount: options.minPathTickCount ?? MIN_PATH_TICK_COUNT,
+    maxGapMs: options.maxPathGapMs ?? MAX_PATH_GAP_MS,
   });
   const evidence = evidenceFor(pressure, responseWindow);
   const quality = qualityFor(pressure, responseWindow);
@@ -428,8 +428,8 @@ export function buildTxIntradayResearchSnapshot(records, {
     minPathTickCount: MIN_PATH_TICK_COUNT,
     maxPathGapMs: MAX_PATH_GAP_MS,
   };
-  const primary = buildWindow(canonical.events, cutoff, profile, PRIMARY_WINDOW_MS, options);
-  const context = buildWindow(canonical.events, cutoff, profile, CONTEXT_WINDOW_MS, options);
+  const primary = buildTxObservedFlowWindow(canonical.events, cutoff, profile, PRIMARY_WINDOW_MS, options);
+  const context = buildTxObservedFlowWindow(canonical.events, cutoff, profile, CONTEXT_WINDOW_MS, options);
   const allUsed = [...primary.usedEvents, ...context.usedEvents];
   const byOrdinal = new Map();
   for (const event of allUsed) byOrdinal.set(event.ledgerOrdinal, event);

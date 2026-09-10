@@ -4,6 +4,13 @@ export const CRU46_INCLUDED_SOURCES = Object.freeze({
   cru45: '9f244e1171b2ecfab5c982343a42682858a489c2',
 });
 
+export const CRU44_APPROVED_BASE_MAIN = '9768dd9df5b506f519b52cc1baf7bf9acb551f4c';
+export const CRU44_INCLUDED_SOURCES = Object.freeze({
+  cru34: 'frozen-semantics-v1',
+  cru36: 'governed-local-ledger-v1',
+  cru43: 'e2427bef6b7659da684e9c82f7fa11680e4688f0',
+});
+
 export const CRU46_PRODUCT_SURFACE_CONTRACT = Object.freeze({
   schemaVersion: 'cru46-dashboard-product-surface-v1',
   chart: Object.freeze({
@@ -30,6 +37,16 @@ export const CRU46_PRODUCT_SURFACE_CONTRACT = Object.freeze({
     researchOnly: true,
     executionAuthorized: false,
     orderRoutesEnabled: false,
+  }),
+});
+
+export const CRU44_PRODUCT_SURFACE_CONTRACT = Object.freeze({
+  ...CRU46_PRODUCT_SURFACE_CONTRACT,
+  schemaVersion: 'cru44-15m-30m-product-surface-v1',
+  observedFlow: Object.freeze({
+    ...CRU46_PRODUCT_SURFACE_CONTRACT.observedFlow,
+    governed: Object.freeze(['1m', '5m', '15m', '30m']),
+    pending: Object.freeze(['1h', '4h', 'tradingDay']),
   }),
 });
 
@@ -67,5 +84,44 @@ export function validateIntegrationPreviewVersionTruth(version, expectedHead) {
   if (version?.baseMainCommit !== CRU46_INTEGRATION_BASE_MAIN) reasons.push('BASE_MAIN_MISMATCH');
   if (version?.includedSources?.cru43 !== CRU46_INCLUDED_SOURCES.cru43) reasons.push('CRU43_SOURCE_MISMATCH');
   if (version?.includedSources?.cru45 !== CRU46_INCLUDED_SOURCES.cru45) reasons.push('CRU45_SOURCE_MISMATCH');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
+}
+
+export function buildCru44PreviewVersion({ runtimeVersion, enabled = false, branch = null, dataMode = null } = {}) {
+  if (!enabled) return Object.freeze({ ...runtimeVersion });
+  return Object.freeze({
+    ...runtimeVersion,
+    productVersion: 'CRU-44 15m + 30m Observed Flow V1',
+    approvedMainCommit: CRU44_APPROVED_BASE_MAIN,
+    syncState: runtimeVersion?.runtimeCommit === CRU44_APPROVED_BASE_MAIN ? 'SYNCED' : 'MISMATCH',
+    previewType: 'CRU44_OWNER_PREVIEW',
+    previewLabel: 'CRU-44 15M + 30M OWNER PREVIEW',
+    branch: branch || 'UNKNOWN',
+    exactHead: runtimeVersion?.runtimeCommit || null,
+    buildCommit: runtimeVersion?.runtimeCommit || null,
+    runtimeCommit: runtimeVersion?.runtimeCommit || null,
+    baseMainCommit: CRU44_APPROVED_BASE_MAIN,
+    includedSources: CRU44_INCLUDED_SOURCES,
+    pendingCapabilities: Object.freeze(['1h', '4h', 'TradingDay', 'CVD', 'Relative Intensity',
+      'Absorption', 'Market Control', 'Market State']),
+    dataMode: dataMode || 'UNKNOWN',
+    complete: false,
+    safety: CRU44_PRODUCT_SURFACE_CONTRACT.safety,
+  });
+}
+
+export function validateCru44PreviewVersionTruth(version, expectedHead) {
+  const sha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+  const reasons = [];
+  if (version?.previewType !== 'CRU44_OWNER_PREVIEW') reasons.push('PREVIEW_TYPE_MISMATCH');
+  if (!sha(expectedHead)) reasons.push('EXPECTED_HEAD_UNVERIFIED');
+  for (const field of ['exactHead', 'buildCommit', 'runtimeCommit']) {
+    if (!sha(version?.[field])) reasons.push(`${field.toUpperCase()}_UNVERIFIED`);
+    else if (version[field] !== expectedHead) reasons.push(`${field.toUpperCase()}_MISMATCH`);
+  }
+  if (version?.baseMainCommit !== CRU44_APPROVED_BASE_MAIN) reasons.push('BASE_MAIN_MISMATCH');
+  if (version?.includedSources?.cru34 !== CRU44_INCLUDED_SOURCES.cru34) reasons.push('CRU34_SOURCE_MISMATCH');
+  if (version?.includedSources?.cru36 !== CRU44_INCLUDED_SOURCES.cru36) reasons.push('CRU36_SOURCE_MISMATCH');
+  if (version?.includedSources?.cru43 !== CRU44_INCLUDED_SOURCES.cru43) reasons.push('CRU43_SOURCE_MISMATCH');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }
