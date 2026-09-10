@@ -188,14 +188,19 @@ function liveFeed(definition, session, context, evidence, registry) {
   if (evidence.writerErrors > 0) reasons.push('WRITER_ERROR');
   if (evidence.droppedEvents > 0) reasons.push('QUEUE_DROP');
   if (evidence.reconnectCount > 0) reasons.push('PROVIDER_RECONNECT');
+  if (evidence.missingFiles?.length) reasons.push('LEDGER_NOT_FOUND');
+  if (item.nativeSequenceGaps > 0) reasons.push('CONTINUITY_BREAK');
   if (item.invalidLines > 0) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
-  const persistenceState = evidence.writerErrors > 0 || evidence.droppedEvents > 0 ? 'FAIL' : 'PASS';
-  const knownIntegrityFailure = evidence.ledgerAudit?.ok === false;
+  const persistenceState = evidence.writerErrors > 0 || evidence.droppedEvents > 0 ? 'FAIL'
+    : evidence.missingFiles?.length ? 'PARTIAL' : 'PASS';
+  const knownIntegrityFailure = evidence.ledgerAudit?.ok === false || item.nativeSequenceGaps > 0;
   const integrityState = knownIntegrityFailure ? 'FAIL'
     : evidence.ledgerAudit?.ok === true && item.nativeSequenceAvailable === true
-      && item.nativeSequenceMissing !== true && item.invalidLines === 0
+      && item.nativeSequenceMissing !== true && item.nativeSequenceGapUnknown !== true
+      && item.nativeSequenceGaps === 0 && item.invalidLines === 0
       && evidence.reconnectCount === 0 ? 'PASS' : 'UNKNOWN';
-  const captureState = item.contracts.length === 1 && evidence.callbackErrors === 0 ? 'PASS' : 'PARTIAL';
+  const captureState = item.contracts.length === 1 && evidence.callbackErrors === 0
+    && !evidence.missingFiles?.length ? 'PASS' : 'PARTIAL';
   const researchEligibility = !definition.datasetId ? 'NOT_READY'
     : captureState === 'PASS' && persistenceState === 'PASS'
     ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
@@ -370,8 +375,9 @@ export function buildDailyCollectionAcceptance({
 
   const due = feeds.filter((feed) => feed.expectedState === 'REQUIRED');
   const provenFailures = due.filter((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL');
-  const unknownDue = due.filter((feed) => feed.captureState === 'UNKNOWN'
-    || feed.persistenceState === 'UNKNOWN' || feed.integrityState === 'UNKNOWN');
+  const unknownDue = due.filter((feed) => ['UNKNOWN', 'PARTIAL'].includes(feed.captureState)
+    || ['UNKNOWN', 'PARTIAL'].includes(feed.persistenceState)
+    || ['UNKNOWN', 'PARTIAL'].includes(feed.integrityState));
   let overallState = 'PASS';
   if (marketDayState === 'UNKNOWN') overallState = 'UNKNOWN';
   else if (marketDayState === 'NON_TRADING_DAY') overallState = 'NOT_EXPECTED';
@@ -458,7 +464,7 @@ function identityOf(record, calendar) {
   if (['stock_tick', 'index_quote'].includes(record.kind)) {
     const eventDate = payload.date || String(eventTimeOf(record) || '').slice(0, 10) || null;
     classified = /^\d{4}-\d{2}-\d{2}$/.test(eventDate || '')
-      ? { tradeDate: eventDate, session: 'DAY' } : null;
+      ? { calendarDate: eventDate, tradeDate: eventDate, session: 'DAY' } : null;
   } else {
     try { classified = classifyTxChartSession(eventTimeOf(record), calendar); } catch { classified = null; }
   }
@@ -473,7 +479,8 @@ function ensureFeedEvidence(feeds, key) {
   if (!feeds[key]) {
     feeds[key] = {
       recordCount: 0, bytes: 0, firstReceivedAt: null, lastReceivedAt: null, contracts: [],
-      calendarDates: [], nativeSequenceAvailable: false, nativeSequenceMissing: false, invalidLines: 0,
+      calendarDates: [], nativeSequenceAvailable: false, nativeSequenceMissing: false,
+      nativeSequenceGapUnknown: false, nativeSequenceGaps: 0, invalidLines: 0,
     };
   }
   return feeds[key];
@@ -545,7 +552,9 @@ export async function streamDailyLedgerEvidence(filePaths, {
   let nativeSequenceAvailable = false;
   let reconnectCount = 0;
   const counters = { callbackErrors: 0, writerErrors: 0, droppedEvents: 0 };
-  for (const candidate of [...new Set(filePaths.map((item) => path.resolve(item)))].sort()) {
+  const candidates = [...new Set(filePaths.map((item) => path.resolve(item)))].sort();
+  const missingFiles = candidates.filter((candidate) => !fs.existsSync(candidate)).map((candidate) => path.basename(candidate));
+  for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
     const completeBytes = completeLineCutoff(candidate);
     const requestedCutoff = cutoffBytesByFile[path.basename(candidate)];
@@ -617,10 +626,14 @@ export async function streamDailyLedgerEvidence(filePaths, {
       if (record.sequence != null) nativeSequenceAvailable = true;
       const item = ensureFeedEvidence(feeds, key);
       if (record.sequence == null) item.nativeSequenceMissing = true;
-      else item.nativeSequenceAvailable = true;
+      else {
+        item.nativeSequenceAvailable = true;
+        if (record.sequenceGap == null) item.nativeSequenceGapUnknown = true;
+        else item.nativeSequenceGaps += Math.max(0, Number(record.sequenceGap) || 0);
+      }
       item.recordCount += 1;
       item.bytes += Buffer.byteLength(line, 'utf8') + 1;
-      item.calendarDates = unique([...item.calendarDates, String(record.receivedAt).slice(0, 10)]).sort();
+      item.calendarDates = unique([...item.calendarDates, identityContext.calendarDate]).sort();
       if (!item.firstReceivedAt || Date.parse(record.receivedAt) < Date.parse(item.firstReceivedAt)) item.firstReceivedAt = record.receivedAt || null;
       if (!item.lastReceivedAt || Date.parse(record.receivedAt) > Date.parse(item.lastReceivedAt)) item.lastReceivedAt = record.receivedAt || null;
       item.contracts = unique([...item.contracts, contractOf(record)]).sort();
@@ -630,9 +643,10 @@ export async function streamDailyLedgerEvidence(filePaths, {
     identities.push(identity);
   }
   const auditSources = ledgerAudit?.sources || [];
-  const auditComplete = identities.length > 0 && identities.every((identity) => auditSources.some((audit) => (
+  const auditComplete = identities.length > 0 && missingFiles.length === 0
+    && identities.every((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
-      && audit.latestHash === identity.lastRecordHash && audit.ok === true
+      && audit.latestHash === identity.lastRecordHash && audit.ok === true && audit.sequenceGaps === 0
   )));
   const auditFailed = identities.some((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
@@ -642,6 +656,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
     : auditFailed ? { ok: false, sources: auditSources } : null;
   return Object.freeze({
     ledgerFound: identities.length > 0,
+    missingFiles,
     feeds,
     totalRawBytes: identities.length ? totalRawBytes : null,
     totalRecords: identities.length ? totalRecords : null,
@@ -652,7 +667,9 @@ export async function streamDailyLedgerEvidence(filePaths, {
     invalidLines,
     nativeSequenceAvailable,
     ledgerAudit: boundedLedgerAudit,
-    sourceArtifactIdentity: identities.length ? { type: 'append-only-ledger-fixed-byte-cutoff', files: identities } : null,
+    sourceArtifactIdentity: identities.length ? {
+      type: 'append-only-ledger-fixed-byte-cutoff', files: identities, missingFiles,
+    } : null,
   });
 }
 

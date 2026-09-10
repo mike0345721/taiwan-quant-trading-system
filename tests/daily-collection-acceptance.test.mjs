@@ -222,7 +222,7 @@ test('night session preserves calendarDate separately from governed tradeDate us
   let previousHash = 'GENESIS';
   for (const [kind, receivedAt] of [
     ['futures_tick', '2026-09-09T15:01:00+08:00'],
-    ['futures_bidask', '2026-09-09T15:01:01+08:00'],
+    ['futures_bidask', '2026-09-09T16:01:01Z'],
   ]) {
     const record = buildLiveEventRecord({
       schemaVersion: '1.0.0', provider: 'fixture', kind, code: 'TXFI6', product: 'TXFI6',
@@ -239,8 +239,9 @@ test('night session preserves calendarDate separately from governed tradeDate us
     payload: { sourceHash: 'fixture', coverageStart: '2026-09-01' }, fileHash: 'fixture', exceptions: new Map(),
     tradingDates: new Set(['2026-09-09', '2026-09-10']), nonTradingDates: new Set([]),
   };
+  const nightGeneratedAt = '2026-09-10T01:00:00.000Z';
   const evidence = await streamDailyLedgerEvidence([ledger], {
-    calendar, tradeDate: '2026-09-10', generatedAt: context.generatedAt,
+    calendar, tradeDate: '2026-09-10', generatedAt: nightGeneratedAt,
   });
   const item = evidence.feeds['TX:futures_tick:NIGHT'];
   assert.equal(item.recordCount, 1);
@@ -252,6 +253,8 @@ test('night session preserves calendarDate separately from governed tradeDate us
   assert.equal(feed(report, 'tx_actual_trade', 'NIGHT').tradeDate, '2026-09-10');
   assert.equal(feed(report, 'tx_actual_trade', 'NIGHT').calendarDate, '2026-09-09');
   assert.deepEqual(feed(report, 'tx_actual_trade', 'NIGHT').calendarDates, ['2026-09-09']);
+  assert.equal(feed(report, 'tx_best_quote', 'NIGHT').calendarDate, '2026-09-10');
+  assert.deepEqual(feed(report, 'tx_best_quote', 'NIGHT').calendarDates, ['2026-09-10']);
 
   const appended = buildLiveEventRecord({
     schemaVersion: '1.0.0', provider: 'fixture', kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6',
@@ -262,7 +265,7 @@ test('night session preserves calendarDate separately from governed tradeDate us
   }, previousHash);
   fs.appendFileSync(ledger, `${JSON.stringify(appended)}\n`, 'utf8');
   const replayed = await streamDailyLedgerEvidence([ledger], {
-    calendar, tradeDate: '2026-09-10', generatedAt: context.generatedAt,
+    calendar, tradeDate: '2026-09-10', generatedAt: nightGeneratedAt,
     cutoffBytesByFile: { '2026-09-09.ndjson': fixedCutoff },
   });
   assert.deepEqual(replayed.feeds, evidence.feeds);
@@ -340,7 +343,7 @@ test('ledger audit cannot promote integrity unless every selected cutoff is exac
   const ledger = path.join(directory, '2026-09-09.ndjson');
   const record = buildLiveEventRecord({
     kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T09:00:00+08:00',
-    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 1, duplicate: false,
+    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 1, sequenceGap: 0, duplicate: false,
     formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
     payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T09:00:00+08:00', simtrade: false },
   }, 'GENESIS');
@@ -353,6 +356,73 @@ test('ledger audit cannot promote integrity unless every selected cutoff is exac
   assert.equal(evidence.ledgerAudit, null);
   const report = buildDailyCollectionAcceptance({ ...context, sessions: ['DAY'], liveEvidence: evidence });
   assert.equal(feed(report, 'tx_actual_trade', 'DAY').integrityState, 'UNKNOWN');
+
+  const exact = await streamDailyLedgerEvidence([ledger], {
+    calendar, tradeDate: '2026-09-09', generatedAt: context.generatedAt,
+    ledgerAudit: { ok: true, sources: [{
+      sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size,
+      latestHash: record.recordHash, sequenceGaps: 0, ok: true,
+    }] },
+  });
+  assert.equal(exact.ledgerAudit.ok, true);
+  const exactReport = buildDailyCollectionAcceptance({ ...context, sessions: ['DAY'], liveEvidence: exact });
+  assert.equal(feed(exactReport, 'tx_actual_trade', 'DAY').integrityState, 'PASS');
+});
+
+test('native sequence gap fails integrity even when the ledger hash audit is valid', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-sequence-gap-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const ledger = path.join(directory, '2026-09-09.ndjson');
+  const record = buildLiveEventRecord({
+    kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T09:00:00+08:00',
+    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 3, sequenceGap: 2, duplicate: false,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T09:00:00+08:00', simtrade: false },
+  }, 'GENESIS');
+  fs.writeFileSync(ledger, `${JSON.stringify(record)}\n`, 'utf8');
+  const calendar = { payload: { sourceHash: 'fixture' }, fileHash: 'fixture', exceptions: new Map(), tradingDates: new Set(['2026-09-09']), nonTradingDates: new Set([]) };
+  const evidence = await streamDailyLedgerEvidence([ledger], {
+    calendar, tradeDate: '2026-09-09', generatedAt: context.generatedAt,
+    ledgerAudit: { ok: true, sources: [{ sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size, latestHash: record.recordHash, sequenceGaps: 2, ok: true }] },
+  });
+  const report = buildDailyCollectionAcceptance({ ...context, sessions: ['DAY'], liveEvidence: evidence });
+  const item = feed(report, 'tx_actual_trade', 'DAY');
+  assert.equal(item.integrityState, 'FAIL');
+  assert.ok(item.reasonCodes.includes('CONTINUITY_BREAK'));
+});
+
+test('a missing governed ledger file remains explicit and prevents session PASS', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-missing-ledger-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const existing = path.join(directory, '2026-09-09.ndjson');
+  const missing = path.join(directory, '2026-09-10.ndjson');
+  const record = buildLiveEventRecord({
+    kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T15:01:00+08:00',
+    exchangeTimestamp: '2026-09-09T15:01:00+08:00', sequence: 1, sequenceGap: 0, duplicate: false,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T15:01:00+08:00', simtrade: false },
+  }, 'GENESIS');
+  const bidask = buildLiveEventRecord({
+    kind: 'futures_bidask', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T15:01:01+08:00',
+    exchangeTimestamp: '2026-09-09T15:01:01+08:00', sequence: 2, sequenceGap: 0, duplicate: false,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T15:01:01+08:00', simtrade: false },
+  }, record.recordHash);
+  fs.writeFileSync(existing, `${JSON.stringify(record)}\n${JSON.stringify(bidask)}\n`, 'utf8');
+  const calendar = { payload: { sourceHash: 'fixture' }, fileHash: 'fixture', exceptions: new Map(), tradingDates: new Set(['2026-09-09', '2026-09-10']), nonTradingDates: new Set([]) };
+  const evidence = await streamDailyLedgerEvidence([existing, missing], {
+    calendar, tradeDate: '2026-09-10', generatedAt: context.generatedAt,
+  });
+  assert.deepEqual(evidence.missingFiles, ['2026-09-10.ndjson']);
+  assert.deepEqual(evidence.sourceArtifactIdentity.missingFiles, ['2026-09-10.ndjson']);
+  const report = buildDailyCollectionAcceptance({
+    ...context, tradeDate: '2026-09-10', sessions: ['NIGHT'], liveEvidence: evidence,
+  });
+  const item = feed(report, 'tx_actual_trade', 'NIGHT');
+  assert.equal(item.captureState, 'PARTIAL');
+  assert.equal(item.persistenceState, 'PARTIAL');
+  assert.ok(item.reasonCodes.includes('LEDGER_NOT_FOUND'));
+  assert.equal(report.summary.nightSessionState, 'UNKNOWN');
 });
 
 test('unsafe execution boundary record is excluded and reported as insufficient evidence', async (t) => {

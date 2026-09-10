@@ -80,7 +80,10 @@ function auditEvidenceFor(ledgerPaths, auditDir) {
   if (!audits.length) return null;
   return {
     ok: audits.every((item) => item.ok === true),
-    sources: audits.map((item) => ({ source: item.source, ok: item.ok, events: item.events, bytes: item.bytes, latestHash: item.latestHash })),
+    sources: audits.map((item) => ({
+      source: item.source, sourceFile: item.sourceFile, ok: item.ok, events: item.events,
+      bytes: item.bytes, latestHash: item.latestHash, sequenceGaps: item.sequenceGaps,
+    })),
   };
 }
 

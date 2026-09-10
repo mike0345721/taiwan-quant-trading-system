@@ -54,11 +54,13 @@ node scripts/build-daily-collection-acceptance.mjs `
 
 ### Live event
 
-每個 ledger 在開始掃描前先固定最後一個完整換行的 byte cutoff，之後逐行讀取到該 cutoff。報告保留檔名、cutoff bytes、完整 prefix SHA-256、第一與最後 record hash。只統計 `receivedAt <= generatedAt`，且與指定 `tradeDate`、session 與 canonical Feed 相符的非 `simtrade`、非 duplicate records。
+每個 ledger 在開始掃描前先固定最後一個完整換行的 byte cutoff，之後逐行讀取到該 cutoff。報告保留檔名、cutoff bytes、完整 prefix SHA-256、第一與最後 record hash。只統計 `receivedAt <= generatedAt`，且與指定 `tradeDate`、session 與 canonical Feed 相符的非 `simtrade`、非 duplicate records。Feed 的 `calendarDate/calendarDates` 使用 governed Asia/Taipei session classification，不從 timestamp 字串直接切片；NIGHT 跨午夜時可同時出現兩個 calendar dates。
+
+NIGHT 所需的任一 governed ledger 檔不存在時，檔名會保留在 `sourceArtifactIdentity.missingFiles`，相關 Feed 降為 `PARTIAL / LEDGER_NOT_FOUND`，不可由另一個存在的半時段檔案升格為 PASS。
 
 既有小型 ledger 可重用 `auditLiveEventLedger`；大型 ledger 不做另一個無界全檔記憶體 audit，而優先使用既有 `futures-audits/YYYY-MM-DD.json`。若沒有相符 audit，hash-chain 結論保持 `UNKNOWN`。
 
-`sequence = null` 或缺少 native sequence 時，即使 ledger 有資料且 hash chain 可驗，也必須保留：
+`sequence = null`、缺少 sequence-gap evidence 或已觀測到 `sequenceGap > 0` 時，即使 ledger 有資料且 hash chain 可驗，也不得把完整性升格為 PASS。Native sequence 缺失時必須保留：
 
 ```text
 captureState = PASS
