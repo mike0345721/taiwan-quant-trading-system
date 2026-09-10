@@ -32,6 +32,8 @@ data/quality/daily-collection-acceptance/latest.json
 
 `data/**` 依現有 `.gitignore` 保持 local-only。Raw/live market data 不得提交 GitHub。
 
+兩個 JSON 各自以 temporary file + rename 原子替換，但不是跨檔 transaction；`latest.json` 表示最後一次成功 invocation（即使該次是歷史 tradeDate），consumer 必須仍以檔內 `tradeDate` 判讀。
+
 ## 執行方式
 
 `generated-at` 是 deterministic cutoff 的一部分，必須明確傳入；同一組 immutable input byte cutoffs、同一組 evidence 與相同 `generated-at` 會產生相同 JSON。
@@ -82,7 +84,7 @@ Operational counters、reconnect 與 missing-ledger evidence 依 DAY / NIGHT 分
 
 Daily Update status 是 mutable latest report；只有 `completedAt <= generatedAt` 才能被該 acceptance 使用。被後續批次覆寫、完成時間晚於 acceptance cutoff 的 status 會 fail closed，不得回填成當時已知 evidence。
 
-官方發布時窗前仍沒有當日資料時，分類為：
+當日 governed DAY session 尚未結束、官方批次仍沒有當日資料時，保守分類為：
 
 ```text
 expectedState = PENDING
@@ -90,9 +92,11 @@ captureState = PENDING
 reasonCodes = [NOT_PUBLISHED_YET]
 ```
 
-這不是 failure denominator。
+這不是 failure denominator。13:45 是既有 TAIFEX DAY session boundary，不是對各來源另造發布 threshold；session close 後若仍沒有 dataset-specific evidence，保持 `UNKNOWN`，不猜官方發布完成時間。
 
 ### Derived research eligibility
+
+Live Feed 只有在 `coverageState=PASS` 時才可成為 `READY` 或 `READY_WITH_LIMITATION`；`PARTIAL` 一律 `NOT_READY`，`PENDING / UNKNOWN` 保持 `UNKNOWN`。單筆 delivery 不得冒充完整 session research readiness。
 
 Pressure / Price Response / Path Efficiency 是 derived evidence，不是 raw Feed。Derived 不可用不得覆寫 TX Tick / BidAsk 的 raw capture truth。Phase A 若沒有同 `tradeDate` / session 的可追溯 projection evidence，derived row 維持 `UNKNOWN / PROJECTION_NOT_READY`。
 

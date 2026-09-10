@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -47,15 +48,16 @@ function dateShift(date, days) {
   return value.toISOString().slice(0, 10);
 }
 
-function governedLedgerDates(calendar, tradeDate, sessions) {
-  const dates = new Set();
-  if (sessions.includes('DAY')) dates.add(tradeDate);
+function governedLedgerScope(calendar, tradeDate, sessions) {
+  const dates = new Map();
+  const add = (date, session) => dates.set(date, [...new Set([...(dates.get(date) || []), session])]);
+  if (sessions.includes('DAY')) add(tradeDate, 'DAY');
   if (sessions.includes('NIGHT')) {
     const previous = resolvePreviousGovernedTradingDate(calendar, tradeDate);
-    dates.add(previous);
-    dates.add(dateShift(previous, 1));
+    add(previous, 'NIGHT');
+    add(dateShift(previous, 1), 'NIGHT');
   }
-  return [...dates].sort();
+  return Object.fromEntries([...dates.entries()].sort(([left], [right]) => left.localeCompare(right)));
 }
 
 function auditEvidenceFor(ledgerPaths, auditDir) {
@@ -65,12 +67,13 @@ function auditEvidenceFor(ledgerPaths, auditDir) {
     const date = path.basename(ledgerPath, '.ndjson');
     const persisted = readJson(path.join(auditDir, `${date}.json`));
     if (persisted?.ledgerFile === `${date}.ndjson` && persisted?.audit) {
-      audits.push({ source: `${date}.json`, sourceFile: `${date}.ndjson`, ...persisted.audit });
+      audits.push({ ...persisted.audit, source: `${date}.json`, sourceFile: `${date}.ndjson` });
       continue;
     }
     const bytes = fs.statSync(ledgerPath).size;
     if (bytes <= 64 * 1024 * 1024) {
-      audits.push({ source: 'auditLiveEventLedger', sourceFile: path.basename(ledgerPath), ...auditLiveEventLedger(ledgerPath) });
+      const prefixSha256 = crypto.createHash('sha256').update(fs.readFileSync(ledgerPath)).digest('hex');
+      audits.push({ ...auditLiveEventLedger(ledgerPath), prefixSha256, source: 'auditLiveEventLedger', sourceFile: path.basename(ledgerPath) });
     }
   }
   if (!audits.length) return null;
@@ -82,6 +85,20 @@ function auditEvidenceFor(ledgerPaths, auditDir) {
       prefixSha256: item.prefixSha256 || null,
     })),
   };
+}
+
+function readJsonWithIdentity(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const contents = fs.readFileSync(filePath);
+    return {
+      value: JSON.parse(contents.toString('utf8')),
+      identity: {
+        file: path.basename(filePath), bytes: contents.length,
+        sha256: crypto.createHash('sha256').update(contents).digest('hex'),
+      },
+    };
+  } catch { return null; }
 }
 
 function atomicWrite(filePath, contents) {
@@ -97,9 +114,10 @@ function ledgerCutoffs(value) {
   for (const item of value.split(',').filter(Boolean)) {
     const [file, bytesText] = item.split('@');
     const bytes = Number(bytesText);
-    if (!/^\d{4}-\d{2}-\d{2}\.ndjson$/.test(file || '') || !Number.isInteger(bytes) || bytes < 1) {
+    if (!/^\d{4}-\d{2}-\d{2}\.ndjson$/.test(file || '') || !Number.isInteger(bytes) || bytes < 0) {
       throw new Error(`DAILY_ACCEPTANCE_LEDGER_CUTOFF_ARGUMENT_INVALID:${item}`);
     }
+    if (Object.hasOwn(result, file)) throw new Error(`DAILY_ACCEPTANCE_LEDGER_CUTOFF_DUPLICATE:${file}`);
     result[file] = bytes;
   }
   return result;
@@ -128,8 +146,12 @@ try {
   marketDayState = 'UNKNOWN';
 }
 
-const ledgerDates = governedLedgerDates(calendar, tradeDate, sessions);
-if (!ledgerDates.includes(calendarDate)) throw new Error('DAILY_ACCEPTANCE_CALENDAR_DATE_NOT_IN_GOVERNED_LEDGER_SCOPE');
+const ledgerScope = marketDayState === 'NON_TRADING_DAY' ? {} : governedLedgerScope(calendar, tradeDate, sessions);
+const ledgerDates = Object.keys(ledgerScope);
+const nightLedgerDates = ledgerDates.filter((date) => ledgerScope[date].includes('NIGHT'));
+if (marketDayState === 'NON_TRADING_DAY' ? calendarDate !== tradeDate : !ledgerDates.includes(calendarDate)) {
+  throw new Error('DAILY_ACCEPTANCE_CALENDAR_DATE_NOT_IN_GOVERNED_LEDGER_SCOPE');
+}
 const ledgerPaths = ledgerDates.map((date) => path.join(dataRoot, 'live-events', `${date}.ndjson`));
 const ledgerAudit = auditEvidenceFor(ledgerPaths, path.join(dataRoot, 'live-events', 'futures-audits'));
 const cutoffBytesByFile = ledgerCutoffs(args['ledger-cutoffs']);
@@ -143,18 +165,29 @@ if (Object.keys(cutoffBytesByFile).length) {
 }
 const liveEvidence = await streamDailyLedgerEvidence(ledgerPaths, {
   calendar, tradeDate, generatedAt, ledgerAudit, cutoffBytesByFile,
+  expectedSessionsByFile: Object.fromEntries(Object.entries(ledgerScope).map(([date, value]) => [`${date}.ndjson`, value])),
+  sessionWindows: {
+    DAY: sessions.includes('DAY') ? {
+      sessionStart: new Date(`${tradeDate}T08:45:00+08:00`).toISOString(),
+      sessionEnd: new Date(`${tradeDate}T13:45:00+08:00`).toISOString(),
+    } : null,
+    NIGHT: sessions.includes('NIGHT') && nightLedgerDates.length ? {
+      sessionStart: new Date(`${nightLedgerDates[0]}T15:00:00+08:00`).toISOString(),
+      sessionEnd: new Date(`${nightLedgerDates.at(-1)}T05:00:00+08:00`).toISOString(),
+    } : null,
+  },
 });
 
-let dailyUpdateStatus = readJson(dailyStatusPath);
+const dailyStatusEvidence = readJsonWithIdentity(dailyStatusPath);
+let dailyUpdateStatus = dailyStatusEvidence?.value || null;
 const dailyTradeDate = dailyUpdateStatus?.gateSummary?.marketDaily?.tradeDate || null;
-if (dailyTradeDate && dailyTradeDate !== tradeDate) dailyUpdateStatus = null;
+if (dailyTradeDate !== tradeDate) dailyUpdateStatus = null;
 if (dailyUpdateStatus && Date.parse(dailyUpdateStatus.completedAt || '') > Date.parse(generatedAt)) {
   dailyUpdateStatus = null;
 }
 if (dailyUpdateStatus) {
   dailyUpdateStatus.sourceArtifactIdentity = {
-    file: path.basename(dailyStatusPath),
-    bytes: fs.statSync(dailyStatusPath).size,
+    ...dailyStatusEvidence.identity,
     completedAt: dailyUpdateStatus.completedAt || null,
   };
 }
@@ -171,7 +204,7 @@ const report = buildDailyCollectionAcceptance({
   derivedEvidence: null,
   storageEvidence: {
     derivedArtifactBytes: null,
-    auditReportBytes: dailyUpdateStatus ? fs.statSync(dailyStatusPath).size : null,
+    auditReportBytes: dailyUpdateStatus ? dailyStatusEvidence.identity.bytes : null,
   },
 });
 

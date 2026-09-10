@@ -164,7 +164,18 @@ function liveFeed(definition, session, context, evidence, registry) {
     ...context, session, expectedState: definition.datasetId ? 'REQUIRED' : 'UNKNOWN', expectedWindow: session,
   });
   const registryItem = registry.get(definition.datasetId);
+  const sessionWindow = evidence?.sessionWindows?.[session] || null;
+  const generatedMs = Date.parse(context.generatedAt);
+  const expectedSessionEndMs = Date.parse(sessionWindow?.sessionEnd || '');
   if (!evidence?.ledgerFound) {
+    if (Number.isFinite(expectedSessionEndMs) && generatedMs < expectedSessionEndMs) {
+      return closeFeed({
+        ...base, captureState: 'PENDING', coverageState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING',
+        researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_SESSION_WINDOW',
+        sourceArtifactIdentity: evidence?.sourceArtifactIdentity || null,
+        smallestNextCheck: `${session} session close 後重跑每日驗收`,
+      });
+    }
     return closeFeed({ ...base, reasonCodes: ['LEDGER_NOT_FOUND'], downstreamImpact: [definition.datasetId], smallestNextCheck: '確認指定 calendarDate 的唯讀 ledger 路徑' });
   }
   if (!item || item.recordCount === 0) {
@@ -173,6 +184,15 @@ function liveFeed(definition, session, context, evidence, registry) {
         ...base, reasonCodes: ['CANONICAL_DATASET_ID_UNAVAILABLE'],
         sourceArtifactIdentity: evidence.sourceArtifactIdentity,
         smallestNextCheck: '先由資料治理建立 canonical Dataset ID，再決定 acceptance denominator',
+      });
+    }
+    if (Number.isFinite(expectedSessionEndMs) && generatedMs < expectedSessionEndMs) {
+      return closeFeed({
+        ...base, recordCount: 0, bytes: 0, captureState: 'PENDING', coverageState: 'PENDING',
+        persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN',
+        reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_SESSION_WINDOW',
+        sourceArtifactIdentity: evidence.sourceArtifactIdentity,
+        smallestNextCheck: `${session} session close 後重跑每日驗收`,
       });
     }
     return closeFeed({
@@ -206,7 +226,6 @@ function liveFeed(definition, session, context, evidence, registry) {
       && sessionMetric('reconnectCount') === 0 ? 'PASS' : 'UNKNOWN';
   const captureState = item.contracts.length === 1 && sessionMetric('callbackErrors') === 0
     && !sessionMissingFiles.length ? 'PASS' : 'PARTIAL';
-  const generatedMs = Date.parse(context.generatedAt);
   const sessionStartMs = Date.parse(item.sessionStart || '');
   const sessionEndMs = Date.parse(item.sessionEnd || '');
   let coverageState = 'UNKNOWN';
@@ -221,9 +240,10 @@ function liveFeed(definition, session, context, evidence, registry) {
     }
   }
   const researchEligibility = !definition.datasetId ? 'NOT_READY'
-    : captureState === 'PASS' && persistenceState === 'PASS'
-    ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
-    : 'NOT_READY';
+    : ['PENDING', 'UNKNOWN'].includes(coverageState) ? 'UNKNOWN'
+    : coverageState === 'PASS' && captureState === 'PASS' && persistenceState === 'PASS'
+      ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
+      : 'NOT_READY';
   return closeFeed({
     ...base,
     calendarDate: item.calendarDates?.[0] || base.calendarDate,
@@ -251,8 +271,8 @@ function liveFeed(definition, session, context, evidence, registry) {
   });
 }
 
-function publicationTime(tradeDate) {
-  return Date.parse(`${tradeDate}T15:30:00+08:00`);
+function earliestBatchDueTime(tradeDate) {
+  return Date.parse(`${tradeDate}T13:45:00+08:00`);
 }
 
 function batchFeed(definition, context, dailyStatus, datasetEvidence, registry) {
@@ -264,8 +284,8 @@ function batchFeed(definition, context, dailyStatus, datasetEvidence, registry) 
   const stage = statusAvailableAtCutoff
     ? (dailyStatus?.stages || []).find((item) => item.key === definition.stageKey) || null
     : null;
-  const reportBeforePublication = Number.isFinite(completedMs) && completedMs < publicationTime(context.tradeDate);
-  if (!stage && generatedMs < publicationTime(context.tradeDate)) {
+  const reportBeforePublication = Number.isFinite(completedMs) && completedMs < earliestBatchDueTime(context.tradeDate);
+  if (!stage && generatedMs < earliestBatchDueTime(context.tradeDate)) {
     return closeFeed({ ...base, expectedState: 'PENDING', captureState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_PUBLICATION_WINDOW', smallestNextCheck: '官方發布時窗後重跑每日驗收' });
   }
   if (reportBeforePublication && statusAvailableAtCutoff) {
@@ -397,10 +417,12 @@ export function buildDailyCollectionAcceptance({
   }
 
   const due = feeds.filter((feed) => feed.expectedState === 'REQUIRED');
-  const provenFailures = due.filter((feed) => ['FAIL', 'PARTIAL'].includes(feed.captureState)
-    || ['FAIL', 'PARTIAL'].includes(feed.persistenceState)
-    || ['FAIL', 'PARTIAL'].includes(feed.integrityState)
-    || (feed.mode === 'LIVE_EVENT' && ['FAIL', 'PARTIAL'].includes(feed.coverageState)));
+  const exactFailures = due.filter((feed) => feed.captureState === 'FAIL'
+    || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL'
+    || (feed.mode === 'LIVE_EVENT' && feed.coverageState === 'FAIL'));
+  const partialProblems = due.filter((feed) => feed.captureState === 'PARTIAL'
+    || feed.persistenceState === 'PARTIAL' || feed.integrityState === 'PARTIAL'
+    || (feed.mode === 'LIVE_EVENT' && feed.coverageState === 'PARTIAL'));
   const unknownDue = due.filter((feed) => ['UNKNOWN', 'PENDING'].includes(feed.captureState)
     || ['UNKNOWN', 'PENDING'].includes(feed.persistenceState)
     || ['UNKNOWN', 'PENDING'].includes(feed.integrityState)
@@ -408,12 +430,14 @@ export function buildDailyCollectionAcceptance({
   let overallState = 'PASS';
   if (marketDayState === 'UNKNOWN') overallState = 'UNKNOWN';
   else if (marketDayState === 'NON_TRADING_DAY') overallState = 'NOT_EXPECTED';
-  else if (provenFailures.length) overallState = provenFailures.length === due.length ? 'FAIL' : 'PARTIAL';
+  else if (exactFailures.length === due.length && due.length > 0) overallState = 'FAIL';
+  else if (exactFailures.length || partialProblems.length) overallState = 'PARTIAL';
   else if (unknownDue.length) overallState = 'UNKNOWN';
   else if (!due.length) overallState = feeds.some((feed) => feed.expectedState === 'PENDING') ? 'PENDING' : 'NOT_EXPECTED';
 
   const timestamps = feeds.filter((feed) => feed.mode === 'LIVE_EVENT')
-    .flatMap((feed) => [feed.firstReceivedAt, feed.lastReceivedAt]).filter(Boolean).sort();
+    .flatMap((feed) => [feed.firstReceivedAt, feed.lastReceivedAt]).filter(Boolean)
+    .sort((left, right) => Date.parse(left) - Date.parse(right));
   const rawBytes = nullableNumber(liveEvidence?.totalRawBytes);
   const rawRecords = nullableNumber(liveEvidence?.totalRecords);
   const derivedBytes = nullableNumber(storageEvidence.derivedArtifactBytes);
@@ -525,12 +549,20 @@ function updateCounter(target, key, value) {
 function completeLineCutoff(filePath) {
   const size = fs.statSync(filePath).size;
   if (!size) return 0;
-  const length = Math.min(size, 64 * 1024);
-  const buffer = Buffer.allocUnsafe(length);
   const fd = fs.openSync(filePath, 'r');
-  try { fs.readSync(fd, buffer, 0, length, size - length); } finally { fs.closeSync(fd); }
-  const lastNewline = buffer.lastIndexOf(0x0a);
-  return lastNewline < 0 ? 0 : size - length + lastNewline + 1;
+  let end = size;
+  try {
+    while (end > 0) {
+      const length = Math.min(end, 64 * 1024);
+      const start = end - length;
+      const buffer = Buffer.allocUnsafe(length);
+      fs.readSync(fd, buffer, 0, length, start);
+      const lastNewline = buffer.lastIndexOf(0x0a);
+      if (lastNewline >= 0) return start + lastNewline + 1;
+      end = start;
+    }
+    return 0;
+  } finally { fs.closeSync(fd); }
 }
 
 function boundaryRecordHashes(filePath, cutoffBytes) {
@@ -571,6 +603,7 @@ function potentiallyRelevantLine(line) {
 
 export async function streamDailyLedgerEvidence(filePaths, {
   calendar, tradeDate, generatedAt = null, ledgerAudit = null, cutoffBytesByFile = {},
+  expectedSessionsByFile = {}, sessionWindows = {},
 } = {}) {
   if (!calendar) throw new Error('DAILY_ACCEPTANCE_CALENDAR_REQUIRED');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) throw new Error('DAILY_ACCEPTANCE_TRADE_DATE_INVALID');
@@ -589,18 +622,21 @@ export async function streamDailyLedgerEvidence(filePaths, {
     NIGHT: { reconnectCount: 0, callbackErrors: 0, writerErrors: 0, droppedEvents: 0 },
   };
   const candidates = [...new Set(filePaths.map((item) => path.resolve(item)))].sort();
-  const unavailableFiles = candidates.filter((candidate) => !fs.existsSync(candidate)
-    || completeLineCutoff(candidate) === 0).map((candidate) => path.basename(candidate));
+  const unavailableFiles = [];
+  const unavailableArtifacts = [];
   const missingFilesBySession = { DAY: [], NIGHT: [] };
-  for (const file of unavailableFiles) {
-    const fileDate = path.basename(file, '.ndjson');
-    if (fileDate === tradeDate) missingFilesBySession.DAY.push(file);
-    missingFilesBySession.NIGHT.push(file);
-  }
   for (const candidate of candidates) {
-    if (!fs.existsSync(candidate)) continue;
+    const file = path.basename(candidate);
+    const expectedSessions = expectedSessionsByFile[file]
+      || (path.basename(file, '.ndjson') === tradeDate ? ['DAY', 'NIGHT'] : ['NIGHT']);
+    if (!fs.existsSync(candidate)) {
+      unavailableFiles.push(file);
+      unavailableArtifacts.push({ file, exists: false, availableBytes: null, cutoffBytes: null });
+      for (const session of expectedSessions) missingFilesBySession[session]?.push(file);
+      continue;
+    }
     const completeBytes = completeLineCutoff(candidate);
-    const requestedCutoff = cutoffBytesByFile[path.basename(candidate)];
+    const requestedCutoff = cutoffBytesByFile[file];
     const cutoffBytes = requestedCutoff == null ? completeBytes : Number(requestedCutoff);
     if (!Number.isInteger(cutoffBytes) || cutoffBytes < 0 || cutoffBytes > completeBytes) {
       throw new Error(`DAILY_ACCEPTANCE_LEDGER_CUTOFF_INVALID:${path.basename(candidate)}`);
@@ -611,7 +647,12 @@ export async function streamDailyLedgerEvidence(filePaths, {
       try { fs.readSync(fd, byte, 0, 1, cutoffBytes - 1); } finally { fs.closeSync(fd); }
       if (byte[0] !== 0x0a) throw new Error(`DAILY_ACCEPTANCE_LEDGER_CUTOFF_NOT_LINE_BOUNDARY:${path.basename(candidate)}`);
     }
-    if (!cutoffBytes) continue;
+    if (!cutoffBytes) {
+      unavailableFiles.push(file);
+      unavailableArtifacts.push({ file, exists: true, availableBytes: fs.statSync(candidate).size, cutoffBytes: 0 });
+      for (const session of expectedSessions) missingFilesBySession[session]?.push(file);
+      continue;
+    }
     totalRawBytes += cutoffBytes;
     const identity = {
       file: path.basename(candidate), cutoffBytes,
@@ -671,9 +712,11 @@ export async function streamDailyLedgerEvidence(filePaths, {
       const key = feedKey(record, identityContext.session);
       if (!key || record.duplicate === true || payload.simtrade === true) continue;
       totalRecords += 1;
-      if (record.sequence != null) nativeSequenceAvailable = true;
+      const sequence = Number(record.sequence);
+      const validSequence = record.sequence != null && Number.isSafeInteger(sequence) && sequence >= 0;
+      if (validSequence) nativeSequenceAvailable = true;
       const item = ensureFeedEvidence(feeds, key);
-      if (record.sequence == null) item.nativeSequenceMissing = true;
+      if (!validSequence) item.nativeSequenceMissing = true;
       else {
         item.nativeSequenceAvailable = true;
         const gap = Number(record.sequenceGap);
@@ -698,7 +741,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
     && identities.every((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
       && audit.latestHash === identity.lastRecordHash && audit.ok === true && audit.sequenceGaps === 0
-      && (audit.source === 'auditLiveEventLedger' || audit.prefixSha256 === identity.prefixSha256)
+      && audit.prefixSha256 === identity.prefixSha256
   )));
   const auditFailed = identities.some((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
@@ -723,8 +766,10 @@ export async function streamDailyLedgerEvidence(filePaths, {
     invalidLines,
     nativeSequenceAvailable,
     ledgerAudit: boundedLedgerAudit,
-    sourceArtifactIdentity: identities.length ? {
-      type: 'append-only-ledger-fixed-byte-cutoff', files: identities, missingFiles: unavailableFiles,
+    sessionWindows: Object.freeze({ ...sessionWindows }),
+    sourceArtifactIdentity: candidates.length ? {
+      type: 'append-only-ledger-fixed-byte-cutoff', files: identities,
+      unavailableFiles: unavailableArtifacts, missingFiles: unavailableFiles,
     } : null,
   });
 }
