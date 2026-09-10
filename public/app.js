@@ -4301,11 +4301,11 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
-  const requestId = ++state.txChartRequestId;
   if (state.txChartLoading) {
     state.txChartPendingFit = state.txChartPendingFit || fit;
     return;
   }
+  const requestId = ++state.txChartRequestId;
   const timeframe = state.txChartTimeframe;
   state.txChartLoading = true;
   const params = new URLSearchParams({ timeframe, mode: 'LIVE' });
@@ -4318,7 +4318,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
     throw error;
   } finally {
     state.txChartLoading = false;
-    if (requestId !== state.txChartRequestId) {
+    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) {
       const pendingFit = state.txChartPendingFit;
       state.txChartPendingFit = false;
       await loadTxDecisionChart({ fit: pendingFit });

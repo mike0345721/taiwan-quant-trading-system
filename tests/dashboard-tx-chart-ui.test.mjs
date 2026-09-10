@@ -27,6 +27,12 @@ test('timeframe switching updates chart only and preserves Decision Summary/Data
   assert.match(app, /state\.txChartSeries\.candle\.update/);
   assert.match(app, /\['READY', 'FORMING', 'QUALITY_INSUFFICIENT'\]\.includes/);
   assert.match(app, /setInterval[\s\S]*loadTxDecisionChart/);
+  const chartLoader = app.slice(app.indexOf('async function loadTxDecisionChart'), app.indexOf('async function reportCru46BrowserRuntimeProof'));
+  assert.ok(
+    chartLoader.indexOf('if (state.txChartLoading)') < chartLoader.indexOf('const requestId = ++state.txChartRequestId'),
+    'same-window refresh while a slow request is active must not invalidate the in-flight response',
+  );
+  assert.match(chartLoader, /requestId !== state\.txChartRequestId \|\| timeframe !== state\.txChartTimeframe/);
   assert.match(app, /subscribeCrosshairMove/);
   assert.match(app, /UNAVAILABLE_AT_SELECTED_TIME/);
   assert.match(app, /OR H/);
