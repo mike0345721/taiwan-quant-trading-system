@@ -50,13 +50,11 @@ node scripts/build-daily-collection-acceptance.mjs `
 
 對仍在 append 的當日 ledger，首次執行會把實際完整行 cutoff 寫入 `sourceArtifactIdentity.files[].cutoffBytes`。需要 deterministic read-back 時，必須用 `--ledger-cutoffs` 明確重放相同 boundary；`generated-at` 是報告與發布時窗語意，不能取代物理 byte cutoff。
 
-若只需在同一 live evidence 上重建 batch/derived acceptance，可傳 `--reuse-live-report=<既有 acceptance.json>`。Builder 會逐檔重驗保存的 cutoff、first hash 與 last hash 後才重用 live summary；任一 identity 不符即 fail closed。這個路徑不建立新 cache，也不讀寫 shared runtime semantics。
-
 ## 證據模型
 
 ### Live event
 
-每個 ledger 在開始掃描前先固定最後一個完整換行的 byte cutoff，之後逐行讀取到該 cutoff。報告保留檔名、cutoff bytes、第一與最後 record hash。只統計與指定 `tradeDate`、session 與 canonical Feed 相符的非 `simtrade`、非 duplicate records。
+每個 ledger 在開始掃描前先固定最後一個完整換行的 byte cutoff，之後逐行讀取到該 cutoff。報告保留檔名、cutoff bytes、完整 prefix SHA-256、第一與最後 record hash。只統計 `receivedAt <= generatedAt`，且與指定 `tradeDate`、session 與 canonical Feed 相符的非 `simtrade`、非 duplicate records。
 
 既有小型 ledger 可重用 `auditLiveEventLedger`；大型 ledger 不做另一個無界全檔記憶體 audit，而優先使用既有 `futures-audits/YYYY-MM-DD.json`。若沒有相符 audit，hash-chain 結論保持 `UNKNOWN`。
 
@@ -108,12 +106,12 @@ Pressure / Price Response / Path Efficiency 是 derived evidence，不是 raw Fe
 
 本版 canonical Feed rows 包含：
 
-- Live：`tx_actual_trade`、`tx_best_quote`、`equity_2330_raw_price`、`taiex_index`，各自區分 DAY / NIGHT。
+- Live：TX、MTX、TMF 的 Tick / BidAsk，以及 `equity_2330_raw_price`、`taiex_index`，各自區分 DAY / NIGHT。TX 使用 registry 的 `tx_actual_trade` / `tx_best_quote`；MTX/TMF 因 registry 尚無獨立 canonical Dataset ID，`datasetId` 保持 `null` 並標記 `CANONICAL_DATASET_ID_UNAVAILABLE`，不得自創 alias 或升格為 research-ready。
 - Official/batch：`taifex_daily_market`、`tx_futures_oi`、`tx_institutional_positions`、`tx_large_trader`、`txo_strike_expiry_cp_oi`、`market_breadth_and_sector_leadership`。
 - Derived：`derived_pressure_response_efficiency`。
-- Future/non-enabled：`twn_futures`、`nq_futures`，固定為 non-failure `NOT_EXPECTED / NOT_ENABLED`。
+- Future/non-enabled：`txo_intraday_trade_quote_candidates`、`twn_futures`、`nq_futures`，固定為 non-failure `NOT_EXPECTED / NOT_ENABLED`。
 
-MTX / TMF live records 雖存在於 shared ledger，但 Master Data Requirements V1 尚未提供獨立 canonical Dataset ID。本階段不自創 `mtx_*` / `tmf_*` 別名；待 canonical registry 另案治理後，可用相同 feed/session adapter 擴充，不需改 aggregate semantics。
+MTX / TMF live records 雖存在於 shared ledger，但 Master Data Requirements V1 尚未提供獨立 canonical Dataset ID。本階段仍回報 Feed-level capture metadata，但不自創 `mtx_*` / `tmf_*` 別名；待 canonical registry 另案治理後再補正 `datasetId`。
 
 ## Schema
 

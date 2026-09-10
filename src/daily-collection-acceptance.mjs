@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline';
+import { Transform } from 'node:stream';
 import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
 
 export const DAILY_COLLECTION_ACCEPTANCE_SCHEMA_VERSION = 'daily-collection-acceptance-v1';
@@ -46,11 +48,16 @@ export const REASON_ZH = Object.freeze({
   WARMING_UP_WINDOW_INCOMPLETE: '研究視窗仍在暖機',
   API_NOT_READY: '來源 API 尚未就緒',
   RESEARCH_RULE_NOT_MET: '研究使用規則未符合',
+  CANONICAL_DATASET_ID_UNAVAILABLE: 'Master Data Requirements 尚無此 Feed 的 canonical Dataset ID',
 });
 
 const LIVE_FEEDS = Object.freeze([
   Object.freeze({ datasetId: 'tx_actual_trade', ownerLabelZh: '臺指期逐筆成交', technicalLabelEn: 'TX Tick', quoteType: 'Tick', family: 'TX', kind: 'futures_tick', sessions: ['DAY', 'NIGHT'], material: true }),
   Object.freeze({ datasetId: 'tx_best_quote', ownerLabelZh: '臺指期最佳買賣報價', technicalLabelEn: 'TX BidAsk', quoteType: 'BidAsk', family: 'TX', kind: 'futures_bidask', sessions: ['DAY', 'NIGHT'], material: true }),
+  Object.freeze({ datasetId: null, ownerLabelZh: '小型臺指期逐筆成交', technicalLabelEn: 'MTX Tick', quoteType: 'Tick', family: 'MTX', kind: 'futures_tick', sessions: ['DAY', 'NIGHT'], material: false }),
+  Object.freeze({ datasetId: null, ownerLabelZh: '小型臺指期最佳買賣報價', technicalLabelEn: 'MTX BidAsk', quoteType: 'BidAsk', family: 'MTX', kind: 'futures_bidask', sessions: ['DAY', 'NIGHT'], material: false }),
+  Object.freeze({ datasetId: null, ownerLabelZh: '微型臺指期逐筆成交', technicalLabelEn: 'TMF Tick', quoteType: 'Tick', family: 'TMF', kind: 'futures_tick', sessions: ['DAY', 'NIGHT'], material: false }),
+  Object.freeze({ datasetId: null, ownerLabelZh: '微型臺指期最佳買賣報價', technicalLabelEn: 'TMF BidAsk', quoteType: 'BidAsk', family: 'TMF', kind: 'futures_bidask', sessions: ['DAY', 'NIGHT'], material: false }),
   Object.freeze({ datasetId: 'equity_2330_raw_price', ownerLabelZh: '台積電 2330 即時成交', technicalLabelEn: '2330 live Tick', quoteType: 'Tick', family: '2330', kind: 'stock_tick', sessions: ['DAY'], material: false }),
   Object.freeze({ datasetId: 'taiex_index', ownerLabelZh: '發行量加權股價指數即時報價', technicalLabelEn: 'IX0001 live Quote', quoteType: 'Quote', family: 'IX0001', kind: 'index_quote', sessions: ['DAY'], material: false }),
 ]);
@@ -65,6 +72,7 @@ const BATCH_FEEDS = Object.freeze([
 ]);
 
 const FUTURE_FEEDS = Object.freeze([
+  Object.freeze({ datasetId: 'txo_intraday_trade_quote_candidates', ownerLabelZh: '臺指選擇權盤中成交與報價候選', technicalLabelEn: 'TXO Live chain', quoteType: 'Tick/BidAsk' }),
   Object.freeze({ datasetId: 'twn_futures', ownerLabelZh: '富時臺灣指數期貨即時資料', technicalLabelEn: 'TWN Live', quoteType: 'Tick/BidAsk' }),
   Object.freeze({ datasetId: 'nq_futures', ownerLabelZh: '那斯達克 100 指數期貨即時資料', technicalLabelEn: 'NQ Live', quoteType: 'Tick/BidAsk' }),
 ]);
@@ -150,12 +158,21 @@ function liveFeed(definition, session, context, evidence, registry) {
   }
   const key = `${definition.family}:${definition.kind}:${session}`;
   const item = evidence?.feeds?.[key] || null;
-  const base = feedBase(definition, { ...context, session, expectedState: 'REQUIRED', expectedWindow: session });
+  const base = feedBase(definition, {
+    ...context, session, expectedState: definition.datasetId ? 'REQUIRED' : 'UNKNOWN', expectedWindow: session,
+  });
   const registryItem = registry.get(definition.datasetId);
   if (!evidence?.ledgerFound) {
     return closeFeed({ ...base, reasonCodes: ['LEDGER_NOT_FOUND'], downstreamImpact: [definition.datasetId], smallestNextCheck: '確認指定 calendarDate 的唯讀 ledger 路徑' });
   }
   if (!item || item.recordCount === 0) {
+    if (!definition.datasetId) {
+      return closeFeed({
+        ...base, reasonCodes: ['CANONICAL_DATASET_ID_UNAVAILABLE'],
+        sourceArtifactIdentity: evidence.sourceArtifactIdentity,
+        smallestNextCheck: '先由資料治理建立 canonical Dataset ID，再決定 acceptance denominator',
+      });
+    }
     return closeFeed({
       ...base, recordCount: 0, bytes: 0, captureState: 'FAIL', persistenceState: 'UNKNOWN',
       reasonCodes: ['CAPTURE_GAP_UNEXPLAINED'], evidenceStrength: 'BOUNDED_LEDGER_SCAN',
@@ -164,24 +181,29 @@ function liveFeed(definition, session, context, evidence, registry) {
     });
   }
   const reasons = [];
+  if (!definition.datasetId) reasons.push('CANONICAL_DATASET_ID_UNAVAILABLE');
   if (item.contracts.length !== 1) reasons.push('ACTUAL_CONTRACT_MISMATCH');
   if (item.nativeSequenceAvailable !== true || item.nativeSequenceMissing === true) reasons.push('NATIVE_SEQUENCE_UNAVAILABLE');
   if (evidence.callbackErrors > 0) reasons.push('CALLBACK_ERROR');
   if (evidence.writerErrors > 0) reasons.push('WRITER_ERROR');
   if (evidence.droppedEvents > 0) reasons.push('QUEUE_DROP');
   if (evidence.reconnectCount > 0) reasons.push('PROVIDER_RECONNECT');
-  if (evidence.invalidLines > 0) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
+  if (item.invalidLines > 0) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
   const persistenceState = evidence.writerErrors > 0 || evidence.droppedEvents > 0 ? 'FAIL' : 'PASS';
   const knownIntegrityFailure = evidence.ledgerAudit?.ok === false;
   const integrityState = knownIntegrityFailure ? 'FAIL'
     : evidence.ledgerAudit?.ok === true && item.nativeSequenceAvailable === true
-      && item.nativeSequenceMissing !== true ? 'PASS' : 'UNKNOWN';
-  const captureState = item.contracts.length === 1 ? 'PASS' : 'PARTIAL';
-  const researchEligibility = captureState === 'PASS' && persistenceState === 'PASS'
+      && item.nativeSequenceMissing !== true && item.invalidLines === 0
+      && evidence.reconnectCount === 0 ? 'PASS' : 'UNKNOWN';
+  const captureState = item.contracts.length === 1 && evidence.callbackErrors === 0 ? 'PASS' : 'PARTIAL';
+  const researchEligibility = !definition.datasetId ? 'NOT_READY'
+    : captureState === 'PASS' && persistenceState === 'PASS'
     ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
     : 'NOT_READY';
   return closeFeed({
     ...base,
+    calendarDate: item.calendarDates?.[0] || base.calendarDate,
+    calendarDates: item.calendarDates || (item.firstReceivedAt ? [String(item.firstReceivedAt).slice(0, 10)] : []),
     actualContract: item.contracts.length === 1 ? item.contracts[0] : null,
     firstReceivedAt: item.firstReceivedAt,
     lastReceivedAt: item.lastReceivedAt,
@@ -194,8 +216,11 @@ function liveFeed(definition, session, context, evidence, registry) {
     reasonCodes: reasons,
     evidenceStrength: evidence.ledgerAudit ? 'LEDGER_AUDIT_PLUS_BOUNDED_SCAN' : 'BOUNDED_LEDGER_SCAN',
     sourceArtifactIdentity: evidence.sourceArtifactIdentity,
-    downstreamImpact: researchEligibility === 'NOT_READY' ? [definition.datasetId, 'derived_pressure_response_efficiency'] : [],
-    smallestNextCheck: reasons.includes('NATIVE_SEQUENCE_UNAVAILABLE')
+    downstreamImpact: researchEligibility === 'NOT_READY'
+      ? [definition.datasetId, 'derived_pressure_response_efficiency'].filter(Boolean) : [],
+    smallestNextCheck: !definition.datasetId
+      ? '先由資料治理建立 canonical Dataset ID，再決定 research eligibility'
+      : reasons.includes('NATIVE_SEQUENCE_UNAVAILABLE')
       ? '保留完整性 UNKNOWN；如需更強結論，另找獨立成交量或序列證據'
       : '核對當日 governed audit 與來源時間窗',
   });
@@ -302,10 +327,12 @@ function derivedFeed(context, evidence, registry) {
 }
 
 function sessionState(feeds, session) {
-  const rows = feeds.filter((feed) => feed.session === session && feed.mode === 'LIVE_EVENT');
+  const rows = feeds.filter((feed) => feed.session === session && feed.mode === 'LIVE_EVENT'
+    && feed.expectedState === 'REQUIRED');
   if (!rows.length || rows.every((feed) => feed.captureState === 'NOT_EXPECTED')) return 'NOT_EXPECTED';
-  if (rows.some((feed) => feed.captureState === 'FAIL')) return 'FAIL';
-  if (rows.some((feed) => ['UNKNOWN', 'PARTIAL'].includes(feed.captureState))) return 'UNKNOWN';
+  if (rows.some((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL')) return 'FAIL';
+  if (rows.some((feed) => ['UNKNOWN', 'PARTIAL'].includes(feed.captureState)
+      || feed.persistenceState === 'UNKNOWN' || feed.integrityState === 'UNKNOWN')) return 'UNKNOWN';
   return 'PASS';
 }
 
@@ -343,7 +370,8 @@ export function buildDailyCollectionAcceptance({
 
   const due = feeds.filter((feed) => feed.expectedState === 'REQUIRED');
   const provenFailures = due.filter((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL');
-  const unknownDue = due.filter((feed) => feed.captureState === 'UNKNOWN' || feed.persistenceState === 'UNKNOWN');
+  const unknownDue = due.filter((feed) => feed.captureState === 'UNKNOWN'
+    || feed.persistenceState === 'UNKNOWN' || feed.integrityState === 'UNKNOWN');
   let overallState = 'PASS';
   if (marketDayState === 'UNKNOWN') overallState = 'UNKNOWN';
   else if (marketDayState === 'NON_TRADING_DAY') overallState = 'NOT_EXPECTED';
@@ -405,8 +433,8 @@ function familyOf(record) {
 
 function feedKey(record, session) {
   const family = familyOf(record);
-  if (record.kind === 'futures_tick' && family === 'TX') return `TX:futures_tick:${session}`;
-  if (record.kind === 'futures_bidask' && family === 'TX') return `TX:futures_bidask:${session}`;
+  if (record.kind === 'futures_tick' && ['TX', 'MTX', 'TMF'].includes(family)) return `${family}:futures_tick:${session}`;
+  if (record.kind === 'futures_bidask' && ['TX', 'MTX', 'TMF'].includes(family)) return `${family}:futures_bidask:${session}`;
   if (record.kind === 'stock_tick' && (family === '2330' || record.code === '2330')) return `2330:stock_tick:${session}`;
   if (record.kind === 'index_quote' && (family === 'IX0001' || record.code === 'IX0001')) return `IX0001:index_quote:${session}`;
   return null;
@@ -426,16 +454,29 @@ function identityOf(record, calendar) {
   const payload = record?.payload || {};
   const explicitTradeDate = payload.tradeDate || payload._trade_date || record.tradeDate || null;
   const explicitSession = payload.session || payload._session || record.session || null;
-  if (explicitTradeDate && explicitSession) return { tradeDate: explicitTradeDate, session: explicitSession };
+  let classified;
   if (['stock_tick', 'index_quote'].includes(record.kind)) {
-    return { tradeDate: payload.date || String(eventTimeOf(record) || '').slice(0, 10) || null, session: 'DAY' };
+    const eventDate = payload.date || String(eventTimeOf(record) || '').slice(0, 10) || null;
+    classified = /^\d{4}-\d{2}-\d{2}$/.test(eventDate || '')
+      ? { tradeDate: eventDate, session: 'DAY' } : null;
+  } else {
+    try { classified = classifyTxChartSession(eventTimeOf(record), calendar); } catch { classified = null; }
   }
-  try {
-    const classified = classifyTxChartSession(eventTimeOf(record), calendar);
-    return { tradeDate: classified.tradeDate, session: classified.session };
-  } catch {
-    return { tradeDate: explicitTradeDate, session: explicitSession };
+  if (!classified) return { tradeDate: null, session: null, valid: false };
+  const matchesExplicit = (!explicitTradeDate || explicitTradeDate === classified.tradeDate)
+    && (!explicitSession || explicitSession === classified.session);
+  return { ...classified, valid: matchesExplicit };
+}
+
+function ensureFeedEvidence(feeds, key) {
+  if (!key) return null;
+  if (!feeds[key]) {
+    feeds[key] = {
+      recordCount: 0, bytes: 0, firstReceivedAt: null, lastReceivedAt: null, contracts: [],
+      calendarDates: [], nativeSequenceAvailable: false, nativeSequenceMissing: false, invalidLines: 0,
+    };
   }
+  return feeds[key];
 }
 
 function updateCounter(target, key, value) {
@@ -478,8 +519,8 @@ function boundaryRecordHashes(filePath, cutoffBytes) {
 
 function potentiallyRelevantLine(line) {
   const live = ((line.includes('"kind":"futures_tick"') || line.includes('"kind":"futures_bidask"'))
-      && (line.includes('"_product_family":"TX"') || line.includes('"productFamily":"TX"')
-        || /"product":"TXF[A-L]\d"/.test(line)))
+      && (/"_product_family":"(TX|MTX|TMF)"/.test(line) || /"productFamily":"(TX|MTX|TMF)"/.test(line)
+        || /"product":"(TXF|MXF|TMF)[A-L]\d"/.test(line)))
     || (line.includes('"kind":"stock_tick"') && line.includes('"code":"2330"'))
     || (line.includes('"kind":"index_quote"') && line.includes('"code":"IX0001"'));
   const operations = line.includes('"kind":"session_down"')
@@ -490,10 +531,12 @@ function potentiallyRelevantLine(line) {
 }
 
 export async function streamDailyLedgerEvidence(filePaths, {
-  calendar, tradeDate, ledgerAudit = null, cutoffBytesByFile = {},
+  calendar, tradeDate, generatedAt = null, ledgerAudit = null, cutoffBytesByFile = {},
 } = {}) {
   if (!calendar) throw new Error('DAILY_ACCEPTANCE_CALENDAR_REQUIRED');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) throw new Error('DAILY_ACCEPTANCE_TRADE_DATE_INVALID');
+  const generatedMs = generatedAt == null ? null : Date.parse(generatedAt);
+  if (generatedAt != null && !Number.isFinite(generatedMs)) throw new Error('DAILY_ACCEPTANCE_GENERATED_AT_INVALID');
   const feeds = {};
   const identities = [];
   let totalRawBytes = 0;
@@ -518,46 +561,85 @@ export async function streamDailyLedgerEvidence(filePaths, {
     }
     if (!cutoffBytes) continue;
     totalRawBytes += cutoffBytes;
-    const identity = { file: path.basename(candidate), cutoffBytes, ...boundaryRecordHashes(candidate, cutoffBytes) };
+    const identity = {
+      file: path.basename(candidate), cutoffBytes,
+      ...boundaryRecordHashes(candidate, cutoffBytes),
+    };
     const input = fs.createReadStream(candidate, {
-      encoding: 'utf8', start: 0, end: cutoffBytes - 1, highWaterMark: 8 * 1024 * 1024,
+      start: 0, end: cutoffBytes - 1, highWaterMark: 8 * 1024 * 1024,
     });
-    const lines = readline.createInterface({ input, crlfDelay: Infinity });
+    const prefixHash = crypto.createHash('sha256');
+    const hashTap = new Transform({
+      transform(chunk, encoding, callback) {
+        prefixHash.update(chunk);
+        callback(null, chunk);
+      },
+    });
+    input.pipe(hashTap);
+    hashTap.setEncoding('utf8');
+    const lines = readline.createInterface({ input: hashTap, crlfDelay: Infinity });
     for await (const line of lines) {
       if (!line) continue;
       if (!potentiallyRelevantLine(line)) continue;
       let record;
       try { record = JSON.parse(line); } catch { invalidLines += 1; continue; }
+      const identityContext = identityOf(record, calendar);
+      const candidateKey = feedKey(record, identityContext.session);
       if (record.executionAuthorized !== false || record.orderRoutesEnabled !== false) {
+        const item = ensureFeedEvidence(feeds, candidateKey);
+        if (item) item.invalidLines += 1;
         invalidLines += 1;
         continue;
       }
+      const receivedMs = Date.parse(record.receivedAt || '');
+      if (!Number.isFinite(receivedMs)) {
+        const item = ensureFeedEvidence(feeds, candidateKey);
+        if (item) item.invalidLines += 1;
+        invalidLines += 1;
+        continue;
+      }
+      if (generatedMs != null && receivedMs > generatedMs) continue;
       const payload = record.payload || {};
+      if (!identityContext.valid) {
+        const item = ensureFeedEvidence(feeds, candidateKey);
+        if (item) item.invalidLines += 1;
+        invalidLines += 1;
+        continue;
+      }
+      if (identityContext.tradeDate !== tradeDate || !['DAY', 'NIGHT'].includes(identityContext.session)) continue;
       updateCounter(counters, 'callbackErrors', payload.callbackErrors);
       updateCounter(counters, 'writerErrors', payload.writerErrors);
       updateCounter(counters, 'droppedEvents', payload.dropped ?? payload.droppedEvents);
       if (record.kind === 'session_down' || (record.kind === 'provider_event' && /reconnect/i.test(payload.event || ''))) reconnectCount += 1;
-      const identityContext = identityOf(record, calendar);
-      if (identityContext.tradeDate !== tradeDate || !['DAY', 'NIGHT'].includes(identityContext.session)) continue;
       const key = feedKey(record, identityContext.session);
       if (!key || record.duplicate === true || payload.simtrade === true) continue;
       totalRecords += 1;
       if (record.sequence != null) nativeSequenceAvailable = true;
-      const item = feeds[key] || {
-        recordCount: 0, bytes: 0, firstReceivedAt: null, lastReceivedAt: null, contracts: [],
-        nativeSequenceAvailable: false, nativeSequenceMissing: false,
-      };
+      const item = ensureFeedEvidence(feeds, key);
       if (record.sequence == null) item.nativeSequenceMissing = true;
       else item.nativeSequenceAvailable = true;
       item.recordCount += 1;
       item.bytes += Buffer.byteLength(line, 'utf8') + 1;
+      item.calendarDates = unique([...item.calendarDates, String(record.receivedAt).slice(0, 10)]).sort();
       if (!item.firstReceivedAt || Date.parse(record.receivedAt) < Date.parse(item.firstReceivedAt)) item.firstReceivedAt = record.receivedAt || null;
       if (!item.lastReceivedAt || Date.parse(record.receivedAt) > Date.parse(item.lastReceivedAt)) item.lastReceivedAt = record.receivedAt || null;
       item.contracts = unique([...item.contracts, contractOf(record)]).sort();
       feeds[key] = item;
     }
+    identity.prefixSha256 = prefixHash.digest('hex');
     identities.push(identity);
   }
+  const auditSources = ledgerAudit?.sources || [];
+  const auditComplete = identities.length > 0 && identities.every((identity) => auditSources.some((audit) => (
+    audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
+      && audit.latestHash === identity.lastRecordHash && audit.ok === true
+  )));
+  const auditFailed = identities.some((identity) => auditSources.some((audit) => (
+    audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
+      && audit.latestHash === identity.lastRecordHash && audit.ok === false
+  )));
+  const boundedLedgerAudit = auditComplete ? { ok: true, sources: auditSources }
+    : auditFailed ? { ok: false, sources: auditSources } : null;
   return Object.freeze({
     ledgerFound: identities.length > 0,
     feeds,
@@ -569,74 +651,8 @@ export async function streamDailyLedgerEvidence(filePaths, {
     droppedEvents: identities.length ? counters.droppedEvents : null,
     invalidLines,
     nativeSequenceAvailable,
-    ledgerAudit,
+    ledgerAudit: boundedLedgerAudit,
     sourceArtifactIdentity: identities.length ? { type: 'append-only-ledger-fixed-byte-cutoff', files: identities } : null,
-  });
-}
-
-const DATASET_TO_LIVE_KEY = Object.freeze({
-  tx_actual_trade: ['TX', 'futures_tick'],
-  tx_best_quote: ['TX', 'futures_bidask'],
-  equity_2330_raw_price: ['2330', 'stock_tick'],
-  taiex_index: ['IX0001', 'index_quote'],
-});
-
-export function reuseDailyLedgerEvidence(report, filePaths, { tradeDate } = {}) {
-  if (report?.schemaVersion !== DAILY_COLLECTION_ACCEPTANCE_SCHEMA_VERSION || report?.tradeDate !== tradeDate) {
-    throw new Error('DAILY_ACCEPTANCE_REUSE_REPORT_IDENTITY_INVALID');
-  }
-  if (report?.safety?.executionAuthorized !== false || report?.safety?.orderRoutesEnabled !== false) {
-    throw new Error('DAILY_ACCEPTANCE_REUSE_REPORT_SAFETY_INVALID');
-  }
-  const liveRows = (report.feeds || []).filter((feed) => feed.mode === 'LIVE_EVENT');
-  const sourceArtifactIdentity = liveRows.find((feed) => feed.sourceArtifactIdentity)?.sourceArtifactIdentity || null;
-  if (sourceArtifactIdentity?.type !== 'append-only-ledger-fixed-byte-cutoff'
-      || !Array.isArray(sourceArtifactIdentity.files)) {
-    throw new Error('DAILY_ACCEPTANCE_REUSE_SOURCE_IDENTITY_MISSING');
-  }
-  const byName = new Map(filePaths.map((filePath) => [path.basename(filePath), path.resolve(filePath)]));
-  for (const identity of sourceArtifactIdentity.files) {
-    const candidate = byName.get(identity.file);
-    const cutoffBytes = Number(identity.cutoffBytes);
-    if (!candidate || !fs.existsSync(candidate) || !Number.isInteger(cutoffBytes)
-        || cutoffBytes < 1 || cutoffBytes > completeLineCutoff(candidate)) {
-      throw new Error(`DAILY_ACCEPTANCE_REUSE_LEDGER_INVALID:${identity.file}`);
-    }
-    const boundary = boundaryRecordHashes(candidate, cutoffBytes);
-    if (boundary.firstRecordHash !== identity.firstRecordHash || boundary.lastRecordHash !== identity.lastRecordHash) {
-      throw new Error(`DAILY_ACCEPTANCE_REUSE_LEDGER_HASH_MISMATCH:${identity.file}`);
-    }
-  }
-  const feeds = {};
-  for (const row of liveRows) {
-    const mapping = DATASET_TO_LIVE_KEY[row.datasetId];
-    if (!mapping || !['DAY', 'NIGHT'].includes(row.session) || row.recordCount == null) continue;
-    const [family, kind] = mapping;
-    feeds[`${family}:${kind}:${row.session}`] = {
-      recordCount: row.recordCount,
-      bytes: row.bytes,
-      firstReceivedAt: row.firstReceivedAt,
-      lastReceivedAt: row.lastReceivedAt,
-      contracts: row.actualContract ? [row.actualContract] : [],
-      nativeSequenceAvailable: !row.reasonCodes.includes('NATIVE_SEQUENCE_UNAVAILABLE'),
-      nativeSequenceMissing: row.reasonCodes.includes('NATIVE_SEQUENCE_UNAVAILABLE'),
-    };
-  }
-  return Object.freeze({
-    ledgerFound: true,
-    feeds,
-    totalRawBytes: report.summary?.totalRawBytes ?? null,
-    totalRecords: report.summary?.totalRecords ?? null,
-    reconnectCount: report.summary?.reconnectCount ?? null,
-    callbackErrors: report.summary?.callbackErrors ?? null,
-    writerErrors: report.summary?.writerErrors ?? null,
-    droppedEvents: report.summary?.droppedEvents ?? null,
-    invalidLines: liveRows.some((row) => row.reasonCodes.includes('TIMESTAMP_LINEAGE_INSUFFICIENT')) ? 1 : 0,
-    nativeSequenceAvailable: liveRows.length > 0
-      && liveRows.every((row) => !row.reasonCodes.includes('NATIVE_SEQUENCE_UNAVAILABLE')),
-    ledgerAudit: null,
-    sourceArtifactIdentity,
-    reusedFromAcceptance: true,
   });
 }
 

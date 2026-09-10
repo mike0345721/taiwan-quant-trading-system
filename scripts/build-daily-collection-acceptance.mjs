@@ -4,7 +4,6 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
   buildDailyCollectionAcceptance,
-  reuseDailyLedgerEvidence,
   stableDailyAcceptanceJson,
   streamDailyLedgerEvidence,
 } from '../src/daily-collection-acceptance.mjs';
@@ -70,12 +69,12 @@ function auditEvidenceFor(ledgerPaths, auditDir) {
     const date = path.basename(ledgerPath, '.ndjson');
     const persisted = readJson(path.join(auditDir, `${date}.json`));
     if (persisted?.ledgerFile === `${date}.ndjson` && persisted?.audit) {
-      audits.push({ source: `${date}.json`, ...persisted.audit });
+      audits.push({ source: `${date}.json`, sourceFile: `${date}.ndjson`, ...persisted.audit });
       continue;
     }
     const bytes = fs.statSync(ledgerPath).size;
     if (bytes <= 64 * 1024 * 1024) {
-      audits.push({ source: 'auditLiveEventLedger', ...auditLiveEventLedger(ledgerPath) });
+      audits.push({ source: 'auditLiveEventLedger', sourceFile: path.basename(ledgerPath), ...auditLiveEventLedger(ledgerPath) });
     }
   }
   if (!audits.length) return null;
@@ -130,14 +129,21 @@ try {
 }
 
 const ledgerDates = governedLedgerDates(calendar, tradeDate, sessions);
+if (!ledgerDates.includes(calendarDate)) throw new Error('DAILY_ACCEPTANCE_CALENDAR_DATE_NOT_IN_GOVERNED_LEDGER_SCOPE');
 const ledgerPaths = ledgerDates.map((date) => path.join(dataRoot, 'live-events', `${date}.ndjson`));
 const ledgerAudit = auditEvidenceFor(ledgerPaths, path.join(dataRoot, 'live-events', 'futures-audits'));
 const cutoffBytesByFile = ledgerCutoffs(args['ledger-cutoffs']);
-const reuseReport = args['reuse-live-report'] ? readJson(path.resolve(args['reuse-live-report'])) : null;
-if (args['reuse-live-report'] && !reuseReport) throw new Error('DAILY_ACCEPTANCE_REUSE_REPORT_UNREADABLE');
-const liveEvidence = reuseReport
-  ? reuseDailyLedgerEvidence(reuseReport, ledgerPaths, { tradeDate })
-  : await streamDailyLedgerEvidence(ledgerPaths, { calendar, tradeDate, ledgerAudit, cutoffBytesByFile });
+const selectedLedgerNames = new Set(ledgerPaths.filter((filePath) => fs.existsSync(filePath)).map((filePath) => path.basename(filePath)));
+if (Object.keys(cutoffBytesByFile).length) {
+  const unknown = Object.keys(cutoffBytesByFile).filter((file) => !selectedLedgerNames.has(file));
+  const missing = [...selectedLedgerNames].filter((file) => !Object.hasOwn(cutoffBytesByFile, file));
+  if (unknown.length || missing.length) {
+    throw new Error(`DAILY_ACCEPTANCE_LEDGER_CUTOFF_SET_INVALID:unknown=${unknown.join('|')}:missing=${missing.join('|')}`);
+  }
+}
+const liveEvidence = await streamDailyLedgerEvidence(ledgerPaths, {
+  calendar, tradeDate, generatedAt, ledgerAudit, cutoffBytesByFile,
+});
 
 let dailyUpdateStatus = readJson(dailyStatusPath);
 const dailyTradeDate = dailyUpdateStatus?.gateSummary?.marketDaily?.tradeDate || null;
