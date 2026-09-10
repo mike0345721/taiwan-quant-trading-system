@@ -4,13 +4,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 # Operational only: no Git mutation, preview, research runner, or execution route.
 $dashboardUrl = 'http://127.0.0.1:8787'
 $dashboardHealthUrl = "$dashboardUrl/healthz"
 $bridgeHealthUrl = 'http://127.0.0.1:8790/health'
 $launcherFile = Join-Path $ProjectRoot 'launcher.mjs'
-$bridgeStarter = Join-Path $PSScriptRoot 'start-shioaji-readonly-hidden.ps1'
+$bridgeStarter = Join-Path $ProjectRoot 'scripts\start-shioaji-readonly-hidden.ps1'
+$producerStarter = Join-Path $ProjectRoot 'scripts\start-cru34-live-projection-hidden.ps1'
+$cru34DataRoot = Join-Path $ProjectRoot 'data'
+$cru34ProjectionRoot = Join-Path $cru34DataRoot 'runtime\cru34-live'
+$cru34SnapshotPath = Join-Path $cru34ProjectionRoot 'latest.json'
+$cru34StatusPath = Join-Path $cru34ProjectionRoot 'status.json'
 $logDir = Join-Path $ProjectRoot 'data\automation-logs\daily-use'
 $lockPath = Join-Path $logDir 'daily-use-bootstrap.lock'
 $script:ownsLock = $false
@@ -27,7 +33,7 @@ function Stop-WithMessage([string]$Message) {
 
 function Test-HttpOk([string]$Url) {
   try {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 2
+    $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 15
     return $response.StatusCode -eq 200
   } catch {
     return $false
@@ -36,7 +42,7 @@ function Test-HttpOk([string]$Url) {
 
 function Get-DashboardHealth {
   try {
-    $health = Invoke-RestMethod -Uri $dashboardHealthUrl -TimeoutSec 2
+    $health = Invoke-RestMethod -Uri $dashboardHealthUrl -TimeoutSec 15
     if (($health.ok -ne $true) -or ($health.service -ne 'tw-chip-dashboard-v1')) { return $null }
     return $health
   } catch {
@@ -47,7 +53,7 @@ function Get-DashboardHealth {
 function Get-CurrentProjectCommit {
   $resolvedRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
   try {
-    $commit = (& git -c "safe.directory=$resolvedRoot" rev-parse HEAD 2>$null).Trim().ToLowerInvariant()
+    $commit = (& git -C $resolvedRoot -c "safe.directory=$resolvedRoot" rev-parse HEAD 2>$null).Trim().ToLowerInvariant()
     if ($commit -notmatch '^[0-9a-f]{40}$') { return $null }
     return $commit
   } catch {
@@ -59,6 +65,19 @@ function Test-LoopbackPort([int]$Port) {
   $needle = "127.0.0.1:$Port"
   $lines = & netstat.exe -ano -p tcp 2>$null
   return [bool]($lines | Select-String -SimpleMatch $needle | Select-String -Pattern 'LISTENING')
+}
+
+function Get-LoopbackListenerPid([int]$Port) {
+  $needle = "127.0.0.1:$Port"
+  $line = & netstat.exe -ano -p tcp 2>$null |
+    Where-Object { $_ -like "*$needle*" -and $_ -match 'LISTENING' } |
+    Select-Object -First 1
+  if (-not $line) { return $null }
+  $parts = @($line -split '\s+' | Where-Object { $_ })
+  if ($parts.Count -lt 5) { return $null }
+  $listenerPid = 0
+  if (-not [int]::TryParse($parts[-1], [ref]$listenerPid)) { return $null }
+  return $listenerPid
 }
 
 function Get-BridgeStatus {
@@ -115,17 +134,63 @@ function Enter-LaunchLock {
   $script:ownsLock = $true
 }
 
-function Start-FormalDashboard {
+function Test-DashboardLaunchReady($Health, [string]$ExpectedCommit) {
+  return (Test-DashboardIdentityAligned $Health $ExpectedCommit) -and
+    ($Health.runtimeEvidence.producer.ready -eq $true) -and
+    ($Health.runtimeEvidence.observedFlow.ready -eq $true) -and
+    ($Health.runtimeEvidence.parity.ready -eq $true)
+}
+
+function Test-DashboardIdentityAligned($Health, [string]$ExpectedCommit) {
+  return $Health -and ($Health.runtimeIdentityStatus -eq 'VERIFIED') -and
+    ($Health.runtimeCommit -eq $ExpectedCommit) -and
+    ($Health.approvedMainCommit -eq $ExpectedCommit) -and
+    ($Health.syncState -eq 'SYNCED')
+}
+
+function Start-FormalDashboard([string]$ExpectedCommit) {
   $node = (Get-Command node.exe -ErrorAction Stop).Source
   $stdout = Join-Path $logDir 'dashboard-launcher.log'
   $stderr = Join-Path $logDir 'dashboard-launcher-error.log'
   Start-Process -FilePath $node -ArgumentList 'launcher.mjs' -WorkingDirectory $ProjectRoot `
     -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-  foreach ($attempt in 1..40) {
+  $deadline = (Get-Date).AddSeconds(60)
+  do {
     Start-Sleep -Milliseconds 500
-    if (Test-HttpOk $dashboardHealthUrl) { return $true }
-  }
+    $health = Get-DashboardHealth
+    if (Test-DashboardLaunchReady $health $ExpectedCommit) { return $true }
+  } while ((Get-Date) -lt $deadline)
   return $false
+}
+
+function Restart-FormalDashboard($Health, [string]$ExpectedCommit) {
+  $worker = $Health.runtimeEvidence.producer.worker
+  $belongsToProject = (Test-SamePath $worker.dataRoot $cru34DataRoot) -and
+    (Test-SamePath $worker.projectionRoot $cru34ProjectionRoot) -and
+    (Test-SamePath $worker.snapshotPath $cru34SnapshotPath) -and
+    (Test-SamePath $worker.statusPath $cru34StatusPath)
+  if (-not $belongsToProject) { throw 'FORMAL_DASHBOARD_PROJECT_IDENTITY_UNVERIFIED' }
+  $listenerPid = Get-LoopbackListenerPid 8787
+  if (-not $listenerPid) { throw 'FORMAL_DASHBOARD_LISTENER_PID_UNVERIFIED' }
+  $listener = Get-Process -Id $listenerPid -ErrorAction SilentlyContinue
+  $node = (Get-Command node.exe -ErrorAction Stop).Source
+  if (-not $listener -or -not (Test-SamePath $listener.Path $node)) {
+    throw 'FORMAL_DASHBOARD_PROCESS_IDENTITY_UNVERIFIED'
+  }
+  Stop-Process -Id $listenerPid
+  foreach ($attempt in 1..20) {
+    Start-Sleep -Milliseconds 250
+    if (-not (Test-LoopbackPort 8787)) { break }
+  }
+  if (Test-LoopbackPort 8787) { throw 'FORMAL_DASHBOARD_RESTART_STOP_TIMEOUT' }
+  return Start-FormalDashboard $ExpectedCommit
+}
+
+function Test-SamePath([string]$Left, [string]$Right) {
+  if (-not $Left -or -not $Right) { return $false }
+  try {
+    return [System.IO.Path]::GetFullPath($Left).TrimEnd('\') -eq [System.IO.Path]::GetFullPath($Right).TrimEnd('\')
+  } catch { return $false }
 }
 
 try {
@@ -142,20 +207,41 @@ try {
 
   $expectedRuntimeCommit = Get-CurrentProjectCommit
   if (-not $expectedRuntimeCommit) { Stop-WithMessage 'The approved local runtime identity could not be verified.' }
+
+  $env:CRU34_LIVE_DATA_ROOT = $cru34DataRoot
+  $env:CRU34_LIVE_SNAPSHOT_PATH = $cru34SnapshotPath
+  $env:CRU34_LIVE_STATUS_PATH = $cru34StatusPath
+  if (-not (Test-Path -LiteralPath $producerStarter -PathType Leaf)) {
+    Stop-WithMessage 'The governed CRU34 live producer launcher is missing.'
+  }
+  Write-Status 'Ensuring the governed CRU34 live producer is ready.'
+  & $producerStarter -DataRoot $cru34DataRoot -ProjectionRoot $cru34ProjectionRoot `
+    -WorkingRoot $ProjectRoot -RestartMismatched
+
   $dashboardHealth = Get-DashboardHealth
   if ($dashboardHealth) {
     if (($dashboardHealth.runtimeIdentityStatus -ne 'VERIFIED') -or (-not $dashboardHealth.runtimeCommit)) {
       Stop-WithMessage 'The running 8787 service cannot prove which code version it loaded. A governed formal restart is required.'
     }
-    if ($dashboardHealth.runtimeCommit -ne $expectedRuntimeCommit) {
-      Stop-WithMessage "The running 8787 service loaded $($dashboardHealth.runtimeCommit), but the approved local code is $expectedRuntimeCommit. A governed formal restart is required."
+    if (Test-DashboardLaunchReady $dashboardHealth $expectedRuntimeCommit) {
+      Write-Status 'Formal dashboard 8787 is already healthy and will be reused.'
+    } elseif (Test-DashboardIdentityAligned $dashboardHealth $expectedRuntimeCommit) {
+      Stop-WithMessage 'The formal dashboard identity is aligned, but the live readiness contract did not pass.'
+    } else {
+      if ($dashboardHealth.runtimeCommit -ne $expectedRuntimeCommit) {
+        Write-Status "The running 8787 service loaded $($dashboardHealth.runtimeCommit), but the approved local code is $expectedRuntimeCommit."
+      }
+      Write-Status 'Restarting the governed formal dashboard to align approved-main identity and live paths.'
+      if (-not (Restart-FormalDashboard $dashboardHealth $expectedRuntimeCommit)) {
+        Stop-WithMessage 'The governed formal dashboard restart did not reach the approved readiness contract.'
+      }
+      Write-Status 'Formal dashboard restarted.'
     }
-    Write-Status 'Formal dashboard 8787 is already healthy and will be reused.'
   } elseif (Test-LoopbackPort 8787) {
     Stop-WithMessage 'Port 8787 is occupied by a service that does not pass its health check. It was not replaced.'
   } else {
     Write-Status 'Starting formal dashboard 8787.'
-    if (-not (Start-FormalDashboard)) { Stop-WithMessage 'The formal dashboard did not become healthy in time. See data/automation-logs/daily-use.' }
+    if (-not (Start-FormalDashboard $expectedRuntimeCommit)) { Stop-WithMessage 'The formal dashboard did not become healthy in time. See data/automation-logs/daily-use.' }
     Write-Status 'Formal dashboard started.'
   }
 

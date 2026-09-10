@@ -20,9 +20,95 @@ test('daily-use launcher remains Git read-only and does not enable execution', (
   assert.match(source, /executionAuthorized=false/);
   assert.match(source, /orderRoutesEnabled=false/);
   assert.match(source, /market_data_only/);
-  assert.match(source, /git -c "safe\.directory=\$resolvedRoot" rev-parse HEAD/);
+  assert.match(source, /git -C \$resolvedRoot -c "safe\.directory=\$resolvedRoot" rev-parse HEAD/);
   assert.doesNotMatch(source, /safe\.directory=\*/);
   assert.doesNotMatch(source, /git config --global/i);
+});
+
+test('daily-use resolves runtime identity from ProjectRoot even when caller cwd differs', () => {
+  const projectRoot = process.cwd().replaceAll("'", "''");
+  const probe = `
+$ProjectRoot = '${projectRoot}'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectRoot 'scripts/start-daily-use.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw $errors[0].Message }
+$functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-CurrentProjectCommit' }, $true)
+if ($null -eq $functionAst) { throw 'Get-CurrentProjectCommit not found' }
+Invoke-Expression $functionAst.Extent.Text
+Push-Location ([System.IO.Path]::GetTempPath())
+try { Get-CurrentProjectCommit } finally { Pop-Location }
+`;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', probe], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout.trim(), /^[0-9a-f]{40}$/);
+});
+
+test('daily-use wires and governs the CRU34 producer before dashboard readiness', () => {
+  const source = read('scripts/start-daily-use.ps1');
+  assert.match(source, /CRU34_LIVE_DATA_ROOT/);
+  assert.match(source, /CRU34_LIVE_SNAPSHOT_PATH/);
+  assert.match(source, /CRU34_LIVE_STATUS_PATH/);
+  assert.match(source, /start-cru34-live-projection-hidden\.ps1/);
+  assert.match(source, /-RestartMismatched/);
+  assert.match(source, /approvedMainCommit -eq \$ExpectedCommit/);
+  assert.match(source, /syncState -eq 'SYNCED'/);
+  assert.match(source, /identity is aligned, but the live readiness contract did not pass/);
+  assert.match(source, /Restart-FormalDashboard/);
+  assert.match(source, /TimeoutSec 15/);
+});
+
+test('CRU34 governed launcher only reuses an exact safe instance and bounds restart to its PID', () => {
+  const source = read('scripts/start-cru34-live-projection-hidden.ps1');
+  assert.match(source, /cru34-live-worker-status-v1/);
+  assert.match(source, /workerInstanceId/);
+  assert.match(source, /snapshotPath/);
+  assert.match(source, /statusPath/);
+  assert.match(source, /dataRoot/);
+  assert.match(source, /projectionRoot/);
+  assert.match(source, /executionAuthorized/);
+  assert.match(source, /orderRoutesEnabled/);
+  assert.match(source, /RestartMismatched/);
+  assert.match(source, /Stop-Process -Id \$incumbentPid/);
+  assert.doesNotMatch(source, /taskkill|kill all|Stop-Process\s+-Name/i);
+});
+
+test('CRU34 exact-instance predicate rejects schema, identity, path, and safety drift', () => {
+  const projectRoot = process.cwd().replaceAll("'", "''");
+  const probe = `
+$root = '${projectRoot}'
+$dataRoot = Join-Path $root 'data'
+$projectionRoot = Join-Path $dataRoot 'runtime\\cru34-live'
+$snapshotPath = Join-Path $projectionRoot 'latest.json'
+$statusPath = Join-Path $projectionRoot 'status.json'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/start-cru34-live-projection-hidden.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw $errors[0].Message }
+foreach ($name in @('Test-SamePath','Test-Cru34ProducerMatch')) {
+  $fn = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+  if ($null -eq $fn) { throw "$name not found" }
+  Invoke-Expression $fn.Extent.Text
+}
+$now = [datetime]'2026-09-10T15:30:00Z'
+$id = '88fa9460-fc7a-4aab-9b8e-3078739db5b0'
+$status = [pscustomobject]@{schemaVersion='cru34-live-worker-status-v1';status='AVAILABLE';pid=34668;workerInstanceId=$id;observedAt='2026-09-10T15:29:55Z';dataRoot=$dataRoot;projectionRoot=$projectionRoot;snapshotPath=$snapshotPath;statusPath=$statusPath;formalWeight=0;researchOnly=$true;executionAuthorized=$false;orderRoutesEnabled=$false}
+$lock = [pscustomobject]@{pid=34668;workerInstanceId=$id;dataRoot=$dataRoot;projectionRoot=$projectionRoot}
+$cases = [ordered]@{exact=(Test-Cru34ProducerMatch $status $lock $now)}
+$status.schemaVersion='wrong'; $cases.schema=(Test-Cru34ProducerMatch $status $lock $now); $status.schemaVersion='cru34-live-worker-status-v1'
+$lock.workerInstanceId='00000000-0000-0000-0000-000000000000'; $cases.instance=(Test-Cru34ProducerMatch $status $lock $now); $lock.workerInstanceId=$id
+$status.snapshotPath=Join-Path $root 'wrong.json'; $cases.path=(Test-Cru34ProducerMatch $status $lock $now); $status.snapshotPath=$snapshotPath
+$status.executionAuthorized=$true; $cases.safety=(Test-Cru34ProducerMatch $status $lock $now)
+[pscustomobject]$cases | ConvertTo-Json -Compress
+`;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', probe], {
+    cwd: process.cwd(), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    exact: true, schema: false, instance: false, path: false, safety: false,
+  });
 });
 
 test('daily-use launcher guards unknown occupied ports and repeated clicks', () => {
@@ -32,7 +118,8 @@ test('daily-use launcher guards unknown occupied ports and repeated clicks', () 
   assert.match(source, /Port 8787 is occupied by a service that does not pass its health check/);
   assert.match(source, /running 8787 service cannot prove which code version it loaded/);
   assert.match(source, /running 8787 service loaded/);
-  assert.doesNotMatch(source, /taskkill|Stop-Process|kill all/i);
+  assert.match(source, /Stop-Process -Id \$listenerPid/);
+  assert.doesNotMatch(source, /taskkill|Stop-Process\s+-Name|kill all/i);
 });
 
 test('daily-use informational session labels use the canonical 08:45 TX day boundary', () => {
@@ -69,9 +156,11 @@ $cases | ConvertTo-Json -Compress
 test('desktop shortcut installer uses the Desktop known folder and a small local wrapper', () => {
   const source = read('scripts/install-daily-use-shortcut.ps1');
   assert.match(source, /Namespace\(0x10\)/);
-  assert.match(source, /台股量化籌碼神器－正常使用\.lnk/);
+  assert.match(source, /FromBase64String/);
   assert.match(source, /data\\launchers/);
   assert.match(source, /START_DAILY_USE\.bat/);
   assert.match(source, /DAILY_USE_BOOTSTRAP_V1/);
+  assert.match(source, /recognizedTarget/);
+  assert.match(source, /Resolve-Path -LiteralPath \$ProjectRoot/);
   assert.doesNotMatch(source, /C:\\Users\\|OneDrive\\Desktop|Remove-Item/i);
 });
