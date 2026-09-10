@@ -198,7 +198,7 @@ function liveFeed(definition, session, context, evidence, registry) {
     });
   }
   if (!item || item.recordCount === 0) {
-    if (!definition.datasetId) {
+    if (!definition.datasetId && !sessionMissingFiles.length) {
       return closeFeed({
         ...base, reasonCodes: ['CANONICAL_DATASET_ID_UNAVAILABLE'],
         sourceArtifactIdentity: evidence.sourceArtifactIdentity,
@@ -217,7 +217,9 @@ function liveFeed(definition, session, context, evidence, registry) {
     if (sessionMissingFiles.length) {
       return closeFeed({
         ...base, recordCount: 0, bytes: 0, captureState: 'PARTIAL', persistenceState: 'PARTIAL',
-        researchEligibility: 'NOT_READY', reasonCodes: ['LEDGER_NOT_FOUND'], evidenceStrength: 'BOUNDED_LEDGER_SCAN',
+        researchEligibility: 'NOT_READY',
+        reasonCodes: ['LEDGER_NOT_FOUND', ...(!definition.datasetId ? ['CANONICAL_DATASET_ID_UNAVAILABLE'] : [])],
+        evidenceStrength: 'BOUNDED_LEDGER_SCAN',
         sourceArtifactIdentity: evidence.sourceArtifactIdentity,
         downstreamImpact: [definition.datasetId, 'derived_pressure_response_efficiency'].filter(Boolean),
         smallestNextCheck: `確認 ${session} governed ledger 是否存在且含完整記錄`,

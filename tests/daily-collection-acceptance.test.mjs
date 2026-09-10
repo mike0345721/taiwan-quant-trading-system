@@ -605,6 +605,13 @@ test('missing NIGHT ledgers remain session-scoped when an unrelated DAY feed exi
   assert.equal(item.persistenceState, 'PARTIAL');
   assert.ok(item.reasonCodes.includes('LEDGER_NOT_FOUND'));
   assert.deepEqual(item.sourceArtifactIdentity, identity);
+  for (const technicalLabelEn of ['MTX Tick', 'TMF Tick']) {
+    const firstWave = report.feeds.find((candidate) => candidate.technicalLabelEn === technicalLabelEn && candidate.session === 'NIGHT');
+    assert.equal(firstWave.captureState, 'PARTIAL');
+    assert.equal(firstWave.persistenceState, 'PARTIAL');
+    assert.ok(firstWave.reasonCodes.includes('LEDGER_NOT_FOUND'));
+    assert.ok(firstWave.reasonCodes.includes('CANONICAL_DATASET_ID_UNAVAILABLE'));
+  }
 });
 
 test('CLI emits MARKET_CLOSED acceptance on a governed non-trading date', (t) => {
