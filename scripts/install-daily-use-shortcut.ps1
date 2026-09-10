@@ -3,9 +3,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $launcherDir = Join-Path $ProjectRoot 'data\launchers'
 $launcherPath = Join-Path $launcherDir 'START_DAILY_USE.bat'
-$shortcutName = '台股量化籌碼神器－正常使用.lnk'
+$shortcutName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5Y+w6IKh6YeP5YyW57GM56K856We5Zmo77yN5q2j5bi45L2/55SoLmxuaw=='))
+$shortcutDescription = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5ZWf5YuV5Y+w6IKh6YeP5YyW57GM56K856We5Zmo55qE5q2j5bi45ZSv6K6A5L2/55So55Kw5aKD'))
 
 if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot 'scripts\start-daily-use.ps1') -PathType Leaf)) {
   throw 'The canonical daily-use launcher is missing.'
@@ -35,15 +37,23 @@ $shortcutPath = Join-Path $desktop $shortcutName
 $shell = New-Object -ComObject WScript.Shell
 if (Test-Path -LiteralPath $shortcutPath) {
   $existingShortcut = $shell.CreateShortcut($shortcutPath)
-  if ($existingShortcut.TargetPath -and $existingShortcut.TargetPath -ne $launcherPath) {
-    throw "Refusing to overwrite an unrecognized shortcut: $shortcutPath"
+  if ($existingShortcut.TargetPath -ne $launcherPath) {
+    $existingTarget = $existingShortcut.TargetPath
+    $recognizedTarget = $existingTarget -and
+      (Split-Path $existingTarget -Leaf) -eq 'START_DAILY_USE.bat' -and
+      (Test-Path -LiteralPath $existingTarget -PathType Leaf) -and
+      ((Get-Content -LiteralPath $existingTarget -Raw) -match 'DAILY_USE_BOOTSTRAP_V1') -and
+      ((Get-Content -LiteralPath $existingTarget -Raw) -match 'scripts\\start-daily-use\.ps1')
+    if (-not $recognizedTarget) {
+      throw "Refusing to overwrite an unrecognized shortcut: $shortcutPath"
+    }
   }
 }
 
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $launcherPath
 $shortcut.WorkingDirectory = $ProjectRoot
-$shortcut.Description = '啟動台股量化籌碼神器的正常唯讀使用環境'
+$shortcut.Description = $shortcutDescription
 $shortcut.Save()
 
 Write-Host "Desktop shortcut created: $shortcutPath"

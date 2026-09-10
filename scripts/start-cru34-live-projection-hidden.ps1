@@ -1,35 +1,101 @@
 param(
   [string]$DataRoot,
   [string]$ProjectionRoot,
-  [string]$WorkingRoot
+  [string]$WorkingRoot,
+  [switch]$RestartMismatched
 )
 
 $ErrorActionPreference = 'Stop'
 $processPath = $env:Path
 [Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
 [Environment]::SetEnvironmentVariable('Path', $processPath, 'Process')
-$root = if ($WorkingRoot) { $WorkingRoot } else { Split-Path $PSScriptRoot -Parent }
-$dataRoot = if ($DataRoot) { $DataRoot } else { Join-Path $root 'data' }
-$projectionRoot = if ($ProjectionRoot) { $ProjectionRoot } else { Join-Path $root 'data\runtime\cru34-live' }
+$root = [System.IO.Path]::GetFullPath($(if ($WorkingRoot) { $WorkingRoot } else { Split-Path $PSScriptRoot -Parent }))
+$dataRoot = [System.IO.Path]::GetFullPath($(if ($DataRoot) { $DataRoot } else { Join-Path $root 'data' }))
+$projectionRoot = [System.IO.Path]::GetFullPath($(if ($ProjectionRoot) { $ProjectionRoot } else { Join-Path $root 'data\runtime\cru34-live' }))
 $lockPath = Join-Path $projectionRoot 'worker.lock'
+$snapshotPath = Join-Path $projectionRoot 'latest.json'
+$statusPath = Join-Path $projectionRoot 'status.json'
 $node = (Get-Command node.exe -ErrorAction Stop).Source
 $logDir = Join-Path $root 'data\automation-logs'
 New-Item -ItemType Directory -Force -Path $projectionRoot, $logDir | Out-Null
 
+function Read-JsonFile([string]$Path) {
+  try { return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json } catch { return $null }
+}
+
+function Test-SamePath([string]$Left, [string]$Right) {
+  if (-not $Left -or -not $Right) { return $false }
+  try {
+    return [System.IO.Path]::GetFullPath($Left).TrimEnd('\') -eq [System.IO.Path]::GetFullPath($Right).TrimEnd('\')
+  } catch { return $false }
+}
+
+function Test-Cru34ProducerMatch($Status, $Lock, [datetime]$Now = (Get-Date)) {
+  if (-not $Status -or -not $Lock) { return $false }
+  $observedAt = [datetime]::MinValue
+  if (-not [datetime]::TryParse([string]$Status.observedAt, [ref]$observedAt)) { return $false }
+  $heartbeatAge = ($Now.ToUniversalTime() - $observedAt.ToUniversalTime()).TotalSeconds
+  return ($Status.schemaVersion -eq 'cru34-live-worker-status-v1') -and
+    ($Status.status -eq 'AVAILABLE') -and
+    ([int]$Status.pid -eq [int]$Lock.pid) -and
+    ([int]$Status.pid -gt 0) -and
+    ($Status.workerInstanceId -eq $Lock.workerInstanceId) -and
+    ($Status.workerInstanceId -match '^[0-9a-f-]{36}$') -and
+    (Test-SamePath $Status.dataRoot $dataRoot) -and
+    (Test-SamePath $Status.projectionRoot $projectionRoot) -and
+    (Test-SamePath $Status.snapshotPath $snapshotPath) -and
+    (Test-SamePath $Status.statusPath $statusPath) -and
+    (Test-SamePath $Lock.dataRoot $dataRoot) -and
+    (Test-SamePath $Lock.projectionRoot $projectionRoot) -and
+    ($Status.formalWeight -eq 0) -and ($Status.researchOnly -eq $true) -and
+    ($Status.executionAuthorized -eq $false) -and ($Status.orderRoutesEnabled -eq $false) -and
+    ($heartbeatAge -ge -5) -and ($heartbeatAge -le 15)
+}
+
 if (Test-Path -LiteralPath $lockPath) {
-  $rawLock = Get-Content -LiteralPath $lockPath -Raw
-  try { $lock = $rawLock | ConvertFrom-Json; $incumbentPid = [int]$lock.pid } catch { $incumbentPid = [int]$rawLock }
-  $incumbent = Get-CimInstance Win32_Process -Filter "ProcessId = $incumbentPid" -ErrorAction SilentlyContinue
-  if ($incumbent -and $incumbent.CommandLine -like '*run-cru34-live-projection.mjs*') { exit 0 }
+  $lock = Read-JsonFile $lockPath
+  $incumbentPid = if ($lock) { [int]$lock.pid } else { 0 }
+  $incumbent = if ($incumbentPid -gt 0) { Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue } else { $null }
+  if ($incumbent) {
+    $status = Read-JsonFile $statusPath
+    if (Test-Cru34ProducerMatch $status $lock) { exit 0 }
+    $verifiedOwnedInstance = $status -and ($status.schemaVersion -eq 'cru34-live-worker-status-v1') -and
+      ([int]$status.pid -eq $incumbentPid) -and ($status.workerInstanceId -eq $lock.workerInstanceId) -and
+      ($status.executionAuthorized -eq $false) -and ($status.orderRoutesEnabled -eq $false)
+    if (-not $RestartMismatched) { throw 'CRU34_LIVE_PRODUCER_MISMATCH' }
+    if (-not $verifiedOwnedInstance) { throw 'CRU34_LIVE_PRODUCER_INCUMBENT_UNVERIFIED' }
+    Stop-Process -Id $incumbentPid
+    foreach ($attempt in 1..20) {
+      Start-Sleep -Milliseconds 250
+      if (-not (Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue)) { break }
+    }
+    if (Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue) { throw 'CRU34_LIVE_PRODUCER_RESTART_STOP_TIMEOUT' }
+  }
+  $currentLock = Read-JsonFile $lockPath
+  if ($currentLock -and $lock -and ([int]$currentLock.pid -eq [int]$lock.pid) `
+      -and ($currentLock.workerInstanceId -eq $lock.workerInstanceId)) {
+    Remove-Item -LiteralPath $lockPath -Force
+  } elseif (Test-Path -LiteralPath $lockPath) {
+    throw 'CRU34_LIVE_PRODUCER_LOCK_CHANGED'
+  }
 }
 
 $env:CRU34_LIVE_DATA_ROOT = $dataRoot
 $env:CRU34_LIVE_PROJECTION_ROOT = $projectionRoot
-$env:CRU34_LIVE_SNAPSHOT_PATH = Join-Path $projectionRoot 'latest.json'
-$env:CRU34_LIVE_STATUS_PATH = Join-Path $projectionRoot 'status.json'
+$env:CRU34_LIVE_SNAPSHOT_PATH = $snapshotPath
+$env:CRU34_LIVE_STATUS_PATH = $statusPath
 
 $stdout = Join-Path $logDir 'cru34-live-projection.log'
 $stderr = Join-Path $logDir 'cru34-live-projection-error.log'
 Start-Process -FilePath $node -ArgumentList 'scripts/run-cru34-live-projection.mjs' `
   -WorkingDirectory $root -WindowStyle Hidden `
   -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+foreach ($attempt in 1..120) {
+  Start-Sleep -Milliseconds 500
+  $status = Read-JsonFile $statusPath
+  $lock = Read-JsonFile $lockPath
+  if ((Test-Cru34ProducerMatch $status $lock) -and
+      (Get-Process -Id ([int]$status.pid) -ErrorAction SilentlyContinue)) { exit 0 }
+}
+throw 'CRU34_LIVE_PRODUCER_NOT_READY'

@@ -8,7 +8,15 @@ launcher `scripts/start-daily-use.ps1`.
 ## Fixed operational boundary
 
 - Opens only `http://127.0.0.1:8787`.
-- Reuses a healthy formal dashboard or starts `launcher.mjs` once.
+- Resolves runtime identity from the approved project root, independent of the
+  caller's current directory.
+- Wires and verifies the root-local CRU34 live producer before dashboard
+  readiness. Reuse requires matching schema, worker instance, paths, heartbeat,
+  and read-only safety invariants; a verified mismatched worker is restarted by
+  exact PID, while an unverifiable incumbent is a hard blocker.
+- Reuses a healthy formal dashboard, starts `launcher.mjs` once, or replaces an
+  identity-mismatched formal dashboard only after verifying the exact loopback
+  listener is Node and its runtime evidence belongs to this project root.
 - Reuses a healthy `market_data_only` Shioaji bridge or invokes the existing
   read-only bridge starter when port 8790 is unused.
 - Lets the existing dashboard refresh its official-source snapshot at startup
@@ -35,8 +43,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-daily-use-
 ```
 
 The installer resolves the Windows Shell Desktop known folder, so it supports a
-legitimate redirected or OneDrive Desktop.  It refuses to overwrite an
-unrecognized same-name shortcut or wrapper.  The generated `.lnk`, wrapper,
-PID lock, and logs are local runtime artifacts under ignored locations.
+legitimate redirected or OneDrive Desktop. It can retarget a same-name shortcut
+only when its previous target is a recognized `DAILY_USE_BOOTSTRAP_V1` wrapper;
+it refuses to overwrite any unrecognized shortcut or wrapper. The generated
+`.lnk`, wrapper, PID lock, and logs are local runtime artifacts under ignored
+locations.
 
 `executionAuthorized=false` and `orderRoutesEnabled=false` are invariant.
