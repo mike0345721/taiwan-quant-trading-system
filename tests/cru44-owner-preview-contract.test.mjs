@@ -61,6 +61,7 @@ test('CRU-44 long-window readiness fails closed when only one promoted window is
 
 test('CRU-44 launcher waits for identity catch-up and treats browser proof as a separate gate', () => {
   const launcher = fs.readFileSync(new URL('../scripts/start-cru44-owner-preview.ps1', import.meta.url), 'utf8');
+  assert.match(launcher, /\[int\]\$Port = 8795/);
   assert.match(launcher, /runtimePreflightReady\.ready -eq \$true/);
   assert.match(launcher, /Gate = 'BROWSER_ACCEPTANCE_REQUIRED'/);
   assert.match(launcher, /\$attempt -lt 300/);

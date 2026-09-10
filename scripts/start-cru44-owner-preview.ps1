@@ -1,5 +1,5 @@
 param(
-  [int]$Port = 8794,
+  [int]$Port = 8795,
   [string]$SharedRoot = 'D:\Taiwan stock\standalone-v1',
   [string]$ProjectionRoot = 'D:\Taiwan stock\standalone-v1\data\runtime\cru44-candidate-9768dd9'
 )
