@@ -2885,24 +2885,42 @@ function observedFlowRatio(pressure) {
   return Number.isFinite(ratio) && ratio >= -1 && ratio <= 1 ? ratio : null;
 }
 
+function observedFlowDisplayCells(ratio) {
+  if (ratio === null || ratio === undefined) return 0;
+  const numeric = Number(ratio);
+  if (!Number.isFinite(numeric) || numeric < -1 || numeric > 1) return 0;
+  const magnitude = Math.abs(numeric);
+  if (magnitude < 0.10) return 0;
+  if (magnitude < 0.325) return 1;
+  if (magnitude < 0.55) return 2;
+  if (magnitude < 0.775) return 3;
+  return 4;
+}
+
 function renderObservedFlowSegments(host, ratio, options = {}) {
   if (!host) return;
-  const cells = ratio == null ? 0 : Math.min(4, Math.ceil(Math.abs(ratio) * 4));
+  const numeric = Number(ratio);
+  const valid = ratio !== null && ratio !== undefined
+    && Number.isFinite(numeric) && numeric >= -1 && numeric <= 1;
+  const cells = observedFlowDisplayCells(ratio);
+  const direction = cells === 0 ? 'neutral' : numeric > 0 ? 'positive' : 'negative';
   const nodes = [];
   for (let index = 0; index < 9; index += 1) {
     const cell = document.createElement('i');
     if (index === 4) cell.className = 'is-neutral-cell';
-    const level = ratio > 0 ? index - 4 : 4 - index;
+    const level = direction === 'positive' ? index - 4 : 4 - index;
     if (index !== 4 && level >= 1 && level <= cells
-      && ((ratio > 0 && index > 4) || (ratio < 0 && index < 4))) {
+      && ((direction === 'positive' && index > 4) || (direction === 'negative' && index < 4))) {
       cell.className = `is-filled is-level-${level}`;
     }
     nodes.push(cell);
   }
   host.replaceChildren(...nodes);
-  host.className = `${options.mini ? 'dw-flow-mini-bar' : 'dw-pressure-segments'} ${ratio > 0 ? 'is-positive' : ratio < 0 ? 'is-negative' : 'is-neutral'}`;
+  host.className = `${options.mini ? 'dw-flow-mini-bar' : 'dw-pressure-segments'} is-${direction}`;
+  host.dataset.rawRatio = valid ? String(numeric) : '';
+  host.dataset.displayCells = String(cells);
   host.classList.toggle('is-limited', Boolean(options.limited));
-  host.classList.toggle('is-inactive', Boolean(options.inactive));
+  host.classList.toggle('is-inactive', Boolean(options.inactive) || !valid);
 }
 
 function renderObservedFlowEnergy(host, value, options = {}) {
@@ -4012,7 +4030,13 @@ function chartSeriesData(payload) {
 
 function marketChangeMarkerData(feed, timeframe) {
   if (timeframe !== '5m') return [];
-  return (feed?.markers || []).filter((marker) => !/^(?:時段高|時段低|VWAP\s*[↑↓])$/u.test(String(marker?.text || '').trim())).map((marker) => ({
+  const optionalLevelsVisible = $('decision-workspace')?.classList.contains('show-optional-levels') || false;
+  return (feed?.markers || []).filter((marker) => {
+    const text = String(marker?.text || '').trim();
+    if (/^(?:時段高|時段低|VWAP\s*[↑↓])$/u.test(text)) return false;
+    if (!optionalLevelsVisible && /^(?:OR↑|OR↓|OR↩|OR↪)$/u.test(text)) return false;
+    return true;
+  }).map((marker) => ({
     time: chartEpoch(marker.time),
     position: marker.position,
     color: marker.color,
@@ -4039,6 +4063,9 @@ window.addEventListener('trader-terminal:chart-layout', () => {
 
 window.addEventListener('trader-terminal:levels', () => {
   if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
+  if (state.txChartMarkers && state.txChartPayload) {
+    state.txChartMarkers.setMarkers(marketChangeMarkerData(state.marketChangeFeed, state.txChartPayload.timeframe));
+  }
 });
 
 function marketChangeFactText(fact = {}) {

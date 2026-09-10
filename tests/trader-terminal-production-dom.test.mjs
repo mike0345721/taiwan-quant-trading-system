@@ -763,6 +763,30 @@ async function runProductionInteractionRegression() {
         limitedPositive: renderPressure(0.42, 0.96, 'UNAVAILABLE'),
         limitedNegative: renderPressure(-0.27, 0.96, 'UNAVAILABLE'),
       };
+      const occupancy = (ratio) => {
+        renderObservedFlowSegments(document.getElementById('dw-flow-selected-bar'), ratio);
+        const bar = document.getElementById('dw-flow-selected-bar');
+        return {
+          ratio,
+          className: bar?.className || '',
+          displayCells: Number(bar?.dataset.displayCells || 0),
+          filledCells: bar?.querySelectorAll('.is-filled').length || 0,
+          levels: [...(bar?.querySelectorAll('.is-filled') || [])].map((node) => node.className),
+        };
+      };
+      const occupancyBoundaries = [0.099, 0.1, 0.324, 0.325, 0.549, 0.55, 0.774, 0.775, 0.99, -0.1, -0.325, -0.55, -0.775]
+        .map(occupancy);
+      const markerFixture = { markers: [
+        { text: 'OR↑', time: '2026-09-09T01:00:00.000Z', position: 'belowBar', color: '#8aa7ff', shape: 'circle' },
+        { text: 'OR↩', time: '2026-09-09T01:05:00.000Z', position: 'aboveBar', color: '#8aa7ff', shape: 'circle' },
+        { text: '品質↓', time: '2026-09-09T01:10:00.000Z', position: 'aboveBar', color: '#f5c86b', shape: 'circle' },
+      ] };
+      const workspaceRoot = document.getElementById('decision-workspace');
+      workspaceRoot?.classList.remove('show-optional-levels');
+      const hiddenOrMarkers = marketChangeMarkerData(markerFixture, '5m').map((marker) => marker.text);
+      workspaceRoot?.classList.add('show-optional-levels');
+      const shownOrMarkers = marketChangeMarkerData(markerFixture, '5m').map((marker) => marker.text);
+      workspaceRoot?.classList.remove('show-optional-levels');
       const response = {};
       for (const relation of ['SAME_DIRECTION', 'OPPOSITE_DIRECTION', 'FLAT_PRICE', 'PRESSURE_UNAVAILABLE']) {
         const value = structuredClone(base);
@@ -837,7 +861,8 @@ async function runProductionInteractionRegression() {
       return { pressure, response, pathUnavailable, chartToFlow, flowToChart, keyboardSelection,
         selected1m, selected15m, selected5m, selectedTradingDay,
         chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
-        live, stale, warming, historical, unavailable };
+        live, stale, warming, historical, unavailable, occupancyBoundaries,
+        overlay: { hiddenOrMarkers, shownOrMarkers } };
     })()`);
     const paletteEvidence = await evaluate(cdp, `(() => {
       const control = document.getElementById('market-palette-select');
@@ -1382,17 +1407,25 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.equal(matrix.pressure.negative.side, '偏賣方');
   assert.match(matrix.pressure.negative.barClass, /is-negative/);
   assert.equal(matrix.pressure.negative.cellCount, 9);
-  assert.equal(matrix.pressure.negative.filledCells, 2);
+  assert.equal(matrix.pressure.negative.filledCells, 1);
+  assert.deepEqual(matrix.pressure.negative.filledLevels, ['is-filled is-level-1']);
   assert.equal(matrix.pressure.zero.ratio, '0.000');
   assert.equal(matrix.pressure.zero.side, '均衡');
   assert.equal(matrix.pressure.null.ratio, '不可判定');
   assert.doesNotMatch(matrix.pressure.null.ratio, /0\.000/);
+  assert.match(matrix.pressure.null.barClass, /is-neutral.*is-inactive/);
   assert.equal(matrix.pressure.limitedPositive.side, '方向判定受限');
   assert.match(matrix.pressure.limitedPositive.barClass, /is-positive.*is-limited/);
   assert.match(matrix.pressure.limitedPositive.summary, /方向判定受限/);
   assert.doesNotMatch(matrix.pressure.limitedPositive.summary, /偏買方/);
   assert.equal(matrix.pressure.limitedNegative.side, '方向判定受限');
   assert.match(matrix.pressure.limitedNegative.barClass, /is-negative.*is-limited/);
+  assert.deepEqual(matrix.occupancyBoundaries.map(({ displayCells }) => displayCells), [0, 1, 1, 2, 2, 3, 3, 4, 4, 1, 2, 3, 4]);
+  assert.ok(matrix.occupancyBoundaries.every(({ filledCells, displayCells }) => filledCells === displayCells));
+  assert.match(matrix.occupancyBoundaries[0].className, /is-neutral/);
+  assert.match(matrix.occupancyBoundaries[9].className, /is-negative/);
+  assert.deepEqual(matrix.overlay.hiddenOrMarkers, ['品質↓']);
+  assert.deepEqual(matrix.overlay.shownOrMarkers, ['OR↑', 'OR↩', '品質↓']);
   assert.deepEqual(matrix.response, {
     SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定',
