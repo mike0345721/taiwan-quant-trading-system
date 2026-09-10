@@ -10,7 +10,10 @@ import {
 } from './cru34-live-checkpoint.mjs';
 import { buildCru34SemanticPayload, CRU34_SOURCE_MODE_LIVE } from './cru34-snapshot-artifact.mjs';
 import { buildTxIntradayResearchSnapshot, CONTEXT_WINDOW_MS } from './tx-intraday-research-snapshot.mjs';
-import { materializeTxCanonicalObservations } from './tx-intraday-pressure-path-efficiency.mjs';
+import {
+  evaluateBestQuoteEligibility,
+  materializeTxCanonicalObservations,
+} from './tx-intraday-pressure-path-efficiency.mjs';
 import {
   buildCru44MultiWindowFromCanonical,
   CRU44_WINDOW_REGISTRY,
@@ -100,7 +103,6 @@ function verifyCheckpointAnchor(ledgerPath, checkpoint) {
 }
 
 function checkpointEvent(event) {
-  const { rawRecord: ignored, ...safe } = event;
   const payload = event.kind === 'futures_tick'
     ? {
         price: event.payload?.price ?? event.payload?.close ?? null,
@@ -115,15 +117,55 @@ function checkpointEvent(event) {
           ask_price: Array.isArray(event.payload?.ask_price) ? event.payload.ask_price.slice(0, 1) : [],
         }
       : {};
-  return { ...safe, payload };
+  return {
+    kind: event.kind,
+    ledgerOrdinal: event.ledgerOrdinal,
+    sourceLedgerIdentity: event.sourceLedgerIdentity,
+    recordHash: event.recordHash,
+    actualContract: event.actualContract,
+    tradeDate: event.tradeDate,
+    session: event.session,
+    continuityEpoch: event.continuityEpoch,
+    identityStatus: event.identityStatus,
+    availabilityLineageStatus: event.availabilityLineageStatus,
+    joinedContinuityStatus: event.joinedContinuityStatus,
+    availableAt: event.availableAt,
+    availableMs: event.availableMs,
+    eventMs: event.eventMs,
+    payload,
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+    orderRoutesEnabled: false,
+  };
+}
+
+function retainPressureRelevantEvents(events, cutoff) {
+  const retainedQuoteOrdinals = new Set();
+  for (let tickIndex = 0; tickIndex < events.length; tickIndex += 1) {
+    const tick = events[tickIndex];
+    if (tick.kind !== 'futures_tick') continue;
+    for (let quoteIndex = tickIndex - 1; quoteIndex >= 0; quoteIndex -= 1) {
+      const quote = events[quoteIndex];
+      if (quote.kind !== 'futures_bidask' || quote.ledgerOrdinal >= tick.ledgerOrdinal) continue;
+      if (evaluateBestQuoteEligibility(quote, tick, { maxQuoteAgeMs: 2_000 }).eligible) {
+        retainedQuoteOrdinals.add(quote.ledgerOrdinal);
+        break;
+      }
+    }
+  }
+  const futureQuoteFloorMs = cutoff.eventMs - 2_000;
+  return events.filter((event) => event.kind === 'futures_tick'
+    || (event.kind === 'futures_bidask' && (retainedQuoteOrdinals.has(event.ledgerOrdinal)
+      || (Number.isFinite(event.eventMs) && event.eventMs >= futureQuoteFloorMs))));
 }
 
 function pruneRolling(events, cutoff) {
   if (!cutoff) return [];
-  const floor = cutoff.availableMs - CRU44_WINDOW_REGISTRY.window1800s.windowMs - 2_000;
-  const matching = events.filter((event) => event.actualContract === cutoff.actualContract
+  const floor = cutoff.availableMs - CRU44_WINDOW_REGISTRY.window14400s.windowMs - 2_000;
+  const matching = retainPressureRelevantEvents(events.filter((event) => event.actualContract === cutoff.actualContract
     && event.tradeDate === cutoff.tradeDate && event.session === cutoff.session
-    && event.continuityEpoch === cutoff.continuityEpoch && event.availableMs <= cutoff.availableMs);
+    && event.continuityEpoch === cutoff.continuityEpoch && event.availableMs <= cutoff.availableMs), cutoff);
   let start = matching.findIndex((event) => event.availableMs >= floor);
   if (start < 0) start = Math.max(0, matching.length - 1);
   const before = matching.slice(0, start);
@@ -145,6 +187,8 @@ function warmupFor(events, cutoff) {
     context300sComplete: spanMs >= 300_000,
     window900sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window900s.warmupMs,
     window1800sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window1800s.warmupMs,
+    window3600sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window3600s.warmupMs,
+    window14400sComplete: spanMs >= CRU44_WINDOW_REGISTRY.window14400s.warmupMs,
   });
 }
 
@@ -226,8 +270,10 @@ export function projectCru34LiveBatch({
     lastVerifiedAvailableAt: last.record.receivedAt,
     lastEmittedSemanticHash: checkpoint?.lastEmittedSemanticHash || null,
   });
-  writeCru34LiveCheckpoint(checkpointPath, checkpoint);
-  if (!cutoff) return Object.freeze({ status: 'WARMING_UP', checkpoint, snapshot: null });
+  if (!cutoff) {
+    writeCru34LiveCheckpoint(checkpointPath, checkpoint);
+    return Object.freeze({ status: 'WARMING_UP', checkpoint, snapshot: null });
+  }
 
   const prefixProof = Object.freeze({
     status: 'VERIFIED_CHECKPOINT_PREFIX',
@@ -259,6 +305,11 @@ export function projectCru34LiveBatch({
     sourceTruthState: heartbeatAgeMs > staleAfterMs ? 'STALE' : 'LIVE',
     compatibilitySemanticHash: semanticContentHash,
   });
+  const nextCheckpoint = buildCru34LiveCheckpoint({
+    ...checkpoint,
+    lastEmittedSemanticHash: semanticContentHash,
+  });
+  writeCru34LiveCheckpoint(checkpointPath, nextCheckpoint);
   const operational = {
     schemaVersion: CRU34_LIVE_SNAPSHOT_VERSION,
     truthState,
@@ -271,9 +322,9 @@ export function projectCru34LiveBatch({
     heartbeatAgeMs,
     staleAfterMs,
     lagBytes: Math.max(0, batch.observedSize - checkpoint.lastVerifiedEndByteOffset),
-    checkpointIdentity: checkpoint.checkpointHash,
-    checkpointOrdinal: checkpoint.lastVerifiedLedgerOrdinal,
-    checkpointRecordHash: checkpoint.lastVerifiedRecordHash,
+    checkpointIdentity: nextCheckpoint.checkpointHash,
+    checkpointOrdinal: nextCheckpoint.lastVerifiedLedgerOrdinal,
+    checkpointRecordHash: nextCheckpoint.lastVerifiedRecordHash,
     warmup,
     formalWeight: 0,
     researchOnly: true,
@@ -282,10 +333,5 @@ export function projectCru34LiveBatch({
   };
   const liveSnapshot = Object.freeze({ ...operational, snapshotHash: cru34LiveHash(operational) });
   atomicWriteJson(snapshotPath, liveSnapshot);
-  const nextCheckpoint = buildCru34LiveCheckpoint({
-    ...checkpoint,
-    lastEmittedSemanticHash: semanticContentHash,
-  });
-  writeCru34LiveCheckpoint(checkpointPath, nextCheckpoint);
   return Object.freeze({ status: truthState, checkpoint: nextCheckpoint, snapshot: liveSnapshot });
 }

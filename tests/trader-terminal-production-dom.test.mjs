@@ -727,6 +727,16 @@ async function runProductionInteractionRegression() {
       base.windows.window1800s.label = '30分';
       base.windows.window1800s.windowMs = 1800000;
       base.windows.window1800s.truthState = 'LIVE';
+      base.windows.window3600s = structuredClone(base.windows.context300s);
+      base.windows.window3600s.label = '1小時';
+      base.windows.window3600s.windowMs = 3600000;
+      base.windows.window3600s.truthState = 'LIVE';
+      base.windows.window14400s = structuredClone(base.windows.context300s);
+      base.windows.window14400s.label = '4小時';
+      base.windows.window14400s.windowMs = 14400000;
+      base.windows.window14400s.truthState = 'WARMING_UP';
+      base.windows.window14400s.status = 'UNAVAILABLE';
+      base.windows.window14400s.unavailableReason = 'WARMING_UP_WINDOW_INCOMPLETE';
       const selected = () => ({
         title: document.getElementById('dw-flow-selected-title')?.textContent || '',
         ratio: document.getElementById('dw-flow-selected-ratio')?.textContent || '',
@@ -840,6 +850,10 @@ async function runProductionInteractionRegression() {
       document.querySelector('[data-flow-window="15m"]').click();
       const selected15m = selected();
       const chartSelectionAfterPendingFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
+      document.querySelector('[data-flow-window="1h"]').click();
+      const selected1h = selected();
+      document.querySelector('[data-flow-window="4h"]').click();
+      const selected4h = selected();
       document.querySelector('[data-flow-window="5m"]').click();
       const selected5m = selected();
       const chartSelectionAfterFlow = document.querySelector('[data-chart-timeframe].is-selected')?.dataset.chartTimeframe;
@@ -859,7 +873,7 @@ async function runProductionInteractionRegression() {
       const unavailable = selected();
       renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
       return { pressure, response, pathUnavailable, chartToFlow, flowToChart, keyboardSelection,
-        selected1m, selected15m, selected5m, selectedTradingDay,
+        selected1m, selected15m, selected1h, selected4h, selected5m, selectedTradingDay,
         chartSelectionAfterPendingFlow, chartSelectionAfterFlow, flowSelectionAfterChart,
         live, stale, warming, historical, unavailable, occupancyBoundaries,
         overlay: { hiddenOrMarkers, shownOrMarkers } };
@@ -1468,6 +1482,13 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.selected15m.summary, /可判定成交占比/);
   assert.match(matrix.selected15m.summary, /Data Trust/);
   assert.equal(matrix.chartSelectionAfterPendingFlow, '15m');
+  assert.equal(matrix.selected1h.title, '1小時');
+  assert.equal(matrix.selected1h.pendingVisible, false);
+  assert.match(matrix.selected1h.summary, /Data Trust/);
+  assert.equal(matrix.selected4h.title, '4小時');
+  assert.equal(matrix.selected4h.pendingVisible, false);
+  assert.match(matrix.selected4h.summary, /暖機中/);
+  assert.equal(matrix.selected4h.ratio, '不可判定');
   assert.equal(matrix.selected5m.title, '5分');
   assert.equal(matrix.selected5m.pendingVisible, false);
   assert.match(matrix.selected5m.summary, /成交壓力/);

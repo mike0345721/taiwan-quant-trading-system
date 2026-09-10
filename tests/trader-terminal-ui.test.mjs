@@ -110,6 +110,11 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(styles, /grid-template-columns: repeat\(4, 1fr\) minmax\(3px, \.45fr\) repeat\(4, 1fr\)/);
   assert.match(styles, /\.dw-flow-mini-bar i\.is-level-4/);
   assert.match(styles, /\.dw-pressure-segments i\.is-level-1/);
+  for (const level of [1, 2, 3, 4]) {
+    const rule = styles.match(new RegExp(`\\.dw-flow-mini-bar i\\.is-level-${level},[\\s\\S]*?\\{([\\s\\S]*?)\\}`))?.[1] || '';
+    assert.match(rule, /inset 0 0 0 1px/, `Level ${level} must keep the same thin internal border`);
+    assert.doesNotMatch(rule, /inset 0 0 0 2px/, `Level ${level} must not use a thick border`);
+  }
   assert.match(styles, /\.dw-flow-metric-energy\.is-positive i \{[^}]*linear-gradient/);
   assert.match(styles, /\.dw-flow-metric-energy\.is-negative i \{[^}]*linear-gradient/);
   const narrowObservedFlowRules = styles.match(/@media \(max-width: 1380px\) \{([\s\S]*?)\n\}/)?.[1] || '';

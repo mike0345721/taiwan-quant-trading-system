@@ -4,7 +4,7 @@ export const CRU46_INCLUDED_SOURCES = Object.freeze({
   cru45: '9f244e1171b2ecfab5c982343a42682858a489c2',
 });
 
-export const CRU44_APPROVED_BASE_MAIN = '9768dd9df5b506f519b52cc1baf7bf9acb551f4c';
+export const CRU44_APPROVED_BASE_MAIN = '9770b072758532ecd3feabfb25d1213f431560e2';
 export const CRU44_INCLUDED_SOURCES = Object.freeze({
   cru34: 'frozen-semantics-v1',
   cru36: 'governed-local-ledger-v1',
@@ -42,11 +42,11 @@ export const CRU46_PRODUCT_SURFACE_CONTRACT = Object.freeze({
 
 export const CRU44_PRODUCT_SURFACE_CONTRACT = Object.freeze({
   ...CRU46_PRODUCT_SURFACE_CONTRACT,
-  schemaVersion: 'cru44-15m-30m-product-surface-v1',
+  schemaVersion: 'cru44-1h-4h-product-surface-v1',
   observedFlow: Object.freeze({
     ...CRU46_PRODUCT_SURFACE_CONTRACT.observedFlow,
-    governed: Object.freeze(['1m', '5m', '15m', '30m']),
-    pending: Object.freeze(['1h', '4h', 'tradingDay']),
+    governed: Object.freeze(['1m', '5m', '15m', '30m', '1h', '4h']),
+    pending: Object.freeze(['tradingDay']),
   }),
 });
 
@@ -91,18 +91,18 @@ export function buildCru44PreviewVersion({ runtimeVersion, enabled = false, bran
   if (!enabled) return Object.freeze({ ...runtimeVersion });
   return Object.freeze({
     ...runtimeVersion,
-    productVersion: 'CRU-44 15m + 30m Observed Flow V1',
+    productVersion: 'CRU-44 1h + 4h Observed Flow V1',
     approvedMainCommit: CRU44_APPROVED_BASE_MAIN,
     syncState: runtimeVersion?.runtimeCommit === CRU44_APPROVED_BASE_MAIN ? 'SYNCED' : 'MISMATCH',
     previewType: 'CRU44_OWNER_PREVIEW',
-    previewLabel: 'CRU-44 15M + 30M OWNER PREVIEW',
+    previewLabel: 'CRU-44 1H + 4H OWNER PREVIEW',
     branch: branch || 'UNKNOWN',
     exactHead: runtimeVersion?.runtimeCommit || null,
     buildCommit: runtimeVersion?.runtimeCommit || null,
     runtimeCommit: runtimeVersion?.runtimeCommit || null,
     baseMainCommit: CRU44_APPROVED_BASE_MAIN,
     includedSources: CRU44_INCLUDED_SOURCES,
-    pendingCapabilities: Object.freeze(['1h', '4h', 'TradingDay', 'CVD', 'Relative Intensity',
+    pendingCapabilities: Object.freeze(['TradingDay', 'CVD', 'Relative Intensity',
       'Absorption', 'Market Control', 'Market State']),
     dataMode: dataMode || 'UNKNOWN',
     complete: false,

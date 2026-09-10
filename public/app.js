@@ -2866,8 +2866,8 @@ const OBSERVED_FLOW_WINDOW_REGISTRY = Object.freeze([
   Object.freeze({ key: '5m', label: '5分', group: 'NEAR', source: 'context300s', data: 'GOVERNED' }),
   Object.freeze({ key: '15m', label: '15分', group: 'NEAR', source: 'window900s', data: 'GOVERNED' }),
   Object.freeze({ key: '30m', label: '30分', group: 'MID', source: 'window1800s', data: 'GOVERNED' }),
-  Object.freeze({ key: '1h', label: '1小時', group: 'MID', source: null, data: 'PENDING_CRU44' }),
-  Object.freeze({ key: '4h', label: '4小時', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
+  Object.freeze({ key: '1h', label: '1小時', group: 'MID', source: 'window3600s', data: 'GOVERNED' }),
+  Object.freeze({ key: '4h', label: '4小時', group: 'FAR', source: 'window14400s', data: 'GOVERNED' }),
   Object.freeze({ key: 'tradingDay', label: '本交易日', group: 'FAR', source: null, data: 'PENDING_CRU44' }),
 ]);
 const CHART_TO_FLOW_WINDOW = Object.freeze({
@@ -3036,16 +3036,22 @@ function renderObservedFlowSummary(value, available) {
   }
   const fifteen = value?.windows?.window900s;
   const thirty = value?.windows?.window1800s;
+  const oneHour = value?.windows?.window3600s;
+  const fourHour = value?.windows?.window14400s;
   const fifteenGoverned = fifteen?.status !== 'UNAVAILABLE' || fifteen?.truthState === 'WARMING_UP';
   const thirtyGoverned = thirty?.status !== 'UNAVAILABLE' || thirty?.truthState === 'WARMING_UP';
+  const oneHourGoverned = oneHour?.status !== 'UNAVAILABLE' || oneHour?.truthState === 'WARMING_UP';
+  const fourHourGoverned = fourHour?.status !== 'UNAVAILABLE' || fourHour?.truthState === 'WARMING_UP';
+  const windowState = (window, label, governed) => window?.truthState === 'WARMING_UP' ? `${label}暖機中`
+    : governed ? `${label}已治理` : `${label}不可用`;
   const fifteenState = fifteen?.truthState === 'WARMING_UP' ? '15分暖機中'
     : fifteenGoverned ? '15分已治理' : '15分不可用';
   const thirtyState = thirty?.truthState === 'WARMING_UP' ? '30分暖機中'
     : thirtyGoverned ? '30分已治理' : '30分不可用';
   dwText('dw-flow-summary-near', available ? `已治理 ${fifteenGoverned ? '3/3' : '2/3'} · ${relation}` : '資料不可用');
   dwText('dw-flow-summary-near-note', `1分、5分已驗證；${fifteenState}`);
-  dwText('dw-flow-summary-mid', thirtyState);
-  dwText('dw-flow-summary-far', '待驗證');
+  dwText('dw-flow-summary-mid', `${thirtyState}；${windowState(oneHour, '1小時', oneHourGoverned)}`);
+  dwText('dw-flow-summary-far', `${windowState(fourHour, '4小時', fourHourGoverned)}；本交易日待定義`);
 }
 
 function renderObservedFlowSelected(value, available, reason) {
@@ -4333,6 +4339,8 @@ async function reportCru46BrowserRuntimeProof() {
   const flow5m = $('dw-flow-tab-5m');
   const flow15m = $('dw-flow-tab-15m');
   const flow30m = $('dw-flow-tab-30m');
+  const flow1h = $('dw-flow-tab-1h');
+  const flow4h = $('dw-flow-tab-4h');
   await apiRequestCru46Proof({
     lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
     canvasCount: target?.querySelectorAll('canvas').length || 0,
@@ -4349,6 +4357,12 @@ async function reportCru46BrowserRuntimeProof() {
     observedFlow30m: Boolean(flow?.windows?.window1800s
       && (flow.windows.window1800s.status !== 'UNAVAILABLE' || flow.windows.window1800s.truthState === 'WARMING_UP')
       && visible(flow30m)),
+    observedFlow1h: Boolean(flow?.windows?.window3600s
+      && (flow.windows.window3600s.status !== 'UNAVAILABLE' || flow.windows.window3600s.truthState === 'WARMING_UP')
+      && visible(flow1h)),
+    observedFlow4h: Boolean(flow?.windows?.window14400s
+      && (flow.windows.window14400s.status !== 'UNAVAILABLE' || flow.windows.window14400s.truthState === 'WARMING_UP')
+      && visible(flow4h)),
   });
 }
 

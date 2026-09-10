@@ -1,13 +1,13 @@
 param(
   [int]$Port = 8795,
   [string]$SharedRoot = 'D:\Taiwan stock\standalone-v1',
-  [string]$ProjectionRoot = 'D:\Taiwan stock\standalone-v1\data\runtime\cru44-candidate-9768dd9'
+  [string]$ProjectionRoot = 'D:\Taiwan stock\standalone-v1\data\runtime\cru44-1h-4h-candidate-9770b07'
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$expectedBranch = 'codex/cru-44-15m-30m-observed-flow-v1'
-$approvedMain = '9768dd9df5b506f519b52cc1baf7bf9acb551f4c'
+$expectedBranch = 'codex/cru-44-1h-4h-observed-flow-v1'
+$approvedMain = '9770b072758532ecd3feabfb25d1213f431560e2'
 $branch = (& git -c "safe.directory=$root" -C $root branch --show-current).Trim()
 if ($branch -ne $expectedBranch) { throw "CRU44_BRANCH_MISMATCH:$branch" }
 if (& git -c "safe.directory=$root" -C $root status --porcelain) { throw 'CRU44_WORKTREE_NOT_CLEAN' }
@@ -23,7 +23,7 @@ if ($listener) {
     if ($existing.versionTruth.exactHead -eq $expectedHead) {
       if ($existing.ownerPreviewReady.ready -eq $true) {
         [pscustomobject]@{ ProcessId = $listener.OwningProcess; Url = "http://127.0.0.1:$Port/";
-          ExactHead = $expectedHead; Gate = 'READY_FOR_CRU44_15M_30M_OWNER_PREVIEW'; OwnerPreviewReady = $true }
+          ExactHead = $expectedHead; Gate = 'READY_FOR_CRU44_1H_4H_OWNER_PREVIEW'; OwnerPreviewReady = $true }
         exit 0
       }
       if ($existing.identityReady.ready -eq $true -and $existing.runtimePreflightReady.ready -eq $true) {
@@ -102,8 +102,10 @@ for ($attempt = 0; $attempt -lt 300; $attempt += 1) {
       -and $truth.includedSources.cru36 -eq 'governed-local-ledger-v1' `
       -and $truth.includedSources.cru43 -eq 'e2427bef6b7659da684e9c82f7fa11680e4688f0'
     $flow = $response.runtimeEvidence.observedFlow
-    $longWindowsReady = $flow.fifteenMinuteStatus -ne 'UNAVAILABLE' `
-      -and $flow.thirtyMinuteStatus -ne 'UNAVAILABLE'
+    $longWindowsReady = ($flow.fifteenMinuteStatus -ne 'UNAVAILABLE' -or $flow.fifteenMinuteTruthState -eq 'WARMING_UP') `
+      -and ($flow.thirtyMinuteStatus -ne 'UNAVAILABLE' -or $flow.thirtyMinuteTruthState -eq 'WARMING_UP') `
+      -and ($flow.oneHourStatus -ne 'UNAVAILABLE' -or $flow.oneHourTruthState -eq 'WARMING_UP') `
+      -and ($flow.fourHourStatus -ne 'UNAVAILABLE' -or $flow.fourHourTruthState -eq 'WARMING_UP')
     if ($response.ok -and $response.identityReady.ready -eq $true `
       -and $response.runtimePreflightReady.ready -eq $true -and $longWindowsReady `
       -and $truth.previewType -eq 'CRU44_OWNER_PREVIEW' `
