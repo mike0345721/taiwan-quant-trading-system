@@ -102,16 +102,25 @@ export function inspectObservedFlowPayload(flow, { requireLongWindows = false } 
   const context = flow?.windows?.context300s;
   const window900s = flow?.windows?.window900s;
   const window1800s = flow?.windows?.window1800s;
-  const required = requireLongWindows ? [primary, context, window900s, window1800s] : [primary, context];
+  const window3600s = flow?.windows?.window3600s;
+  const window14400s = flow?.windows?.window14400s;
+  const required = requireLongWindows
+    ? [primary, context, window900s, window1800s, window3600s, window14400s]
+    : [primary, context];
   const ready = ['LIVE', 'WARMING_UP', 'STALE'].includes(flow?.sourceState)
     && required.every((window) => window && (window.status !== 'UNAVAILABLE' || window.truthState === 'WARMING_UP'));
-  const unavailableReason = requireLongWindows ? 'OBSERVED_FLOW_1M_5M_15M_30M_UNAVAILABLE' : 'OBSERVED_FLOW_1M_5M_UNAVAILABLE';
+  const unavailableReason = requireLongWindows
+    ? 'OBSERVED_FLOW_1M_5M_15M_30M_1H_4H_UNAVAILABLE'
+    : 'OBSERVED_FLOW_1M_5M_UNAVAILABLE';
   return Object.freeze({ ready: Boolean(ready), reasons: Object.freeze(ready ? [] : [flow?.unavailableReason || unavailableReason]),
     sourceState: flow?.sourceState || 'UNAVAILABLE', oneMinuteStatus: primary?.status || 'UNAVAILABLE',
     fiveMinuteStatus: context?.status || 'UNAVAILABLE', fifteenMinuteStatus: window900s?.status || 'UNAVAILABLE',
     thirtyMinuteStatus: window1800s?.status || 'UNAVAILABLE',
     fifteenMinuteTruthState: window900s?.truthState || 'UNAVAILABLE',
     thirtyMinuteTruthState: window1800s?.truthState || 'UNAVAILABLE', identity: flow?.identity || null,
+    oneHourStatus: window3600s?.status || 'UNAVAILABLE', fourHourStatus: window14400s?.status || 'UNAVAILABLE',
+    oneHourTruthState: window3600s?.truthState || 'UNAVAILABLE',
+    fourHourTruthState: window14400s?.truthState || 'UNAVAILABLE',
     availableAt: flow?.source?.availableAt || null });
 }
 
@@ -126,6 +135,8 @@ export function validateBrowserRuntimeProof(proof, { exactHead, runtimeStartedAt
   if (proof?.observedFlow1m !== true || proof?.observedFlow5m !== true) reasons.push('BROWSER_OBSERVED_FLOW_MISSING');
   if (requireLongWindows && (proof?.observedFlow15m !== true || proof?.observedFlow30m !== true))
     reasons.push('BROWSER_OBSERVED_FLOW_15M_30M_MISSING');
+  if (requireLongWindows && (proof?.observedFlow1h !== true || proof?.observedFlow4h !== true))
+    reasons.push('BROWSER_OBSERVED_FLOW_1H_4H_MISSING');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons), proof: proof || null });
 }
 
@@ -143,6 +154,8 @@ export function normalizeBrowserRuntimeProof(candidate, { exactHead, runtimeStar
     observedFlow5m: candidate?.observedFlow5m === true,
     observedFlow15m: candidate?.observedFlow15m === true,
     observedFlow30m: candidate?.observedFlow30m === true,
+    observedFlow1h: candidate?.observedFlow1h === true,
+    observedFlow4h: candidate?.observedFlow4h === true,
     receivedAt: new Date().toISOString(),
   });
 }
@@ -161,6 +174,12 @@ export function validateBrowserRuntimeParity(proof, { chart, observedFlow, requi
   if (requireLongWindows && (proof?.observedFlow30m !== true
       || (observedFlow?.thirtyMinuteStatus === 'UNAVAILABLE' && observedFlow?.thirtyMinuteTruthState !== 'WARMING_UP')))
     reasons.push('BROWSER_OBSERVED_FLOW_30M_MISMATCH');
+  if (requireLongWindows && (proof?.observedFlow1h !== true
+      || (observedFlow?.oneHourStatus === 'UNAVAILABLE' && observedFlow?.oneHourTruthState !== 'WARMING_UP')))
+    reasons.push('BROWSER_OBSERVED_FLOW_1H_MISMATCH');
+  if (requireLongWindows && (proof?.observedFlow4h !== true
+      || (observedFlow?.fourHourStatus === 'UNAVAILABLE' && observedFlow?.fourHourTruthState !== 'WARMING_UP')))
+    reasons.push('BROWSER_OBSERVED_FLOW_4H_MISMATCH');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }
 

@@ -61,6 +61,34 @@ test('ledger reader incrementally consumes only actual TX ticks and source loade
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('live cache keeps small suffixes in memory and restart deterministically recovers them from the ledger', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dw2-source-checkpoint-'));
+  try {
+    const ledgerDir = path.join(root, 'live-events');
+    const cacheRoot = path.join(root, 'chart-cache');
+    fs.mkdirSync(ledgerDir, { recursive: true });
+    const ledger = path.join(ledgerDir, '2026-08-12.ndjson');
+    fs.writeFileSync(ledger, `${JSON.stringify(record('2026-08-12T08:45:01.000', 100, 2))}\n`);
+    const options = {
+      dataRoot: root, cacheRoot, calendar, timeframe: '5m', mode: 'REPLAY', tradeDate: '2026-08-12', session: 'DAY', asOf: '2026-08-12T09:00:00+08:00',
+    };
+    const initial = loadTxDecisionChart(options);
+    const metadataPath = path.join(cacheRoot, fs.readdirSync(cacheRoot).find((name) => name.endsWith('.meta.json')));
+    const initialMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+
+    fs.appendFileSync(ledger, `${JSON.stringify(record('2026-08-12T08:46:02.000', 102, 4))}\n`);
+    const liveIncremental = loadTxDecisionChart(options);
+    const deferredMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    assert.equal(liveIncremental.sourceEventCount, 2);
+    assert.equal(deferredMetadata.sourceOffset, initialMetadata.sourceOffset);
+
+    clearTxChartLedgerCache();
+    const restarted = loadTxDecisionChart(options);
+    assert.deepEqual(restarted, liveIncremental);
+    assert.notDeepEqual(restarted, initial);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test('1D source reads governed previous NIGHT plus current DAY ledgers without changing lower timeframe anchors', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dw2-source-1d-'));
   try {

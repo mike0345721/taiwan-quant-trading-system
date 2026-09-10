@@ -8,7 +8,7 @@ import { materializeTxCanonicalObservations } from './tx-intraday-pressure-path-
 import { buildCru34SemanticPayload } from './cru34-snapshot-artifact.mjs';
 import { cru34LiveHash } from './cru34-live-checkpoint.mjs';
 
-export const CRU44_MULTI_WINDOW_SCHEMA_VERSION = 'cru44-multi-window-observed-flow-v1';
+export const CRU44_MULTI_WINDOW_SCHEMA_VERSION = 'cru44-multi-window-observed-flow-v2';
 
 export const CRU44_WINDOW_REGISTRY = Object.freeze({
   primary60s: Object.freeze({ key: '1m', label: '1m', windowMs: 60_000, warmupMs: 60_000,
@@ -21,6 +21,12 @@ export const CRU44_WINDOW_REGISTRY = Object.freeze({
     sessionPolicy: 'SAME_GOVERNED_SESSION', tradeDatePolicy: 'SAME_TRADE_DATE',
     continuityPolicy: 'SAME_CONTINUITY_EPOCH', version: 1, compatibilityAnchor: false }),
   window1800s: Object.freeze({ key: '30m', label: '30m', windowMs: 1_800_000, warmupMs: 1_800_000,
+    sessionPolicy: 'SAME_GOVERNED_SESSION', tradeDatePolicy: 'SAME_TRADE_DATE',
+    continuityPolicy: 'SAME_CONTINUITY_EPOCH', version: 1, compatibilityAnchor: false }),
+  window3600s: Object.freeze({ key: '1h', label: '1h', windowMs: 3_600_000, warmupMs: 3_600_000,
+    sessionPolicy: 'SAME_GOVERNED_SESSION', tradeDatePolicy: 'SAME_TRADE_DATE',
+    continuityPolicy: 'SAME_CONTINUITY_EPOCH', version: 1, compatibilityAnchor: false }),
+  window14400s: Object.freeze({ key: '4h', label: '4h', windowMs: 14_400_000, warmupMs: 14_400_000,
     sessionPolicy: 'SAME_GOVERNED_SESSION', tradeDatePolicy: 'SAME_TRADE_DATE',
     continuityPolicy: 'SAME_CONTINUITY_EPOCH', version: 1, compatibilityAnchor: false }),
 });
@@ -79,7 +85,7 @@ export function buildCru44MultiWindowFromCanonical({
   }
   const body = {
     schemaVersion: CRU44_MULTI_WINDOW_SCHEMA_VERSION,
-    registryVersion: 1,
+    registryVersion: 2,
     registry: CRU44_WINDOW_REGISTRY,
     identity: {
       instrument: instrumentProfile.instrument || 'TX', actualContract: cutoff.actualContract,
@@ -100,6 +106,10 @@ export function buildCru44MultiWindowFromCanonical({
         CRU44_WINDOW_REGISTRY.window900s, sourceTruthState),
       window1800s: windowEnvelope(canonicalEvents, cutoff, instrumentProfile,
         CRU44_WINDOW_REGISTRY.window1800s, sourceTruthState),
+      window3600s: windowEnvelope(canonicalEvents, cutoff, instrumentProfile,
+        CRU44_WINDOW_REGISTRY.window3600s, sourceTruthState),
+      window14400s: windowEnvelope(canonicalEvents, cutoff, instrumentProfile,
+        CRU44_WINDOW_REGISTRY.window14400s, sourceTruthState),
     },
     methodology: {
       pressureResponsePath: 'CRU-34 frozen semantics reused',

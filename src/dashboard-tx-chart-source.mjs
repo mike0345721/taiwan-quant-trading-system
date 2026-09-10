@@ -7,6 +7,7 @@ import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-cha
 
 const ledgerCache = new Map();
 const TAIPEI_OFFSET = '+08:00';
+const PERSISTENT_CACHE_CHECKPOINT_BYTES = 64 * 1024 * 1024;
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -61,7 +62,14 @@ function readPersistentCache(sourcePath, sourceStat, cacheRoot) {
       || metadata.cacheHash !== sha256(bytes)) return null;
     const records = bytes.toString('utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
     if (records.length !== metadata.recordCount) return null;
-    return { offset: metadata.sourceOffset, remainder: '', records, files, persistedRecordCount: records.length };
+    return {
+      offset: metadata.sourceOffset,
+      remainder: '',
+      records,
+      files,
+      persistedRecordCount: records.length,
+      persistedSourceOffset: metadata.sourceOffset,
+    };
   } catch { return null; }
 }
 
@@ -101,6 +109,7 @@ function writePersistentCache(sourcePath, cached, cacheRoot) {
   fs.renameSync(metadataTemp, files.metadata);
   cached.files = files;
   cached.persistedRecordCount = cached.records.length;
+  cached.persistedSourceOffset = cached.offset;
   cached.forceRewrite = false;
 }
 
@@ -180,7 +189,15 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
   const stat = fs.statSync(absolute);
   let cached = ledgerCache.get(absolute);
   if (!cached) cached = readPersistentCache(absolute, stat, cacheRoot);
-  if (!cached || stat.size < cached.offset) cached = { offset: 0, remainder: '', records: [], files: cachePaths(absolute, cacheRoot), persistedRecordCount: 0, forceRewrite: true };
+  if (!cached || stat.size < cached.offset) cached = {
+    offset: 0,
+    remainder: '',
+    records: [],
+    files: cachePaths(absolute, cacheRoot),
+    persistedRecordCount: 0,
+    persistedSourceOffset: 0,
+    forceRewrite: true,
+  };
   if (stat.size === cached.offset) return Object.freeze([...cached.records]);
   const fd = fs.openSync(absolute, 'r');
   const decoder = new StringDecoder('utf8');
@@ -202,7 +219,10 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
   cached.offset = position;
   cached.remainder = pending;
   ledgerCache.set(absolute, cached);
-  if (cacheRoot) writePersistentCache(absolute, cached, cacheRoot);
+  const uncheckpointedBytes = cached.offset - (cached.persistedSourceOffset || 0);
+  if (cacheRoot && (cached.forceRewrite === true || uncheckpointedBytes >= PERSISTENT_CACHE_CHECKPOINT_BYTES)) {
+    writePersistentCache(absolute, cached, cacheRoot);
+  }
   return Object.freeze([...cached.records]);
 }
 

@@ -282,12 +282,12 @@
 .dw-flow-mini-bar i.is-level-2,
 .dw-pressure-segments i.is-level-2 {
   background: color-mix(in srgb, var(--energy-soft) 52%, var(--energy-strong));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--energy-soft) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--energy-soft) 78%, transparent);
 }
 .dw-flow-mini-bar i.is-level-3,
-.dw-pressure-segments i.is-level-3 { background: linear-gradient(180deg, var(--energy-soft), var(--energy-strong)); box-shadow: inset 0 0 0 2px var(--energy-strong), 0 0 4px color-mix(in srgb, var(--energy-soft) 34%, transparent); }
+.dw-pressure-segments i.is-level-3 { background: linear-gradient(180deg, var(--energy-soft), var(--energy-strong)); box-shadow: inset 0 0 0 1px var(--energy-strong), 0 0 4px color-mix(in srgb, var(--energy-soft) 30%, transparent); filter: brightness(1.06); }
 .dw-flow-mini-bar i.is-level-4,
-.dw-pressure-segments i.is-level-4 { background: var(--energy-strong); box-shadow: inset 0 0 0 2px var(--energy-soft), 0 0 6px color-mix(in srgb, var(--energy-strong) 52%, transparent); filter: brightness(1.18); }
+.dw-pressure-segments i.is-level-4 { background: linear-gradient(180deg, color-mix(in srgb, var(--energy-soft) 22%, var(--energy-strong)), var(--energy-strong)); box-shadow: inset 0 0 0 1px var(--energy-soft), 0 0 6px color-mix(in srgb, var(--energy-strong) 44%, transparent); filter: brightness(1.12); }
 .dw-flow-mini-bar.is-inactive i,
 .dw-pressure-segments.is-inactive i { background: #2b3946; opacity: .62; }
 

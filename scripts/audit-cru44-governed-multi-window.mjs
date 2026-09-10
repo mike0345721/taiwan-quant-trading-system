@@ -56,7 +56,9 @@ function addMetric(target, envelope) {
   else if (pathState) target.otherPathUnavailable += 1;
 }
 
-const metrics = { window900s: bucket(), window1800s: bucket(), bySession: {}, byHour: {} };
+const WINDOW_KEYS = Object.freeze(['window900s', 'window1800s', 'window3600s', 'window14400s']);
+const windowBuckets = () => Object.fromEntries(WINDOW_KEYS.map((key) => [key, bucket()]));
+const metrics = { ...windowBuckets(), bySession: {}, byHour: {} };
 const durations = [];
 let batches = 0;
 let maxRollingEvents = 0;
@@ -76,9 +78,9 @@ for (let guard = 0; guard < 10_000; guard += 1) {
     const payload = result.snapshot.multiWindowPayload;
     const session = payload.identity.session || 'UNKNOWN';
     const hour = String(payload.lineage.availableAt || '').slice(11, 13) || 'UNKNOWN';
-    metrics.bySession[session] ||= { window900s: bucket(), window1800s: bucket() };
-    metrics.byHour[hour] ||= { window900s: bucket(), window1800s: bucket() };
-    for (const key of ['window900s', 'window1800s']) {
+    metrics.bySession[session] ||= windowBuckets();
+    metrics.byHour[hour] ||= windowBuckets();
+    for (const key of WINDOW_KEYS) {
       addMetric(metrics[key], payload.windows[key]);
       addMetric(metrics.bySession[session][key], payload.windows[key]);
       addMetric(metrics.byHour[hour][key], payload.windows[key]);
@@ -111,7 +113,7 @@ const restart = projectCru34LiveBatch({
 const restartMs = performance.now() - restartStarted;
 const finalWindows = latest.snapshot.multiWindowPayload.windows;
 const report = {
-  schemaVersion: 'cru44-governed-multi-window-audit-v1',
+  schemaVersion: 'cru44-governed-multi-window-audit-v2',
   generatedAt: new Date().toISOString(),
   source: {
     ledgerFileName: path.basename(ledgerPath),
@@ -136,7 +138,7 @@ const report = {
     replayedRollingReferenceContentHash: replayed.contentHash,
     exactMatch: latest.snapshot.multiWindowPayload.contentHash === replayed.contentHash,
   },
-  windows: Object.fromEntries(['window900s', 'window1800s'].map((key) => [key, {
+  windows: Object.fromEntries(WINDOW_KEYS.map((key) => [key, {
     key: finalWindows[key].key,
     truthState: finalWindows[key].truthState,
     pressureStatus: finalWindows[key].evidence?.pressure?.status || 'UNAVAILABLE',
@@ -161,8 +163,10 @@ const report = {
   },
   safety: { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false },
 };
+fs.writeFileSync(path.join(outputRoot, 'audit-report.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 if (!report.compatibility.exactHashMatch || !report.equivalence.exactMatch
-    || Object.values(report.windows).some((window) => !window.promotionEligible)
+    || Object.values(report.windows).some((window) => !window.promotionEligible
+      && window.truthState !== 'WARMING_UP')
     || restart.status !== 'NO_COMPLETE_SUFFIX') {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   throw new Error('CRU44_GOVERNED_AUDIT_FAILED');

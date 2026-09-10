@@ -142,12 +142,14 @@ test('authorized live envelope preserves LIVE WARMING_UP and STALE as separate s
   }
 });
 
-test('dashboard exposes independently governed 15m LIVE and 30m WARMING states', () => {
+test('dashboard exposes independent governed LIVE and WARMING states through 1h and 4h', () => {
   const result = governedReadResult();
   result.truthState = 'LIVE';
   result.snapshot.sourceMode = 'LIVE';
   result.snapshot.window900s = { truthState: 'LIVE', unavailableReason: null, evidence: window(900_000, 0.2, 1, 15, 0.5) };
   result.snapshot.window1800s = { truthState: 'WARMING_UP', unavailableReason: 'WARMING_UP_WINDOW_INCOMPLETE', evidence: null };
+  result.snapshot.window3600s = { truthState: 'LIVE', unavailableReason: null, evidence: window(3_600_000, -0.3, 1, -42, 0.4) };
+  result.snapshot.window14400s = { truthState: 'WARMING_UP', unavailableReason: 'WARMING_UP_WINDOW_INCOMPLETE', evidence: null };
   result.operational = { checkpointIdentity: 'f'.repeat(64), validUntil: '2026-09-07T02:00:00.000Z' };
   const contract = buildDashboardObservedFlow(result);
   assert.equal(contract.windows.window900s.label, '15分');
@@ -157,6 +159,13 @@ test('dashboard exposes independently governed 15m LIVE and 30m WARMING states',
   assert.equal(contract.windows.window1800s.truthState, 'WARMING_UP');
   assert.equal(contract.windows.window1800s.pressure.pressureRatio, null);
   assert.equal(contract.windows.window1800s.unavailableReason, 'WARMING_UP_WINDOW_INCOMPLETE');
+  assert.equal(contract.windows.window3600s.label, '1小時');
+  assert.equal(contract.windows.window3600s.truthState, 'LIVE');
+  assert.equal(contract.windows.window3600s.pressure.pressureRatio, -0.3);
+  assert.equal(contract.windows.window14400s.label, '4小時');
+  assert.equal(contract.windows.window14400s.truthState, 'WARMING_UP');
+  assert.equal(contract.windows.window14400s.pressure.pressureRatio, null);
+  assert.equal(contract.windows.window14400s.unavailableReason, 'WARMING_UP_WINDOW_INCOMPLETE');
 });
 
 test('missing configured artifact fails closed without fallback', () => {
