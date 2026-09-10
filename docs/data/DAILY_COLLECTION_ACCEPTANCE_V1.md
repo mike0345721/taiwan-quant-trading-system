@@ -58,7 +58,7 @@ node scripts/build-daily-collection-acceptance.mjs `
 
 NIGHT 所需的任一 governed ledger 檔不存在時，檔名會保留在 `sourceArtifactIdentity.missingFiles`，相關 Feed 降為 `PARTIAL / LEDGER_NOT_FOUND`，不可由另一個存在的半時段檔案升格為 PASS。
 
-既有小型 ledger 可重用 `auditLiveEventLedger`；大型 ledger 不做另一個無界全檔記憶體 audit，而優先使用既有 `futures-audits/YYYY-MM-DD.json`。若沒有相符 audit，hash-chain 結論保持 `UNKNOWN`。
+既有小型 ledger 可在同一 invocation 重用 `auditLiveEventLedger`；大型 ledger 不做另一個無界全檔記憶體 audit。Persisted `futures-audits/YYYY-MM-DD.json` 只有在 bytes/latestHash/sequenceGaps 與本次 cutoff 相符、且已保存的 prefix SHA-256 也與本次 scan 相符時才可升格 integrity；舊 audit 缺 prefix digest 時保持 `UNKNOWN`。
 
 `sequence = null`、缺少 sequence-gap evidence 或已觀測到 `sequenceGap > 0` 時，即使 ledger 有資料且 hash chain 可驗，也不得把完整性升格為 PASS。Native sequence 缺失時必須保留：
 
@@ -71,6 +71,10 @@ reasonCodes += NATIVE_SEQUENCE_UNAVAILABLE
 ```
 
 Hash PASS 只證明本機 append-only chain，不能證明市場逐筆完整。
+
+`captureState=PASS` 只表示該 Feed 確實有 delivery，不表示整個時段完整。`coverageState` 另以既有 governed session start/end 判斷：尚未到 session end 為 `PENDING`；已結束但未從開盤邊界延伸到收盤邊界為 `PARTIAL`，並標記 `LATE_START` / `STALE_DELIVERY`。不新增寬限 threshold，也不以 subscription success 取代 delivery evidence。
+
+Operational counters、reconnect 與 missing-ledger evidence 依 DAY / NIGHT 分開歸屬；某個 NIGHT 檔或錯誤不得污染已驗證的 DAY Feed。NIGHT calendar prior-date 無法由 governed calendar 解出時，CLI fail closed，不猜日期。
 
 ### Official / batch
 
@@ -100,7 +104,7 @@ Pressure / Price Response / Path Efficiency 是 derived evidence，不是 raw Fe
 
 - `NOT_EXPECTED`、`NOT_ENABLED`、`NOT_PUBLISHED_YET` 不進 failure denominator。
 - Required-and-due Feed 全部通過對應 acceptance，才可 `PASS`。
-- 已證明 capture / persistence / integrity failure 時至少 `PARTIAL`；全部必要 evidence materially unusable 才 `FAIL`。
+- 已證明 capture / coverage / persistence / integrity 的 `PARTIAL` 或 failure 時，overall 至少 `PARTIAL`；全部必要 evidence materially unusable 才 `FAIL`。
 - Required-and-due evidence 不足時是 `UNKNOWN`，不得樂觀轉成 `PASS`。
 - `Missing != 0`，`Unknown != Neutral`。
 
@@ -130,7 +134,7 @@ Top-level：
 - `feeds[]`
 - `safety`
 
-每個 `feeds[]` row 保留 canonical `datasetId`、中英文 label、quote type、mode/source、calendar/trade/session identity、expected window、actual contract、時間與筆數/bytes、capture/persistence/integrity、research eligibility、reason code + 繁中說明、evidence strength、artifact identity、downstream impact 與 smallest next check。
+每個 `feeds[]` row 保留 canonical `datasetId`、中英文 label、quote type、mode/source、calendar/trade/session identity、expected window、actual contract、時間與筆數/bytes、capture/coverage/persistence/integrity、research eligibility、reason code + 繁中說明、evidence strength、artifact identity、downstream impact 與 smallest next check。
 
 ## 已知限制
 

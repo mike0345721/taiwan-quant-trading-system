@@ -172,6 +172,22 @@ test('callback error prevents a live feed and session from reporting PASS', () =
   assert.equal(report.summary.daySessionState, 'UNKNOWN');
 });
 
+test('NIGHT operational evidence does not contaminate a valid DAY feed', () => {
+  const report = build({
+    liveEvidence: live({
+      sessions: {
+        DAY: { callbackErrors: 0, writerErrors: 0, droppedEvents: 0, reconnectCount: 0, missingFiles: [] },
+        NIGHT: { callbackErrors: 2, writerErrors: 1, droppedEvents: 0, reconnectCount: 1, missingFiles: ['night.ndjson'] },
+      },
+    }),
+  });
+  const item = feed(report, 'tx_actual_trade', 'DAY');
+  assert.equal(item.captureState, 'PASS');
+  assert.equal(item.persistenceState, 'PASS');
+  assert.ok(!item.reasonCodes.includes('CALLBACK_ERROR'));
+  assert.ok(!item.reasonCodes.includes('LEDGER_NOT_FOUND'));
+});
+
 test('queue drop is a persistence and integrity limitation', () => {
   const item = feed(build({ liveEvidence: live({ droppedEvents: 1 }) }), 'tx_best_quote', 'DAY');
   assert.equal(item.captureState, 'PASS');
@@ -360,13 +376,14 @@ test('ledger audit cannot promote integrity unless every selected cutoff is exac
   const exact = await streamDailyLedgerEvidence([ledger], {
     calendar, tradeDate: '2026-09-09', generatedAt: context.generatedAt,
     ledgerAudit: { ok: true, sources: [{
-      sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size,
+      source: 'auditLiveEventLedger', sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size,
       latestHash: record.recordHash, sequenceGaps: 0, ok: true,
     }] },
   });
   assert.equal(exact.ledgerAudit.ok, true);
   const exactReport = buildDailyCollectionAcceptance({ ...context, sessions: ['DAY'], liveEvidence: exact });
   assert.equal(feed(exactReport, 'tx_actual_trade', 'DAY').integrityState, 'PASS');
+  assert.equal(feed(exactReport, 'tx_actual_trade', 'DAY').coverageState, 'PARTIAL');
 });
 
 test('native sequence gap fails integrity even when the ledger hash audit is valid', async (t) => {
@@ -391,11 +408,32 @@ test('native sequence gap fails integrity even when the ledger hash audit is val
   assert.ok(item.reasonCodes.includes('CONTINUITY_BREAK'));
 });
 
-test('a missing governed ledger file remains explicit and prevents session PASS', async (t) => {
+test('malformed sequence-gap evidence remains UNKNOWN and cannot become a proven zero', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-sequence-unknown-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const ledger = path.join(directory, '2026-09-09.ndjson');
+  const record = buildLiveEventRecord({
+    kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T09:00:00+08:00',
+    exchangeTimestamp: '2026-09-09T09:00:00+08:00', sequence: 1, sequenceGap: 'unknown', duplicate: false,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    payload: { productFamily: 'TX', actualContract: 'TXFI6', datetime: '2026-09-09T09:00:00+08:00', simtrade: false },
+  }, 'GENESIS');
+  fs.writeFileSync(ledger, `${JSON.stringify(record)}\n`, 'utf8');
+  const calendar = { payload: { sourceHash: 'fixture' }, fileHash: 'fixture', exceptions: new Map(), tradingDates: new Set(['2026-09-09']), nonTradingDates: new Set([]) };
+  const evidence = await streamDailyLedgerEvidence([ledger], {
+    calendar, tradeDate: '2026-09-09', generatedAt: context.generatedAt,
+    ledgerAudit: { ok: true, sources: [{ sourceFile: '2026-09-09.ndjson', bytes: fs.statSync(ledger).size, latestHash: record.recordHash, sequenceGaps: 0, ok: true }] },
+  });
+  const report = buildDailyCollectionAcceptance({ ...context, sessions: ['DAY'], liveEvidence: evidence });
+  assert.equal(feed(report, 'tx_actual_trade', 'DAY').integrityState, 'UNKNOWN');
+});
+
+test('an empty governed ledger file remains explicit and prevents session PASS', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cru25-daily-missing-ledger-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const existing = path.join(directory, '2026-09-09.ndjson');
   const missing = path.join(directory, '2026-09-10.ndjson');
+  fs.writeFileSync(missing, '', 'utf8');
   const record = buildLiveEventRecord({
     kind: 'futures_tick', code: 'TXFI6', product: 'TXFI6', receivedAt: '2026-09-09T15:01:00+08:00',
     exchangeTimestamp: '2026-09-09T15:01:00+08:00', sequence: 1, sequenceGap: 0, duplicate: false,
@@ -423,6 +461,7 @@ test('a missing governed ledger file remains explicit and prevents session PASS'
   assert.equal(item.persistenceState, 'PARTIAL');
   assert.ok(item.reasonCodes.includes('LEDGER_NOT_FOUND'));
   assert.equal(report.summary.nightSessionState, 'UNKNOWN');
+  assert.equal(report.overallState, 'PARTIAL');
 });
 
 test('unsafe execution boundary record is excluded and reported as insufficient evidence', async (t) => {

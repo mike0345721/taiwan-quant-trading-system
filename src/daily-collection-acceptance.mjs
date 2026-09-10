@@ -113,6 +113,7 @@ function feedBase(definition, { calendarDate, tradeDate, session, expectedState,
     recordCount: null,
     bytes: null,
     captureState: 'UNKNOWN',
+    coverageState: 'UNKNOWN',
     persistenceState: 'UNKNOWN',
     integrityState: 'UNKNOWN',
     researchEligibility: 'UNKNOWN',
@@ -137,6 +138,7 @@ function notExpectedFeed(definition, context, reasonCode) {
   return closeFeed({
     ...feedBase(definition, { ...context, expectedState: 'NOT_EXPECTED' }),
     captureState: 'NOT_EXPECTED',
+    coverageState: 'NOT_EXPECTED',
     persistenceState: 'NOT_EXPECTED',
     integrityState: 'NOT_EXPECTED',
     researchEligibility: 'NOT_APPLICABLE',
@@ -184,23 +186,40 @@ function liveFeed(definition, session, context, evidence, registry) {
   if (!definition.datasetId) reasons.push('CANONICAL_DATASET_ID_UNAVAILABLE');
   if (item.contracts.length !== 1) reasons.push('ACTUAL_CONTRACT_MISMATCH');
   if (item.nativeSequenceAvailable !== true || item.nativeSequenceMissing === true) reasons.push('NATIVE_SEQUENCE_UNAVAILABLE');
-  if (evidence.callbackErrors > 0) reasons.push('CALLBACK_ERROR');
-  if (evidence.writerErrors > 0) reasons.push('WRITER_ERROR');
-  if (evidence.droppedEvents > 0) reasons.push('QUEUE_DROP');
-  if (evidence.reconnectCount > 0) reasons.push('PROVIDER_RECONNECT');
-  if (evidence.missingFiles?.length) reasons.push('LEDGER_NOT_FOUND');
+  const sessionEvidence = evidence.sessions?.[session] || {};
+  const sessionMetric = (key) => nullableNumber(sessionEvidence[key]) ?? nullableNumber(evidence[key]) ?? 0;
+  const sessionMissingFiles = sessionEvidence.missingFiles || [];
+  if (sessionMetric('callbackErrors') > 0) reasons.push('CALLBACK_ERROR');
+  if (sessionMetric('writerErrors') > 0) reasons.push('WRITER_ERROR');
+  if (sessionMetric('droppedEvents') > 0) reasons.push('QUEUE_DROP');
+  if (sessionMetric('reconnectCount') > 0) reasons.push('PROVIDER_RECONNECT');
+  if (sessionMissingFiles.length) reasons.push('LEDGER_NOT_FOUND');
   if (item.nativeSequenceGaps > 0) reasons.push('CONTINUITY_BREAK');
   if (item.invalidLines > 0) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
-  const persistenceState = evidence.writerErrors > 0 || evidence.droppedEvents > 0 ? 'FAIL'
-    : evidence.missingFiles?.length ? 'PARTIAL' : 'PASS';
+  const persistenceState = sessionMetric('writerErrors') > 0 || sessionMetric('droppedEvents') > 0 ? 'FAIL'
+    : sessionMissingFiles.length ? 'PARTIAL' : 'PASS';
   const knownIntegrityFailure = evidence.ledgerAudit?.ok === false || item.nativeSequenceGaps > 0;
   const integrityState = knownIntegrityFailure ? 'FAIL'
     : evidence.ledgerAudit?.ok === true && item.nativeSequenceAvailable === true
       && item.nativeSequenceMissing !== true && item.nativeSequenceGapUnknown !== true
       && item.nativeSequenceGaps === 0 && item.invalidLines === 0
-      && evidence.reconnectCount === 0 ? 'PASS' : 'UNKNOWN';
-  const captureState = item.contracts.length === 1 && evidence.callbackErrors === 0
-    && !evidence.missingFiles?.length ? 'PASS' : 'PARTIAL';
+      && sessionMetric('reconnectCount') === 0 ? 'PASS' : 'UNKNOWN';
+  const captureState = item.contracts.length === 1 && sessionMetric('callbackErrors') === 0
+    && !sessionMissingFiles.length ? 'PASS' : 'PARTIAL';
+  const generatedMs = Date.parse(context.generatedAt);
+  const sessionStartMs = Date.parse(item.sessionStart || '');
+  const sessionEndMs = Date.parse(item.sessionEnd || '');
+  let coverageState = 'UNKNOWN';
+  if (Number.isFinite(sessionStartMs) && Number.isFinite(sessionEndMs)) {
+    if (generatedMs < sessionEndMs) coverageState = 'PENDING';
+    else {
+      const startsOnTime = Date.parse(item.firstReceivedAt) <= sessionStartMs;
+      const reachesClose = Date.parse(item.lastReceivedAt) >= sessionEndMs;
+      coverageState = startsOnTime && reachesClose ? 'PASS' : 'PARTIAL';
+      if (!startsOnTime) reasons.push('LATE_START');
+      if (!reachesClose) reasons.push('STALE_DELIVERY');
+    }
+  }
   const researchEligibility = !definition.datasetId ? 'NOT_READY'
     : captureState === 'PASS' && persistenceState === 'PASS'
     ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
@@ -215,6 +234,7 @@ function liveFeed(definition, session, context, evidence, registry) {
     recordCount: item.recordCount,
     bytes: item.bytes,
     captureState,
+    coverageState,
     persistenceState,
     integrityState,
     researchEligibility,
@@ -335,9 +355,12 @@ function sessionState(feeds, session) {
   const rows = feeds.filter((feed) => feed.session === session && feed.mode === 'LIVE_EVENT'
     && feed.expectedState === 'REQUIRED');
   if (!rows.length || rows.every((feed) => feed.captureState === 'NOT_EXPECTED')) return 'NOT_EXPECTED';
-  if (rows.some((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL')) return 'FAIL';
+  if (rows.some((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL'
+      || feed.integrityState === 'FAIL' || feed.coverageState === 'FAIL')) return 'FAIL';
   if (rows.some((feed) => ['UNKNOWN', 'PARTIAL'].includes(feed.captureState)
-      || feed.persistenceState === 'UNKNOWN' || feed.integrityState === 'UNKNOWN')) return 'UNKNOWN';
+      || ['UNKNOWN', 'PARTIAL', 'PENDING'].includes(feed.persistenceState)
+      || ['UNKNOWN', 'PARTIAL', 'PENDING'].includes(feed.integrityState)
+      || ['UNKNOWN', 'PARTIAL', 'PENDING'].includes(feed.coverageState))) return 'UNKNOWN';
   return 'PASS';
 }
 
@@ -374,10 +397,14 @@ export function buildDailyCollectionAcceptance({
   }
 
   const due = feeds.filter((feed) => feed.expectedState === 'REQUIRED');
-  const provenFailures = due.filter((feed) => feed.captureState === 'FAIL' || feed.persistenceState === 'FAIL' || feed.integrityState === 'FAIL');
-  const unknownDue = due.filter((feed) => ['UNKNOWN', 'PARTIAL'].includes(feed.captureState)
-    || ['UNKNOWN', 'PARTIAL'].includes(feed.persistenceState)
-    || ['UNKNOWN', 'PARTIAL'].includes(feed.integrityState));
+  const provenFailures = due.filter((feed) => ['FAIL', 'PARTIAL'].includes(feed.captureState)
+    || ['FAIL', 'PARTIAL'].includes(feed.persistenceState)
+    || ['FAIL', 'PARTIAL'].includes(feed.integrityState)
+    || (feed.mode === 'LIVE_EVENT' && ['FAIL', 'PARTIAL'].includes(feed.coverageState)));
+  const unknownDue = due.filter((feed) => ['UNKNOWN', 'PENDING'].includes(feed.captureState)
+    || ['UNKNOWN', 'PENDING'].includes(feed.persistenceState)
+    || ['UNKNOWN', 'PENDING'].includes(feed.integrityState)
+    || (feed.mode === 'LIVE_EVENT' && ['UNKNOWN', 'PENDING'].includes(feed.coverageState)));
   let overallState = 'PASS';
   if (marketDayState === 'UNKNOWN') overallState = 'UNKNOWN';
   else if (marketDayState === 'NON_TRADING_DAY') overallState = 'NOT_EXPECTED';
@@ -464,7 +491,11 @@ function identityOf(record, calendar) {
   if (['stock_tick', 'index_quote'].includes(record.kind)) {
     const eventDate = payload.date || String(eventTimeOf(record) || '').slice(0, 10) || null;
     classified = /^\d{4}-\d{2}-\d{2}$/.test(eventDate || '')
-      ? { calendarDate: eventDate, tradeDate: eventDate, session: 'DAY' } : null;
+      ? {
+        calendarDate: eventDate, tradeDate: eventDate, session: 'DAY',
+        sessionStart: new Date(`${eventDate}T09:00:00+08:00`).toISOString(),
+        sessionEnd: new Date(`${eventDate}T13:30:00+08:00`).toISOString(),
+      } : null;
   } else {
     try { classified = classifyTxChartSession(eventTimeOf(record), calendar); } catch { classified = null; }
   }
@@ -481,6 +512,7 @@ function ensureFeedEvidence(feeds, key) {
       recordCount: 0, bytes: 0, firstReceivedAt: null, lastReceivedAt: null, contracts: [],
       calendarDates: [], nativeSequenceAvailable: false, nativeSequenceMissing: false,
       nativeSequenceGapUnknown: false, nativeSequenceGaps: 0, invalidLines: 0,
+      sessionStart: null, sessionEnd: null,
     };
   }
   return feeds[key];
@@ -552,8 +584,19 @@ export async function streamDailyLedgerEvidence(filePaths, {
   let nativeSequenceAvailable = false;
   let reconnectCount = 0;
   const counters = { callbackErrors: 0, writerErrors: 0, droppedEvents: 0 };
+  const sessions = {
+    DAY: { reconnectCount: 0, callbackErrors: 0, writerErrors: 0, droppedEvents: 0 },
+    NIGHT: { reconnectCount: 0, callbackErrors: 0, writerErrors: 0, droppedEvents: 0 },
+  };
   const candidates = [...new Set(filePaths.map((item) => path.resolve(item)))].sort();
-  const missingFiles = candidates.filter((candidate) => !fs.existsSync(candidate)).map((candidate) => path.basename(candidate));
+  const unavailableFiles = candidates.filter((candidate) => !fs.existsSync(candidate)
+    || completeLineCutoff(candidate) === 0).map((candidate) => path.basename(candidate));
+  const missingFilesBySession = { DAY: [], NIGHT: [] };
+  for (const file of unavailableFiles) {
+    const fileDate = path.basename(file, '.ndjson');
+    if (fileDate === tradeDate) missingFilesBySession.DAY.push(file);
+    missingFilesBySession.NIGHT.push(file);
+  }
   for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
     const completeBytes = completeLineCutoff(candidate);
@@ -620,6 +663,11 @@ export async function streamDailyLedgerEvidence(filePaths, {
       updateCounter(counters, 'writerErrors', payload.writerErrors);
       updateCounter(counters, 'droppedEvents', payload.dropped ?? payload.droppedEvents);
       if (record.kind === 'session_down' || (record.kind === 'provider_event' && /reconnect/i.test(payload.event || ''))) reconnectCount += 1;
+      const sessionCounters = sessions[identityContext.session];
+      updateCounter(sessionCounters, 'callbackErrors', payload.callbackErrors);
+      updateCounter(sessionCounters, 'writerErrors', payload.writerErrors);
+      updateCounter(sessionCounters, 'droppedEvents', payload.dropped ?? payload.droppedEvents);
+      if (record.kind === 'session_down' || (record.kind === 'provider_event' && /reconnect/i.test(payload.event || ''))) sessionCounters.reconnectCount += 1;
       const key = feedKey(record, identityContext.session);
       if (!key || record.duplicate === true || payload.simtrade === true) continue;
       totalRecords += 1;
@@ -628,12 +676,15 @@ export async function streamDailyLedgerEvidence(filePaths, {
       if (record.sequence == null) item.nativeSequenceMissing = true;
       else {
         item.nativeSequenceAvailable = true;
-        if (record.sequenceGap == null) item.nativeSequenceGapUnknown = true;
-        else item.nativeSequenceGaps += Math.max(0, Number(record.sequenceGap) || 0);
+        const gap = Number(record.sequenceGap);
+        if (record.sequenceGap == null || !Number.isFinite(gap) || gap < 0) item.nativeSequenceGapUnknown = true;
+        else item.nativeSequenceGaps += gap;
       }
       item.recordCount += 1;
       item.bytes += Buffer.byteLength(line, 'utf8') + 1;
       item.calendarDates = unique([...item.calendarDates, identityContext.calendarDate]).sort();
+      item.sessionStart = item.sessionStart || identityContext.sessionStart || null;
+      item.sessionEnd = item.sessionEnd || identityContext.sessionEnd || null;
       if (!item.firstReceivedAt || Date.parse(record.receivedAt) < Date.parse(item.firstReceivedAt)) item.firstReceivedAt = record.receivedAt || null;
       if (!item.lastReceivedAt || Date.parse(record.receivedAt) > Date.parse(item.lastReceivedAt)) item.lastReceivedAt = record.receivedAt || null;
       item.contracts = unique([...item.contracts, contractOf(record)]).sort();
@@ -643,10 +694,11 @@ export async function streamDailyLedgerEvidence(filePaths, {
     identities.push(identity);
   }
   const auditSources = ledgerAudit?.sources || [];
-  const auditComplete = identities.length > 0 && missingFiles.length === 0
+  const auditComplete = identities.length > 0 && unavailableFiles.length === 0
     && identities.every((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
       && audit.latestHash === identity.lastRecordHash && audit.ok === true && audit.sequenceGaps === 0
+      && (audit.source === 'auditLiveEventLedger' || audit.prefixSha256 === identity.prefixSha256)
   )));
   const auditFailed = identities.some((identity) => auditSources.some((audit) => (
     audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
@@ -656,7 +708,11 @@ export async function streamDailyLedgerEvidence(filePaths, {
     : auditFailed ? { ok: false, sources: auditSources } : null;
   return Object.freeze({
     ledgerFound: identities.length > 0,
-    missingFiles,
+    missingFiles: unavailableFiles,
+    sessions: {
+      DAY: { ...sessions.DAY, missingFiles: missingFilesBySession.DAY },
+      NIGHT: { ...sessions.NIGHT, missingFiles: missingFilesBySession.NIGHT },
+    },
     feeds,
     totalRawBytes: identities.length ? totalRawBytes : null,
     totalRecords: identities.length ? totalRecords : null,
@@ -668,7 +724,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
     nativeSequenceAvailable,
     ledgerAudit: boundedLedgerAudit,
     sourceArtifactIdentity: identities.length ? {
-      type: 'append-only-ledger-fixed-byte-cutoff', files: identities, missingFiles,
+      type: 'append-only-ledger-fixed-byte-cutoff', files: identities, missingFiles: unavailableFiles,
     } : null,
   });
 }

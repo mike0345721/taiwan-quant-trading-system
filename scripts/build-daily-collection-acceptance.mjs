@@ -51,13 +51,9 @@ function governedLedgerDates(calendar, tradeDate, sessions) {
   const dates = new Set();
   if (sessions.includes('DAY')) dates.add(tradeDate);
   if (sessions.includes('NIGHT')) {
-    try {
-      const previous = resolvePreviousGovernedTradingDate(calendar, tradeDate);
-      dates.add(previous);
-      dates.add(dateShift(previous, 1));
-    } catch {
-      // Missing calendar coverage is represented in the report, not guessed.
-    }
+    const previous = resolvePreviousGovernedTradingDate(calendar, tradeDate);
+    dates.add(previous);
+    dates.add(dateShift(previous, 1));
   }
   return [...dates].sort();
 }
@@ -83,6 +79,7 @@ function auditEvidenceFor(ledgerPaths, auditDir) {
     sources: audits.map((item) => ({
       source: item.source, sourceFile: item.sourceFile, ok: item.ok, events: item.events,
       bytes: item.bytes, latestHash: item.latestHash, sequenceGaps: item.sequenceGaps,
+      prefixSha256: item.prefixSha256 || null,
     })),
   };
 }
@@ -193,7 +190,8 @@ console.log(JSON.stringify({
   overallState: report.overallState,
   summary: report.summary,
   storage: report.storage,
-  knownUnknowns: report.feeds.filter((feed) => ['UNKNOWN', 'READY_WITH_LIMITATION'].includes(feed.integrityState)
+  knownUnknowns: report.feeds.filter((feed) => ['UNKNOWN', 'PARTIAL', 'PENDING'].includes(feed.coverageState)
+    || ['UNKNOWN', 'READY_WITH_LIMITATION'].includes(feed.integrityState)
     || feed.researchEligibility === 'UNKNOWN').map((feed) => ({ datasetId: feed.datasetId, session: feed.session, reasonCodes: feed.reasonCodes })),
   safety: report.safety,
 }, null, 2));
