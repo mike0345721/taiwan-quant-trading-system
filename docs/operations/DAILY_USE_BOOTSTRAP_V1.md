@@ -11,7 +11,7 @@ launcher `scripts/start-daily-use.ps1`.
 - Resolves runtime identity from the approved project root, independent of the
   caller's current directory.
 - Wires and verifies the root-local CRU34 live producer before dashboard
-  readiness. Reuse requires matching schema, worker instance, paths, heartbeat,
+  startup. Reuse requires matching schema, worker instance, paths, heartbeat,
   and read-only safety invariants; a verified mismatched worker is restarted by
   exact PID, while an unverifiable incumbent is a hard blocker.
 - Reuses a healthy formal dashboard, starts `launcher.mjs` once, or replaces an
@@ -33,6 +33,15 @@ An unavailable or warning-only read-only quote bridge is reported in plain
 language, but does not block the dashboard when the formal dashboard health
 check passes.  A listener already occupying 8787 without passing `/healthz` is
 a hard blocker: the launcher will not replace or terminate it.
+
+Browser startup has a separate runtime safety gate. It requires the exact
+approved commit, `VERIFIED` / `SYNCED` runtime identity, a verifiable Node
+listener on 8787, the governed CRU34 schema and project-local paths, and the
+four read-only safety invariants. Market-data/product readiness is reported
+separately and does not block the browser: pre-market or off-session identity
+differences, `STALE`, `WARMING_UP`, `QUALITY_INSUFFICIENT`, or a governed
+`UNAVAILABLE` reason remain truthful Dashboard states. The launcher never
+creates a replacement DAY identity or treats stale NIGHT data as current.
 
 ## Install / update the local shortcut
 

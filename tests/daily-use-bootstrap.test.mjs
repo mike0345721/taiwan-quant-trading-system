@@ -55,9 +55,88 @@ test('daily-use wires and governs the CRU34 producer before dashboard readiness'
   assert.match(source, /-RestartMismatched/);
   assert.match(source, /approvedMainCommit -eq \$ExpectedCommit/);
   assert.match(source, /syncState -eq 'SYNCED'/);
-  assert.match(source, /identity is aligned, but the live readiness contract did not pass/);
+  assert.match(source, /startup\/runtime safety contract did not pass/);
   assert.match(source, /Restart-FormalDashboard/);
   assert.match(source, /TimeoutSec 15/);
+});
+
+test('daily-use separates startup safety from lawful market-data readiness states', () => {
+  const projectRoot = process.cwd().replaceAll("'", "''");
+  const probe = `
+$ProjectRoot = '${projectRoot}'
+$cru34DataRoot = Join-Path $ProjectRoot 'data'
+$cru34ProjectionRoot = Join-Path $cru34DataRoot 'runtime\\cru34-live'
+$cru34SnapshotPath = Join-Path $cru34ProjectionRoot 'latest.json'
+$cru34StatusPath = Join-Path $cru34ProjectionRoot 'status.json'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectRoot 'scripts/start-daily-use.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw $errors[0].Message }
+foreach ($name in @('Test-SamePath','Test-DashboardIdentityAligned','Test-DashboardRuntimeSafetyReady','Get-DashboardMarketDataState')) {
+  $fn = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+  if ($null -eq $fn) { throw "$name not found" }
+  Invoke-Expression $fn.Extent.Text
+}
+$commit = 'b8e583220fa0add4cbae29ee9fe580e6358d410a'
+$worker = [pscustomobject]@{
+  schemaVersion='cru34-live-worker-status-v1'; dataRoot=$cru34DataRoot; projectionRoot=$cru34ProjectionRoot
+  snapshotPath=$cru34SnapshotPath; statusPath=$cru34StatusPath
+  formalWeight=0; researchOnly=$true; executionAuthorized=$false; orderRoutesEnabled=$false
+}
+$health = [pscustomobject]@{
+  runtimeIdentityStatus='VERIFIED'; runtimeCommit=$commit; approvedMainCommit=$commit; syncState='SYNCED'
+  runtimeEvidence=[pscustomobject]@{
+    producer=[pscustomobject]@{ready=$false; truthState='NO_COMPLETE_SUFFIX'; worker=$worker}
+    observedFlow=[pscustomobject]@{ready=$false; sourceState='WARMING_UP'}
+    parity=[pscustomobject]@{ready=$false}
+  }
+}
+$cases = [ordered]@{
+  lawfulDegradedStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+  lawfulDegradedMarket=(Get-DashboardMarketDataState $health)
+}
+$health.runtimeEvidence.observedFlow.sourceState='STALE'
+$cases.staleStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.staleMarket=(Get-DashboardMarketDataState $health)
+$health.runtimeEvidence.observedFlow.sourceState='QUALITY_INSUFFICIENT'
+$cases.qualityInsufficientStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.qualityInsufficientMarket=(Get-DashboardMarketDataState $health)
+$health.runtimeEvidence.observedFlow.sourceState='UNAVAILABLE'
+$cases.unavailableStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.unavailableMarket=(Get-DashboardMarketDataState $health)
+$cases.unverifiedProcess=(Test-DashboardRuntimeSafetyReady $health $commit $false)
+$worker.executionAuthorized=$true
+$cases.unsafeExecution=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$worker.executionAuthorized=$false
+$worker.statusPath=Join-Path $ProjectRoot 'wrong-status.json'
+$cases.wrongWiring=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$worker.statusPath=$cru34StatusPath
+$health.runtimeEvidence.producer.ready=$true
+$health.runtimeEvidence.observedFlow.ready=$true
+$health.runtimeEvidence.parity.ready=$true
+$health.runtimeEvidence.observedFlow.sourceState='LIVE'
+$cases.activeStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.activeMarket=(Get-DashboardMarketDataState $health)
+[pscustomobject]$cases | ConvertTo-Json -Compress
+`;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', probe], {
+    cwd: process.cwd(), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    lawfulDegradedStartup: true,
+    lawfulDegradedMarket: 'WARMING_UP',
+    staleStartup: true,
+    staleMarket: 'STALE',
+    qualityInsufficientStartup: true,
+    qualityInsufficientMarket: 'QUALITY_INSUFFICIENT',
+    unavailableStartup: true,
+    unavailableMarket: 'UNAVAILABLE',
+    unverifiedProcess: false,
+    unsafeExecution: false,
+    wrongWiring: false,
+    activeStartup: true,
+    activeMarket: 'READY',
+  });
 });
 
 test('CRU34 governed launcher only reuses an exact safe instance and bounds restart to its PID', () => {

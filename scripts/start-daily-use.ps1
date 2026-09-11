@@ -134,18 +134,50 @@ function Enter-LaunchLock {
   $script:ownsLock = $true
 }
 
-function Test-DashboardLaunchReady($Health, [string]$ExpectedCommit) {
-  return (Test-DashboardIdentityAligned $Health $ExpectedCommit) -and
-    ($Health.runtimeEvidence.producer.ready -eq $true) -and
-    ($Health.runtimeEvidence.observedFlow.ready -eq $true) -and
-    ($Health.runtimeEvidence.parity.ready -eq $true)
-}
-
 function Test-DashboardIdentityAligned($Health, [string]$ExpectedCommit) {
   return $Health -and ($Health.runtimeIdentityStatus -eq 'VERIFIED') -and
     ($Health.runtimeCommit -eq $ExpectedCommit) -and
     ($Health.approvedMainCommit -eq $ExpectedCommit) -and
     ($Health.syncState -eq 'SYNCED')
+}
+
+function Test-DashboardRuntimeSafetyReady($Health, [string]$ExpectedCommit, [bool]$ProcessIdentityVerified) {
+  if (-not (Test-DashboardIdentityAligned $Health $ExpectedCommit) -or -not $ProcessIdentityVerified) {
+    return $false
+  }
+  $worker = $Health.runtimeEvidence.producer.worker
+  return $worker -and ($worker.schemaVersion -eq 'cru34-live-worker-status-v1') -and
+    (Test-SamePath $worker.dataRoot $cru34DataRoot) -and
+    (Test-SamePath $worker.projectionRoot $cru34ProjectionRoot) -and
+    (Test-SamePath $worker.snapshotPath $cru34SnapshotPath) -and
+    (Test-SamePath $worker.statusPath $cru34StatusPath) -and
+    ($worker.formalWeight -eq 0) -and
+    ($worker.researchOnly -eq $true) -and
+    ($worker.executionAuthorized -eq $false) -and
+    ($worker.orderRoutesEnabled -eq $false)
+}
+
+function Get-DashboardMarketDataState($Health) {
+  if (-not $Health) { return 'UNAVAILABLE' }
+  $sourceState = [string]$Health.runtimeEvidence.observedFlow.sourceState
+  if ($sourceState -in @('STALE', 'WARMING_UP', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE')) {
+    return $sourceState
+  }
+  if (($Health.runtimeEvidence.producer.ready -eq $true) -and
+    ($Health.runtimeEvidence.observedFlow.ready -eq $true) -and
+    ($Health.runtimeEvidence.parity.ready -eq $true)) {
+    return 'READY'
+  }
+  if ($Health.runtimeEvidence.parity.ready -eq $false) { return 'IDENTITY_MISMATCH' }
+  return 'DEGRADED'
+}
+
+function Test-FormalDashboardProcessIdentity {
+  $listenerPid = Get-LoopbackListenerPid 8787
+  if (-not $listenerPid) { return $false }
+  $listener = Get-Process -Id $listenerPid -ErrorAction SilentlyContinue
+  $node = (Get-Command node.exe -ErrorAction Stop).Source
+  return [bool]($listener -and (Test-SamePath $listener.Path $node))
 }
 
 function Start-FormalDashboard([string]$ExpectedCommit) {
@@ -158,7 +190,8 @@ function Start-FormalDashboard([string]$ExpectedCommit) {
   do {
     Start-Sleep -Milliseconds 500
     $health = Get-DashboardHealth
-    if (Test-DashboardLaunchReady $health $ExpectedCommit) { return $true }
+    $processIdentityVerified = Test-FormalDashboardProcessIdentity
+    if (Test-DashboardRuntimeSafetyReady $health $ExpectedCommit $processIdentityVerified) { return $true }
   } while ((Get-Date) -lt $deadline)
   return $false
 }
@@ -223,10 +256,11 @@ try {
     if (($dashboardHealth.runtimeIdentityStatus -ne 'VERIFIED') -or (-not $dashboardHealth.runtimeCommit)) {
       Stop-WithMessage 'The running 8787 service cannot prove which code version it loaded. A governed formal restart is required.'
     }
-    if (Test-DashboardLaunchReady $dashboardHealth $expectedRuntimeCommit) {
+    $processIdentityVerified = Test-FormalDashboardProcessIdentity
+    if (Test-DashboardRuntimeSafetyReady $dashboardHealth $expectedRuntimeCommit $processIdentityVerified) {
       Write-Status 'Formal dashboard 8787 is already healthy and will be reused.'
     } elseif (Test-DashboardIdentityAligned $dashboardHealth $expectedRuntimeCommit) {
-      Stop-WithMessage 'The formal dashboard identity is aligned, but the live readiness contract did not pass.'
+      Stop-WithMessage 'The formal dashboard identity is aligned, but the startup/runtime safety contract did not pass.'
     } else {
       if ($dashboardHealth.runtimeCommit -ne $expectedRuntimeCommit) {
         Write-Status "The running 8787 service loaded $($dashboardHealth.runtimeCommit), but the approved local code is $expectedRuntimeCommit."
@@ -259,6 +293,14 @@ try {
   if ($bridge.State -eq 'UNSAFE_OR_INVALID') { Stop-WithMessage 'The read-only market-data bridge did not satisfy its safety boundary.' }
   Write-Status "Market data bridge: $($bridge.Detail)"
 
+  $dashboardHealth = Get-DashboardHealth
+  $marketDataState = Get-DashboardMarketDataState $dashboardHealth
+  if ($marketDataState -eq 'READY') {
+    Write-Status 'Market data/product readiness: READY.'
+  } else {
+    Write-Status "Market data/product readiness: $marketDataState. This truthful product state does not weaken the startup/runtime safety gate."
+  }
+
   $dailyStatusPath = Join-Path $ProjectRoot 'v2\reports\v3-daily-update-status.json'
   if (Test-Path -LiteralPath $dailyStatusPath) {
     try {
@@ -269,11 +311,11 @@ try {
     Write-Status 'No existing batch status is available yet. Dashboard startup can continue.'
   }
 
-  $dashboardState = if ($bridge.State -in @('CONNECTED', 'DEGRADED')) { 'READY' } else { 'DEGRADED' }
   Write-Status 'NORMAL ENVIRONMENT READY'
   Write-Status 'Code: CURRENT LOCAL APPROVED VERSION'
   Write-Status "Market Data: $($bridge.State)"
-  Write-Status "Dashboard: $dashboardState"
+  Write-Status 'Dashboard: READY'
+  Write-Status "Product Data: $marketDataState"
   Write-Status 'Execution: DISABLED (executionAuthorized=false; orderRoutesEnabled=false)'
 
   if (-not $NoBrowser) {
