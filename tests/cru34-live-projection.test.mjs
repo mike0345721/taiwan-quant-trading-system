@@ -64,6 +64,22 @@ test('bounded worker produces LIVE and matches full GENESIS LIVE semantics', () 
   assert.deepEqual(result.snapshot.semanticPayload, fullLive);
 });
 
+test('idle NO_COMPLETE_SUFFIX preserves checkpoint and published snapshot bytes', () => {
+  const value = fixture();
+  projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+    maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000,
+    staleAfterMs: 30_000, now: new Date('2026-09-07T01:05:35.000Z') });
+  const checkpointBefore = fs.readFileSync(value.checkpointPath);
+  const snapshotBefore = fs.readFileSync(value.snapshotPath);
+  const idle = projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+    maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000,
+    staleAfterMs: 30_000, now: new Date('2026-09-07T01:05:36.000Z') });
+  assert.equal(idle.status, 'NO_COMPLETE_SUFFIX');
+  assert.equal(idle.snapshot, null);
+  assert.deepEqual(fs.readFileSync(value.checkpointPath), checkpointBefore);
+  assert.deepEqual(fs.readFileSync(value.snapshotPath), snapshotBefore);
+});
+
 test('checkpoint restart consumes only appended suffix and corrupt checkpoint fails closed', () => {
   const all = records();
   const value = fixture(all.slice(0, 12));
