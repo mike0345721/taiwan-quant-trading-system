@@ -3727,7 +3727,7 @@ function renderRuntimeVersion(version = {}) {
   const product = version.productVersion || 'DW V1.1';
   const runtime = version.runtimeCommit || null;
   const main = version.approvedMainCommit || null;
-  const sync = ['SYNCED', 'MISMATCH', 'UNKNOWN'].includes(version.syncState) ? version.syncState : 'UNKNOWN';
+  const sync = ['SYNCED', 'MISMATCH', 'CANDIDATE', 'UNKNOWN'].includes(version.syncState) ? version.syncState : 'UNKNOWN';
   const short = runtime ? runtime.slice(0, 7) : 'UNKNOWN';
   dwText('dw-runtime-badge', `${product} · ${short} · ${sync}`);
   $('dw-runtime-version').className = `dw-runtime-version is-${sync.toLowerCase()}`;
@@ -3738,7 +3738,8 @@ function renderRuntimeVersion(version = {}) {
   dwText('dw-version-sync', sync);
   const preview = $('cru46-preview-version');
   const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW'
-    || version.previewType === 'CRU44_OWNER_PREVIEW';
+    || version.previewType === 'CRU44_OWNER_PREVIEW'
+    || version.previewType === 'CRU47_OWNER_PREVIEW';
   preview?.classList.toggle('hidden', !isIntegrationPreview);
   if (!isIntegrationPreview) return;
   dwText('cru46-preview-badge', version.previewLabel || 'INTEGRATION OWNER PREVIEW');
@@ -3754,6 +3755,14 @@ function renderRuntimeVersion(version = {}) {
   dwText('cru46-version-pending', Array.isArray(version.pendingCapabilities) ? version.pendingCapabilities.join(' / ') : 'UNKNOWN');
   dwText('cru46-version-data-mode', version.dataMode || 'UNKNOWN');
   dwText('cru46-version-complete', version.complete === false ? 'NOT COMPLETE' : 'UNKNOWN');
+}
+
+function renderLocalPreviewAutoAuth(status = {}) {
+  const pill = $('local-preview-auth-pill');
+  if (!pill) return;
+  const active = status?.effective === true;
+  pill.classList.toggle('hidden', !active);
+  if (active) pill.title = `Instance ${status.instanceId || 'UNKNOWN'}; expires ${status.bootstrapExpiresAt || 'UNKNOWN'}`;
 }
 
 function renderDw4FamilyList(id, values) {
@@ -4328,7 +4337,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 
 async function reportCru46BrowserRuntimeProof() {
   const version = state.decisionWorkspace?.runtimeVersion;
-  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW' && version?.previewType !== 'CRU44_OWNER_PREVIEW') return;
+  if (!['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU47_OWNER_PREVIEW'].includes(version?.previewType)) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -4505,6 +4514,7 @@ async function loadDashboard() {
     text('v2-backtest-period', '尚未完成'); text('v2-backtest-note', `V2.3 回測尚未就緒：${error.message}`);
   })]);
   if (payload.data) render(payload.data);
+  renderLocalPreviewAutoAuth(payload.service?.localPreviewAutoAuth);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
@@ -4824,13 +4834,31 @@ $('logout-button').addEventListener('click', async () => {
   show('login-view');
 });
 
+async function consumeLocalPreviewBootstrapFragment() {
+  if (!location.hash.startsWith('#preview-bootstrap=')) return null;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const token = params.get('preview-bootstrap') || '';
+  const instanceId = params.get('instance') || '';
+  const candidateCommit = params.get('candidate') || '';
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+  if (!token || !instanceId || !candidateCommit) throw new Error('PREVIEW_BOOTSTRAP_FRAGMENT_INVALID');
+  return api('/api/auth/preview-bootstrap', {
+    method: 'POST',
+    headers: { 'X-Preview-Bootstrap-Capability': token },
+    body: JSON.stringify({ instanceId, candidateCommit }),
+  });
+}
+
 (async function boot() {
   let authenticated = false;
   try {
-    const session = await api('/api/session');
+    const bootstrap = await consumeLocalPreviewBootstrapFragment();
+    const session = bootstrap || await api('/api/session');
     if (!session.authenticated) { show('login-view'); return; }
     authenticated = true;
     state.csrfToken = session.csrfToken;
+    renderLocalPreviewAutoAuth(session.authenticationMode?.startsWith('LOCAL_OWNER_PREVIEW')
+      ? { effective: true, instanceId: session.previewInstanceId || session.instanceId } : {});
     show('dashboard-view');
     await loadDashboard();
   } catch (error) {

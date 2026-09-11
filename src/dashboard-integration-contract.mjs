@@ -11,6 +11,13 @@ export const CRU44_INCLUDED_SOURCES = Object.freeze({
   cru43: 'e2427bef6b7659da684e9c82f7fa11680e4688f0',
 });
 
+export const CRU47_APPROVED_BASE_MAIN = '8756efabe3a54e49154ed2fe6a705a354607c69b';
+export const CRU47_INCLUDED_SOURCES = Object.freeze({
+  approvedProductBaseline: CRU47_APPROVED_BASE_MAIN,
+  cru44: 'accepted-six-window-observed-flow-v1',
+  cru46: 'accepted-dashboard-integration-mainline-v1',
+});
+
 export const CRU46_PRODUCT_SURFACE_CONTRACT = Object.freeze({
   schemaVersion: 'cru46-dashboard-product-surface-v1',
   chart: Object.freeze({
@@ -123,5 +130,43 @@ export function validateCru44PreviewVersionTruth(version, expectedHead) {
   if (version?.includedSources?.cru34 !== CRU44_INCLUDED_SOURCES.cru34) reasons.push('CRU34_SOURCE_MISMATCH');
   if (version?.includedSources?.cru36 !== CRU44_INCLUDED_SOURCES.cru36) reasons.push('CRU36_SOURCE_MISMATCH');
   if (version?.includedSources?.cru43 !== CRU44_INCLUDED_SOURCES.cru43) reasons.push('CRU43_SOURCE_MISMATCH');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
+}
+
+export function buildCru47PreviewVersion({ runtimeVersion, enabled = false, branch = null, dataMode = null } = {}) {
+  if (!enabled) return Object.freeze({ ...runtimeVersion });
+  return Object.freeze({
+    ...runtimeVersion,
+    productVersion: 'CRU-47 Localhost Owner Preview Auto-Auth V1',
+    approvedMainCommit: CRU47_APPROVED_BASE_MAIN,
+    syncState: runtimeVersion?.runtimeCommit === CRU47_APPROVED_BASE_MAIN ? 'SYNCED' : 'CANDIDATE',
+    previewType: 'CRU47_OWNER_PREVIEW',
+    previewLabel: 'CRU-47 LOCALHOST OWNER PREVIEW',
+    branch: branch || 'UNKNOWN',
+    exactHead: runtimeVersion?.runtimeCommit || null,
+    buildCommit: runtimeVersion?.runtimeCommit || null,
+    runtimeCommit: runtimeVersion?.runtimeCommit || null,
+    baseMainCommit: CRU47_APPROVED_BASE_MAIN,
+    includedSources: CRU47_INCLUDED_SOURCES,
+    pendingCapabilities: Object.freeze(['CRU-48', 'TradingDay', 'CVD', 'Market Control', 'Market State']),
+    dataMode: dataMode || 'UNKNOWN',
+    complete: false,
+    safety: CRU44_PRODUCT_SURFACE_CONTRACT.safety,
+  });
+}
+
+export function validateCru47PreviewVersionTruth(version, expectedHead) {
+  const sha = (value) => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+  const reasons = [];
+  if (version?.previewType !== 'CRU47_OWNER_PREVIEW') reasons.push('PREVIEW_TYPE_MISMATCH');
+  if (!sha(expectedHead)) reasons.push('EXPECTED_HEAD_UNVERIFIED');
+  for (const field of ['exactHead', 'buildCommit', 'runtimeCommit']) {
+    if (!sha(version?.[field])) reasons.push(`${field.toUpperCase()}_UNVERIFIED`);
+    else if (version[field] !== expectedHead) reasons.push(`${field.toUpperCase()}_MISMATCH`);
+  }
+  if (version?.baseMainCommit !== CRU47_APPROVED_BASE_MAIN) reasons.push('BASE_MAIN_MISMATCH');
+  if (version?.includedSources?.approvedProductBaseline !== CRU47_APPROVED_BASE_MAIN) {
+    reasons.push('APPROVED_PRODUCT_BASELINE_MISMATCH');
+  }
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }

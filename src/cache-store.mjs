@@ -2,24 +2,29 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export class CacheStore {
-  constructor({ dataDir, historyDir, maxHistoryDays = 400 }) {
+  constructor({ dataDir, historyDir, stateDir = dataDir, stateHistoryDir = path.join(stateDir, 'history'),
+    maxHistoryDays = 400 }) {
     this.dataDir = dataDir;
     this.historyDir = historyDir;
-    this.latestPath = path.join(dataDir, 'latest.json');
+    this.stateDir = stateDir;
+    this.stateHistoryDir = stateHistoryDir;
+    this.sourceLatestPath = path.join(dataDir, 'latest.json');
+    this.latestPath = path.join(stateDir, 'latest.json');
     this.maxHistoryDays = maxHistoryDays;
   }
 
   async init() {
-    await fs.mkdir(this.historyDir, { recursive: true, mode: 0o700 });
+    await fs.mkdir(this.stateHistoryDir, { recursive: true, mode: 0o700 });
   }
 
   async loadLatest() {
-    try {
-      const raw = await fs.readFile(this.latestPath, 'utf8');
-      return JSON.parse(raw);
-    } catch {
-      return null;
+    for (const candidate of [...new Set([this.latestPath, this.sourceLatestPath])]) {
+      try {
+        const raw = await fs.readFile(candidate, 'utf8');
+        return JSON.parse(raw);
+      } catch { /* try the next governed source */ }
     }
+    return null;
   }
 
   async save(snapshot) {
@@ -29,36 +34,35 @@ export class CacheStore {
 
     const date = String(snapshot.asOfDate || '').replace(/[^0-9-]/g, '');
     if (date) {
-      await atomicWrite(path.join(this.historyDir, `${date}.json`), serialized);
+      await atomicWrite(path.join(this.stateHistoryDir, `${date}.json`), serialized);
     }
     await this.prune();
   }
 
   async listHistory(limit = 30) {
-    try {
-      const names = (await fs.readdir(this.historyDir))
-        .filter((name) => /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
-        .sort()
-        .reverse()
-        .slice(0, Math.min(limit, this.maxHistoryDays));
-      const results = [];
-      for (const name of names) {
-        try {
-          results.push(JSON.parse(await fs.readFile(path.join(this.historyDir, name), 'utf8')));
-        } catch { /* skip corrupted entry */ }
-      }
-      return results;
-    } catch {
-      return [];
+    const files = new Map();
+    for (const directory of [...new Set([this.stateHistoryDir, this.historyDir])]) {
+      try {
+        for (const name of await fs.readdir(directory)) {
+          if (/^\d{4}-\d{2}-\d{2}\.json$/.test(name) && !files.has(name)) files.set(name, path.join(directory, name));
+        }
+      } catch { /* an empty optional source is valid */ }
     }
+    const results = [];
+    const selected = [...files].sort(([left], [right]) => right.localeCompare(left))
+      .slice(0, Math.min(limit, this.maxHistoryDays));
+    for (const [, filePath] of selected) {
+      try { results.push(JSON.parse(await fs.readFile(filePath, 'utf8'))); } catch { /* skip corrupted entry */ }
+    }
+    return results;
   }
 
   async prune() {
-    const names = (await fs.readdir(this.historyDir))
+    const names = (await fs.readdir(this.stateHistoryDir))
       .filter((name) => /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
       .sort();
     const remove = names.slice(0, Math.max(0, names.length - this.maxHistoryDays));
-    await Promise.all(remove.map((name) => fs.rm(path.join(this.historyDir, name), { force: true })));
+    await Promise.all(remove.map((name) => fs.rm(path.join(this.stateHistoryDir, name), { force: true })));
   }
 }
 

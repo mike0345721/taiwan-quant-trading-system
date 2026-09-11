@@ -22,8 +22,9 @@ function boolEnv(name, fallback = false) {
 export const config = Object.freeze({
   appRoot,
   publicDir: path.join(appRoot, 'public'),
-  dataDir: path.join(appRoot, 'data'),
-  historyDir: path.join(appRoot, 'data', 'history'),
+  dataDir: path.resolve(process.env.DASHBOARD_DATA_ROOT || path.join(appRoot, 'data')),
+  stateDir: path.resolve(process.env.DASHBOARD_STATE_DIR || process.env.DASHBOARD_DATA_ROOT || path.join(appRoot, 'data')),
+  historyDir: path.resolve(process.env.DASHBOARD_DATA_ROOT || path.join(appRoot, 'data'), 'history'),
   host: process.env.HOST || '127.0.0.1',
   port: intEnv('PORT', 8787, 1, 65535),
   nodeEnv: process.env.NODE_ENV || 'production',
@@ -35,6 +36,14 @@ export const config = Object.freeze({
   trustProxy: boolEnv('TRUST_PROXY', false),
   cookieSecure: boolEnv('COOKIE_SECURE', true),
   mockData: boolEnv('MOCK_DATA', false),
+  previewType: process.env.DASHBOARD_PREVIEW_TYPE || '',
+  previewAutoAuthRequested: boolEnv('DASHBOARD_PREVIEW_AUTO_AUTH', false),
+  previewInstanceId: process.env.DASHBOARD_PREVIEW_INSTANCE_ID || '',
+  previewExpectedCommit: String(process.env.DASHBOARD_PREVIEW_EXPECTED_COMMIT || '').toLowerCase(),
+  previewBootstrapSha256: String(process.env.DASHBOARD_PREVIEW_BOOTSTRAP_SHA256 || '').toLowerCase(),
+  previewCanonicalOrigin: process.env.DASHBOARD_PREVIEW_CANONICAL_ORIGIN || '',
+  previewBootstrapTtlMs: intEnv('DASHBOARD_PREVIEW_BOOTSTRAP_TTL_SECONDS', 60, 1, 300) * 1000,
+  previewSessionTtlMs: intEnv('DASHBOARD_PREVIEW_SESSION_TTL_MINUTES', 30, 5, 60) * 60_000,
 });
 
 export function validateConfig() {
@@ -43,5 +52,19 @@ export function validateConfig() {
   }
   if (config.host === '0.0.0.0' && !config.passwordHash) {
     throw new Error('對外監聽時必須設定 DASHBOARD_PASSWORD_HASH');
+  }
+  if (config.previewAutoAuthRequested) {
+    const expectedOrigin = `http://127.0.0.1:${config.port}`;
+    const valid = config.nodeEnv !== 'production'
+      && Boolean(config.passwordHash)
+      && config.previewType === 'CRU47_OWNER_PREVIEW'
+      && config.host === '127.0.0.1'
+      && config.trustProxy === false
+      && config.cookieSecure === false
+      && /^[A-Za-z0-9_-]{16,128}$/.test(config.previewInstanceId)
+      && /^[0-9a-f]{40}$/.test(config.previewExpectedCommit)
+      && /^[0-9a-f]{64}$/.test(config.previewBootstrapSha256)
+      && config.previewCanonicalOrigin === expectedOrigin;
+    if (!valid) throw new Error('LOCAL_PREVIEW_AUTO_AUTH_CONFIG_INVALID');
   }
 }

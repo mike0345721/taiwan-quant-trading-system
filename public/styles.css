@@ -81,6 +81,8 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 [data-page]:not(.is-active-page) { display: none !important; }
 .security-pill { border: 1px solid rgba(85,214,190,.3); background: rgba(85,214,190,.08); color: #a7eadd; padding: 6px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .security-pill span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-right: 6px; box-shadow: 0 0 10px var(--good); }
+.preview-auth-pill { border-color: rgba(255,184,77,.55); background: rgba(255,184,77,.12); color: #ffd18a; }
+.preview-auth-pill span { background: #ffb84d; box-shadow: 0 0 10px #ffb84d; }
 .hero-grid, .metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .legacy-hero-grid { display: none !important; }
 .command-deck { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(360px, .88fr); gap: 14px; }

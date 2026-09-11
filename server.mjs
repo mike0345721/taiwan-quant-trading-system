@@ -27,12 +27,15 @@ import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-chan
 import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
 import {
   buildCru44PreviewVersion,
+  buildCru47PreviewVersion,
   buildIntegrationPreviewVersion,
   CRU44_PRODUCT_SURFACE_CONTRACT,
   CRU46_PRODUCT_SURFACE_CONTRACT,
   validateCru44PreviewVersionTruth,
+  validateCru47PreviewVersionTruth,
   validateIntegrationPreviewVersionTruth,
 } from './src/dashboard-integration-contract.mjs';
+import { LocalPreviewAutoAuth, previewSessionCookieName } from './src/local-preview-auto-auth.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import {
@@ -66,19 +69,21 @@ import {
 
 validateConfig();
 
-const cache = new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
+const cache = new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir,
+  stateDir: config.stateDir, stateHistoryDir: path.join(config.stateDir, 'history') });
 await cache.init();
 let latestSnapshot = await cache.loadLatest();
 const marketData = new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
 const expectedDataMode = config.mockData ? 'mock' : 'live';
-const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
+const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.stateDir, 'sessions.json') });
+const previewSessions = new SessionStore(config.previewSessionTtlMs);
 const loginLimiter = new LoginRateLimiter();
 const v2Research = new V2ResearchService();
 let dailyUpdateProcess = null;
 const intradayPath = path.join(config.dataDir, 'intraday', 'latest-bars.json');
 const replayPath = path.join(config.dataDir, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(config.dataDir, 'intraday', 'archive');
-const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
+const decisionJournalPath = path.join(config.stateDir, 'decision-workspace', 'journal.ndjson');
 const forwardShadowBaseRoot = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow');
 const futuresAuditPath = path.join(config.appRoot, 'data', 'live-events', 'futures-audits', 'latest.json');
 const shioajiContinuityStatusPath = path.join(config.appRoot, 'data', 'runtime', 'shioaji-continuity', 'status.json');
@@ -86,7 +91,7 @@ const chartCalendarPath = path.join(config.appRoot, 'config', 'taifex-official-c
 const chartCalendarExceptionPath = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
-const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
+const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.stateDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
   : null;
@@ -109,20 +114,40 @@ const runtimeStartedAt = new Date().toISOString();
 const baseRuntimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
 const cru44PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU44_OWNER_PREVIEW';
 const integrationPreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW';
+const cru47PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU47_OWNER_PREVIEW';
 const previewVersionOptions = { runtimeVersion: baseRuntimeVersion, branch: process.env.DASHBOARD_PREVIEW_BRANCH,
   dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase() };
 const runtimeVersion = cru44PreviewEnabled
   ? buildCru44PreviewVersion({ ...previewVersionOptions, enabled: true })
-  : buildIntegrationPreviewVersion({ ...previewVersionOptions, enabled: integrationPreviewEnabled });
+  : cru47PreviewEnabled
+    ? buildCru47PreviewVersion({ ...previewVersionOptions, enabled: true })
+    : buildIntegrationPreviewVersion({ ...previewVersionOptions, enabled: integrationPreviewEnabled });
+if (config.previewAutoAuthRequested && runtimeIdentity.commit !== config.previewExpectedCommit) {
+  throw new Error('LOCAL_PREVIEW_AUTO_AUTH_RUNTIME_COMMIT_MISMATCH');
+}
+const previewAutoAuth = new LocalPreviewAutoAuth({
+  enabled: config.previewAutoAuthRequested && cru47PreviewEnabled,
+  instanceId: config.previewInstanceId,
+  candidateCommit: config.previewExpectedCommit,
+  canonicalOrigin: config.previewCanonicalOrigin,
+  capabilitySha256: config.previewBootstrapSha256,
+  bootstrapTtlMs: config.previewBootstrapTtlMs,
+  sessionTtlMs: config.previewSessionTtlMs,
+});
+const previewCookieName = config.previewAutoAuthRequested
+  ? previewSessionCookieName(config.previewInstanceId) : null;
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
-const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
+const productSurfaceContract = cru44PreviewEnabled || cru47PreviewEnabled
+  ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
 let lastRefreshError = null;
 let browserRuntimeProof = null;
 
 function currentCru46RuntimeReadiness() {
   const identity = cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
-    : validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
+    : cru47PreviewEnabled
+      ? validateCru47PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
+      : validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
   const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
     calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
   const flow = loadDashboardObservedFlow({ liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
@@ -131,9 +156,9 @@ function currentCru46RuntimeReadiness() {
   const producer = inspectCru34LiveProducer({ snapshotPath: cru34LiveSnapshotPath, statusPath: cru34LiveStatusPath,
     dataRoot: cru34LiveDataRoot, projectionRoot: cru34LiveProjectionRoot });
   const chart = inspectChartPayload(chartPayload);
-  const observedFlow = inspectObservedFlowPayload(flow, { requireLongWindows: cru44PreviewEnabled });
+  const observedFlow = inspectObservedFlowPayload(flow, { requireLongWindows: cru44PreviewEnabled || cru47PreviewEnabled });
   const browser = validateBrowserRuntimeProof(browserRuntimeProof,
-    { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
+    { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled || cru47PreviewEnabled });
   const readiness = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
   return { ...readiness, vendor, producer, chart, observedFlow, parity: readiness.runtimeReady.parity, browser };
 }
@@ -246,7 +271,20 @@ async function refreshSnapshot() {
 
 function getSession(req) {
   const cookies = parseCookies(req.headers.cookie || '');
+  if (previewAutoAuth.enabled) {
+    const requireOrigin = !['GET', 'HEAD'].includes(req.method || 'GET');
+    if (!previewAutoAuth.requestAllowed(req, { requireOrigin }).ready) return null;
+    return previewSessions.get(cookies[previewCookieName]);
+  }
   return sessions.get(cookies.twchip_session);
+}
+
+function activeSessionStore() {
+  return previewAutoAuth.enabled ? previewSessions : sessions;
+}
+
+function activeSessionCookieName() {
+  return previewAutoAuth.enabled ? previewCookieName : 'twchip_session';
 }
 
 function requireSession(req, res) {
@@ -296,6 +334,39 @@ const server = http.createServer(async (req, res) => {
         runtimeEvidence: { vendor: readiness.vendor, producer: readiness.producer,
           chart: readiness.chart, observedFlow: readiness.observedFlow, parity: readiness.parity, browser: readiness.browser },
         productSurface: productSurfaceContract,
+        localPreviewAutoAuth: previewAutoAuth.status(),
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/auth/preview-bootstrap') {
+      const body = await readJson(req, { maxBytes: 4096 });
+      const exchanged = previewAutoAuth.consume({
+        token: req.headers['x-preview-bootstrap-capability'],
+        instanceId: body.instanceId,
+        candidateCommit: body.candidateCommit,
+        req,
+      });
+      if (!exchanged.ok) {
+        const status = exchanged.error === 'PREVIEW_CAPABILITY_EXPIRED' ? 410
+          : exchanged.error === 'PREVIEW_CAPABILITY_REPLAYED' ? 409 : 403;
+        sendJson(res, status, { ok: false, error: exchanged.error, reasons: exchanged.reasons });
+        return;
+      }
+      const session = previewSessions.create(req.socket.remoteAddress || 'unknown', config.previewSessionTtlMs,
+        { authenticationMode: 'LOCAL_OWNER_PREVIEW_AUTO_AUTH' });
+      res.setHeader('Set-Cookie', sessionCookie(session.id, {
+        secure: false,
+        maxAgeSeconds: config.previewSessionTtlMs / 1000,
+        name: previewCookieName,
+      }));
+      sendJson(res, 200, {
+        ok: true,
+        authenticated: true,
+        csrfToken: session.csrf,
+        expiresAt: session.expiresAt,
+        authenticationMode: 'LOCAL_OWNER_PREVIEW_AUTO_AUTH',
+        instanceId: config.previewInstanceId,
       });
       return;
     }
@@ -317,18 +388,25 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       loginLimiter.success(ip);
-      const sessionTtlMs = remember ? config.rememberedSessionTtlMs : config.sessionTtlMs;
-      const session = sessions.create(ip, sessionTtlMs);
-      const secure = config.cookieSecure || isHttps;
-      res.setHeader('Set-Cookie', sessionCookie(session.id, { secure, maxAgeSeconds: sessionTtlMs / 1000 }));
-      sendJson(res, 200, { ok: true, csrfToken: session.csrf, expiresAt: session.expiresAt });
+      const sessionTtlMs = previewAutoAuth.enabled ? config.previewSessionTtlMs
+        : remember ? config.rememberedSessionTtlMs : config.sessionTtlMs;
+      const authenticationMode = previewAutoAuth.enabled ? 'LOCAL_OWNER_PREVIEW_PASSWORD_FALLBACK' : 'STANDARD';
+      const session = activeSessionStore().create(ip, sessionTtlMs, { authenticationMode });
+      const secure = previewAutoAuth.enabled ? false : config.cookieSecure || isHttps;
+      res.setHeader('Set-Cookie', sessionCookie(session.id, {
+        secure, maxAgeSeconds: sessionTtlMs / 1000, name: activeSessionCookieName(),
+      }));
+      sendJson(res, 200, { ok: true, csrfToken: session.csrf, expiresAt: session.expiresAt,
+        authenticationMode });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/session') {
       const session = getSession(req);
       sendJson(res, 200, session
-        ? { ok: true, authenticated: true, csrfToken: session.csrf, expiresAt: session.expiresAt }
+        ? { ok: true, authenticated: true, csrfToken: session.csrf, expiresAt: session.expiresAt,
+          authenticationMode: session.metadata?.authenticationMode || (previewAutoAuth.enabled ? 'LOCAL_OWNER_PREVIEW' : 'STANDARD'),
+          previewInstanceId: previewAutoAuth.enabled ? config.previewInstanceId : null }
         : { ok: true, authenticated: false });
       return;
     }
@@ -336,8 +414,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pathname === '/api/auth/logout') {
       const session = requireSession(req, res);
       if (!session || !requireCsrf(req, res, session)) return;
-      sessions.delete(session.id);
-      res.setHeader('Set-Cookie', clearSessionCookie({ secure: config.cookieSecure || isHttps }));
+      activeSessionStore().delete(session.id);
+      res.setHeader('Set-Cookie', clearSessionCookie({
+        secure: previewAutoAuth.enabled ? false : config.cookieSecure || isHttps,
+        name: activeSessionCookieName(),
+      }));
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -369,6 +450,7 @@ const server = http.createServer(async (req, res) => {
           lastRefreshError,
           prelive: preliveStatus(latestSnapshot, shioaji),
           runtimeVersion,
+          localPreviewAutoAuth: previewAutoAuth.status(),
           productSurface: productSurfaceContract,
           indexLeadership,
         };
@@ -392,16 +474,17 @@ const server = http.createServer(async (req, res) => {
         const chart = inspectChartPayload(chartPayload);
         const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
           liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }),
-        { requireLongWindows: cru44PreviewEnabled });
+        { requireLongWindows: cru44PreviewEnabled || cru47PreviewEnabled });
         const normalized = normalizeBrowserRuntimeProof(candidate,
           { exactHead: runtimeIdentity.commit, runtimeStartedAt });
         const validated = validateBrowserRuntimeProof(normalized,
-          { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
+          { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled || cru47PreviewEnabled });
         const browserParity = validateBrowserRuntimeParity(normalized,
-          { chart, observedFlow: flow, requireLongWindows: cru44PreviewEnabled });
+          { chart, observedFlow: flow, requireLongWindows: cru44PreviewEnabled || cru47PreviewEnabled });
         if (!validated.ready || !browserParity.ready || !chart.ready || !flow.ready) {
           sendJson(res, 422, { ok: false, error: cru44PreviewEnabled
-            ? 'CRU44_BROWSER_RUNTIME_PROOF_REJECTED' : 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED',
+            ? 'CRU44_BROWSER_RUNTIME_PROOF_REJECTED'
+            : (cru47PreviewEnabled ? 'CRU47_BROWSER_RUNTIME_PROOF_REJECTED' : 'CRU46_BROWSER_RUNTIME_PROOF_REJECTED'),
             reasons: [...validated.reasons, ...browserParity.reasons, ...chart.reasons, ...flow.reasons] });
           return;
         }
@@ -511,6 +594,7 @@ const server = http.createServer(async (req, res) => {
             brokerCredentialsPresent: false,
             browserReceivesSecrets: false,
             authenticationRequired: true,
+            localPreviewAutoAuth: previewAutoAuth.status(),
             cookieSecureConfigured: config.cookieSecure,
             mockData: config.mockData,
           },

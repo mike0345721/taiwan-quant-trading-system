@@ -71,11 +71,12 @@ export class SessionStore {
     fs.writeFileSync(this.filePath, `${JSON.stringify(rows, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   }
 
-  create(ip, ttlMs = this.ttlMs) {
+  create(ip, ttlMs = this.ttlMs, metadata = {}) {
     const id = randomToken(32);
     const csrf = randomToken(24);
     const now = Date.now();
-    const session = { id, csrf, ip, createdAt: now, ttlMs, expiresAt: now + ttlMs };
+    const session = { id, csrf, ip, createdAt: now, ttlMs, expiresAt: now + ttlMs,
+      metadata: { ...metadata } };
     this.sessions.set(this.#key(id), { ...session, id: undefined });
     this.#save();
     return session;
@@ -154,9 +155,15 @@ export function parseCookies(header = '') {
   return result;
 }
 
-export function sessionCookie(sessionId, { secure = true, maxAgeSeconds = 28_800 } = {}) {
+function validCookieName(name) {
+  if (!/^[A-Za-z0-9_]+$/.test(String(name || ''))) throw new Error('INVALID_COOKIE_NAME');
+  return name;
+}
+
+export function sessionCookie(sessionId, { secure = true, maxAgeSeconds = 28_800,
+  name = 'twchip_session' } = {}) {
   const parts = [
-    `twchip_session=${encodeURIComponent(sessionId)}`,
+    `${validCookieName(name)}=${encodeURIComponent(sessionId)}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Strict',
@@ -166,8 +173,8 @@ export function sessionCookie(sessionId, { secure = true, maxAgeSeconds = 28_800
   return parts.join('; ');
 }
 
-export function clearSessionCookie({ secure = true } = {}) {
-  const parts = ['twchip_session=', 'Path=/', 'HttpOnly', 'SameSite=Strict', 'Max-Age=0'];
+export function clearSessionCookie({ secure = true, name = 'twchip_session' } = {}) {
+  const parts = [`${validCookieName(name)}=`, 'Path=/', 'HttpOnly', 'SameSite=Strict', 'Max-Age=0'];
   if (secure) parts.push('Secure');
   return parts.join('; ');
 }
