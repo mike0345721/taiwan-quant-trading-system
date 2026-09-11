@@ -71,7 +71,7 @@ $cru34StatusPath = Join-Path $cru34ProjectionRoot 'status.json'
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectRoot 'scripts/start-daily-use.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw $errors[0].Message }
-foreach ($name in @('Test-SamePath','Test-DashboardIdentityAligned','Test-DashboardRuntimeSafetyReady','Test-DashboardMarketDataReady')) {
+foreach ($name in @('Test-SamePath','Test-DashboardIdentityAligned','Test-DashboardRuntimeSafetyReady','Get-DashboardMarketDataState')) {
   $fn = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
   if ($null -eq $fn) { throw "$name not found" }
   Invoke-Expression $fn.Extent.Text
@@ -92,14 +92,17 @@ $health = [pscustomobject]@{
 }
 $cases = [ordered]@{
   lawfulDegradedStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
-  lawfulDegradedMarket=(Test-DashboardMarketDataReady $health)
+  lawfulDegradedMarket=(Get-DashboardMarketDataState $health)
 }
 $health.runtimeEvidence.observedFlow.sourceState='STALE'
 $cases.staleStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.staleMarket=(Get-DashboardMarketDataState $health)
 $health.runtimeEvidence.observedFlow.sourceState='QUALITY_INSUFFICIENT'
 $cases.qualityInsufficientStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.qualityInsufficientMarket=(Get-DashboardMarketDataState $health)
 $health.runtimeEvidence.observedFlow.sourceState='UNAVAILABLE'
 $cases.unavailableStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
+$cases.unavailableMarket=(Get-DashboardMarketDataState $health)
 $cases.unverifiedProcess=(Test-DashboardRuntimeSafetyReady $health $commit $false)
 $worker.executionAuthorized=$true
 $cases.unsafeExecution=(Test-DashboardRuntimeSafetyReady $health $commit $true)
@@ -110,8 +113,9 @@ $worker.statusPath=$cru34StatusPath
 $health.runtimeEvidence.producer.ready=$true
 $health.runtimeEvidence.observedFlow.ready=$true
 $health.runtimeEvidence.parity.ready=$true
+$health.runtimeEvidence.observedFlow.sourceState='LIVE'
 $cases.activeStartup=(Test-DashboardRuntimeSafetyReady $health $commit $true)
-$cases.activeMarket=(Test-DashboardMarketDataReady $health)
+$cases.activeMarket=(Get-DashboardMarketDataState $health)
 [pscustomobject]$cases | ConvertTo-Json -Compress
 `;
   const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', probe], {
@@ -120,15 +124,18 @@ $cases.activeMarket=(Test-DashboardMarketDataReady $health)
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.deepEqual(JSON.parse(result.stdout), {
     lawfulDegradedStartup: true,
-    lawfulDegradedMarket: false,
+    lawfulDegradedMarket: 'WARMING_UP',
     staleStartup: true,
+    staleMarket: 'STALE',
     qualityInsufficientStartup: true,
+    qualityInsufficientMarket: 'QUALITY_INSUFFICIENT',
     unavailableStartup: true,
+    unavailableMarket: 'UNAVAILABLE',
     unverifiedProcess: false,
     unsafeExecution: false,
     wrongWiring: false,
     activeStartup: true,
-    activeMarket: true,
+    activeMarket: 'READY',
   });
 });
 

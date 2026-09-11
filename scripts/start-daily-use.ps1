@@ -157,10 +157,19 @@ function Test-DashboardRuntimeSafetyReady($Health, [string]$ExpectedCommit, [boo
     ($worker.orderRoutesEnabled -eq $false)
 }
 
-function Test-DashboardMarketDataReady($Health) {
-  return $Health -and ($Health.runtimeEvidence.producer.ready -eq $true) -and
+function Get-DashboardMarketDataState($Health) {
+  if (-not $Health) { return 'UNAVAILABLE' }
+  $sourceState = [string]$Health.runtimeEvidence.observedFlow.sourceState
+  if ($sourceState -in @('STALE', 'WARMING_UP', 'QUALITY_INSUFFICIENT', 'UNAVAILABLE')) {
+    return $sourceState
+  }
+  if (($Health.runtimeEvidence.producer.ready -eq $true) -and
     ($Health.runtimeEvidence.observedFlow.ready -eq $true) -and
-    ($Health.runtimeEvidence.parity.ready -eq $true)
+    ($Health.runtimeEvidence.parity.ready -eq $true)) {
+    return 'READY'
+  }
+  if ($Health.runtimeEvidence.parity.ready -eq $false) { return 'IDENTITY_MISMATCH' }
+  return 'DEGRADED'
 }
 
 function Test-FormalDashboardProcessIdentity {
@@ -285,11 +294,11 @@ try {
   Write-Status "Market data bridge: $($bridge.Detail)"
 
   $dashboardHealth = Get-DashboardHealth
-  $marketDataState = if (Test-DashboardMarketDataReady $dashboardHealth) { 'READY' } else { 'DEGRADED' }
-  if ($marketDataState -eq 'DEGRADED') {
-    Write-Status 'Market data/product readiness: DEGRADED. Truthful STALE, WARMING_UP, QUALITY_INSUFFICIENT, or UNAVAILABLE states remain visible in the Dashboard.'
-  } else {
+  $marketDataState = Get-DashboardMarketDataState $dashboardHealth
+  if ($marketDataState -eq 'READY') {
     Write-Status 'Market data/product readiness: READY.'
+  } else {
+    Write-Status "Market data/product readiness: $marketDataState. This truthful product state does not weaken the startup/runtime safety gate."
   }
 
   $dailyStatusPath = Join-Path $ProjectRoot 'v2\reports\v3-daily-update-status.json'
