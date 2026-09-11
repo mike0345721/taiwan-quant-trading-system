@@ -80,6 +80,10 @@ The launcher opens the browser itself and does not print the secret-bearing
 fragment. `-NoBrowser` is for controlled engineering verification only; it
 returns redacted metadata and leaves L5 incomplete.
 
+The exact-identity health gate allows a bounded 20 seconds per full governed
+readiness calculation, for at most six attempts. It still refuses to open a
+browser unless the one-minute capability remains effective.
+
 ## Delivery gates
 
 - L0: scope and safety invariants remain frozen.

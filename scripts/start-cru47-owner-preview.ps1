@@ -118,10 +118,12 @@ foreach ($name in @('DASHBOARD_PREVIEW_BOOTSTRAP_SHA256', 'DASHBOARD_PASSWORD_HA
 $healthUrl = "$origin/healthz"
 $health = $null
 $healthReady = $false
-for ($attempt = 0; $attempt -lt 120; $attempt += 1) {
+for ($attempt = 0; $attempt -lt 6; $attempt += 1) {
   Start-Sleep -Milliseconds 500
   try {
-    $health = Invoke-RestMethod -Uri $healthUrl -Headers @{ Host = "127.0.0.1:$Port" } -TimeoutSec 5
+    # Governed live-data readiness can legitimately take longer than five seconds.
+    # Keep this bounded while preserving time for the 60-second browser exchange.
+    $health = Invoke-RestMethod -Uri $healthUrl -Headers @{ Host = "127.0.0.1:$Port" } -TimeoutSec 20
     if ($health.ok -and $health.versionTruth.previewType -eq 'CRU47_OWNER_PREVIEW' `
       -and $health.versionTruth.exactHead -eq $expectedHead `
       -and $health.versionTruth.baseMainCommit -eq $approvedMain `
