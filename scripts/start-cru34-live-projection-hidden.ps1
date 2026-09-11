@@ -85,8 +85,18 @@ $env:CRU34_LIVE_PROJECTION_ROOT = $projectionRoot
 $env:CRU34_LIVE_SNAPSHOT_PATH = $snapshotPath
 $env:CRU34_LIVE_STATUS_PATH = $statusPath
 
-$stdout = Join-Path $logDir 'cru34-live-projection.log'
-$stderr = Join-Path $logDir 'cru34-live-projection-error.log'
+$launchId = [guid]::NewGuid().ToString()
+$launchStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
+$logStem = "cru34-live-projection-$launchStamp-$launchId"
+$stdout = Join-Path $logDir "$logStem.stdout.log"
+$stderr = Join-Path $logDir "$logStem.stderr.log"
+$incidentDir = Join-Path $logDir 'cru34-live-incidents'
+New-Item -ItemType Directory -Force -Path $incidentDir | Out-Null
+$incident = Join-Path $incidentDir "$logStem.incident.ndjson"
+$env:CRU34_LIVE_WORKER_INSTANCE_ID = $launchId
+$env:CRU34_LIVE_STDOUT_PATH = $stdout
+$env:CRU34_LIVE_STDERR_PATH = $stderr
+$env:CRU34_LIVE_INCIDENT_PATH = $incident
 Start-Process -FilePath $node -ArgumentList 'scripts/run-cru34-live-projection.mjs' `
   -WorkingDirectory $root -WindowStyle Hidden `
   -RedirectStandardOutput $stdout -RedirectStandardError $stderr

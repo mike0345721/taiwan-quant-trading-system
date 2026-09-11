@@ -43,6 +43,21 @@ differences, `STALE`, `WARMING_UP`, `QUALITY_INSUFFICIENT`, or a governed
 `UNAVAILABLE` reason remain truthful Dashboard states. The launcher never
 creates a replacement DAY identity or treats stale NIGHT data as current.
 
+## CRU34 producer failure evidence
+
+Each governed producer start receives one UUID shared by its worker status and
+its instance-specific files under `data/automation-logs`. Standard output and
+standard error use `cru34-live-projection-<UTC>-<UUID>.*.log`; incidents append
+to `cru34-live-incidents/<same-stem>.incident.ndjson`. A later instance never
+reuses or truncates those paths.
+
+Publishing `status.json` retries only Windows `EPERM`, `EBUSY`, and `EACCES`
+with a frozen six-attempt/775 ms maximum delay budget. Exhaustion preserves the
+previous status file so the existing freshness checks fail closed. The original
+failure is sent to protected stderr and the append-only incident sink before a
+best-effort `UNAVAILABLE` publication. A failure in that fallback cannot escape
+the polling callback or replace the original incident.
+
 ## Install / update the local shortcut
 
 Run the following from the approved local project version:

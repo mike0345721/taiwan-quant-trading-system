@@ -154,7 +154,9 @@ test('continuity, contract, session, and trade-date boundaries reset rolling ide
 
 test('projection runner remains resident for continuous bounded polling', () => {
   const runner = fs.readFileSync(new URL('../scripts/run-cru34-live-projection.mjs', import.meta.url), 'utf8');
-  assert.match(runner, /setInterval\(run, pollMs\);/);
+  assert.match(runner, /setInterval\(\(\) => \{ void runSingleFlight\(\); \}, pollMs\);/);
+  assert.match(runner, /if \(runInFlight \|\| stopping\) return;/);
+  assert.match(runner, /process\.stderr\.on\('error'/);
   assert.doesNotMatch(runner, /\.unref\(\)/);
   assert.match(runner, /worker\.lock/);
   assert.match(runner, /process\.kill\(incumbentPid, 0\)/);

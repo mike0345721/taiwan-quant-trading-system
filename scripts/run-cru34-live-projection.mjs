@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { projectCru34LiveBatch } from '../src/cru34-live-projection-worker.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
+import {
+  appendCru34Incident,
+  cru34ErrorEvidence,
+  handleCru34RunFailure,
+  publishCru34Status,
+} from '../src/cru34-status-publisher.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || path.join(root, 'data'));
@@ -17,9 +23,21 @@ const maxBatchBytes = Number.parseInt(process.env.CRU34_LIVE_MAX_BATCH_BYTES || 
 const maxBatchRecords = Number.parseInt(process.env.CRU34_LIVE_MAX_BATCH_RECORDS || '25000', 10);
 fs.mkdirSync(projectionRoot, { recursive: true });
 const lockPath = path.join(projectionRoot, 'worker.lock');
-const workerInstanceId = crypto.randomUUID();
+const configuredWorkerInstanceId = process.env.CRU34_LIVE_WORKER_INSTANCE_ID;
+const workerInstanceId = /^[0-9a-f-]{36}$/i.test(configuredWorkerInstanceId || '')
+  ? configuredWorkerInstanceId : crypto.randomUUID();
 const workerStartedAt = new Date().toISOString();
+const incidentPath = path.resolve(process.env.CRU34_LIVE_INCIDENT_PATH
+  || path.join(projectionRoot, 'incidents', `${workerStartedAt.replaceAll(':', '-')}-${workerInstanceId}.ndjson`));
+const stdoutPath = process.env.CRU34_LIVE_STDOUT_PATH || null;
+const stderrPath = process.env.CRU34_LIVE_STDERR_PATH || null;
 let ownsLock = false;
+let statusSequence = 0;
+let runInFlight = false;
+let stopping = false;
+let pollHandle = null;
+let stderrAvailable = true;
+process.stderr.on('error', () => { stderrAvailable = false; });
 function parseLock(raw) {
   try { return JSON.parse(raw); } catch { return { pid: Number.parseInt(raw.trim(), 10), workerInstanceId: null }; }
 }
@@ -76,30 +94,64 @@ function pathsForToday() {
   };
 }
 
-function writeStatus(status, fields = {}) {
-  fs.mkdirSync(projectionRoot, { recursive: true });
+async function writeStatus(status, fields = {}) {
   const target = path.join(projectionRoot, 'status.json');
-  const temp = `${target}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify({
+  statusSequence += 1;
+  const temp = `${target}.${process.pid}.${workerInstanceId}.${statusSequence}.tmp`;
+  const published = await publishCru34Status({ targetPath: target, tempPath: temp, document: {
     schemaVersion: 'cru34-live-worker-status-v1', status, pid: process.pid,
     workerInstanceId, workerStartedAt,
     dataRoot, projectionRoot, snapshotPath: path.join(projectionRoot, 'latest.json'), statusPath: target,
+    logs: { stdoutPath, stderrPath, incidentPath },
     observedAt: new Date().toISOString(), formalWeight: 0, researchOnly: true,
     executionAuthorized: false, orderRoutesEnabled: false,
     ...fields,
-  })}\n`, 'utf8');
-  fs.renameSync(temp, target);
+  } });
+  if (published.attempts > 1) {
+    await recordIncident({
+      message: 'CRU34_STATUS_PUBLICATION_RETRY_RECOVERED',
+      operation: published.recoveredOperation,
+      code: published.recoveredCode,
+      attempts: published.attempts,
+      retryDelaysMs: published.retryDelaysMs,
+    }, { result: 'STATUS_PUBLICATION_RECOVERED' });
+  }
+  return published;
 }
 
-function unavailable(reason) { writeStatus('UNAVAILABLE', { reason }); }
+function writeStderr(value) {
+  if (!stderrAvailable) return;
+  try { process.stderr.write(`${value}\n`); } catch { stderrAvailable = false; }
+}
 
-function run() {
+async function recordIncident(error, { result, originalCode = null } = {}) {
+  const evidence = cru34ErrorEvidence(error);
+  writeStderr(JSON.stringify({ at: new Date().toISOString(), workerInstanceId, pid: process.pid,
+    ...evidence, result, originalCode }));
+  const incident = {
+    schemaVersion: 'cru34-live-incident-v1', incidentAt: new Date().toISOString(),
+    workerInstanceId, pid: process.pid, ...evidence, result, originalCode,
+    formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+  };
+  const appended = await appendCru34Incident({ incidentPath, record: incident });
+  if (!appended.written) writeStderr(JSON.stringify({ at: new Date().toISOString(), workerInstanceId,
+    pid: process.pid, ...appended.error, result: 'INCIDENT_SINK_FAILED', originalCode: evidence.code }));
+}
+
+function controlledStop() {
+  stopping = true;
+  if (pollHandle) clearInterval(pollHandle);
+  process.exitCode = 1;
+  releaseLock();
+}
+
+async function run() {
   const paths = pathsForToday();
-  if (!fs.existsSync(paths.ledgerPath)) {
-    unavailable('CURRENT_LEDGER_MISSING');
-    return;
-  }
   try {
+    if (!fs.existsSync(paths.ledgerPath)) {
+      await writeStatus('UNAVAILABLE', { reason: 'CURRENT_LEDGER_MISSING' });
+      return;
+    }
     const result = projectCru34LiveBatch({
       ...paths,
       resolveSessionTradeDate: sessionTradeDate,
@@ -107,7 +159,7 @@ function run() {
       maxBatchBytes,
       maxBatchRecords,
     });
-    writeStatus('AVAILABLE', {
+    await writeStatus('AVAILABLE', {
       reason: null, truthState: result.status,
       checkpointOrdinal: result.checkpoint?.lastVerifiedLedgerOrdinal || 0,
       checkpointRecordHash: result.checkpoint?.lastVerifiedRecordHash || null,
@@ -116,13 +168,25 @@ function run() {
     process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), status: result.status,
       ordinal: result.checkpoint?.lastVerifiedLedgerOrdinal || 0 })}\n`);
   } catch (error) {
-    unavailable(String(error?.message || 'LIVE_PROJECTION_FAILED'));
-    process.stderr.write(`${String(error?.stack || error)}\n`);
+    const handled = await handleCru34RunFailure({
+      error,
+      recordIncident,
+      writeUnavailable: (reason) => writeStatus('UNAVAILABLE', { reason }),
+    });
+    if (handled.fatal) controlledStop();
   }
+}
+
+async function runSingleFlight() {
+  if (runInFlight || stopping) return;
+  runInFlight = true;
+  try { await run(); } finally { runInFlight = false; }
 }
 
 if (!Number.isInteger(pollMs) || pollMs < 250 || pollMs > 60_000) {
   throw new Error('CRU43_POLL_INTERVAL_INVALID');
 }
-run();
-setInterval(run, pollMs);
+await runSingleFlight();
+if (!stopping) {
+  pollHandle = setInterval(() => { void runSingleFlight(); }, pollMs);
+}
