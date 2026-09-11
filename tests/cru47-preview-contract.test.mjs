@@ -36,6 +36,8 @@ test('CRU-47 launcher is governed, direct, redacted, and never manages formal se
   assert.match(source, /BootstrapUrl = '\[REDACTED_SINGLE_USE_FRAGMENT\]'/);
   assert.doesNotMatch(source, /launcher\.mjs/);
   assert.doesNotMatch(source, /start-cru34-live-projection/);
+  assert.match(source, /CRU47_BROWSER_OPEN_FAILED_CANDIDATE_STOPPED/);
+  assert.match(source, /Stop-Process -Id \$process\.Id -Force/);
   assert.doesNotMatch(source, /LocalPort 8787|LocalPort 8790/);
   assert.doesNotMatch(source, /MOCK_DATA = 'true'/);
 });

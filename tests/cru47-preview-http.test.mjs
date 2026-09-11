@@ -53,7 +53,9 @@ function request(port, pathname, { method = 'GET', headers = {}, body = null } =
 async function startDashboard({ preview = true } = {}) {
   const port = await freePort();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cru47-http-'));
-  fs.mkdirSync(path.join(tempRoot, 'history'), { recursive: true });
+  const sourceRoot = path.join(tempRoot, 'source');
+  const stateRoot = path.join(tempRoot, 'state');
+  fs.mkdirSync(path.join(sourceRoot, 'history'), { recursive: true });
   const token = crypto.randomBytes(32).toString('base64url');
   const instanceId = crypto.randomUUID().replaceAll('-', '');
   const digest = crypto.createHash('sha256').update(token).digest('hex');
@@ -67,7 +69,7 @@ async function startDashboard({ preview = true } = {}) {
       HOST: '127.0.0.1', PORT: String(port), NODE_ENV: preview ? 'development' : 'production',
       TRUST_PROXY: '0', COOKIE_SECURE: '0', MOCK_DATA: 'true', REFRESH_INTERVAL_SECONDS: '0',
       DASHBOARD_PASSWORD_HASH: passwordHash,
-      DASHBOARD_DATA_ROOT: tempRoot, DASHBOARD_STATE_DIR: path.join(tempRoot, 'state'),
+      DASHBOARD_DATA_ROOT: sourceRoot, DASHBOARD_STATE_DIR: stateRoot,
       DASHBOARD_PREVIEW_TYPE: preview ? 'CRU47_OWNER_PREVIEW' : '',
       DASHBOARD_PREVIEW_BRANCH: preview ? 'codex/cru-47-localhost-owner-preview-auto-auth-v1' : '',
       DASHBOARD_PREVIEW_DATA_MODE: preview ? 'GOVERNED_LOCAL_DATA' : '',
@@ -106,6 +108,33 @@ async function stopDashboard(runtime) {
 function cookieFrom(response) {
   return String(response.headers['set-cookie'] || '').split(';')[0];
 }
+
+test('preview startup rejects overlapping governed data and writable state roots', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cru47-overlap-'));
+  const port = 8796;
+  const digest = crypto.createHash('sha256').update('not-exposed').digest('hex');
+  try {
+    assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '--eval',
+      "import('./src/config.mjs').then(({ validateConfig }) => validateConfig())"], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        HOST: '127.0.0.1', PORT: String(port), NODE_ENV: 'development',
+        TRUST_PROXY: '0', COOKIE_SECURE: '0', DASHBOARD_PASSWORD_HASH: passwordHash,
+        DASHBOARD_DATA_ROOT: tempRoot, DASHBOARD_STATE_DIR: path.join(tempRoot, 'state'),
+        DASHBOARD_PREVIEW_TYPE: 'CRU47_OWNER_PREVIEW', DASHBOARD_PREVIEW_AUTO_AUTH: '1',
+        DASHBOARD_PREVIEW_INSTANCE_ID: 'instance_1234567890',
+        DASHBOARD_PREVIEW_EXPECTED_COMMIT: candidateCommit,
+        DASHBOARD_PREVIEW_BOOTSTRAP_SHA256: digest,
+        DASHBOARD_PREVIEW_CANONICAL_ORIGIN: `http://127.0.0.1:${port}`,
+      },
+    }), /LOCAL_PREVIEW_STATE_NOT_ISOLATED/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('CRU-47 real HTTP bootstrap is one-use, isolated, and keeps CSRF enforced', { timeout: 60_000 }, async () => {
   const runtime = await startDashboard({ preview: true });

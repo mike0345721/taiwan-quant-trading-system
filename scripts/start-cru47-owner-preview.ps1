@@ -137,7 +137,14 @@ if (!$healthReady) {
 }
 
 $bootstrapUrl = "$origin/#preview-bootstrap=$token&instance=$instanceId&candidate=$expectedHead"
-if (!$NoBrowser) { Start-Process -FilePath $bootstrapUrl }
+if (!$NoBrowser) {
+  try {
+    Start-Process -FilePath $bootstrapUrl -ErrorAction Stop | Out-Null
+  } catch {
+    if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
+    throw 'CRU47_BROWSER_OPEN_FAILED_CANDIDATE_STOPPED'
+  }
+}
 [pscustomobject]@{
   ProcessId = $process.Id
   Port = $Port

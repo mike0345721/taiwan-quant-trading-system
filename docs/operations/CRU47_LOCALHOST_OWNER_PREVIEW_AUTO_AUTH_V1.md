@@ -62,7 +62,9 @@ projection, and chart dependency. It does not start, restart, stop, or write to
 8787, 8790, the collector, scheduler, approved runtime, or normal desktop
 shortcut. Cache, chart cache, session, journal, and logs are directed to the
 candidate instance state root. `CacheStore` reads source data but writes only
-to that state root.
+to that state root. Server-side configuration rejects equal, parent, or child
+relationships between the governed data root and writable state root, so a
+misconfigured direct start also fails closed.
 
 The launcher starts `server.mjs` directly. It must not use `launcher.mjs`,
 which can manage the quote bridge, and it must not invoke a CRU-34 producer

@@ -19,6 +19,21 @@ function boolEnv(name, fallback = false) {
   return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase());
 }
 
+function canonicalPath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+export function pathsOverlap(left, right) {
+  const leftPath = canonicalPath(left);
+  const rightPath = canonicalPath(right);
+  const isSameOrChild = (parent, child) => {
+    const relative = path.relative(parent, child);
+    return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  return isSameOrChild(leftPath, rightPath) || isSameOrChild(rightPath, leftPath);
+}
+
 export const config = Object.freeze({
   appRoot,
   publicDir: path.join(appRoot, 'public'),
@@ -54,6 +69,9 @@ export function validateConfig() {
     throw new Error('對外監聽時必須設定 DASHBOARD_PASSWORD_HASH');
   }
   if (config.previewAutoAuthRequested) {
+    if (pathsOverlap(config.dataDir, config.stateDir)) {
+      throw new Error('LOCAL_PREVIEW_STATE_NOT_ISOLATED');
+    }
     const expectedOrigin = `http://127.0.0.1:${config.port}`;
     const valid = config.nodeEnv !== 'production'
       && Boolean(config.passwordHash)
