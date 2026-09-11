@@ -11,6 +11,10 @@ import {
   handleCru34RunFailure,
   publishCru34Status,
 } from '../src/cru34-status-publisher.mjs';
+import {
+  acquireCru34WorkerLockSync,
+  releaseCru34WorkerLockSync,
+} from '../src/cru34-worker-lock.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || path.join(root, 'data'));
@@ -32,41 +36,19 @@ const incidentPath = path.resolve(process.env.CRU34_LIVE_INCIDENT_PATH
 const stdoutPath = process.env.CRU34_LIVE_STDOUT_PATH || null;
 const stderrPath = process.env.CRU34_LIVE_STDERR_PATH || null;
 let ownsLock = false;
-let statusSequence = 0;
 let runInFlight = false;
 let stopping = false;
 let pollHandle = null;
 let stderrAvailable = true;
 process.stderr.on('error', () => { stderrAvailable = false; });
-function parseLock(raw) {
-  try { return JSON.parse(raw); } catch { return { pid: Number.parseInt(raw.trim(), 10), workerInstanceId: null }; }
-}
-try {
-  const lockFd = fs.openSync(lockPath, 'wx');
-  try { fs.writeFileSync(lockFd, `${JSON.stringify({ pid: process.pid, workerInstanceId,
-    workerStartedAt, dataRoot, projectionRoot })}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
-  ownsLock = true;
-} catch (error) {
-  if (error?.code !== 'EEXIST') throw error;
-  const incumbentPid = Number(parseLock(fs.readFileSync(lockPath, 'utf8')).pid);
-  let incumbentAlive = Number.isInteger(incumbentPid) && incumbentPid > 0;
-  if (incumbentAlive) {
-    try { process.kill(incumbentPid, 0); } catch { incumbentAlive = false; }
-  }
-  if (incumbentAlive) process.exit(0);
-  fs.unlinkSync(lockPath);
-  const lockFd = fs.openSync(lockPath, 'wx');
-  try { fs.writeFileSync(lockFd, `${JSON.stringify({ pid: process.pid, workerInstanceId,
-    workerStartedAt, dataRoot, projectionRoot })}\n`, 'utf8'); } finally { fs.closeSync(lockFd); }
-  ownsLock = true;
-}
+const lockResult = acquireCru34WorkerLockSync({ lockPath, record: { pid: process.pid, workerInstanceId,
+  workerStartedAt, dataRoot, projectionRoot } });
+if (!lockResult.acquired) process.exit(0);
+ownsLock = true;
 
 function releaseLock() {
   if (!ownsLock) return;
-  try {
-    const lock = parseLock(fs.readFileSync(lockPath, 'utf8'));
-    if (Number(lock.pid) === process.pid && lock.workerInstanceId === workerInstanceId) fs.unlinkSync(lockPath);
-  } catch { /* already removed */ }
+  releaseCru34WorkerLockSync({ lockPath, pid: process.pid, workerInstanceId });
   ownsLock = false;
 }
 process.on('exit', releaseLock);
@@ -96,8 +78,7 @@ function pathsForToday() {
 
 async function writeStatus(status, fields = {}) {
   const target = path.join(projectionRoot, 'status.json');
-  statusSequence += 1;
-  const temp = `${target}.${process.pid}.${workerInstanceId}.${statusSequence}.tmp`;
+  const temp = `${target}.${process.pid}.${workerInstanceId}.tmp`;
   const published = await publishCru34Status({ targetPath: target, tempPath: temp, document: {
     schemaVersion: 'cru34-live-worker-status-v1', status, pid: process.pid,
     workerInstanceId, workerStartedAt,

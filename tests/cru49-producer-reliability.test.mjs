@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import {
@@ -15,6 +17,7 @@ import {
   isCru34IntegrityFailure,
   publishCru34Status,
 } from '../src/cru34-status-publisher.mjs';
+import { acquireCru34WorkerLockSync } from '../src/cru34-worker-lock.mjs';
 
 function temporaryDirectory() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cru49-producer-'));
@@ -99,6 +102,82 @@ test('status publication exhausts a frozen bounded retry budget and preserves ol
   assert.deepEqual(delays, [25, 50, 100, 200, 400]);
   assert.equal(delays.reduce((sum, value) => sum + value, 0), CRU34_STATUS_RETRY_POLICY.maxTotalDelayMs);
   assert.deepEqual(JSON.parse(fs.readFileSync(targetPath, 'utf8')), old);
+  assert.equal(fs.existsSync(tempPath), false);
+});
+
+test('status temp cleanup failure never masks the original publication error', async () => {
+  const root = temporaryDirectory();
+  const targetPath = path.join(root, 'status.json');
+  const tempPath = path.join(root, 'status.instance.tmp');
+  await assert.rejects(publishCru34Status({ targetPath, tempPath, document: document(), io: {
+    mkdir: fsPromises.mkdir,
+    writeFile: fsPromises.writeFile,
+    rename: async () => { throw Object.assign(new Error('locked target'), { code: 'EBUSY' }); },
+    unlink: async () => { throw Object.assign(new Error('locked temp'), { code: 'EACCES' }); },
+  }, sleep: async () => {} }), (error) => error.code === 'EBUSY'
+    && error.operation === 'RENAME_STATUS_TEMP'
+    && error.tempCleanup?.removed === false
+    && error.tempCleanup?.code === 'EACCES');
+});
+
+test('stale lock takeover is serialized and a second claimant fails closed', () => {
+  const root = temporaryDirectory();
+  const lockPath = path.join(root, 'worker.lock');
+  fs.writeFileSync(lockPath, `${JSON.stringify({ pid: 91, workerInstanceId: 'stale' })}\n`);
+  const takeoverPath = `${lockPath}.takeover`;
+  fs.writeFileSync(takeoverPath, `${JSON.stringify({ claimId: 'other', pid: 92 })}\n`);
+  const blocked = acquireCru34WorkerLockSync({ lockPath,
+    record: { pid: 93, workerInstanceId: 'candidate-a' }, signalProcess: () => { throw new Error('dead'); } });
+  assert.equal(blocked.acquired, false);
+  assert.equal(blocked.reason, 'STALE_TAKEOVER_BUSY');
+  assert.equal(JSON.parse(fs.readFileSync(lockPath, 'utf8')).workerInstanceId, 'stale');
+
+  fs.unlinkSync(takeoverPath);
+  const winner = acquireCru34WorkerLockSync({ lockPath,
+    record: { pid: 94, workerInstanceId: 'candidate-b' }, signalProcess: () => { throw new Error('dead'); } });
+  assert.equal(winner.acquired, true);
+  assert.equal(winner.reason, 'STALE_LOCK_REPLACED');
+  assert.equal(JSON.parse(fs.readFileSync(lockPath, 'utf8')).workerInstanceId, 'candidate-b');
+  assert.equal(fs.existsSync(takeoverPath), false);
+});
+
+test('competing processes cannot both acquire one stale worker lock', async () => {
+  const root = temporaryDirectory();
+  const lockPath = path.join(root, 'worker.lock');
+  const gatePath = path.join(root, 'go');
+  fs.writeFileSync(lockPath, `${JSON.stringify({ pid: 99999999, workerInstanceId: 'stale' })}\n`);
+  const moduleUrl = pathToFileURL(path.resolve('src/cru34-worker-lock.mjs')).href;
+  const code = `
+    import fs from 'node:fs';
+    import { acquireCru34WorkerLockSync } from ${JSON.stringify(moduleUrl)};
+    const [lockPath, gatePath, resultPath, workerInstanceId] = process.argv.slice(1);
+    while (!fs.existsSync(gatePath)) await new Promise((resolve) => setTimeout(resolve, 5));
+    const result = acquireCru34WorkerLockSync({ lockPath,
+      record: { pid: process.pid, workerInstanceId } });
+    fs.writeFileSync(resultPath, JSON.stringify(result));
+    if (result.acquired) setInterval(() => {}, 1000);
+  `;
+  const children = ['candidate-a', 'candidate-b'].map((workerInstanceId) => {
+    const resultPath = path.join(root, `${workerInstanceId}.json`);
+    const child = spawn(process.execPath, ['--input-type=module', '-e', code,
+      lockPath, gatePath, resultPath, workerInstanceId], { windowsHide: true });
+    return { child, resultPath };
+  });
+  fs.writeFileSync(gatePath, 'go');
+  try {
+    for (let attempt = 0; attempt < 500
+      && !children.every(({ resultPath }) => fs.existsSync(resultPath)); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(children.every(({ resultPath }) => fs.existsSync(resultPath)), true);
+    const results = children.map(({ resultPath }) => JSON.parse(fs.readFileSync(resultPath, 'utf8')));
+    assert.equal(results.filter((result) => result.acquired).length, 1);
+    assert.equal(results.filter((result) => !result.acquired).length, 1);
+  } finally {
+    for (const { child } of children) if (child.exitCode === null) child.kill();
+    await Promise.all(children.map(({ child }) => child.exitCode !== null ? Promise.resolve()
+      : new Promise((resolve) => child.once('exit', resolve))));
+  }
 });
 
 test('non-allowlisted publication errors fail immediately', async () => {

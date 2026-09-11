@@ -23,7 +23,7 @@ function operationError(error, operation) {
 }
 
 export class Cru34StatusPublicationError extends Error {
-  constructor(error, { attempts, targetPath, tempPath, retryDelaysMs }) {
+  constructor(error, { attempts, targetPath, tempPath, retryDelaysMs, tempCleanup }) {
     super('CRU34_STATUS_PUBLICATION_FAILED', { cause: error });
     this.name = 'Cru34StatusPublicationError';
     this.code = error?.code || 'UNKNOWN';
@@ -32,6 +32,7 @@ export class Cru34StatusPublicationError extends Error {
     this.targetPath = targetPath;
     this.tempPath = tempPath;
     this.retryDelaysMs = Object.freeze([...retryDelaysMs]);
+    this.tempCleanup = Object.freeze({ ...tempCleanup });
   }
 }
 
@@ -67,11 +68,20 @@ export async function publishCru34Status({
       await sleep(delayMs);
     }
   }
+  let tempCleanup = { attempted: true, removed: false, code: null };
+  try {
+    await (io.unlink || fs.unlink)(tempPath);
+    tempCleanup = { attempted: true, removed: true, code: null };
+  } catch (cleanupError) {
+    if (cleanupError?.code === 'ENOENT') tempCleanup = { attempted: true, removed: true, code: 'ENOENT' };
+    else tempCleanup = { attempted: true, removed: false, code: cleanupError?.code || 'UNKNOWN' };
+  }
   throw new Cru34StatusPublicationError(lastError, {
     attempts: retryDelaysMs.length + 1,
     targetPath,
     tempPath,
     retryDelaysMs,
+    tempCleanup,
   });
 }
 
@@ -81,6 +91,7 @@ export function cru34ErrorEvidence(error) {
     code: error?.code || error?.cause?.code || 'ERROR',
     attempts: Number.isInteger(error?.attempts) ? error.attempts : 1,
     retryDelaysMs: Array.isArray(error?.retryDelaysMs) ? [...error.retryDelaysMs] : [],
+    tempCleanup: error?.tempCleanup ? { ...error.tempCleanup } : null,
     reason: String(error?.message || 'LIVE_PROJECTION_FAILED').slice(0, 256),
   });
 }
