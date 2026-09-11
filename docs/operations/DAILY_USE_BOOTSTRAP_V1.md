@@ -56,7 +56,20 @@ with a frozen six-attempt/775 ms maximum delay budget. Exhaustion preserves the
 previous status file so the existing freshness checks fail closed. The original
 failure is sent to protected stderr and the append-only incident sink before a
 best-effort `UNAVAILABLE` publication. A failure in that fallback cannot escape
-the polling callback or replace the original incident.
+the polling callback or replace the original incident. The 775 ms bounds the
+sum of retry delays, not the duration of operating-system file I/O.
+
+Fresh worker-lock creation, dead-owner takeover, and owner release serialize
+under the same exclusive `worker.lock.takeover` mutation guard. The starter
+never deletes `worker.lock`; it delegates any dead-owner takeover to the runner.
+Empty, partial, malformed, or incomplete owner records fail closed. Only an
+`ESRCH` process probe proves that a well-formed owner is dead; other probe
+failures do not authorize replacement. An abandoned or unreadable mutation
+guard also fails closed and requires separate evidence-backed recovery; neither
+the runner nor the starter automatically deletes it. This favors single-writer
+safety over automatic availability. Deploy the launcher and runner together as
+one governed version; legacy writers that ignore the guard are not protected by
+the new protocol.
 
 ## Install / update the local shortcut
 

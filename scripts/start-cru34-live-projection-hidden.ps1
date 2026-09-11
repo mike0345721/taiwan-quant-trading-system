@@ -54,6 +54,13 @@ function Test-Cru34ProducerMatch($Status, $Lock, [datetime]$Now = (Get-Date)) {
 
 if (Test-Path -LiteralPath $lockPath) {
   $lock = Read-JsonFile $lockPath
+  # Unknown records may belong to an initializing runner. Only the runner
+  # mutates worker.lock, under its shared mutation guard.
+  if (-not $lock -or -not ($lock.pid -is [long] -or $lock.pid -is [int]) -or
+      $lock.pid -le 0 -or -not ($lock.workerInstanceId -is [string]) -or
+      [string]::IsNullOrWhiteSpace($lock.workerInstanceId)) {
+    throw 'CRU34_LIVE_PRODUCER_INCUMBENT_UNVERIFIED'
+  }
   $incumbentPid = if ($lock) { [int]$lock.pid } else { 0 }
   $incumbent = if ($incumbentPid -gt 0) { Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue } else { $null }
   if ($incumbent) {
@@ -71,13 +78,8 @@ if (Test-Path -LiteralPath $lockPath) {
     }
     if (Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue) { throw 'CRU34_LIVE_PRODUCER_RESTART_STOP_TIMEOUT' }
   }
-  $currentLock = Read-JsonFile $lockPath
-  if ($currentLock -and $lock -and ([int]$currentLock.pid -eq [int]$lock.pid) `
-      -and ($currentLock.workerInstanceId -eq $lock.workerInstanceId)) {
-    Remove-Item -LiteralPath $lockPath -Force
-  } elseif (Test-Path -LiteralPath $lockPath) {
-    throw 'CRU34_LIVE_PRODUCER_LOCK_CHANGED'
-  }
+  # Dead-owner takeover belongs to acquireCru34WorkerLockSync in the runner.
+  # Concurrent launchers may spawn contenders; only one obtains write rights.
 }
 
 $env:CRU34_LIVE_DATA_ROOT = $dataRoot

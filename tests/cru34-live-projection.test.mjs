@@ -177,6 +177,6 @@ test('projection runner remains resident for continuous bounded polling', () => 
   assert.match(runner, /worker\.lock/);
   assert.match(runner, /acquireCru34WorkerLockSync/);
   const workerLock = fs.readFileSync(new URL('../src/cru34-worker-lock.mjs', import.meta.url), 'utf8');
-  assert.match(workerLock, /signalProcess\(pid, 0\)/);
+  assert.match(workerLock, /signalProcess\(record.pid, 0\)/);
   assert.match(workerLock, /STALE_TAKEOVER_BUSY/);
 });

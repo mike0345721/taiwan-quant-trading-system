@@ -127,14 +127,14 @@ test('stale lock takeover is serialized and a second claimant fails closed', () 
   const takeoverPath = `${lockPath}.takeover`;
   fs.writeFileSync(takeoverPath, `${JSON.stringify({ claimId: 'other', pid: 92 })}\n`);
   const blocked = acquireCru34WorkerLockSync({ lockPath,
-    record: { pid: 93, workerInstanceId: 'candidate-a' }, signalProcess: () => { throw new Error('dead'); } });
+    record: { pid: 93, workerInstanceId: 'candidate-a' }, signalProcess: () => { throw Object.assign(new Error('dead'), { code: 'ESRCH' }); } });
   assert.equal(blocked.acquired, false);
   assert.equal(blocked.reason, 'STALE_TAKEOVER_BUSY');
   assert.equal(JSON.parse(fs.readFileSync(lockPath, 'utf8')).workerInstanceId, 'stale');
 
   fs.unlinkSync(takeoverPath);
   const winner = acquireCru34WorkerLockSync({ lockPath,
-    record: { pid: 94, workerInstanceId: 'candidate-b' }, signalProcess: () => { throw new Error('dead'); } });
+    record: { pid: 94, workerInstanceId: 'candidate-b' }, signalProcess: () => { throw Object.assign(new Error('dead'), { code: 'ESRCH' }); } });
   assert.equal(winner.acquired, true);
   assert.equal(winner.reason, 'STALE_LOCK_REPLACED');
   assert.equal(JSON.parse(fs.readFileSync(lockPath, 'utf8')).workerInstanceId, 'candidate-b');
