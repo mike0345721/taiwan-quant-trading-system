@@ -201,9 +201,10 @@ test('queue drop is a persistence and integrity limitation', () => {
 test('raw TX can pass while Path research remains READY_WITH_LIMITATION', () => {
   const report = build({
     derivedEvidence: {
-      session: 'DAY', actualContract: 'TXFI6', captureState: 'PASS', persistenceState: 'PASS',
+      tradeDate: context.tradeDate, session: 'DAY', actualContract: 'TXFI6', captureState: 'PASS', persistenceState: 'PASS',
+      cutoffValidated: true, generatedAt: '2026-09-09T06:00:00Z', availableAt: '2026-09-09T05:45:00Z',
       integrityState: 'UNKNOWN', researchEligibility: 'READY_WITH_LIMITATION',
-      reasonCodes: ['LONG_GAP_QUALITY_INSUFFICIENT'], sourceArtifactIdentity: { snapshotHash: 'fixture' },
+      reasonCodes: ['LONG_GAP_QUALITY_INSUFFICIENT'], sourceArtifactIdentity: { sha256: 'a'.repeat(64) },
     },
   });
   assert.equal(feed(report, 'tx_actual_trade', 'DAY').captureState, 'PASS');
@@ -631,4 +632,33 @@ test('CLI emits MARKET_CLOSED acceptance on a governed non-trading date', (t) =>
   assert.equal(report.marketDayState, 'NON_TRADING_DAY');
   assert.equal(report.overallState, 'NOT_EXPECTED');
   assert.ok(report.feeds.filter((item) => item.mode === 'LIVE_EVENT').every((item) => item.reasonCodes.includes('MARKET_CLOSED')));
+});
+
+test('batch proof is dataset-specific, stage-independent, and observation-cutoff bound', () => {
+  const item={datasetId:'tx_futures_oi',sourceDate:context.tradeDate,observedAt:'2026-09-09T07:00:00Z',availableAt:null,cutoffValidated:false,captureState:'UNKNOWN',persistenceState:'PASS',integrityState:'UNKNOWN',researchEligibility:'UNKNOWN',recordCount:1,sourceArtifactIdentity:{sha256:'b'.repeat(64)}};
+  const run=(value)=>feed(build({dailyUpdateStatus:null,batchEvidence:{tx_futures_oi:value}}),'tx_futures_oi');
+  assert.equal(run(item).captureState,'UNKNOWN');assert.equal(run(item).persistenceState,'PASS');
+  assert.equal(run({...item,sourceDate:'2026-09-08'}).persistenceState,'UNKNOWN');
+  assert.equal(run({...item,datasetId:'tx_large_trader'}).persistenceState,'UNKNOWN');
+  assert.equal(run({...item,observedAt:'2026-09-10T00:00:00Z'}).persistenceState,'UNKNOWN');
+  assert.equal(run({...item,sourceArtifactIdentity:null,captureState:'PASS'}).captureState,'UNKNOWN');
+  const ready={...item,availableAt:'2026-09-09T06:00:00Z',cutoffValidated:true,captureState:'PASS',researchEligibility:'READY_WITH_LIMITATION'};
+  assert.equal(run(ready).captureState,'PASS');
+  assert.equal(run({...ready,availableAt:'2026-09-10T00:00:00Z'}).captureState,'UNKNOWN');
+});
+
+test('unbound derived, wrong tradeDate/session and later generation cannot upgrade raw truth', () => {
+  const item={tradeDate:context.tradeDate,session:'DAY',actualContract:'TXFI6',cutoffValidated:true,generatedAt:'2026-09-09T06:00:00Z',availableAt:'2026-09-09T05:45:00Z',sourceArtifactIdentity:{sha256:'c'.repeat(64)},captureState:'PASS',persistenceState:'PASS',integrityState:'PASS',researchEligibility:'READY'};
+  for(const delta of [{tradeDate:'2026-09-08'},{session:'NIGHT'},{generatedAt:'2026-09-10T00:00:00Z'},{availableAt:'2026-09-10T00:00:00Z'},{actualContract:null},{cutoffValidated:false},{sourceArtifactIdentity:null}]) {
+    const report=build({derivedEvidence:{entries:[{...item,...delta}]}});
+    assert.equal(feed(report,'tx_actual_trade','DAY').captureState,'PASS');
+    assert.equal(feed(report,'derived_pressure_response_efficiency').researchEligibility,'UNKNOWN');
+    assert.ok(feed(report,'derived_pressure_response_efficiency').reasonCodes.includes('PROJECTION_NOT_READY'));
+  }
+});
+
+test('market closed derived excluded and unknown calendar cannot create positive derived acceptance',()=>{
+ const closed=build({marketDayState:'NON_TRADING_DAY'});assert.equal(closed.summary.requiredCount,0);
+ const unknown=build({marketDayState:'UNKNOWN'});assert.equal(unknown.overallState,'UNKNOWN');
+ assert.equal(feed(unknown,'derived_pressure_response_efficiency').researchEligibility,'UNKNOWN');
 });

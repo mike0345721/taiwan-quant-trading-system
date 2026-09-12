@@ -8,6 +8,9 @@ import {
   stableDailyAcceptanceJson,
   streamDailyLedgerEvidence,
 } from '../src/daily-collection-acceptance.mjs';
+import { readDailyBatchEvidence } from '../src/daily-collection-batch-evidence.mjs';
+import { readDailyDerivedEvidence } from '../src/daily-collection-derived-evidence.mjs';
+import { dailyEvidenceGapMatrix } from '../src/daily-collection-acceptance-sweep.mjs';
 import { auditLiveEventLedger } from '../src/live-event-ledger.mjs';
 import {
   loadGovernedTradingCalendar,
@@ -192,25 +195,37 @@ if (dailyUpdateStatus) {
   };
 }
 
-const report = buildDailyCollectionAcceptance({
-  calendarDate,
-  tradeDate,
-  marketDayState,
-  generatedAt,
-  sessions,
-  registry,
-  liveEvidence,
-  dailyUpdateStatus,
-  derivedEvidence: null,
+const batchSnapshot = args['batch-evidence'] ? readJsonWithIdentity(path.resolve(args['batch-evidence'])) : null;
+if (args['batch-evidence'] && !batchSnapshot) throw new Error('DAILY_ACCEPTANCE_BATCH_SNAPSHOT_UNREADABLE');
+const batchEvidence = batchSnapshot?.value?.byTradeDate?.[tradeDate]
+  || (args.database ? readDailyBatchEvidence({ databasePath: path.resolve(args.database), tradeDate, generatedAt }) : {});
+const derivedEvidence = readDailyDerivedEvidence({
+  artifactPaths: (args['derived-artifacts'] || '').split('|').filter(Boolean),
+  tradeDate, sessions, generatedAt, liveEvidence,
+});
+if (derivedEvidence.unavailableArtifacts.some((item) => item.reasonCode === 'DERIVED_ARTIFACT_SELECTION_AMBIGUOUS')) {
+  throw new Error('OWNER_SEMANTIC_DECISION_REQUIRED:DERIVED_ARTIFACT_SELECTION_AMBIGUOUS');
+}
+const inputs = {
+  calendarDate, tradeDate, marketDayState, generatedAt, sessions, registry,
+  liveEvidence, dailyUpdateStatus, batchEvidence, derivedEvidence,
   storageEvidence: {
-    derivedArtifactBytes: null,
+    derivedArtifactBytes: derivedEvidence.artifactBytes,
     auditReportBytes: dailyUpdateStatus ? dailyStatusEvidence.identity.bytes : null,
   },
-});
+};
+const report = buildDailyCollectionAcceptance(inputs);
+const evidenceInputs = {
+  calendar: readJsonWithIdentity(calendarPath).identity,
+  registry: readJsonWithIdentity(registryPath).identity,
+  batchSnapshot: batchSnapshot?.identity || null,
+  derivedUnavailableArtifacts: derivedEvidence.unavailableArtifacts,
+};
 
-const contents = stableDailyAcceptanceJson(report);
+const contents = stableDailyAcceptanceJson({ ...report, evidenceInputs, evidenceGapMatrix: dailyEvidenceGapMatrix(report) });
 const datedPath = path.join(outputRoot, `${tradeDate}.json`);
 const latestPath = path.join(outputRoot, 'latest.json');
+atomicWrite(path.join(outputRoot, `${tradeDate}.inputs.json`), stableDailyAcceptanceJson({ inputs, evidenceInputs }));
 atomicWrite(datedPath, contents);
 atomicWrite(latestPath, contents);
 

@@ -98,7 +98,7 @@ reasonCodes = [NOT_PUBLISHED_YET]
 
 Live Feed 只有在 `coverageState=PASS` 時才可成為 `READY` 或 `READY_WITH_LIMITATION`；`PARTIAL` 一律 `NOT_READY`，`PENDING / UNKNOWN` 保持 `UNKNOWN`。單筆 delivery 不得冒充完整 session research readiness。
 
-Pressure / Price Response / Path Efficiency 是 derived evidence，不是 raw Feed。Derived 不可用不得覆寫 TX Tick / BidAsk 的 raw capture truth。Phase A 若沒有同 `tradeDate` / session 的可追溯 projection evidence，derived row 維持 `UNKNOWN / PROJECTION_NOT_READY`。
+Pressure / Price Response / Path Efficiency 是 derived evidence，不是 raw Feed。Derived 不可用不得覆寫 TX Tick / BidAsk 的 raw capture truth。若沒有同 `tradeDate` / session 的可追溯 projection evidence，derived row 維持 `UNKNOWN / PROJECTION_NOT_READY`。
 
 ### Storage accounting
 
@@ -143,7 +143,7 @@ Top-level：
 ## 已知限制
 
 - Native sequence 大多不可用，所以 packet-loss certainty 保持 `UNKNOWN`。
-- 現有 Daily Update status 缺少所有 first-wave batch Dataset 的 row-level source date / artifact identity，stage PASS 不會被升格為 dataset PASS。
+- Batch adapter 以指定日期的 SQLite 列建立身分；缺少當時 availableAt 仍不提升 capture/research。Daily Update stage PASS 不會被升格為 dataset PASS。
 - 目前 `futures-audits` 只覆蓋少數歷史日；其他大 ledger 的 hash-chain 狀態不在本 builder 內重做無界 audit。
 - Current CRU-34/44 status 不等於歷史 tradeDate projection evidence；未匹配時 derived eligibility 保持 UNKNOWN。
 - 本版不新增 MTX/TMF canonical Dataset identity。
@@ -158,3 +158,51 @@ CRU25_PHASE_A_OFFLINE_ACCEPTANCE_READY_FOR_OWNER_REVIEW
 ```
 
 不得 Merge、frontend integration、production activation、collector/scheduler 變更或 CRU-44 修改。
+
+
+## Phase A.1 — 非交易日證據加固
+
+Phase A.1 繼續使用同一 PR #58。以最新 approved main rebase 後只新增/修改離線驗收模組、CLI、temp-fixture tests 與本規格。UI、API、producer/status/lock、啟動器、collector、scheduler、registry、frozen semantics 都不屬本包。
+
+### Batch 身分與當時可用性
+
+`src/daily-collection-batch-evidence.mjs` 直接使用 `node:sqlite` 的 `readOnly:true` transaction；不呼叫會建立/migrate 資料庫的既有 bootstrap。需要支援 `node:sqlite` 的既有 Node runtime。六個 canonical ID 的映射為：
+
+| Dataset | 實際來源表／鍵 | 保留限制 |
+| --- | --- | --- |
+| taifex_daily_market | market_daily / trade_date | 目前列不單獨證明歷史 capture |
+| tx_futures_oi | futures_oi_daily / trade_date | near_contract_oi 與等價商品總量分列 |
+| tx_institutional_positions | futures_positions_daily / date；institutional_futures_detail_daily / date, participant | 不混淆市場／參與人與真實 Dealer |
+| tx_large_trader | large_trader_futures_daily / date, product_scope, expiry_scope | 保留 TX_MTX_TMF_EQUIVALENT 來源範圍 |
+| txo_strike_expiry_cp_oi | options_strike_daily / date, contract, strike；options_contract_daily / date, contract | CP／expiry 保留；來源缺值補零語意未驗證 |
+| market_breadth_and_sector_leadership | market_breadth_history_daily / date, market | 只覆蓋 TWSE EOD breadth；sector UNKNOWN，整列最多 PARTIAL |
+
+回傳 selected-row SHA-256、row-key SHA-256、各表筆數、來源日期、來源路徑、原有 timestamp lineage。Digest 表示被觀測到的選定欄位身分，不代表整個 DB hash 或完整來源稽核。沒有 table 或資料列時不借用 latest/別資料集；沒有已治理 `availableAt` 不把 imported_at/fetched_at/built_at 改名代用。
+
+`observedAt` 是實際完成唯讀 snapshot 取得的時間。只有 `observedAt <= generatedAt` 才能支持當時 persistence；前五類目前仍缺可證明的 source availability，因此 capture/research UNKNOWN。`--database` 直接讀取是一個新的 mutable-input acquisition，不可拿來宣稱過去可用。可先用 `readDailyBatchEvidence` 取得 map，凍結成 `{byTradeDate: {date: map}}` 的本地 metadata JSON，再以 `--batch-evidence=<path>` 重複驗收。報告保存此檔 hash。Snapshot 不包含市場 raw rows，只有 count、hash 與 lineage metadata。
+
+### Derived 身分
+
+`--derived-artifacts=<absolute-path>|<absolute-path>` 只讀明確列出的既有檔案，不自動尋找最新 projection。沿用 CRU34 historical / live validator。逐一檢查 tradeDate、session、actualContract、availableAt、materializedAt/observedAt 及 artifact hash；每個指定 session 最多一個選定 artifact。相同最新 generation 時點有不同 semantic identity 時，CLI 以 `OWNER_SEMANTIC_DECISION_REQUIRED` 停止。
+
+Historical artifact 的完整性驗證與 raw prefix 歸屬分開；research 正向資格還需要 reader 提供匹配 sourceLedgerIdentity、cutoffLedgerOrdinal/hash、date/session/contract/availableAt 的 `derivedCutoffProofs`。目前通用 CLI 不建立這種額外 prefix 證明，缺證保持 `DERIVED_SOURCE_CUTOFF_UNVERIFIED / PROJECTION_NOT_READY`。這是明示的證據缺口，不用弱化 validator 或生成新投影補滿。Live mutable envelope 也不直接成為 immutable historical evidence。較新交易日的 current/latest projection 絕不回填較舊日期。
+
+已驗證窗口逐項保留 Pressure、Price Response、Path status；缺少擴展窗口仍 UNKNOWN。Raw capture 狀態完全由 raw feed 決定。研究 qualification 不改 Path 30s 或 CRU34/44 公式，也不提升 Market State、Strategy 或權重。
+
+### 多日 sweep 與保存範圍
+
+```powershell
+node scripts/build-daily-collection-acceptance-sweep.mjs --dates=2026-09-09,2026-09-10,2026-09-11,2026-09-12 --generated-at=<fixed-ISO-cutoff> --sessions=DAY,NIGHT --data-root=<Owner-data-root> --output-root=<isolated-git-ignored-acceptance-root> --batch-evidence=<frozen-metadata-json>
+```
+
+CLI 循序一次掃描每日期，無網路資料取得、排程或背景服務。每日期保存 `.json` 與 `.inputs.json`，後者保留固定 scanner/adapter metadata 供純函式重播。相同 immutable inputs、cutoff 與 code 產生一致輸出；mutable artifact 改變不能當相同輸入。`--reuse-reports=true` 只重新彙整既有 dated reports，不代表重新稽核 raw。
+
+`sweep.json` 保存 compact dates summary、所有未解決列的 evidence-gap matrix、capacity sample metadata。Raw bytes 仍是每份 acceptance 選取的實體 prefix 總和；record total 是已篩到該 tradeDate 的 first-wave live records，兩者範圍不相同且明示。
+
+容量統計另使用唯一的 calendar-day ledger immutable prefixes：同檔案/相同 cutoff/hash 只計一次；同檔案在不同 report 有不同 identity 時拒絕混算。N 是實體日曆日檔案樣本數，不是完整市場交易日數；recordSampleCount 另列。Physical recordCount 是 prefix 的全部非空行，不只 TX、不移除 duplicates。Median 使用中間值/雙中間平均，p95 使用 nearest rank。休市沒有選取 ledger 就不補一筆零容量樣本。不因少數 convenience samples 做年度預測；forecast 固定 NOT_VERIFIED，絕不称作全專案每日容量。
+
+### 驗證與停止點
+
+Focused tests 覆蓋 dataset/source-date/hash/observation cutoff、mutable/latest future leakage、derived/session isolation、缺值與 UNKNOWN、資料庫只讀、容量 N／去重／conflicting cutoff、同固定輸入 determinism。驗收另外執行相鄰 ledger、Daily Update/data-health 及 CRU34/44 validator 測試、syntax、diff、secret scan；真實資料只做必要日期的有界唯讀掃描。
+
+完成實測、獨立工程審查與 GitHub/Linear factual checkpoint read-back 後，目標僅為 `CRU25_PHASE_A1_READY_FOR_OWNER_REVIEW`。這不是 Owner Accepted、Merge 或 production activation。

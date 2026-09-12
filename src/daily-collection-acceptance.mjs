@@ -36,6 +36,22 @@ export const REASON_ZH = Object.freeze({
   LOW_DISK: '磁碟可用空間不足',
   LEDGER_NOT_FOUND: '找不到當日事件帳本',
   ARTIFACT_NOT_WRITTEN: '驗收所需產物未寫入',
+  ARTIFACT_IDENTITY_MISSING: '缺少可歸屬此資料集的產物身分',
+  SOURCE_NOT_COLLECTED: '指定來源範圍未找到已收集資料',
+  COVERAGE_PARTIAL: '證據僅涵蓋部分資料或時段',
+  STALE_OR_DELAYED: '來源晚於截止時間或已過期',
+  BATCH_SCHEMA_UNVERIFIED: '批次資料表結構尚未驗證',
+  BATCH_EVIDENCE_UNREADABLE: '批次資料證據無法讀取',
+  SOURCE_INTEGRITY_NOT_VERIFIED: '來源完整性尚未驗證',
+  SOURCE_NULL_SEMANTICS_UNVERIFIED: '來源缺值語意尚未驗證',
+  EVIDENCE_AFTER_CUTOFF: '證據取得時間晚於驗收截止時間',
+  DERIVED_ARTIFACT_UNREADABLE: '投影檔案無法讀取',
+  DERIVED_ARTIFACT_CHANGED_DURING_READ: '投影於讀取期間改變',
+  DERIVED_VALIDATION_FAILED: '投影驗證未通過',
+  DERIVED_OUTSIDE_IMMUTABLE_CUTOFF: '投影時間超出固定驗收截點',
+  LIVE_ARTIFACT_IMMUTABILITY_UNPROVEN: '即時投影未具不可變歷史證據',
+  DERIVED_SOURCE_CUTOFF_UNVERIFIED: '投影來源帳本截點尚未核實',
+  DERIVED_ARTIFACT_SELECTION_AMBIGUOUS: '同時點投影身分無法唯一歸屬',
   ACTUAL_CONTRACT_MISMATCH: '實際契約身分不一致',
   TRADE_DATE_MISMATCH: '交易日身分不一致',
   SESSION_MISMATCH: '交易時段身分不一致',
@@ -302,99 +318,83 @@ function earliestBatchDueTime(tradeDate) {
   return Date.parse(`${tradeDate}T13:45:00+08:00`);
 }
 
-function batchFeed(definition, context, dailyStatus, datasetEvidence, registry) {
+function validTimeAtCutoff(value, cutoff) {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.parse(cutoff);
+}
+
+function artifactIdentityPresent(identity) {
+  return identity && /^[a-f0-9]{64}$/.test(identity.sha256 || '');
+}
+
+function batchFeed(definition, context, dailyStatus, datasetEvidence) {
   const base = feedBase(definition, { ...context, session: 'EOD', expectedState: 'REQUIRED', expectedWindow: '盤後官方發布後' });
-  if (context.marketDayState !== 'TRADING_DAY') return notExpectedFeed(definition, { ...context, session: 'EOD', expectedWindow: '盤後官方發布後' }, 'MARKET_CLOSED');
-  const completedMs = Date.parse(dailyStatus?.completedAt || '');
-  const generatedMs = Date.parse(context.generatedAt);
-  const statusAvailableAtCutoff = Number.isFinite(completedMs) && completedMs <= generatedMs;
-  const stage = statusAvailableAtCutoff
-    ? (dailyStatus?.stages || []).find((item) => item.key === definition.stageKey) || null
-    : null;
-  const reportBeforePublication = Number.isFinite(completedMs) && completedMs < earliestBatchDueTime(context.tradeDate);
-  if (!stage && generatedMs < earliestBatchDueTime(context.tradeDate)) {
-    return closeFeed({ ...base, expectedState: 'PENDING', captureState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_PUBLICATION_WINDOW', smallestNextCheck: '官方發布時窗後重跑每日驗收' });
+  if (context.marketDayState === 'NON_TRADING_DAY') return notExpectedFeed(definition, { ...context, session: 'EOD', expectedWindow: '盤後官方發布後' }, 'MARKET_CLOSED');
+  if (context.marketDayState !== 'TRADING_DAY') return closeFeed({ ...base, expectedState: 'UNKNOWN', reasonCodes: ['TIMESTAMP_LINEAGE_INSUFFICIENT'] });
+  const stageValid = dailyStatus?.gateSummary?.marketDaily?.tradeDate === context.tradeDate
+    && validTimeAtCutoff(dailyStatus?.completedAt, context.generatedAt);
+  const stage = stageValid ? dailyStatus.stages?.find((item) => item.key === definition.stageKey) : null;
+  const item = datasetEvidence;
+  const sameDate = item?.datasetId === definition.datasetId && item?.sourceDate === context.tradeDate;
+  const artifactKnown = sameDate && artifactIdentityPresent(item?.sourceArtifactIdentity);
+  const observed = artifactKnown && validTimeAtCutoff(item?.observedAt, context.generatedAt);
+  const timeBound = observed && item?.cutoffValidated === true && validTimeAtCutoff(item?.availableAt, context.generatedAt);
+  if (!item && Date.parse(context.generatedAt) < earliestBatchDueTime(context.tradeDate)) {
+    return closeFeed({ ...base, expectedState: 'PENDING', captureState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_PUBLICATION_WINDOW' });
   }
-  if (reportBeforePublication && statusAvailableAtCutoff) {
-    return closeFeed({ ...base, expectedState: 'PENDING', captureState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'DAILY_UPDATE_STAGE', sourceArtifactIdentity: dailyStatus?.sourceArtifactIdentity || null, smallestNextCheck: '以官方發布後的新 Daily Update evidence 重跑' });
-  }
-  if (!stage) {
-    return closeFeed({
-      ...base,
-      reasonCodes: [dailyStatus && !statusAvailableAtCutoff ? 'TIMESTAMP_LINEAGE_INSUFFICIENT'
-        : dailyStatus ? 'SCHEDULED_TASK_NOT_RUN' : 'ARTIFACT_NOT_WRITTEN'],
-      sourceArtifactIdentity: statusAvailableAtCutoff ? dailyStatus?.sourceArtifactIdentity || null : null,
-      smallestNextCheck: dailyStatus && !statusAvailableAtCutoff
-        ? '取得 generatedAt 當下或之前已完成的 Daily Update immutable evidence'
-        : `核對 ${definition.stageKey} stage 的執行紀錄`,
-    });
-  }
-  const registryItem = registry.get(definition.datasetId);
-  if (!datasetEvidence) {
-    return closeFeed({
-      ...base,
-      reasonCodes: [stage.ok === true ? 'TIMESTAMP_LINEAGE_INSUFFICIENT' : 'SCHEDULED_TASK_NOT_RUN'],
-      evidenceStrength: 'DAILY_UPDATE_STAGE_ONLY',
-      sourceArtifactIdentity: dailyStatus?.sourceArtifactIdentity || null,
-      downstreamImpact: [definition.datasetId],
-      smallestNextCheck: stage.ok === true
-        ? '核對該 Dataset 的 official source date、row count 與 persisted artifact'
-        : `檢查 ${definition.stageKey} stage log 後再核對 Dataset artifact`,
-    });
-  }
-  const captureState = DAILY_ACCEPTANCE_STATES.includes(datasetEvidence.captureState)
-    ? datasetEvidence.captureState : 'UNKNOWN';
-  const persistenceState = DAILY_ACCEPTANCE_STATES.includes(datasetEvidence.persistenceState)
-    ? datasetEvidence.persistenceState : 'UNKNOWN';
-  const integrityState = DAILY_ACCEPTANCE_STATES.includes(datasetEvidence.integrityState)
-    ? datasetEvidence.integrityState : 'UNKNOWN';
-  const failed = captureState === 'FAIL' || persistenceState === 'FAIL' || integrityState === 'FAIL';
-  const eligible = datasetEvidence.researchEligibility || (failed ? 'NOT_READY'
-    : captureState === 'PASS' && persistenceState === 'PASS'
-      ? (registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION') : 'UNKNOWN');
-  return closeFeed({
-    ...base,
-    firstReceivedAt: datasetEvidence.firstReceivedAt || null,
-    lastReceivedAt: datasetEvidence.lastReceivedAt || null,
-    recordCount: nullableNumber(datasetEvidence.recordCount),
-    bytes: nullableNumber(datasetEvidence.bytes),
-    captureState,
-    persistenceState,
-    integrityState,
-    researchEligibility: RESEARCH_ELIGIBILITY_STATES.includes(eligible) ? eligible : 'UNKNOWN',
-    reasonCodes: datasetEvidence.reasonCodes || [],
-    evidenceStrength: datasetEvidence.evidenceStrength || 'DATASET_ARTIFACT',
-    sourceArtifactIdentity: datasetEvidence.sourceArtifactIdentity || dailyStatus?.sourceArtifactIdentity || null,
-    downstreamImpact: failed ? [definition.datasetId] : [],
-    smallestNextCheck: datasetEvidence.smallestNextCheck || '核對 official source date / row-level availableAt',
+  const reasons = [...(item?.reasonCodes || [])];
+  if (!artifactKnown) reasons.push('ARTIFACT_IDENTITY_MISSING');
+  if (item && !sameDate) reasons.push('TRADE_DATE_MISMATCH');
+  if (!timeBound) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
+  if (!item && !stage) reasons.push(dailyStatus && !stageValid ? 'TIMESTAMP_LINEAGE_INSUFFICIENT' : 'ARTIFACT_NOT_WRITTEN');
+  if (stage?.ok === false) reasons.push('SCHEDULED_TASK_NOT_RUN');
+  const captureState = timeBound && DAILY_ACCEPTANCE_STATES.includes(item.captureState) ? item.captureState : 'UNKNOWN';
+  const persistenceState = observed && DAILY_ACCEPTANCE_STATES.includes(item.persistenceState) ? item.persistenceState : 'UNKNOWN';
+  const integrityState = timeBound && DAILY_ACCEPTANCE_STATES.includes(item.integrityState) ? item.integrityState : 'UNKNOWN';
+  const researchEligibility = timeBound && captureState === 'PASS' && persistenceState === 'PASS'
+    && integrityState !== 'FAIL' && RESEARCH_ELIGIBILITY_STATES.includes(item.researchEligibility)
+    ? item.researchEligibility : 'UNKNOWN';
+  return closeFeed({ ...base, captureState, persistenceState, integrityState, researchEligibility,
+    sourceStage: item?.sourceStage || definition.stageKey,
+    stageEvidence: stage ? { key: stage.key, ok: stage.ok, completedAt: dailyStatus.completedAt } : null,
+    sourceDate: sameDate ? item.sourceDate : null, availableAt: timeBound ? item.availableAt : null,
+    observedAt: observed ? item.observedAt : null,
+    recordCount: artifactKnown ? nullableNumber(item.recordCount) : null,
+    bytes: artifactKnown ? nullableNumber(item.bytes) : null,
+    reasonCodes: reasons, sourceArtifactIdentity: artifactKnown ? item.sourceArtifactIdentity : null,
+    lineage: artifactKnown ? item.lineage || null : null,
+    components: artifactKnown ? item.components || null : null,
+    evidenceStrength: observed ? 'DATASET_ARTIFACT' : stage ? 'DAILY_UPDATE_STAGE_ONLY' : 'NONE',
+    smallestNextCheck: '核對此資料集的來源列身分與當時可用性；不以 stage 成功代替資料證據',
   });
 }
 
-function derivedFeed(context, evidence, registry) {
+function derivedFeed(context, evidence) {
   const definition = { datasetId: 'derived_pressure_response_efficiency', ownerLabelZh: '壓力、價格反應與路徑效率研究資格', technicalLabelEn: 'Pressure / Price Response / Path Efficiency', quoteType: 'Derived metrics', mode: 'DERIVED', material: false };
   const base = feedBase(definition, { ...context, session: evidence?.session || 'NIGHT_PLUS_DAY', expectedState: 'REQUIRED', expectedWindow: '來源資料持久化後' });
   base.source = 'Existing CRU-34 / CRU-44 projection artifact';
-  if (!evidence) return closeFeed({ ...base, reasonCodes: ['PROJECTION_NOT_READY'], downstreamImpact: [definition.datasetId], smallestNextCheck: '讀取同 tradeDate/session 的既有投影 status 或 snapshot' });
-  const reasonCodes = unique(evidence.reasonCodes || []);
-  const eligibility = RESEARCH_ELIGIBILITY_STATES.includes(evidence.researchEligibility)
-    ? evidence.researchEligibility : 'UNKNOWN';
-  const registryItem = registry.get(definition.datasetId);
-  return closeFeed({
-    ...base,
-    actualContract: evidence.actualContract || null,
-    firstReceivedAt: evidence.firstReceivedAt || null,
-    lastReceivedAt: evidence.lastReceivedAt || null,
-    recordCount: nullableNumber(evidence.recordCount),
-    bytes: nullableNumber(evidence.bytes),
-    captureState: evidence.captureState || 'PASS',
-    persistenceState: evidence.persistenceState || 'PASS',
-    integrityState: evidence.integrityState || 'UNKNOWN',
-    researchEligibility: eligibility,
-    reasonCodes,
-    evidenceStrength: evidence.evidenceStrength || 'DERIVED_ARTIFACT',
-    sourceArtifactIdentity: evidence.sourceArtifactIdentity || null,
-    downstreamImpact: eligibility === 'NOT_READY' ? [definition.datasetId] : [],
-    smallestNextCheck: evidence.smallestNextCheck || (registryItem ? '核對 projection quality reason 與 raw feed identity' : '核對 canonical registry'),
+  if (context.marketDayState === 'NON_TRADING_DAY') return notExpectedFeed(definition, { ...context, session: base.session }, 'MARKET_CLOSED');
+  const matched = evidence?.tradeDate === context.tradeDate && context.sessions.includes(evidence?.session)
+    && typeof evidence.actualContract === 'string' && evidence.actualContract.length > 0;
+  const known = matched && artifactIdentityPresent(evidence?.sourceArtifactIdentity);
+  const bound = context.marketDayState === 'TRADING_DAY' && known && evidence.cutoffValidated === true
+    && validTimeAtCutoff(evidence.generatedAt, context.generatedAt)
+    && validTimeAtCutoff(evidence.availableAt, context.generatedAt);
+  const codes = [...(evidence?.reasonCodes || [])];
+  if (!bound) codes.push('PROJECTION_NOT_READY');
+  if (evidence && evidence.tradeDate !== context.tradeDate) codes.push('TRADE_DATE_MISMATCH');
+  if (evidence && !context.sessions.includes(evidence.session)) codes.push('SESSION_MISMATCH');
+  const state = (key) => bound && DAILY_ACCEPTANCE_STATES.includes(evidence?.[key]) ? evidence[key] : 'UNKNOWN';
+  return closeFeed({ ...base,
+    expectedState: context.marketDayState === 'UNKNOWN' ? 'UNKNOWN' : base.expectedState,
+    actualContract: known ? evidence.actualContract : null,
+    captureState: state('captureState'), persistenceState: state('persistenceState'), integrityState: state('integrityState'),
+    researchEligibility: bound && RESEARCH_ELIGIBILITY_STATES.includes(evidence.researchEligibility) ? evidence.researchEligibility : 'UNKNOWN',
+    availableAt: bound ? evidence.availableAt : null, generatedAt: known ? evidence.generatedAt : null,
+    recordCount: known ? nullableNumber(evidence.recordCount) : null, bytes: known ? nullableNumber(evidence.bytes) : null,
+    sourceArtifactIdentity: known ? evidence.sourceArtifactIdentity : null,
+    windows: bound ? evidence.windows || null : null,
+    reasonCodes: codes, evidenceStrength: bound ? 'DERIVED_ARTIFACT' : 'NONE',
+    smallestNextCheck: '核對指定日期與時段的 immutable 投影、來源 prefix 與可用截止時間',
   });
 }
 
@@ -438,7 +438,10 @@ export function buildDailyCollectionAcceptance({
   for (const definition of BATCH_FEEDS) feeds.push(batchFeed(
     definition, context, dailyUpdateStatus, batchEvidence?.[definition.datasetId] || null, byDataset,
   ));
-  feeds.push(derivedFeed(context, derivedEvidence, byDataset));
+  const derivedEntries = derivedEvidence?.entries;
+  if (Array.isArray(derivedEntries) && derivedEntries.length) {
+    for (const entry of derivedEntries) feeds.push(derivedFeed(context, entry));
+  } else feeds.push(derivedFeed(context, derivedEvidence?.entries ? null : derivedEvidence));
   for (const definition of FUTURE_FEEDS) {
     feeds.push(notExpectedFeed({ ...definition, mode: 'FUTURE_SOURCE' }, { ...context, session: 'NOT_APPLICABLE', expectedWindow: '未授權' }, 'NOT_ENABLED'));
   }
@@ -477,6 +480,8 @@ export function buildDailyCollectionAcceptance({
     marketDayState,
     generatedAt: new Date(generatedAt).toISOString(),
     overallState,
+    sessions: normalizedSessions,
+    sourceArtifactIdentity: liveEvidence?.sourceArtifactIdentity || null,
     summary: {
       requiredCount: due.length,
       capturedCount: due.filter((feed) => feed.captureState === 'PASS').length,
@@ -681,6 +686,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
       continue;
     }
     totalRawBytes += cutoffBytes;
+    let physicalRecords = 0;
     const identity = {
       file: path.basename(candidate), cutoffBytes,
       ...boundaryRecordHashes(candidate, cutoffBytes),
@@ -700,6 +706,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
     const lines = readline.createInterface({ input: hashTap, crlfDelay: Infinity });
     for await (const line of lines) {
       if (!line) continue;
+      physicalRecords += 1;
       if (!potentiallyRelevantLine(line)) continue;
       let record;
       try { record = JSON.parse(line); } catch { invalidLines += 1; continue; }
@@ -762,6 +769,7 @@ export async function streamDailyLedgerEvidence(filePaths, {
       feeds[key] = item;
     }
     identity.prefixSha256 = prefixHash.digest('hex');
+    identity.physicalRecords = physicalRecords;
     identities.push(identity);
   }
   const auditSources = ledgerAudit?.sources || [];
