@@ -387,7 +387,9 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
 test('formal dashboard wiring carries posture, five evidence families and complete ChatGPT copy', () => {
   const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
   const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.match(server, /loadDashboardObservedFlow\(\{[\s\S]*artifactPath: cru34SnapshotArtifactPath/);
+  assert.match(server, /loadFlowRefresh\(\{[\s\S]*artifactPath: cru34SnapshotArtifactPath/);
+  const flowRoute = fs.readFileSync(new URL('../src/dashboard-flow-refresh.mjs', import.meta.url), 'utf8');
+  assert.match(flowRoute, /loadDashboardObservedFlow\(\{ \.\.\.options, now \}\)/);
   assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
   assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
   assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);

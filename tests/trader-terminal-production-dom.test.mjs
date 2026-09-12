@@ -76,6 +76,7 @@ function productionDocument({ omitChangeMetric = false, interactive = false } = 
   const scripts = [
     interactive ? lightweightChartsBundle() : 'window.LightweightCharts = Object.freeze({});',
     fs.readFileSync(path.join(root, 'public', 'trader-terminal-shell.js'), 'utf8'),
+    fs.readFileSync(path.join(root, 'public', 'observed-flow-refresh.js'), 'utf8'),
     fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8'),
   ].map(inlineScript).join('\n');
   return html.replace('</head>', `${styles}\n</head>`).replace('</body>', `${scripts}\n</body>`);

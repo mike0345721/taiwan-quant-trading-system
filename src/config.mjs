@@ -24,6 +24,9 @@ export const config = Object.freeze({
   publicDir: path.join(appRoot, 'public'),
   dataDir: path.join(appRoot, 'data'),
   historyDir: path.join(appRoot, 'data', 'history'),
+  // Explicit read-only research inputs; never redirected to the caller cwd.
+  v2DatabasePath: path.resolve(appRoot, process.env.V2_RESEARCH_DATABASE_PATH || 'v2/data/research-v2.sqlite'),
+  v2ReportPath: path.resolve(appRoot, process.env.V2_BACKTEST_REPORT_PATH || 'v2/reports/latest-backtest.json'),
   host: process.env.HOST || '127.0.0.1',
   port: intEnv('PORT', 8787, 1, 65535),
   nodeEnv: process.env.NODE_ENV || 'production',

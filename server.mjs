@@ -35,6 +35,7 @@ import {
 } from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
+import { loadFlowRefresh } from './src/dashboard-flow-refresh.mjs';
 import {
   buildCru46Readiness,
   inspectChartPayload,
@@ -119,6 +120,13 @@ const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTR
 let lastRefreshError = null;
 let browserRuntimeProof = null;
 
+function currentObservedFlow() {
+  return loadFlowRefresh({ runtimeCommit: runtimeIdentity.commit,
+    dataRoot: cru34LiveDataRoot, projectionRoot: cru34LiveProjectionRoot,
+    artifactPath: cru34SnapshotArtifactPath, freshnessCutoff: cru34SnapshotFreshnessCutoff,
+    liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
+}
+
 function currentCru46RuntimeReadiness() {
   const identity = cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
@@ -170,12 +178,7 @@ async function decisionWorkspacePayload(snapshot, service) {
   });
   const feed = buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
-  const observedFlow = loadDashboardObservedFlow({
-    artifactPath: cru34SnapshotArtifactPath,
-    freshnessCutoff: cru34SnapshotFreshnessCutoff,
-    liveSnapshotPath: cru34LiveSnapshotPath,
-    liveStatusPath: cru34LiveStatusPath,
-  });
+  const observedFlow = currentObservedFlow();
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
@@ -345,6 +348,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/v1/')) {
       const session = requireSession(req, res);
       if (!session) return;
+
+      if (req.method === 'GET' && pathname === '/api/v1/observed-flow') {
+        sendJson(res, 200, { ok: true, data: currentObservedFlow() });
+        return;
+      }
 
       if (req.method === 'GET' && pathname === '/api/v1/dashboard') {
         if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
@@ -584,7 +592,9 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     const status = Number.isInteger(error.statusCode) ? error.statusCode : 500;
     if (status >= 500) console.error(`[server] ${req.method} ${pathname}:`, error.message);
-    sendJson(res, status, { ok: false, error: status >= 500 ? 'INTERNAL_ERROR' : error.message });
+    const knownResearchUnavailable = status === 503
+      && ['V2_DATABASE_NOT_READY', 'V2_BACKTEST_NOT_READY'].includes(error.message);
+    sendJson(res, status, { ok: false, error: status >= 500 && !knownResearchUnavailable ? 'INTERNAL_ERROR' : error.message });
   }
 });
 
