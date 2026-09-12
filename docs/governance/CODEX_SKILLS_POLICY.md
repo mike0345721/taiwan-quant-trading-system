@@ -45,7 +45,7 @@
 
 Codex 不得因安裝 Skill 而改變本專案既有 Context Routing。
 
-一般開工優先讀取：
+依 `AGENTS.md` 的 Task-based Context Routing 選讀。唯讀說明、規則稽核及純文案修正只讀直接相關材料；涉及 CURRENT、授權或驗收判定時才查 Linear。一般開發維護優先讀取：
 
 1. `AGENTS.md`
 2. Linear CURRENT 工作包
@@ -128,7 +128,7 @@ Codex 可以在既定 Scope 內自動完成：
 - Bug Fix
 - Re-review
 
-不需要每個 Phase 都重新向 Owner 詢問。
+不需要每個 Phase 都重新向 Owner 詢問。計畫、審查強度及範圍內 B 類修復沿用既有授權與本規格，不另設階段批准；S／N 依第 7 節處理。完成要求的交付物、必要審查與相稱驗證後交付；只有新變更、新失敗或未解的相關風險才繼續迭代。必要 reviewer 不可用或仍有 Blocking Finding 時，揭露缺口，不標記 Engineering APPROVE；可繼續不依賴該缺口的工作。
 
 但以下行為仍必須重新取得 Owner 授權：
 
@@ -339,7 +339,7 @@ Reviewer：
 REQUEST_CHANGES
 ```
 
-修復後必須完整重新 Review。
+修復後維持原風險等級所需的 reviewer 數量，重審修正 diff、原 Blocking Finding 與受影響的不變條件。修正跨越安全或資料邊界、影響範圍不明，或 Spec 明定時，才完整重新 Review。每位必要 reviewer 應確認先前結論是否仍適用於更新後的 exact HEAD；不得將舊版 APPROVE 直接當成新版批准。
 
 ---
 
