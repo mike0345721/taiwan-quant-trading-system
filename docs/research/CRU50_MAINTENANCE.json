@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "cru50-maintenance-v1",
+  "base": "8756efabe3a54e49154ed2fe6a705a354607c69b",
+  "allowlist": [
+    "src/cvd-offline-core.mjs", "src/cvd-offline-io.mjs",
+    "scripts/cvd-offline.mjs", "scripts/cvd-validate-history.mjs",
+    "scripts/cvd-audit-scope.mjs", "scripts/cvd-validate-windows.ps1",
+    "tests/cvd-offline-core.test.mjs", "tests/cvd-offline-io.test.mjs",
+    "docs/research/CRU50_CVD_OFFLINE_CONTRACT.md", "docs/research/CRU50_MAINTENANCE.json",
+    "docs/research/CRU50_VALIDATION_AND_CHANGE_CARD.md"
+  ],
+  "sharedChangesAllowed": [],
+  "features": [
+    {"id":"CVD_ACCUMULATION","module":"src/cvd-offline-core.mjs","source":"tx_actual_trade;tx_best_quote","shared":"unchanged canonical/Pressure","consumer":"offline CLI only","tests":"C1,C4,C5"},
+    {"id":"CVD_CONTINUATION","module":"src/cvd-offline-core.mjs","source":"physical ledger prefix","shared":"canonical terminalState","consumer":"src/cvd-offline-io.mjs","tests":"C2,C3"},
+    {"id":"CVD_PRIVATE_IO","module":"src/cvd-offline-io.mjs","source":"explicit local file","shared":"none writable","consumer":"offline CLI only","tests":"C2,C3,C6"},
+    {"id":"CVD_HISTORY","module":"scripts/cvd-validate-history.mjs","source":"tx_actual_trade;tx_best_quote","shared":"unchanged governed calendar/session classifier","consumer":"private historical evidence","tests":"C7"},
+    {"id":"CRU34_PRESERVATION","module":"src/tx-intraday-pressure-path-efficiency.mjs","source":"approved main","shared":"all existing consumers unchanged","consumer":"Pressure/Response/Path","tests":"C8:84 existing focused tests"}
+  ]
+}
