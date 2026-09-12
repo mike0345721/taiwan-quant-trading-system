@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildDailyAcceptanceSweep } from '../src/daily-collection-acceptance-sweep.mjs';
+import { buildDailyAcceptanceSweep, assertDailyAcceptanceOutputRoot } from '../src/daily-collection-acceptance-sweep.mjs';
 import { stableDailyAcceptanceJson } from '../src/daily-collection-acceptance.mjs';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -13,6 +13,8 @@ const dates=(args.dates || '').split(',').filter(Boolean).sort();
 if (!dates.length || dates.some((date)=>!/^\d{4}-\d{2}-\d{2}$/.test(date)) || new Set(dates).size!==dates.length) throw new Error('DAILY_SWEEP_DATES_INVALID');
 const dataRoot=path.resolve(args['data-root'] || path.join(root,'data'));
 const outputRoot=path.resolve(args['output-root'] || path.join(dataRoot,'quality','daily-collection-acceptance','phase-a1'));
+assertDailyAcceptanceOutputRoot(dataRoot,outputRoot,[args['batch-evidence'],args['daily-status'],args.database,args.calendar,args.registry,...(args['derived-artifacts']||'').split('|').filter(Boolean)],['sweep.json']);
+if(args['ledger-cutoffs']) throw new Error('DAILY_SWEEP_GLOBAL_CUTOFF_SET_UNSUPPORTED:use date-scoped daily CLI with exact cutoffs, then reuse-reports');
 const forward=Object.entries(args).filter(([key])=>!['dates','output-root','reuse-reports'].includes(key)).map(([key,value])=>`--${key}=${value}`);
 const reports=[];
 for (const date of dates) {

@@ -622,13 +622,13 @@ test('CLI emits MARKET_CLOSED acceptance on a governed non-trading date', (t) =>
     path.resolve('scripts/build-daily-collection-acceptance.mjs'),
     '--trade-date=2026-09-06', '--calendar-date=2026-09-06',
     '--generated-at=2026-09-06T08:00:00.000Z', '--sessions=DAY,NIGHT',
-    `--data-root=${directory}`, `--output-root=${path.join(directory, 'output')}`,
+    `--data-root=${directory}`, `--output-root=${path.join(directory, 'quality', 'daily-collection-acceptance', 'output')}`,
     `--calendar=${path.resolve('config/taifex-official-calendar-2026.json')}`,
     `--registry=${path.resolve('config/data-requirements-v1.json')}`,
     `--daily-status=${path.join(directory, 'missing-status.json')}`,
   ], { cwd: process.cwd(), encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
-  const report = JSON.parse(fs.readFileSync(path.join(directory, 'output', '2026-09-06.json'), 'utf8'));
+  const report = JSON.parse(fs.readFileSync(path.join(directory, 'quality', 'daily-collection-acceptance', 'output', '2026-09-06.json'), 'utf8'));
   assert.equal(report.marketDayState, 'NON_TRADING_DAY');
   assert.equal(report.overallState, 'NOT_EXPECTED');
   assert.ok(report.feeds.filter((item) => item.mode === 'LIVE_EVENT').every((item) => item.reasonCodes.includes('MARKET_CLOSED')));
@@ -661,4 +661,41 @@ test('market closed derived excluded and unknown calendar cannot create positive
  const closed=build({marketDayState:'NON_TRADING_DAY'});assert.equal(closed.summary.requiredCount,0);
  const unknown=build({marketDayState:'UNKNOWN'});assert.equal(unknown.overallState,'UNKNOWN');
  assert.equal(feed(unknown,'derived_pressure_response_efficiency').researchEligibility,'UNKNOWN');
+ assert.equal(feed(unknown,'tx_actual_trade','DAY').captureState,'UNKNOWN');
+ assert.ok(!feed(unknown,'tx_actual_trade','DAY').reasonCodes.includes('MARKET_CLOSED'));
+});
+
+test('known integrity failure cannot qualify even complete session capture for research',()=>{
+ for(const alteration of [{ledgerAudit:{ok:false}},{}]) {
+  const evidence=live(alteration);if(!alteration.ledgerAudit)evidence.feeds['TX:futures_tick:DAY'].nativeSequenceGaps=1;
+  const row=feed(build({liveEvidence:evidence}),'tx_actual_trade','DAY');
+  assert.equal(row.captureState,'PASS');assert.equal(row.coverageState,'PASS');assert.equal(row.integrityState,'FAIL');assert.equal(row.researchEligibility,'NOT_READY');
+ }
+});
+test('future batch component and missing adapter map do not change historical publication truth',()=>{
+ const item={datasetId:'market_breadth_and_sector_leadership',sourceDate:context.tradeDate,observedAt:'2026-09-10T07:00:00Z',availableAt:'2026-09-09T06:00:00Z',cutoffValidated:true,captureState:'PARTIAL',persistenceState:'PASS',components:{breadth:'PASS',sectorLeadership:'UNKNOWN'},sourceArtifactIdentity:{sha256:'d'.repeat(64)}};
+ const report=build({batchEvidence:{market_breadth_and_sector_leadership:item}});assert.equal(feed(report,item.datasetId).components.breadth,'UNKNOWN');
+ const pending=build({generatedAt:'2026-09-09T00:30:00Z',batchEvidence:{tx_futures_oi:{datasetId:'tx_futures_oi',sourceDate:context.tradeDate,sourceArtifactIdentity:null}}});
+ assert.equal(feed(pending,'tx_futures_oi').expectedState,'PENDING');assert.equal(feed(pending,'tx_futures_oi').captureState,'PENDING');
+});
+test('NIGHT physical audit failure does not overwrite independently verified DAY integrity',()=>{
+ const evidence=live({ledgerAudit:{ok:false},sessions:{DAY:{ledgerAudit:{ok:true}},NIGHT:{ledgerAudit:{ok:false}}}});
+ Object.assign(evidence.feeds['TX:futures_tick:DAY'],{nativeSequenceAvailable:true,nativeSequenceMissing:false,nativeSequenceGapUnknown:false,nativeSequenceGaps:0,invalidLines:0});
+ const item=feed(build({liveEvidence:evidence}),'tx_actual_trade','DAY');assert.equal(item.integrityState,'PASS');
+});
+
+test('scanner scopes exact audit evidence to the physical files of each requested session',async(t)=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'cru25-scoped-audit-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const sources=[];const files=[];
+ for(const [date,time,ok] of [['2026-09-08','15:00:00',false],['2026-09-09','09:00:00',true]]) {
+  const timestamp=`${date}T${time}+08:00`;
+  const record=buildLiveEventRecord({kind:'futures_tick',code:'TXFI6',product:'TXFI6',receivedAt:timestamp,exchangeTimestamp:timestamp,sequence:1,sequenceGap:0,duplicate:false,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false,payload:{productFamily:'TX',actualContract:'TXFI6',datetime:timestamp,simtrade:false}},'GENESIS');
+  const file=path.join(directory,`${date}.ndjson`);const contents=`${JSON.stringify(record)}\n`;fs.writeFileSync(file,contents);files.push(file);
+  sources.push({sourceFile:path.basename(file),bytes:Buffer.byteLength(contents),latestHash:record.recordHash,sequenceGaps:0,prefixSha256:crypto.createHash('sha256').update(contents).digest('hex'),ok});
+ }
+ const calendar={payload:{sourceHash:'fixture'},fileHash:'fixture',exceptions:new Map(),tradingDates:new Set(['2026-09-08','2026-09-09']),nonTradingDates:new Set()};
+ const evidence=await streamDailyLedgerEvidence(files,{calendar,tradeDate:'2026-09-09',generatedAt:context.generatedAt,ledgerAudit:{sources},expectedSessionsByFile:{'2026-09-08.ndjson':['NIGHT'],'2026-09-09.ndjson':['DAY']}});
+ assert.equal(evidence.sessions.DAY.ledgerAudit.ok,true);assert.equal(evidence.sessions.NIGHT.ledgerAudit.ok,false);
+ assert.equal(evidence.sourceArtifactIdentity.files[0].physicalRecords,1);
+ const report=build({sessions:['DAY','NIGHT'],liveEvidence:evidence});assert.equal(feed(report,'tx_actual_trade','DAY').integrityState,'PASS');assert.equal(feed(report,'tx_actual_trade','NIGHT').integrityState,'FAIL');
 });

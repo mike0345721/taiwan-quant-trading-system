@@ -165,8 +165,12 @@ function notExpectedFeed(definition, context, reasonCode) {
 }
 
 function liveFeed(definition, session, context, evidence, registry) {
-  if (context.marketDayState !== 'TRADING_DAY') {
+  if (context.marketDayState === 'NON_TRADING_DAY') {
     return notExpectedFeed(definition, { ...context, session, expectedWindow: session }, 'MARKET_CLOSED');
+  }
+  if (context.marketDayState !== 'TRADING_DAY') {
+    return closeFeed({ ...feedBase(definition, { ...context, session, expectedState: 'UNKNOWN', expectedWindow: session }),
+      reasonCodes: ['TIMESTAMP_LINEAGE_INSUFFICIENT'] });
   }
   if (!definition.sessions.includes(session)) {
     return notExpectedFeed(definition, { ...context, session, expectedWindow: session }, 'NOT_IN_CURRENT_SCOPE');
@@ -261,9 +265,10 @@ function liveFeed(definition, session, context, evidence, registry) {
   if (item.invalidLines > 0) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
   const persistenceState = sessionMetric('writerErrors') > 0 || sessionMetric('droppedEvents') > 0 ? 'FAIL'
     : sessionMissingFiles.length ? 'PARTIAL' : 'PASS';
-  const knownIntegrityFailure = evidence.ledgerAudit?.ok === false || item.nativeSequenceGaps > 0;
+  const scopedAudit = Object.hasOwn(sessionEvidence, 'ledgerAudit') ? sessionEvidence.ledgerAudit : evidence.ledgerAudit;
+  const knownIntegrityFailure = scopedAudit?.ok === false || item.nativeSequenceGaps > 0;
   const integrityState = knownIntegrityFailure ? 'FAIL'
-    : evidence.ledgerAudit?.ok === true && item.nativeSequenceAvailable === true
+    : scopedAudit?.ok === true && item.nativeSequenceAvailable === true
       && item.nativeSequenceMissing !== true && item.nativeSequenceGapUnknown !== true
       && item.nativeSequenceGaps === 0 && item.invalidLines === 0
       && sessionMetric('reconnectCount') === 0 ? 'PASS' : 'UNKNOWN';
@@ -282,7 +287,7 @@ function liveFeed(definition, session, context, evidence, registry) {
       if (!reachesClose) reasons.push('STALE_DELIVERY');
     }
   }
-  const researchEligibility = !definition.datasetId ? 'NOT_READY'
+  const researchEligibility = !definition.datasetId || integrityState === 'FAIL' ? 'NOT_READY'
     : ['PENDING', 'UNKNOWN'].includes(coverageState) ? 'UNKNOWN'
     : coverageState === 'PASS' && captureState === 'PASS' && persistenceState === 'PASS'
       ? (integrityState === 'PASS' && registryItem?.quality_status === 'PASS' ? 'READY' : 'READY_WITH_LIMITATION')
@@ -338,7 +343,7 @@ function batchFeed(definition, context, dailyStatus, datasetEvidence) {
   const artifactKnown = sameDate && artifactIdentityPresent(item?.sourceArtifactIdentity);
   const observed = artifactKnown && validTimeAtCutoff(item?.observedAt, context.generatedAt);
   const timeBound = observed && item?.cutoffValidated === true && validTimeAtCutoff(item?.availableAt, context.generatedAt);
-  if (!item && Date.parse(context.generatedAt) < earliestBatchDueTime(context.tradeDate)) {
+  if (!timeBound && Date.parse(context.generatedAt) < earliestBatchDueTime(context.tradeDate)) {
     return closeFeed({ ...base, expectedState: 'PENDING', captureState: 'PENDING', persistenceState: 'PENDING', integrityState: 'PENDING', researchEligibility: 'UNKNOWN', reasonCodes: ['NOT_PUBLISHED_YET'], evidenceStrength: 'GOVERNED_PUBLICATION_WINDOW' });
   }
   const reasons = [...(item?.reasonCodes || [])];
@@ -362,7 +367,8 @@ function batchFeed(definition, context, dailyStatus, datasetEvidence) {
     bytes: artifactKnown ? nullableNumber(item.bytes) : null,
     reasonCodes: reasons, sourceArtifactIdentity: artifactKnown ? item.sourceArtifactIdentity : null,
     lineage: artifactKnown ? item.lineage || null : null,
-    components: artifactKnown ? item.components || null : null,
+    components: artifactKnown && item.components ? Object.fromEntries(Object.entries(item.components)
+      .map(([key, value]) => [key, timeBound ? value : 'UNKNOWN'])) : null,
     evidenceStrength: observed ? 'DATASET_ARTIFACT' : stage ? 'DAILY_UPDATE_STAGE_ONLY' : 'NONE',
     smallestNextCheck: '核對此資料集的來源列身分與當時可用性；不以 stage 成功代替資料證據',
   });
@@ -785,12 +791,23 @@ export async function streamDailyLedgerEvidence(filePaths, {
   )));
   const boundedLedgerAudit = auditComplete ? { ok: true, sources: auditSources }
     : auditFailed ? { ok: false, sources: auditSources } : null;
+  const auditForSession = (session) => {
+    const relevant = identities.filter((identity) => (expectedSessionsByFile[identity.file]
+      || (identity.file === `${tradeDate}.ndjson` ? ['DAY', 'NIGHT'] : ['NIGHT'])).includes(session));
+    const sources = auditSources.filter((audit) => relevant.some((identity) => identity.file === audit.sourceFile));
+    const exact = (identity, audit) => audit.sourceFile === identity.file && audit.bytes === identity.cutoffBytes
+      && audit.latestHash === identity.lastRecordHash && audit.prefixSha256 === identity.prefixSha256;
+    if (relevant.some((identity) => sources.some((audit) => exact(identity, audit) && audit.ok === false))) return { ok: false, sources };
+    if (relevant.length && !missingFilesBySession[session].length
+      && relevant.every((identity) => sources.some((audit) => exact(identity, audit) && audit.ok === true && audit.sequenceGaps === 0))) return { ok: true, sources };
+    return null;
+  };
   return Object.freeze({
     ledgerFound: identities.length > 0,
     missingFiles: unavailableFiles,
     sessions: {
-      DAY: { ...sessions.DAY, missingFiles: missingFilesBySession.DAY },
-      NIGHT: { ...sessions.NIGHT, missingFiles: missingFilesBySession.NIGHT },
+      DAY: { ...sessions.DAY, missingFiles: missingFilesBySession.DAY, ledgerAudit: auditForSession('DAY') },
+      NIGHT: { ...sessions.NIGHT, missingFiles: missingFilesBySession.NIGHT, ledgerAudit: auditForSession('NIGHT') },
     },
     feeds,
     totalRawBytes: identities.length ? totalRawBytes : null,

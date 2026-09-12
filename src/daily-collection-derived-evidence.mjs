@@ -134,5 +134,3 @@ export function readDailyDerivedEvidence({ artifactPaths = [], tradeDate, sessio
   return { entries: selectedEntries, unavailableArtifacts,
     artifactBytes: selectedEntries.length ? selectedEntries.reduce((total, entry) => total + entry.bytes, 0) : null };
 }
-
-

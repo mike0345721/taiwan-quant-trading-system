@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { stableDailyAcceptanceJson } from './daily-collection-acceptance.mjs';
 import crypto from 'node:crypto';
 
@@ -87,4 +89,31 @@ export function buildDailyAcceptanceSweep(reports) {
     evidenceGapMatrix: sorted.map((report) => ({ tradeDate: report.tradeDate, rows: dailyEvidenceGapMatrix(report) })),
     safety: { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false },
   };
+}
+
+
+export function assertDailyAcceptanceOutputRoot(dataRoot, outputRoot, inputPaths = [], outputNames = []) {
+  const base = path.resolve(dataRoot, 'quality', 'daily-collection-acceptance');
+  const target = path.resolve(outputRoot);
+  const relative = path.relative(base, target);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('DAILY_ACCEPTANCE_OUTPUT_ROOT_NOT_GOVERNED');
+  // Reject junction/symlink redirection within the supplied data root, including existing outputs.
+  const fromRoot = path.relative(path.resolve(dataRoot), target).split(path.sep).filter(Boolean);
+  let current = path.resolve(dataRoot);
+  for (const segment of fromRoot) {
+    current = path.join(current, segment);
+    if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new Error('DAILY_ACCEPTANCE_OUTPUT_SYMLINK');
+  }
+  const identity = (file) => {
+    const absolute = path.resolve(file);
+    const resolved = fs.existsSync(absolute) ? fs.realpathSync(absolute) : absolute;
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  const inputs = new Set(inputPaths.filter(Boolean).map(identity));
+  for (const name of outputNames) {
+    const file = path.join(target, name);
+    if (inputs.has(identity(file))) throw new Error('DAILY_ACCEPTANCE_OUTPUT_INPUT_COLLISION');
+    if (fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink()) throw new Error('DAILY_ACCEPTANCE_OUTPUT_SYMLINK');
+  }
+  return target;
 }

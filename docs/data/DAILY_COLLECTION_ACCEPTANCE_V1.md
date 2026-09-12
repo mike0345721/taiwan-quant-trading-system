@@ -48,7 +48,7 @@ node scripts/build-daily-collection-acceptance.mjs `
   --ledger-cutoffs=2026-09-09.ndjson@2745991217,2026-09-10.ndjson@1903118644
 ```
 
-可用 `--output-root` 將驗收輸出導向另一個 local-only 路徑。Builder 不發出 network request，也不啟動任何 runtime。
+可用 `--output-root` 將驗收輸出導向 data-root/quality/daily-collection-acceptance 下另一個隔離目錄；拒絕跳出範圍、symlink/junction 與 input/output 碰撞。Builder 不發出 network request，也不啟動任何 runtime。
 
 對仍在 append 的當日 ledger，首次執行會把實際完整行 cutoff 寫入 `sourceArtifactIdentity.files[].cutoffBytes`。需要 deterministic read-back 時，必須用 `--ledger-cutoffs` 明確重放相同 boundary；`generated-at` 是報告與發布時窗語意，不能取代物理 byte cutoff。
 
@@ -206,3 +206,5 @@ CLI 循序一次掃描每日期，無網路資料取得、排程或背景服務�
 Focused tests 覆蓋 dataset/source-date/hash/observation cutoff、mutable/latest future leakage、derived/session isolation、缺值與 UNKNOWN、資料庫只讀、容量 N／去重／conflicting cutoff、同固定輸入 determinism。驗收另外執行相鄰 ledger、Daily Update/data-health 及 CRU34/44 validator 測試、syntax、diff、secret scan；真實資料只做必要日期的有界唯讀掃描。
 
 完成實測、獨立工程審查與 GitHub/Linear factual checkpoint read-back 後，目標僅為 `CRU25_PHASE_A1_READY_FOR_OWNER_REVIEW`。這不是 Owner Accepted、Merge 或 production activation。
+
+多日 CLI 不接受全域 `--ledger-cutoffs`（每日選取檔案集合不同）。重播固定 byte cutoffs 時逐日使用 daily CLI，再以 sweep `--reuse-reports=true` 彙整。

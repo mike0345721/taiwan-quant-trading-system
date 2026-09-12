@@ -10,7 +10,7 @@ import {
 } from '../src/daily-collection-acceptance.mjs';
 import { readDailyBatchEvidence } from '../src/daily-collection-batch-evidence.mjs';
 import { readDailyDerivedEvidence } from '../src/daily-collection-derived-evidence.mjs';
-import { dailyEvidenceGapMatrix } from '../src/daily-collection-acceptance-sweep.mjs';
+import { dailyEvidenceGapMatrix, assertDailyAcceptanceOutputRoot } from '../src/daily-collection-acceptance-sweep.mjs';
 import { auditLiveEventLedger } from '../src/live-event-ledger.mjs';
 import {
   loadGovernedTradingCalendar,
@@ -138,6 +138,9 @@ const outputRoot = path.resolve(args['output-root'] || path.join(dataRoot, 'qual
 const calendarPath = path.resolve(args.calendar || path.join(root, 'config', 'taifex-official-calendar-2026.json'));
 const registryPath = path.resolve(args.registry || path.join(root, 'config', 'data-requirements-v1.json'));
 const dailyStatusPath = path.resolve(args['daily-status'] || path.join(root, 'v2', 'reports', 'v3-daily-update-status.json'));
+assertDailyAcceptanceOutputRoot(dataRoot, outputRoot,
+  [calendarPath, registryPath, dailyStatusPath, args.database, args['batch-evidence'], ...(args['derived-artifacts'] || '').split('|').filter(Boolean)],
+  [`${tradeDate}.json`, `${tradeDate}.inputs.json`, 'latest.json']);
 const calendar = loadGovernedTradingCalendar(calendarPath);
 const registry = readJson(registryPath);
 if (!registry) throw new Error('DAILY_ACCEPTANCE_REGISTRY_UNREADABLE');

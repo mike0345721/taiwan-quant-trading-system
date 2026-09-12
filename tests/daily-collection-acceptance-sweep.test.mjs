@@ -25,3 +25,15 @@ test('evidence gap rows retain nonfailure reasons and canonical ID absence',()=>
  const r=report('2026-09-09',[]);r.feeds=[{datasetId:null,technicalLabelEn:'MTX Tick',session:'DAY',expectedState:'UNKNOWN',captureState:'PASS',persistenceState:'PASS',integrityState:'UNKNOWN',researchEligibility:'UNKNOWN',reasonCodes:['CANONICAL_DATASET_ID_UNAVAILABLE','NATIVE_SEQUENCE_UNAVAILABLE'],reasonZh:['缺少身分','無原生序號']}];
  const row=buildDailyAcceptanceSweep([r]).evidenceGapMatrix[0].rows[0];assert.deepEqual(row.categories,['CANONICAL_ID_MISSING','NATIVE_SEQUENCE_UNAVAILABLE']);assert.equal(row.captureState,'PASS');
 });
+
+test('output guard rejects escape, input collision and junction redirection in temp fixtures', async(t)=>{
+ const fs=await import('node:fs');const os=await import('node:os');const path=await import('node:path');
+ const {assertDailyAcceptanceOutputRoot}=await import('../src/daily-collection-acceptance-sweep.mjs');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cru25-output-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ const safe=path.join(dir,'quality','daily-collection-acceptance');fs.mkdirSync(safe,{recursive:true});
+ assert.throws(()=>assertDailyAcceptanceOutputRoot(dir,path.join(dir,'runtime')),/NOT_GOVERNED/);
+ const source=path.join(safe,'2026-09-12.json');fs.writeFileSync(source,'immutable');
+ assert.throws(()=>assertDailyAcceptanceOutputRoot(dir,safe,[source],['2026-09-12.json']),/COLLISION/);assert.equal(fs.readFileSync(source,'utf8'),'immutable');
+ const destination=path.join(dir,'outside');fs.mkdirSync(destination);fs.symlinkSync(destination,path.join(safe,'redirect'),'junction');
+ assert.throws(()=>assertDailyAcceptanceOutputRoot(dir,path.join(safe,'redirect')),/SYMLINK/);
+});
