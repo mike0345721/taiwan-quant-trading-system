@@ -1,0 +1,96 @@
+--- a/skills/review-driven-development/SKILL.md
++++ b/skills/review-driven-development/SKILL.md
+@@ -3,8 +3 @@
+-description: |
+-  Use when developing features from GitHub/GitLab issues through to merged PRs/MRs with iterative review cycles.
+-  Covers: issue research, implementation planning, worktree isolation, coding, testing, PR/MR creation,
+-  multi-reviewer code review (current agent, codex exec, claude -p), fix-review loops until APPROVE,
+-  merge and cleanup. Composable with TDD, BDD, systematic-debugging, and other methodology skills.
+-  Use this whenever: user provides an issue number (#NN), asks to implement a feature from an issue,
+-  wants to create a reviewed PR/MR, or needs code reviewed iteratively before merging.
+-  Even if the user just says "implement #42" or "work on issue 15", this skill applies.
++description: Implement authorized issues or deliver PRs/MRs with iterative code review. Not for issue lookups or summaries.
+@@ -17,0 +11,2 @@
++
++Existing user authorization and project governance determine scope, review intensity, and external actions. The phases below are a workflow guide, not separate approval gates. Stop at the requested deliverable; issue lookup alone does not authorize implementation.
+@@ -39 +34 @@
+-2. **Research the codebase** — launch Explore agents to understand:
++2. **Research relevant code** — use independent agents only when useful, available, and authorized. Identify:
+@@ -42 +37 @@
+-   - What reference repos or docs are relevant (check CLAUDE.md, memory)
++   - What reference repos or docs are relevant (follow applicable project context routing)
+@@ -44 +39 @@
+-3. **Enter plan mode** to present the implementation plan
++3. Summarize the intended change and acceptance criteria when complexity warrants a plan; do not require a mode switch or separate approval within existing scope.
+@@ -48 +43 @@
+-The plan MUST include:
++For work needing a plan, include the relevant items:
+@@ -50 +45 @@
+-- **Worktree setup**: directory path, branch name (read CLAUDE.md/memory for naming conventions)
++- **Worktree setup**: directory path, branch name (use applicable project naming conventions)
+@@ -53 +48 @@
+-- **Test strategy**: what commands to run (read from CLAUDE.md)
++- **Test strategy**: what commands to run (use repository commands relevant to the change)
+@@ -55 +50 @@
+-- **Workflow phases**: structure the plan around this skill's 6 phases (Issue Research → Plan + Worktree → Implementation → Commit + PR/MR → Review Cycle → Merge + Cleanup), so the plan serves as both an implementation guide and a workflow tracker
++- **Completion boundary**: requested deliverable, necessary validation, and any remaining authorization gates
+@@ -57,5 +52 @@
+-After user approves the plan:
+-
+-1. Create worktree + branch
+-2. Rebase onto latest default branch (`origin/master` or `origin/main`)
+-3. Begin implementation
++Within existing authorization, create or use the isolated branch/worktree required by project governance and begin implementation. Use the specified baseline and exact HEAD. Update the baseline only for an integration need; do not force a rebase at each phase. Ask only for missing authorization or a decision that materially changes scope or cost.
+@@ -65 +56 @@
+-Execute the plan following project-specific patterns from CLAUDE.md and memory.
++Execute within the authorized plan and applicable project patterns.
+@@ -68 +59 @@
+-- Run project-specific build/test commands (from CLAUDE.md)
++- Run project checks proportionate to affected behavior; build or broaden tests only when the change or project requirements justify it
+@@ -77 +68 @@
+-1. **Rebase** onto latest default branch (`git fetch origin && git rebase origin/master` or `origin/main`). If conflicts arise, enter plan mode to analyze the conflicts and plan the resolution strategy before proceeding.
++1. **Check integration requirements** against the intended base. Rebase only when needed and compatible with project governance; resolve routine conflicts within scope without adding a mandatory plan approval.
+@@ -80 +71 @@
+-4. **Push** to remote with `-u` flag (use `--force-with-lease` if rebased)
++4. **Push** to the authorized remote branch. Do not rewrite protected or frozen history; a rebase does not itself authorize force-pushing shared history.
+@@ -103 +94 @@
+-Ask the user which review strategy to use (only on first review round):
++Use the project's risk-based review policy and existing authorization. If none exists, use a single review for small changes and independent review when complexity or risk warrants it. Ask only if the choice would materially change scope or cost. The following are examples, not mandatory tools:
+@@ -107 +98 @@
+-| **Single** | Current agent (code-reviewer subagent) | Quick iterations, small changes |
++| **Single** | Current agent or independent reviewer | Quick iterations, small changes |
+@@ -153 +144 @@
+-Ask the user which issue levels to address (B/S/N or any combination). Then:
++Automatically fix B findings within the authorized scope. Record S and N without implementing them unless already requested. Escalate scope changes rather than treating a reviewer suggestion as authorization.
+@@ -155,10 +146,4 @@
+-1. Enter plan mode — the plan should clearly state:
+-   - **Current phase**: Phase 5: Review Cycle
+-   - **Current round**: Round N (increment from previous round)
+-   - **Issues to fix**: list each issue the user chose to address, with its level (B/S/N)
+-   - **Fix strategy**: what changes to make for each issue
+-   - **Re-review plan**: after fixes, run the same review strategy again (back to Step 2)
+-2. Implement fixes
+-3. Re-run tests
+-4. Commit + push (new commit, don't amend)
+-5. **Update PR/MR body** to reflect current state (updated test counts, fixed issues, etc.)
++1. Identify blocking findings and the affected behavior; update the plan only if needed.
++2. Implement the in-scope fixes and rerun affected checks.
++3. Commit and push a new commit within the authorized PR workflow.
++4. Update the PR/MR body to reflect actual changes, validation, and limitations.
+@@ -168 +153 @@
+-Rebase onto latest default branch if needed (enter plan mode if conflicts arise), then run the same review strategy again on the updated code. Post the new review to the PR/MR.
++Keep the required reviewer count. Review the repair diff, original blockers, and affected invariants; reviewers must confirm whether prior findings still apply to the updated exact HEAD. Repeat full review only when impact crosses safety/data boundaries, is uncertain, or project policy requires it. Post updated findings within the authorized PR workflow.
+@@ -172 +157 @@
+-Continue the fix → re-review loop until the verdict is **APPROVE** from all reviewers.
++Continue until required reviewers find no blockers and proportionate validation passes, then deliver for any remaining Owner approval. Do not iterate on optional suggestions. If a required reviewer is unavailable or a blocker cannot be resolved within scope, report the gap without claiming APPROVE and complete independent work. Retry unchanged reviews only when new evidence or a concrete corrective action can change the outcome.
+@@ -181 +166 @@
+-   - GitHub: `gh pr merge <NN> --merge` (or `--squash`/`--rebase` per CLAUDE.md)
++   - GitHub: `gh pr merge <NN> --merge` (or `--squash`/`--rebase` per project policy)
+@@ -192,2 +177,2 @@
+-- **CLAUDE.md first** — always read project instructions before starting. Build commands, test commands, naming conventions, merge strategy — it's all there.
+-- **Memory** — check auto-memory for user preferences and project context from prior sessions.
++- **Project context** — follow the applicable AGENTS.md and task-based context routing. Consult other instruction files only when applicable; do not load a fixed document stack for every edit.
++- **Evidence** — use current authorized scope and verifiable repository state; memory may help navigation but does not override project sources of truth.
+@@ -197 +182 @@
+-- **Only Phase 6 blocks on user** — all other phases proceed autonomously. Phase 6 (merge+cleanup) waits for explicit user confirmation.
++- **Approval boundary** — proceed autonomously within existing authorization. Merge requires explicit user approval; any other protected action or scope expansion follows project policy. Prepare independent reviewable work before requesting missing approval.

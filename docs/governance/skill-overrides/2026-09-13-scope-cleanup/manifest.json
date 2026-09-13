@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "work_item": "CRU-51",
+  "checkpoint_comment_id": "ff434313-0b3a-4314-bad1-b4335a31bfae",
+  "checkpoint_updated_at": "2026-09-12T23:42:31.342Z",
+  "created_at_utc": "2026-09-12T23:49:28.370680+00:00",
+  "branch": "codex/skills-instruction-scope-cleanup",
+  "parent_sha": "223b24d3bfc9f2249ce3b0153f794ae520823f2c",
+  "scope": "Persist the existing dev-workflow cache override and commit the four existing scoped repository changes; no candidate content changes.",
+  "reason": "Preserve scoped Skill invocation, existing authorization, proportionate review/testing and stopping criteria across plugin cache replacement.",
+  "upstream": {
+    "marketplace": "yvictor-skills",
+    "plugin": "dev-workflow",
+    "version": "1.0.1",
+    "repository": "https://github.com/Yvictor/skills",
+    "license": "MIT",
+    "upstream_revision": null,
+    "upstream_revision_note": "Not established in local plugin metadata; no upstream download performed. Canonical source hash identifies the baseline.",
+    "plugin_manifest_sha256": "54d9a1cfcf26349d34cb0c9602ebc74826e3f4c796a428164ae27597296604ff",
+    "observed_cache_path": "C:\\Users\\user\\.codex\\plugins\\cache\\yvictor-skills\\dev-workflow\\1.0.1\\skills\\review-driven-development\\SKILL.md",
+    "stable_relative_path": "skills/review-driven-development/SKILL.md"
+  },
+  "canonical_contract": {
+    "encoding": "UTF-8 without BOM",
+    "newlines": "LF",
+    "conversion": "Decode UTF-8, remove leading BOM if present, replace CRLF with LF; reject bare CR. Preserve final newline, all other whitespace and Unicode code points.",
+    "git_config": {
+      "core.autocrlf": "false",
+      "core.eol": "lf"
+    },
+    "precondition": "Exact original canonical SHA-256 match before apply",
+    "postcondition": "Exact patched canonical SHA-256 match after apply",
+    "fuzzy_apply": false,
+    "offset_apply": false,
+    "whitespace_repair": false,
+    "path_strip": 1,
+    "raw_hash_role": "Environment-specific secondary verification only; never the canonical drift key."
+  },
+  "canonical_original": {
+    "sha256": "52a40326575f01600530f6ca5c7c2dee523a0dd0be99ef4c1e364462b8598732",
+    "byte_length": 8536,
+    "crlf_count": 0,
+    "lf_count": 197,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "LF"
+  },
+  "canonical_patched": {
+    "sha256": "fa9c55ab963bdcf9a5774c4c7ac657de8c96817e71eb566bb80157ae5c3fcf19",
+    "byte_length": 9436,
+    "crlf_count": 0,
+    "lf_count": 182,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "LF"
+  },
+  "canonical_replayed": {
+    "sha256": "fa9c55ab963bdcf9a5774c4c7ac657de8c96817e71eb566bb80157ae5c3fcf19",
+    "byte_length": 9436,
+    "crlf_count": 0,
+    "lf_count": 182,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "LF"
+  },
+  "local_raw_original": {
+    "sha256": "79806e3f358ab80a84aabcfeec978fc8f4be60643952d7e1396d9b8099a0d44a",
+    "byte_length": 8733,
+    "crlf_count": 197,
+    "lf_count": 0,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "CRLF"
+  },
+  "local_raw_patched": {
+    "sha256": "922845cdd2a3c91c184e037e2c29e89a181aa97681f2a68d705681b628e44748",
+    "byte_length": 9618,
+    "crlf_count": 182,
+    "lf_count": 0,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "CRLF"
+  },
+  "local_raw_reexpanded_secondary": {
+    "sha256": "922845cdd2a3c91c184e037e2c29e89a181aa97681f2a68d705681b628e44748",
+    "byte_length": 9618,
+    "crlf_count": 182,
+    "lf_count": 0,
+    "bare_cr_count": 0,
+    "utf8_bom": false,
+    "final_newline": "CRLF"
+  },
+  "patch": {
+    "filename": "dev-workflow.patch",
+    "sha256": "e626f959fd40058aec50e0eefab18030ec74b5e8678d541683dac35abf0e5fa9",
+    "byte_length": 8418,
+    "encoding": "UTF-8 LF",
+    "context_lines": 0,
+    "source": "Existing deterministic patch from failed closeout, unchanged byte for byte.",
+    "hash_semantics": "SHA-256 of canonical UTF-8 LF patch bytes. Canonicalize a checkout copy using the same BOM/CRLF procedure before hash verification; never alter hunks."
+  },
+  "provenance": {
+    "source_temp_manifest_sha256": "fde6408d01606b4e8eeae903d99bc6d8433f7947a62a7e6207025b84bcb30afe",
+    "original_snapshot_filename": "04-before.md",
+    "saved_candidate_diff_sha256": "cd8c9e6ec76ea1cc92add9c68978caba7aec28a9934f2e91c677e5c641813cc0",
+    "diagnosis_checkpoint_comment_id": "a42f159a-7117-4e42-b55e-6b087af87c25"
+  },
+  "reproducibility_gate": {
+    "result": "PASS",
+    "canonical_source_precondition": "PASS",
+    "check": {
+      "args": [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.eol=lf",
+        "apply",
+        "-p1",
+        "--unidiff-zero",
+        "--verbose",
+        "--whitespace=nowarn",
+        "--check",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\cru51-patch-check-spzuzclt\\dev-workflow.patch"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Checking patch skills/review-driven-development/SKILL.md...\n"
+    },
+    "apply": {
+      "args": [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.eol=lf",
+        "apply",
+        "-p1",
+        "--unidiff-zero",
+        "--verbose",
+        "--whitespace=nowarn",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\cru51-patch-check-spzuzclt\\dev-workflow.patch"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "Checking patch skills/review-driven-development/SKILL.md...\nApplied patch skills/review-driven-development/SKILL.md cleanly.\n"
+    },
+    "canonical_hash_equality": "PASS",
+    "local_crlf_secondary": "PASS",
+    "candidate_unchanged": true
+  },
+  "validation_reused": {
+    "source_checkpoint": "ff434313-0b3a-4314-bad1-b4335a31bfae",
+    "five_skills_format": "Prior PASS; not rerun",
+    "39_local_links": "Prior PASS; not rerun",
+    "scoped_diff_check": "Prior PASS; not rerun",
+    "owner_hard_gate_diff_review": "Prior review preserved; no candidate modification this recovery",
+    "product_tests": "Not run; out of scope"
+  },
+  "drift_detection": "Resolve plugin identity and stable relative path, then compare canonical source SHA-256. Patched canonical hash means already applied. Unknown canonical hash, identity mismatch or offset/fuzzy application means STOP/BLOCKED; never rebaseline automatically.",
+  "restore_procedure": "README.md",
+  "completion_boundary": "After the single scoped local commit, STOP at LOCAL_ENGINEERING_CHECKPOINT_READY. No remote delivery, push, merge, promotion, runtime or execution authorization.",
+  "other_personal_skills": "This durable override patch covers dev-workflow only. User-local design/redesign files remain in their existing locations; they are not silently copied into this repository."
+}
