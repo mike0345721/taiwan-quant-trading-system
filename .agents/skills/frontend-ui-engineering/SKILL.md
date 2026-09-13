@@ -1,6 +1,6 @@
 ---
 name: frontend-ui-engineering
-description: Builds production-quality, accessible, responsive user-facing UIs. Use when building or modifying interfaces and pages, creating components, implementing layouts, meeting WCAG accessibility requirements, managing state, or when the output needs to look and feel production-quality rather than AI-generated.
+description: Build or fix UI components, layouts, interactions, and accessibility within the existing product design.
 ---
 
 # Frontend UI Engineering
@@ -16,6 +16,8 @@ Build production-quality user interfaces that are accessible, performant, and vi
 - Implementing responsive layouts
 - Adding interactivity or state management
 - Fixing visual or UX issues
+
+For focused changes, preserve the existing stack and design system. Apply guidance only to affected components; do not turn copy or spacing fixes into architecture, branding, or site-wide accessibility projects.
 
 ## Component Architecture
 
@@ -164,7 +166,7 @@ Don't skip heading levels. Don't use heading styles for non-heading content.
 
 ## Accessibility (WCAG 2.1 AA)
 
-Every component must meet these standards:
+New or modified components must preserve applicable accessibility requirements. Investigate existing violations when they affect the requested behavior; report unrelated findings without broadening scope.
 
 ### Keyboard Navigation
 
@@ -253,7 +255,7 @@ Design for mobile first, then expand:
 ">
 ```
 
-Test at these breakpoints: 320px, 768px, 1024px, 1440px.
+For responsive layout changes, test representative widths and affected breakpoints from the project. Use 320px, 768px, 1024px, and 1440px as examples when no project targets exist, not as a mandatory matrix for every edit.
 
 ## Loading and Transitions
 
@@ -308,7 +310,7 @@ For detailed accessibility requirements and testing tools, see `../../references
 
 ## Red Flags
 
-- Components with more than 200 lines (split them)
+- Components whose complexity obstructs the requested change (split only when needed)
 - Inline styles or arbitrary pixel values
 - Missing error states, loading states, or empty states
 - No keyboard navigation testing
@@ -317,12 +319,12 @@ For detailed accessibility requirements and testing tools, see `../../references
 
 ## Verification
 
-After building UI:
+After each coherent, reviewable batch of UI changes, verify the affected components and interactions. Apply the checks below where relevant; do not repeat unchanged checks without a new change, failure, or unresolved risk:
 
 - [ ] Component renders without console errors
-- [ ] All interactive elements are keyboard accessible (Tab through the page)
-- [ ] Screen reader can convey the page's content and structure
-- [ ] Responsive: works at 320px, 768px, 1024px, 1440px
-- [ ] Loading, error, and empty states all handled
+- [ ] Affected interactive elements remain keyboard accessible
+- [ ] Changed semantics and focus behavior convey the affected content to assistive technology
+- [ ] Changed layout works at representative widths and affected breakpoints
+- [ ] Loading, error, and empty states are handled when the changed interaction has those states
 - [ ] Follows the project's design system (spacing, colors, typography)
-- [ ] No accessibility warnings in dev tools or axe-core
+- [ ] Relevant accessibility checks show no regression; use dev tools or axe-core when appropriate

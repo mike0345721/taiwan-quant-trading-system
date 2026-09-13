@@ -36,7 +36,7 @@
 ## 本機 D 槽與 GitHub 同步
 
 - GitHub 是正式版本來源；本機 D 槽是執行、測試與保存大型原始資料的工作環境。
-- GitHub `main` 合併新版本後，本機不會自動更新；在執行新的本機測試、Observer、Shioaji或資料流程前，必須先同步最新 `main`。
+- 正式執行環境採用已合併版本，或啟動新的 Observer、Shioaji／資料流程前，須依既定流程同步已批准的 GitHub `main`；同步不等於啟用 Runtime 的授權。開發測試使用工作包指定的 branch／worktree 與 exact HEAD，依整合需求更新基線，不為每次測試強制 pull／rebase。
 - 禁止以手動複製單一程式檔的方式長期同步，避免版本混雜；應使用 Git pull／既定同步流程。
 - `.env`、Shioaji憑證、SQLite、live-events、raw ticks與大型歷史資料只保留本機，不得因同步而上傳 GitHub。
 
@@ -46,6 +46,7 @@
 
 | 任務 | 最小必要來源 |
 |---|---|
+| 唯讀說明／規則稽核／純文案修正 | `AGENTS.md`＋直接相關材料；涉及 CURRENT、授權或驗收判定時才查 Linear |
 | 一般維護 | `AGENTS.md` + Linear 當前工作包 + `CURRENT_STATUS.md` + `KNOWN_ISSUES.md` |
 | 資料／Schema／Feature | 一般維護集合，再讀`DATA_DICTIONARY.md`及對應資料規格 |
 | Dealer Flow | 一般維護集合，再讀`DEALER_FLOW_AI_MASTER_PLAN.md` |
@@ -71,3 +72,6 @@
 - 未明確授權前不得新增 Broker Live Order Route。
 - 修改後只執行與實際變更相稱的測試、資料稽核、安全掃描及文件更新。
 - 不為一般修改無差別讀取或更新所有狀態、計畫、決策與歷史文件。
+
+- 在已授權範圍內，完成要求的交付物、修復本次變更造成的問題，並完成相稱驗證後交付。只有新變更、新失敗或未解的相關風險才擴大或重跑驗證；無關既有問題須揭露，不自動納入修復。
+- 既有授權不逐階段重問；可自行完成已授權且已確認不接觸正式環境的本機驗證與範圍內修復。必要授權尚缺時，先完成不依賴該授權的準備工作；不得將授權等待套用到獨立工作。
