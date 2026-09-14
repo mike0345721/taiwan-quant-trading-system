@@ -466,6 +466,7 @@
     const closeDrawer = () => {
       const returnFocus = shell.returnFocus;
       shell.returnFocus = null;
+      shell.sourceSelector = null;
       shell.hidden = true;
       shell.setAttribute('aria-hidden', 'true');
       root.classList.remove('is-drawer-open');
@@ -497,6 +498,15 @@
     return clone;
   }
 
+  function refreshDrawer(root, expectedSourceSelector) {
+    const shell = root?.querySelector('.tt-drawer');
+    if (!shell || shell.hidden || !shell.sourceSelector) return;
+    if (expectedSourceSelector && shell.sourceSelector !== expectedSourceSelector) return;
+    const source = root.querySelector(shell.sourceSelector);
+    if (!source) return;
+    shell.querySelector('.tt-drawer-body').replaceChildren(sanitizedClone(source));
+  }
+
   function bindDrawer(root) {
     const shell = drawer(root);
     root.addEventListener('click', (event) => {
@@ -506,6 +516,7 @@
       if (!source) return;
       shell.querySelector('#tt-drawer-title').textContent = trigger.dataset.terminalDrawerTitle || 'Detail';
       shell.querySelector('.tt-drawer-body').replaceChildren(sanitizedClone(source));
+      shell.sourceSelector = trigger.dataset.terminalDrawerSource;
       shell.returnFocus = trigger;
       shell.hidden = false;
       shell.setAttribute('aria-hidden', 'false');
@@ -704,6 +715,7 @@
     PALETTES,
     applyPalette,
     mount: mountFormal,
+    refreshDrawer,
     setPreviewIdentity,
   });
 })(window);

@@ -54,6 +54,13 @@ function Test-Cru34ProducerMatch($Status, $Lock, [datetime]$Now = (Get-Date)) {
 
 if (Test-Path -LiteralPath $lockPath) {
   $lock = Read-JsonFile $lockPath
+  # Unknown records may belong to an initializing runner. Only the runner
+  # mutates worker.lock, under its shared mutation guard.
+  if (-not $lock -or -not ($lock.pid -is [long] -or $lock.pid -is [int]) -or
+      $lock.pid -le 0 -or -not ($lock.workerInstanceId -is [string]) -or
+      [string]::IsNullOrWhiteSpace($lock.workerInstanceId)) {
+    throw 'CRU34_LIVE_PRODUCER_INCUMBENT_UNVERIFIED'
+  }
   $incumbentPid = if ($lock) { [int]$lock.pid } else { 0 }
   $incumbent = if ($incumbentPid -gt 0) { Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue } else { $null }
   if ($incumbent) {
@@ -71,13 +78,8 @@ if (Test-Path -LiteralPath $lockPath) {
     }
     if (Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue) { throw 'CRU34_LIVE_PRODUCER_RESTART_STOP_TIMEOUT' }
   }
-  $currentLock = Read-JsonFile $lockPath
-  if ($currentLock -and $lock -and ([int]$currentLock.pid -eq [int]$lock.pid) `
-      -and ($currentLock.workerInstanceId -eq $lock.workerInstanceId)) {
-    Remove-Item -LiteralPath $lockPath -Force
-  } elseif (Test-Path -LiteralPath $lockPath) {
-    throw 'CRU34_LIVE_PRODUCER_LOCK_CHANGED'
-  }
+  # Dead-owner takeover belongs to acquireCru34WorkerLockSync in the runner.
+  # Concurrent launchers may spawn contenders; only one obtains write rights.
 }
 
 $env:CRU34_LIVE_DATA_ROOT = $dataRoot
@@ -85,8 +87,18 @@ $env:CRU34_LIVE_PROJECTION_ROOT = $projectionRoot
 $env:CRU34_LIVE_SNAPSHOT_PATH = $snapshotPath
 $env:CRU34_LIVE_STATUS_PATH = $statusPath
 
-$stdout = Join-Path $logDir 'cru34-live-projection.log'
-$stderr = Join-Path $logDir 'cru34-live-projection-error.log'
+$launchId = [guid]::NewGuid().ToString()
+$launchStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
+$logStem = "cru34-live-projection-$launchStamp-$launchId"
+$stdout = Join-Path $logDir "$logStem.stdout.log"
+$stderr = Join-Path $logDir "$logStem.stderr.log"
+$incidentDir = Join-Path $logDir 'cru34-live-incidents'
+New-Item -ItemType Directory -Force -Path $incidentDir | Out-Null
+$incident = Join-Path $incidentDir "$logStem.incident.ndjson"
+$env:CRU34_LIVE_WORKER_INSTANCE_ID = $launchId
+$env:CRU34_LIVE_STDOUT_PATH = $stdout
+$env:CRU34_LIVE_STDERR_PATH = $stderr
+$env:CRU34_LIVE_INCIDENT_PATH = $incident
 Start-Process -FilePath $node -ArgumentList 'scripts/run-cru34-live-projection.mjs' `
   -WorkingDirectory $root -WindowStyle Hidden `
   -RedirectStandardOutput $stdout -RedirectStandardError $stderr

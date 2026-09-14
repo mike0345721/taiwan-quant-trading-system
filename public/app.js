@@ -14,6 +14,18 @@ const state = {
   indexLeadership: null, indexLeadershipLoading: false,
 };
 const $ = (id) => document.getElementById(id);
+const flowChannel = window.Cru49Flow.createFlowChannel({
+  request: signal => api('/api/v1/observed-flow', { signal, cache: 'no-store' }),
+  authenticated: () => Boolean(state.csrfToken),
+  chartIdentity: () => state.txChartPayload,
+  visible: () => !document.hidden && !$('dashboard-view').classList.contains('hidden'),
+  render: value => {
+    if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, observedFlow: value };
+    renderObservedFlow(value);
+  },
+  onUnauthorized: () => show('login-view'),
+});
+let researchPageRequest = null;
 
 function normalizeDashboardPageFragments() {
   const host = document.querySelector('.dashboard-pages');
@@ -47,6 +59,7 @@ function setDashboardPage(page, { scroll = true } = {}) {
   document.querySelectorAll('[data-page]').forEach((element) => element.classList.toggle('is-active-page', element.dataset.page === selected));
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (state.csrfToken && ['options', 'research'].includes(selected)) void loadResearchPage();
 }
 
 normalizeDashboardPageFragments();
@@ -127,20 +140,27 @@ function show(view) {
   for (const id of ['loading-view', 'login-view', 'dashboard-view']) $(id).classList.add('hidden');
   $(view).classList.remove('hidden');
   $('app')?.classList.toggle('is-dashboard-shell', view === 'dashboard-view');
+  if (view === 'dashboard-view') flowChannel.start();
+  else { flowChannel.stop(); flowChannel.reset(); }
 }
 
 async function api(path, options = {}) {
+  const requestSession = state.csrfToken;
   const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   if (options.method && options.method !== 'GET' && state.csrfToken) headers['X-CSRF-Token'] = state.csrfToken;
   const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
   let payload = null;
   try { payload = await response.json(); } catch { payload = { ok: false, error: 'INVALID_RESPONSE' }; }
-  if (response.status === 401) {
+  if (response.status === 401 && requestSession === state.csrfToken) {
     state.csrfToken = '';
     show('login-view');
   }
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(payload.error || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 
@@ -2487,6 +2507,24 @@ async function loadV2Backtests() {
   renderV2Backtests(payload.data);
 }
 
+// Page-owned research remains available, but never gates the live workspace.
+function loadResearchPage() {
+  if (researchPageRequest) return researchPageRequest;
+  researchPageRequest = Promise.allSettled([
+    loadV2Research().catch(error => {
+      text('v2-data-status', `V2 無法讀取：${error.message}`);
+      $('v2-data-status').className = 'source-badge bad';
+      console.error('[V2_RESEARCH]', error.message);
+    }),
+    loadV2Backtests().catch(error => {
+      text('v2-backtest-period', '尚未完成');
+      text('v2-backtest-note', `V2.3 回測尚未就緒：${error.message}`);
+      console.error('[V2_BACKTESTS]', error.message);
+    }),
+  ]).finally(() => { researchPageRequest = null; });
+  return researchPageRequest;
+}
+
 function dwText(id, value, fallback = 'UNAVAILABLE') {
   const node = $(id);
   if (node) node.textContent = value == null || value === '' ? fallback : String(value);
@@ -2985,14 +3023,14 @@ function observedFlowSelectedSummary(value, definition, window, available, reaso
   return `${pressureText} → ${responseText} → ${pathText} → 可判定成交占比 ${coverage} / Data Trust ${observedFlowStateLabel(value.sourceState)}。`;
 }
 
-function renderObservedFlowPressure(window, suffix, available, reason) {
+function renderObservedFlowPressure(window, suffix, available, reason, sourceState = 'LIVE') {
   const pressure = window?.pressure || {};
   const ratio = observedFlowRatio(pressure);
   const legal = available && ratio != null;
   terminalWrite(`dw-observed-flow-pressure-${suffix}`, legal
     ? observedFlowMetric(ratio, { signedValue: true, digits: 3 }) : null,
   { reason: legal ? (pressure.unavailableReason || 'FIELD_UNAVAILABLE') : reason });
-  dwText(`dw-observed-flow-pressure-side-${suffix}`, legal ? observedFlowPressureSide(pressure) : '不可判定');
+  dwText(`dw-observed-flow-pressure-side-${suffix}`, legal ? observedFlowPressureSide(pressure, sourceState) : '不可判定');
   dwText(`dw-observed-flow-relation-${suffix}`, available ? observedFlowRelation(window?.response) : '不可判定');
 }
 
@@ -3179,8 +3217,8 @@ function renderObservedFlow(flow) {
     ['dw-observed-flow-response-300', observedFlowMetric(context?.response?.displacementPoints, { signedValue: true, suffix: ' 點', digits: 0 }), 'RESPONSE_DISPLACEMENT_UNAVAILABLE'],
     ['dw-observed-flow-path-300', observedFlowMetric(context?.pathEfficiency?.value, { digits: 3 }), context?.pathEfficiency?.unavailableReason],
   ]) terminalWrite(id, available ? metric : null, { reason: available ? (metricReason || 'FIELD_UNAVAILABLE') : reason });
-  renderObservedFlowPressure(primary, '60', available, reason);
-  renderObservedFlowPressure(context, '300', available, reason);
+  renderObservedFlowPressure(primary, '60', available, reason, value.sourceState);
+  renderObservedFlowPressure(context, '300', available, reason, value.sourceState);
   renderObservedFlowStrip(value, available);
   renderObservedFlowSummary(value, available);
   renderObservedFlowSelected(value, available, reason);
@@ -3195,6 +3233,7 @@ function renderObservedFlow(flow) {
     : null, { reason });
   terminalWrite('dw-observed-flow-promotion', '尚未通過正式方向驗證', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
   renderObservedFlowDetail(value);
+  window.TraderTerminalShell?.refreshDrawer(traderTerminalRoot, '[data-terminal-card="observed-flow"]');
 }
 
 function terminalSetTrust(cardKey, evidence) {
@@ -3630,10 +3669,7 @@ function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
     'dw-pulse-volume', 'dw-pulse-vwap-mode', 'dw-pulse-breadth-mode',
     'dw-pulse-futures-mode', 'dw-pulse-options-mode', 'dw-pulse-global-mode',
   ]) terminalWrite(id, null, { reason });
-  renderObservedFlow({
-    sourceState: 'UNAVAILABLE', unavailableReason: reason, windows: null,
-    formalDirection: 'NOT_PROMOTED',
-  });
+  renderObservedFlow(flowChannel.view());
   for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
     const button = $(id);
     if (!button) continue;
@@ -4242,6 +4278,7 @@ function renderMarketChangeFeed(feed) {
 
 function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
+  renderObservedFlow(flowChannel.view());
   const chartReason = payload?.reason || 'TX_CHART_UNAVAILABLE';
   const chartUnavailable = terminalUnavailable(chartReason);
   dwText('dw-chart-session', payload?.session || chartUnavailable);
@@ -4373,7 +4410,8 @@ async function apiRequestCru46Proof(body) {
 }
 
 function renderDecisionWorkspace(workspace) {
-  state.decisionWorkspace = workspace || null;
+  workspace = workspace ? { ...workspace, observedFlow: flowChannel.view() } : null;
+  state.decisionWorkspace = workspace;
   state.lockedDecisionSnapshot = null;
   dwText('dw-snapshot-status', 'Snapshot 尚未鎖定');
   const global = workspace?.globalStatus || {};
@@ -4496,14 +4534,14 @@ async function copyToClipboard(value) {
 }
 
 async function loadDashboard() {
+  const flowTicket = flowChannel.ticket();
   const terminalRoot = $('decision-workspace');
   terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
   terminalRoot?.setAttribute('aria-busy', 'true');
-  const [payload] = await Promise.all([api('/api/v1/dashboard'), loadHistory(), loadBacktest(), loadV2Research().catch((error) => {
-    text('v2-data-status', `V2 無法讀取：${error.message}`); $('v2-data-status').className = 'source-badge bad';
-  }), loadV2Backtests().catch((error) => {
-    text('v2-backtest-period', '尚未完成'); text('v2-backtest-note', `V2.3 回測尚未就緒：${error.message}`);
-  })]);
+  void Promise.allSettled([loadHistory(), loadBacktest()]);
+  const payload = await api('/api/v1/dashboard');
+  if (!state.csrfToken || !flowChannel.isCurrentSession(flowTicket)) return;
+  flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
@@ -4563,7 +4601,7 @@ document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventL
 }));
 function selectObservedFlowWindow(windowKey) {
   observedFlowSelectedWindow = windowKey;
-  const value = lastObservedFlowValue || { sourceState: 'UNAVAILABLE', unavailableReason: 'OBSERVED_FLOW_UNAVAILABLE', windows: null };
+  const value = flowChannel.view();
   const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
   renderObservedFlowStrip(value, available);
   renderObservedFlowSelected(value, available, value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE');
@@ -4819,6 +4857,7 @@ $('refresh-button').addEventListener('click', async () => {
 });
 
 $('logout-button').addEventListener('click', async () => {
+  flowChannel.stop(); flowChannel.reset();
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
   state.csrfToken = '';
   show('login-view');
@@ -4840,6 +4879,7 @@ $('logout-button').addEventListener('click', async () => {
 })();
 
 // Keep an open dashboard current without storing credentials in JavaScript.
+document.addEventListener('visibilitychange', () => flowChannel.visibilityChanged());
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) {
     loadDashboard().catch((error) => reportDashboardLoadError(error, 'DASHBOARD_REFRESH'));

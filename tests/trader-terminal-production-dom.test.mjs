@@ -76,6 +76,7 @@ function productionDocument({ omitChangeMetric = false, interactive = false } = 
   const scripts = [
     interactive ? lightweightChartsBundle() : 'window.LightweightCharts = Object.freeze({});',
     fs.readFileSync(path.join(root, 'public', 'trader-terminal-shell.js'), 'utf8'),
+    fs.readFileSync(path.join(root, 'public', 'observed-flow-refresh.js'), 'utf8'),
     fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8'),
   ].map(inlineScript).join('\n');
   return html.replace('</head>', `${styles}\n</head>`).replace('</body>', `${scripts}\n</body>`);
@@ -480,7 +481,7 @@ async function runProductionDom(options = {}) {
   }
 }
 
-async function runProductionInteractionRegression() {
+async function runProductionInteractionRegression({ drawerOnly = false } = {}) {
   const binary = browserBinary();
   assert.ok(binary, 'Chrome or Edge is required for the Production DOM interaction regression');
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ui1-production-interaction-'));
@@ -970,7 +971,25 @@ async function runProductionInteractionRegression() {
       };
     })()`);
 
-    await evaluate(cdp, 'renderObservedFlow(globalThis.__ui1Workspace.observedFlow)');
+    await evaluate(cdp, `(() => {
+      const flow = structuredClone(globalThis.__ui1Workspace.observedFlow);
+      let now = Date.parse('2026-09-14T01:00:00.000Z');
+      const scheduled = [];
+      const channel = Cru49Flow.createFlowChannel({
+        now: () => now, monotonic: () => now, render: renderObservedFlow,
+        authenticated: () => false,
+        schedule: (callback, delay) => { scheduled.push({ callback, delay }); return scheduled.length; },
+        cancel: () => {},
+      });
+      flow.sourceState = 'LIVE';
+      flow.identity.tradeDate = '2026-09-14';
+      Object.assign(flow.source, { sourceMode: 'LIVE', tradeDate: flow.identity.tradeDate, availableAt: new Date(now).toISOString(),
+        observedAt: new Date(now).toISOString(), validUntil: new Date(now + 30000).toISOString() });
+      flow.delivery = { runtimeCommit: 'drawer-regression', workerInstanceId: 'drawer-worker', servedAt: new Date(now).toISOString() };
+      channel.merge(flow, channel.ticket());
+      channel.start();
+      globalThis.__drawerFlow = { channel, flow, scheduled, setNow: value => { now = value; } };
+    })()`);
     await clickSelector(cdp, '[data-terminal-card="observed-flow"] > .tt-more');
     const drawerOpened = await waitForValue(
       cdp,
@@ -979,6 +998,41 @@ async function runProductionInteractionRegression() {
       'DRAWER_OPEN_FAILED',
     );
     const drawerOpenLayout = await evaluate(cdp, layoutMeasurementExpression);
+    const drawerRefresh = await evaluate(cdp, `(() => {
+      const root = document.getElementById('decision-workspace');
+      const shell = root.querySelector('.tt-drawer');
+      const body = shell.querySelector('.tt-drawer-body');
+      const focus = document.activeElement;
+      const title = shell.querySelector('h2').textContent;
+      const capture = () => ({ main: root.querySelector('[data-terminal-card="observed-flow"]').textContent,
+        drawerTruth: body.querySelector('.dw-observed-flow-truth').textContent,
+        drawer: body.textContent, open: !shell.hidden, focusPreserved: document.activeElement === focus,
+        titlePreserved: shell.querySelector('h2').textContent === title });
+      const a = capture();
+      const unchanged = body.firstChild;
+      TraderTerminalShell.refreshDrawer(root, '[data-terminal-card="gpt"]');
+      const mismatchNoop = body.firstChild === unchanged;
+      const { channel, flow, scheduled, setNow } = globalThis.__drawerFlow;
+      const newer = structuredClone(flow);
+      const time = Date.parse(flow.source.availableAt) + 5000;
+      setNow(time);
+      Object.assign(newer.source, { availableAt: new Date(time).toISOString(), observedAt: new Date(time).toISOString(),
+        validUntil: new Date(time + 30000).toISOString() });
+      newer.delivery.servedAt = new Date(time).toISOString();
+      newer.lineage.cutoffLedgerOrdinal++;
+      newer.windows.context300s.response.displacementPoints = -47;
+      newer.windows.context300s.response.displacementTicks = -47;
+      newer.windows.context300s.response.endPrice = newer.windows.context300s.response.startPrice - 47;
+      channel.merge(newer, channel.ticket());
+      const b = capture();
+      setNow(Date.parse(newer.source.validUntil) + 1);
+      scheduled.find(item => item.delay === 1000).callback();
+      const expired = capture();
+      channel.stop();
+      return { a, b, expired, mismatchNoop, availableAt: newer.source.availableAt,
+        agedSource: channel.view().source, agedResponse: channel.view().windows.context300s.response.displacementPoints };
+    })()`);
+    const drawerRefreshedLayout = await evaluate(cdp, layoutMeasurementExpression);
     await pressKey(cdp, 'Tab', 'Tab');
     const drawerForwardLoop = await waitForValue(
       cdp,
@@ -1000,6 +1054,27 @@ async function runProductionInteractionRegression() {
       (value) => value && !value.drawerOpen,
       'DRAWER_ESCAPE_CLOSE_FAILED',
     );
+    const drawerClosedRefresh = await evaluate(cdp, `(() => {
+      renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
+      const shell = document.querySelector('.tt-drawer');
+      return { hidden: shell.hidden, empty: !shell.querySelector('.tt-drawer-body').childNodes.length,
+        sourceCleared: shell.sourceSelector === null };
+    })()`);
+    await clickSelector(cdp, '[data-terminal-card="leadership"] > .tt-more');
+    const unrelatedDrawer = await evaluate(cdp, `(() => {
+      const shell = document.querySelector('.tt-drawer');
+      const original = shell.querySelector('.tt-drawer-body').firstChild;
+      renderObservedFlow(globalThis.__ui1Workspace.observedFlow);
+      return { unchanged: shell.querySelector('.tt-drawer-body').firstChild === original,
+        focusPreserved: document.activeElement === shell.querySelector('.tt-drawer-close') };
+    })()`);
+    await clickSelector(cdp, '.tt-drawer-close');
+    if (drawerOnly) return {
+      exceptions, blockingConsoleErrors,
+      drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, refresh: drawerRefresh,
+        refreshedLayout: drawerRefreshedLayout, closedRefresh: drawerClosedRefresh, unrelated: unrelatedDrawer,
+        forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
+    };
     await clickSelector(cdp, '.tt-progressive > summary');
     const progressiveOpened = await waitForValue(
       cdp,
@@ -1150,7 +1225,9 @@ async function runProductionInteractionRegression() {
       paletteEvidence,
       refreshFailureEvidence,
       leadershipRefreshFailureEvidence,
-      drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
+      drawerEvidence: { opened: drawerOpened, openLayout: drawerOpenLayout, refresh: drawerRefresh,
+        refreshedLayout: drawerRefreshedLayout, closedRefresh: drawerClosedRefresh, unrelated: unrelatedDrawer,
+        forwardLoop: drawerForwardLoop, reverseLoop: drawerReverseLoop, closed: drawerClosed },
       progressiveEvidence: { opened: progressiveOpened, openLayout: progressiveOpenLayout, closed: progressiveClosed },
       routeStates,
       defaultViewportEvidence,
@@ -1354,6 +1431,57 @@ test('post-login dashboard API failure remains visible and normalizes the termin
   assert.match(result.blockingConsoleErrors[0], /POST_LOGIN_DASHBOARD_LOAD/);
 });
 
+function assertDrawerEvidence(result) {
+  assert.equal(result.drawerEvidence.opened.drawerOpen, true);
+  assert.match(result.drawerEvidence.opened.drawerText, /主動買方代理量/);
+  assert.match(result.drawerEvidence.opened.drawerText, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
+  assert.match(result.drawerEvidence.opened.drawerText, /NOT_PROMOTED/);
+  assert.deepEqual(result.drawerEvidence.openLayout.clippedCore, []);
+  assert.deepEqual(result.drawerEvidence.openLayout.subElevenPixelText, []);
+  assert.deepEqual(result.drawerEvidence.opened.visibleMeaninglessDashes, []);
+  assert.deepEqual(result.drawerEvidence.opened.visibleBareUnavailable, []);
+  assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
+  assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
+  assert.equal(result.drawerEvidence.closed.drawerOpen, false);
+  assert.equal(result.drawerEvidence.closed.drawerText, '');
+  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '台指期盤中力道｜證據');
+  assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
+  assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');
+  const refresh = result.drawerEvidence.refresh;
+  for (const [sample, ordinal, response, truth] of [
+    [refresh.a, 163114, '-61 點', 'LIVE'], [refresh.b, 163115, '-47 點', 'LIVE'],
+    [refresh.expired, 163115, '-47 點', 'STALE'],
+  ]) {
+    assert.equal(sample.open, true);
+    assert.equal(sample.focusPreserved, true);
+    assert.equal(sample.titlePreserved, true);
+    for (const text of [sample.main, sample.drawer]) {
+      assert.ok(text.includes('ordinal ' + ordinal), text);
+      assert.ok(text.includes(response), text);
+      assert.ok(text.includes(truth), text);
+    }
+  }
+  assert.doesNotMatch(refresh.b.drawer, /ordinal 163114|-61 點/);
+  assert.doesNotMatch(refresh.expired.drawerTruth, /即時|LIVE/);
+  assert.match(refresh.expired.drawer, /資料狀態STALE來源模式LIVE/);
+  assert.ok(refresh.b.drawer.includes(refresh.availableAt));
+  assert.ok(refresh.expired.drawer.includes(refresh.availableAt));
+  assert.equal(refresh.agedSource.availableAt, refresh.availableAt);
+  assert.equal(refresh.agedResponse, -47);
+  assert.equal(refresh.mismatchNoop, true);
+  assert.deepEqual(result.drawerEvidence.refreshedLayout.clippedCore, []);
+  assert.deepEqual(result.drawerEvidence.refreshedLayout.subElevenPixelText, []);
+  assert.deepEqual(result.drawerEvidence.closedRefresh, { hidden: true, empty: true, sourceCleared: true });
+  assert.deepEqual(result.drawerEvidence.unrelated, { unchanged: true, focusPreserved: true });
+}
+
+test('CRU49 Production DOM open drawer follows newer Flow and existing age loop', { timeout: 120_000 }, async () => {
+  const result = await runProductionInteractionRegression({ drawerOnly: true });
+  assertDrawerEvidence(result);
+  assert.deepEqual(result.exceptions, []);
+  assert.deepEqual(result.blockingConsoleErrors, []);
+});
+
 test('authenticated Production DOM navigation and chart layout remain isolated and bounded', { timeout: 120_000 }, async () => {
   const result = await runProductionInteractionRegression();
   assert.deepEqual(result.exceptions, []);
@@ -1545,21 +1673,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(result.leadershipRefreshFailureEvidence.state, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.match(result.leadershipRefreshFailureEvidence.bars, /UNAVAILABLE · INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.doesNotMatch(result.leadershipRefreshFailureEvidence.bars, /2330/);
-  assert.equal(result.drawerEvidence.opened.drawerOpen, true);
-  assert.match(result.drawerEvidence.opened.drawerText, /主動買方代理量/);
-  assert.match(result.drawerEvidence.opened.drawerText, /PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE/);
-  assert.match(result.drawerEvidence.opened.drawerText, /NOT_PROMOTED/);
-  assert.deepEqual(result.drawerEvidence.openLayout.clippedCore, []);
-  assert.deepEqual(result.drawerEvidence.openLayout.subElevenPixelText, []);
-  assert.deepEqual(result.drawerEvidence.opened.visibleMeaninglessDashes, []);
-  assert.deepEqual(result.drawerEvidence.opened.visibleBareUnavailable, []);
-  assert.match(result.drawerEvidence.forwardLoop.activeElementClass, /tt-drawer-scrim/);
-  assert.match(result.drawerEvidence.reverseLoop.activeElementClass, /tt-drawer-close/);
-  assert.equal(result.drawerEvidence.closed.drawerOpen, false);
-  assert.equal(result.drawerEvidence.closed.drawerText, '');
-  assert.equal(result.drawerEvidence.closed.activeDrawerTitle, '台指期盤中力道｜證據');
-  assert.equal(result.drawerEvidence.closed.observedFlowCardScrollTop, 0);
-  assert.equal(result.drawerEvidence.closed.observedFlowDetailDisplay, 'none');
+  assertDrawerEvidence(result);
   assert.equal(result.progressiveEvidence.opened.progressiveOpen, true);
   assert.equal(result.progressiveEvidence.opened.trendInProgressive, true);
   assert.deepEqual(result.progressiveEvidence.opened.visibleMeaninglessDashes, []);

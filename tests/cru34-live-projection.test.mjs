@@ -64,6 +64,22 @@ test('bounded worker produces LIVE and matches full GENESIS LIVE semantics', () 
   assert.deepEqual(result.snapshot.semanticPayload, fullLive);
 });
 
+test('idle NO_COMPLETE_SUFFIX preserves checkpoint and published snapshot bytes', () => {
+  const value = fixture();
+  projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+    maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000,
+    staleAfterMs: 30_000, now: new Date('2026-09-07T01:05:35.000Z') });
+  const checkpointBefore = fs.readFileSync(value.checkpointPath);
+  const snapshotBefore = fs.readFileSync(value.snapshotPath);
+  const idle = projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+    maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000,
+    staleAfterMs: 30_000, now: new Date('2026-09-07T01:05:36.000Z') });
+  assert.equal(idle.status, 'NO_COMPLETE_SUFFIX');
+  assert.equal(idle.snapshot, null);
+  assert.deepEqual(fs.readFileSync(value.checkpointPath), checkpointBefore);
+  assert.deepEqual(fs.readFileSync(value.snapshotPath), snapshotBefore);
+});
+
 test('checkpoint restart consumes only appended suffix and corrupt checkpoint fails closed', () => {
   const all = records();
   const value = fixture(all.slice(0, 12));
@@ -154,8 +170,13 @@ test('continuity, contract, session, and trade-date boundaries reset rolling ide
 
 test('projection runner remains resident for continuous bounded polling', () => {
   const runner = fs.readFileSync(new URL('../scripts/run-cru34-live-projection.mjs', import.meta.url), 'utf8');
-  assert.match(runner, /setInterval\(run, pollMs\);/);
+  assert.match(runner, /setInterval\(\(\) => \{ void runSingleFlight\(\); \}, pollMs\);/);
+  assert.match(runner, /if \(runInFlight \|\| stopping\) return;/);
+  assert.match(runner, /process\.stderr\.on\('error'/);
   assert.doesNotMatch(runner, /\.unref\(\)/);
   assert.match(runner, /worker\.lock/);
-  assert.match(runner, /process\.kill\(incumbentPid, 0\)/);
+  assert.match(runner, /acquireCru34WorkerLockSync/);
+  const workerLock = fs.readFileSync(new URL('../src/cru34-worker-lock.mjs', import.meta.url), 'utf8');
+  assert.match(workerLock, /signalProcess\(record.pid, 0\)/);
+  assert.match(workerLock, /STALE_TAKEOVER_BUSY/);
 });

@@ -25,7 +25,7 @@ export function normalizeResearchQuery({ days, delta, contract } = {}) {
 }
 
 export class V2ResearchService {
-  constructor(databasePath = path.join(config.appRoot, 'v2', 'data', 'research-v2.sqlite'), reportPath = path.join(config.appRoot, 'v2', 'reports', 'latest-backtest.json')) {
+  constructor(databasePath = config.v2DatabasePath, reportPath = config.v2ReportPath) {
     this.databasePath = databasePath;
     this.reportPath = reportPath;
     this.basisTermReportPath = path.join(path.dirname(reportPath), 'basis-term-structure-research.json');
