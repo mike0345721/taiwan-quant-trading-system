@@ -192,6 +192,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     }
   } catch (err) {
     console.error(/^OPERATIONS_[A-Z0-9_]+$/.test(err.message) ? err.message : 'OPERATIONS_JOB_FAILED');
-    process.exitCode = 1;
+    // Only guard contention is retryable by the bounded Windows launcher.
+    process.exitCode = err.message === 'OPERATIONS_OUTPUT_BUSY_OR_ABANDONED_GUARD' ? 75 : 1;
   }
 }

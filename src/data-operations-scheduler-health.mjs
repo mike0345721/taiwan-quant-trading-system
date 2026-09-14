@@ -27,6 +27,17 @@ function definition(policy, checkpointType) {
   if (!c) throw new Error('OPERATIONS_SCHEDULER_CHECKPOINT_INVALID');
   return c;
 }
+export function scheduledTiming(receipt, policy = loadSchedulerPolicy()) {
+  const expectedAt = `${receipt.requestedTradeDate}T${definition(policy, receipt.checkpointType).checkTime}:00+08:00`;
+  const expected = Date.parse(expectedAt), attempt = Date.parse(receipt.lastAttemptAt);
+  const grace = expected + policy.graceMinutes * 60000;
+  const valid = Number.isFinite(attempt) && attempt >= expected;
+  const latenessMs = valid ? attempt - expected : null;
+  return { expectedAt, graceUntil: new Date(grace).toISOString(), actualAttemptAt: receipt.lastAttemptAt ?? null,
+    actualSuccessAt: receipt.jobState === 'SUCCEEDED' ? receipt.lastSuccessAt : null,
+    latenessMs, latenessMinutes: latenessMs === null ? null : latenessMs / 60000,
+    timeliness: valid ? attempt <= grace ? 'ON_TIME' : 'LATE' : 'UNKNOWN' };
+}
 function indexFile(tradeDate, checkpointType, policy) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) throw new Error('OPERATIONS_SCHEDULER_DATE_INVALID');
   return `automatic-checkpoints/${tradeDate}/${definition(policy, checkpointType).label.toLowerCase()}.json`;
@@ -39,7 +50,8 @@ function validIdentity(h, date, checkpoint, policy) {
     && /^[a-f0-9-]{36}$/.test(h.runId || '') && /^[a-f0-9]{40}$/.test(h.runtimeCommit || '')
     && Number.isFinite(Date.parse(h.lastAttemptAt)) && schedulerDate(new Date(h.lastAttemptAt)) === date
     && ['SUCCEEDED', 'FAILED'].includes(h.jobState)
-    && (h.jobState === 'FAILED' || (h.inputTradeDate === date && Number.isFinite(Date.parse(h.lastSuccessAt))));
+    && (h.jobState === 'FAILED' || (h.inputTradeDate === date && Number.isFinite(Date.parse(h.lastSuccessAt))
+      && Date.parse(h.lastSuccessAt) >= Date.parse(h.lastAttemptAt)));
 }
 function readPointer(outputRoot, pointer, date, checkpoint, policy) {
   if (!pointer || !/^[a-f0-9-]{36}$/.test(pointer.runId || '') || !['SUCCEEDED', 'FAILED'].includes(pointer.jobState)
@@ -49,6 +61,21 @@ function readPointer(outputRoot, pointer, date, checkpoint, policy) {
   const receipt = JSON.parse(bytes);
   if (sha256(bytes) !== pointer.sha256 || receipt.runId !== pointer.runId || receipt.jobState !== pointer.jobState
     || !validIdentity(receipt, date, checkpoint, policy)) throw new Error('OPERATIONS_SCHEDULER_RECEIPT_INVALID');
+  const timing = scheduledTiming(receipt, policy);
+  if (receipt.schedulerTiming && Object.entries(timing).some(([key, value]) => receipt.schedulerTiming[key] !== value)) {
+    throw new Error('OPERATIONS_SCHEDULER_TIMING_INVALID');
+  }
+  if (receipt.schedulerStartIdentity) {
+    const startBytes = readBoundedFile(path.join(outputRoot, `runs/${receipt.runId}.scheduler-start.json`), 16384);
+    const start = JSON.parse(startBytes);
+    if (sha256(startBytes) !== receipt.schedulerStartIdentity.sha256
+      || start.schemaVersion !== 'automatic-checkpoint-start-v1' || start.runId !== receipt.runId
+      || start.observedAt !== receipt.lastAttemptAt || start.requestedTradeDate !== date || start.checkpointType !== checkpoint
+      || start.policySha256 !== policy.sha256 || start.runtimeCommit !== receipt.runtimeCommit || start.triggerIdentity !== receipt.triggerIdentity
+      || Object.entries(scheduledTiming({ ...receipt, jobState: 'RUNNING' }, policy)).some(([key, value]) => start.timing?.[key] !== value)
+      || !Object.hasOwn(reasons, start.stateBeforeAttempt)) throw new Error('OPERATIONS_SCHEDULER_START_INVALID');
+    receipt.schedulerStart = start;
+  }
   return receipt;
 }
 function readIndex(outputRoot, date, checkpoint, policy) {
@@ -71,8 +98,8 @@ export function recordAutomaticCheckpoint({ outputRoot, receipt, identity, mater
   const pointer = { runId: receipt.runId, jobState: receipt.jobState, sha256: identity.sha256 };
   readPointer(outputRoot, pointer, date, checkpoint, policy);
   const prior = readIndex(outputRoot, date, checkpoint, policy);
-  if (prior && receipt.lastAttemptAt < prior.latest.lastAttemptAt) return;
-  if (prior && receipt.lastAttemptAt === prior.latest.lastAttemptAt) {
+  if (prior && Date.parse(receipt.lastAttemptAt) < Date.parse(prior.latest.lastAttemptAt)) return;
+  if (prior && Date.parse(receipt.lastAttemptAt) === Date.parse(prior.latest.lastAttemptAt)) {
     if (receipt.runId !== prior.latest.runId) throw new Error('OPERATIONS_SCHEDULER_SAME_TIME_CONFLICT');
     if (prior.latest.jobState === 'FAILED' && receipt.jobState === 'SUCCEEDED') return;
   }
@@ -83,11 +110,29 @@ export function recordAutomaticCheckpoint({ outputRoot, receipt, identity, mater
 }
 const reasons = {
   NOT_DUE: '尚未到預定驗收時間。', WAITING_FOR_RUN: '已到預定驗收時間，仍在寬限內等待有效執行結果。',
-  SUCCEEDED: '今天此 checkpoint 的排程模式驗收已完成並保存；不代表資料 PASS。',
+  ON_TIME_SUCCEEDED: '已在預定時間的寬限內開始，驗收完成並保存；不代表資料 PASS。',
+  LATE_SUCCEEDED: '延遲補跑已完成。補跑成功只代表驗收工作完成，不代表離線期間的即時資料已補齊。',
   ACCEPTANCE_JOB_FAILED: '今天此 checkpoint 的驗收工作失敗；這不是資料來源 FAIL。',
   OVERDUE_NO_RECEIPT: '預定驗收時間加寬限已超過，但尚未看到今天此 checkpoint 的有效執行證據。',
   UNKNOWN: '交易日治理或執行證據無法驗證，排程健康仍未知。',
 };
+// Observe at the real attempt time, before work starts. This does not backdate an
+// outage or claim to know why Windows was unavailable. The caller holds the writer guard.
+export function captureSchedulerStart({ dataRoot, outputRoot, calendar, health, immutable }) {
+  const policy = loadSchedulerPolicy();
+  if (!validIdentity({ ...health, jobState: 'FAILED' }, health.requestedTradeDate, health.checkpointType, policy)) {
+    throw new Error('OPERATIONS_SCHEDULER_RECEIPT_INVALID');
+  }
+  const view = readSchedulerHealth({ dataRoot, outputRoot, calendar, now: new Date(health.lastAttemptAt) });
+  const before = view.checkpoints.find(c => c.checkpointType === health.checkpointType);
+  return immutable(outputRoot, `runs/${health.runId}.scheduler-start.json`, {
+    schemaVersion: 'automatic-checkpoint-start-v1', runId: health.runId, observedAt: health.lastAttemptAt,
+    requestedTradeDate: health.requestedTradeDate, checkpointType: health.checkpointType, policySha256: policy.sha256,
+    runtimeCommit: health.runtimeCommit, triggerIdentity: health.triggerIdentity, timing: scheduledTiming(health, policy),
+    applicability: view.applicability, stateBeforeAttempt: before.state, evidenceState: before.evidenceState,
+    previousReceipt: before.receipt,
+  });
+}
 export function readSchedulerHealth({ dataRoot, outputRoot, calendar, now = new Date() }) {
   const policy = loadSchedulerPolicy(), date = schedulerDate(now);
   let day = null;
@@ -107,30 +152,41 @@ export function readSchedulerHealth({ dataRoot, outputRoot, calendar, now = new 
       record = readIndex(outputRoot, date, c.checkpointType, policy);
       if (record) evidenceState = 'VERIFIED';
     } catch { evidenceState = 'UNVERIFIED'; }
-    let state = 'NOT_DUE';
+    let state = 'NOT_DUE', applicable = false;
     if (!day) state = 'UNKNOWN';
     else if (day.officialTradingDay) {
       if (now.getTime() >= Date.parse(expectedAt)) {
         result.expectedCheckpoint = c.checkpointType;
         const h = record?.latest;
         // Early or future-dated invocations do not prove the expected scheduled check.
-        const applicable = h && Date.parse(h.lastAttemptAt) >= Date.parse(expectedAt)
+        applicable = h && Date.parse(h.lastAttemptAt) >= Date.parse(expectedAt)
           && Date.parse(h.lastAttemptAt) <= now.getTime()
           && (h.jobState !== 'SUCCEEDED' || Date.parse(h.lastSuccessAt) <= now.getTime());
-        state = applicable ? h.jobState === 'SUCCEEDED' ? 'SUCCEEDED' : 'ACCEPTANCE_JOB_FAILED'
+        state = applicable ? h.jobState === 'SUCCEEDED' ? `${scheduledTiming(h, policy).timeliness}_SUCCEEDED` : 'ACCEPTANCE_JOB_FAILED'
           : now.getTime() > deadline ? 'OVERDUE_NO_RECEIPT' : 'WAITING_FOR_RUN';
       }
     }
     const receipt = record?.latest;
+    const timing = applicable ? scheduledTiming(receipt, policy) : { actualAttemptAt: null, actualSuccessAt: null,
+      latenessMs: null, latenessMinutes: null, timeliness: day && !day.officialTradingDay ? 'NOT_APPLICABLE' : 'UNKNOWN' };
     result.checkpoints.push({ ...c, expectedAt, graceUntil: new Date(deadline).toISOString(), state, evidenceState,
+      ...timing,
       reasonZh: day && !day.officialTradingDay ? '治理日曆判定今天非交易日，不要求此營運日驗收。' : reasons[state],
       impactZh: '影響今日驗收時效與 Dashboard／研究證據可信度；不判定行情方向。',
       minimumNextAction: ['OVERDUE_NO_RECEIPT', 'ACCEPTANCE_JOB_FAILED', 'UNKNOWN'].includes(state)
         ? '唯讀核對此工作排程結果、runner 日誌與 immutable receipt；保留失敗紀錄，不回填自動成功。'
         : '按既定時間再次讀取驗收紀錄；資料缺口仍依下方 A.1/A.2a 評估。',
       receipt: receipt ? { runId: receipt.runId, jobState: receipt.jobState, lastAttemptAt: receipt.lastAttemptAt,
-        runtimeCommit: receipt.runtimeCommit, sha256: record.index.latest.sha256 } : null,
+        requestedTradeDate: receipt.requestedTradeDate, checkpointType: receipt.checkpointType, triggerIdentity: receipt.triggerIdentity,
+        policySha256: receipt.schedulerPolicySha256, runtimeCommit: receipt.runtimeCommit, sha256: record.index.latest.sha256 } : null,
+      startObservation: receipt?.schedulerStart ? { ...receipt.schedulerStart, sha256: receipt.schedulerStartIdentity.sha256 } : null,
       lastSuccessAt: record?.success?.lastSuccessAt ?? null, lastSuccessRunId: record?.success?.runId ?? null });
   }
+  const states = result.checkpoints.map(c => c.state), late = result.checkpoints.some(c => c.timeliness === 'LATE');
+  const applicable = result.applicability === 'TRADING_DAY';
+  result.completion = !applicable ? result.applicability === 'NOT_EXPECTED' ? 'NOT_APPLICABLE' : 'UNKNOWN'
+    : states.every(s => ['ON_TIME_SUCCEEDED', 'LATE_SUCCEEDED'].includes(s)) ? late ? 'COMPLETE_WITH_LATE_RECOVERY' : 'COMPLETE' : 'INCOMPLETE';
+  result.punctuality = !applicable ? result.completion : late || states.includes('OVERDUE_NO_RECEIPT') ? 'DEGRADED'
+    : result.checkpoints.every(c => c.timeliness === 'ON_TIME') ? 'ON_TIME' : 'PENDING';
   return result;
 }

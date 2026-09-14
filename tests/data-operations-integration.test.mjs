@@ -119,6 +119,32 @@ function buildFixture(t, candidate = false) {
   return f;
 }
 
+test('Windows simultaneous catch-up launchers wait for owned guard then complete three distinct checkpoints', {skip:process.platform!=='win32'}, async t => {
+  const f=buildFixture(t,true), guard=path.join(f.options.outputRoot,'.manual-run.guard'), owner=crypto.randomUUID();
+  fs.mkdirSync(f.options.outputRoot,{recursive:true});fs.writeFileSync(guard,owner,{flag:'wx'});
+  const children=CHECKPOINT_TYPES.map(checkpoint=>{
+    const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(source,'scripts/run-daily-data-operations-hidden.ps1'),
+      '-DataRoot',f.options.dataRoot,'-OutputRoot',f.options.outputRoot,'-ManifestPath',f.options.manifestPath,
+      '-EvidenceRoot',f.options.evidenceRoot,'-CalendarPath',calendarPath,'-Checkpoint',checkpoint,
+      '-RunMode','CANDIDATE_SCHEDULER_TEST','-TriggerIdentity',`TWQuant-CRU52-A2B-Test-${crypto.randomUUID()}`,'-TradeDate',f.options.tradeDate];
+    const child=spawn('powershell.exe',args,{cwd:source,windowsHide:true});
+    const entry={child,stderr:'',stdout:''};child.stderr.on('data',b=>entry.stderr+=b);child.stdout.on('data',b=>entry.stdout+=b);
+    entry.done=new Promise(resolve=>child.on('close',code=>resolve(code)));return entry;
+  });
+  t.after(()=>{for(const c of children)if(c.child.exitCode===null)c.child.kill();});
+  const deadline=Date.now()+25000;
+  while(!children.every(c=>c.stderr.includes('OPERATIONS_OUTPUT_BUSY_OR_ABANDONED_GUARD')) && Date.now()<deadline) {
+    await new Promise(r=>setTimeout(r,100));
+  }
+  assert.ok(children.every(c=>c.stderr.includes('OPERATIONS_OUTPUT_BUSY_OR_ABANDONED_GUARD')),'all runners must encounter contention');
+  assert.equal(fs.readFileSync(guard,'utf8'),owner);fs.unlinkSync(guard); // release only our test-owned guard
+  const codes=await Promise.all(children.map(c=>c.done));assert.deepEqual(codes,[0,0,0],children.map(c=>c.stderr).join('\n'));
+  const receipts=fs.readdirSync(path.join(f.options.outputRoot,'runs')).map(file=>JSON.parse(fs.readFileSync(path.join(f.options.outputRoot,'runs',file))));
+  assert.deepEqual(receipts.map(r=>r.checkpointType).sort(),[...CHECKPOINT_TYPES].sort());
+  assert.ok(receipts.every(r=>r.jobState==='SUCCEEDED'&&r.runMode==='CANDIDATE_SCHEDULER_TEST'));
+  assert.equal(fs.existsSync(path.join(f.options.outputRoot,'automatic-checkpoints')),false);
+});
+
 test('B1 scheduled chain builds and pins current A1 before A2a without a pre-created pair', t => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-14T05:00:00Z') });
   const f = buildFixture(t);

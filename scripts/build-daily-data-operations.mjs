@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { buildDailyDataOperations, validateDailyDataOperations } from '../src/daily-data-operations.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { stableDailyAcceptanceJson } from '../src/daily-collection-acceptance.mjs';
-import { recordAutomaticCheckpoint } from '../src/data-operations-scheduler-health.mjs';
+import { recordAutomaticCheckpoint, captureSchedulerStart, scheduledTiming } from '../src/data-operations-scheduler-health.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fileHash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -91,6 +91,11 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
     inputTradeDate, checkpointType, jobReason: 'MANUAL_INVOCATION_STARTED', reportArtifactIdentity: null };
   materialize(target, 'job-health.json', health);
   try {
+    if (health.schedulerPolicySha256) {
+      health.schedulerTiming = scheduledTiming(health);
+      health.schedulerStartIdentity = captureSchedulerStart({ dataRoot, outputRoot: target,
+        calendar: loadGovernedTradingCalendar(calendarPath), health, immutable });
+    }
     // A.2b resolves and pins input bytes inside the existing guarded job/failure lifecycle.
     // The original manual CLI and pure A.1/A.2a contracts remain unchanged.
     const prepared = resolveInput ? resolveInput() : null;
@@ -132,6 +137,7 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
       lastFinalizedTradeDate: advancesFinal ? assessment.tradeDate : health.lastFinalizedTradeDate,
       lastFinalizedAt: advancesFinal ? completedAt : health.lastFinalizedAt,
       jobReason: 'ASSESSMENT_WRITTEN_AND_VALIDATED', reportArtifactIdentity: identity };
+    if (success.schedulerPolicySha256) success.schedulerTiming = scheduledTiming(success);
     materialize(target, 'job-health.json', success);
     const receiptIdentity = immutable(target, `runs/${runId}.json`, success);
     if (success.schedulerPolicySha256) recordAutomaticCheckpoint({ outputRoot: target, receipt: success, identity: receiptIdentity, materialize });

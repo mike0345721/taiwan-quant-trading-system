@@ -4,6 +4,10 @@
   const checkpoints = { DAY_CHECKPOINT: 'DAY 日盤', EOD_CHECKPOINT: 'EOD 盤後', FINAL_TRADEDATE_CHECKPOINT: 'FINAL 全交易日' };
   const escape = value => String(value ?? '—').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const time = value => value ? escape(value.replace('T', ' ').replace('Z', ' UTC')) : '尚無紀錄';
+  const taipeiTime = value => value ? escape(new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value))) : '尚無紀錄';
+  const schedulerLabels = { NOT_DUE: '尚未到時間', WAITING_FOR_RUN: '寬限內等待執行', ON_TIME_SUCCEEDED: '準時完成',
+    LATE_SUCCEEDED: '補跑成功 ⚠', ACCEPTANCE_JOB_FAILED: '驗收工作失敗', OVERDUE_NO_RECEIPT: '逾時未見執行結果', UNKNOWN: '排程證據未知' };
   const pill = value => `<span class="dop-state" data-state="${escape(value)}">${escape(value)} · ${escape(labels[value] || '尚未驗證')}</span>`;
   function renderScheduler(s, view) {
     if (!s) return '<p>今日排程進度尚未取得。</p>';
@@ -12,11 +16,16 @@
       <p>目前預定階段：${escape(s.expectedCheckpoint ? checkpoints[s.expectedCheckpoint] : s.applicability === 'NOT_EXPECTED' ? '非交易日，不要求執行' : '尚未到 DAY／仍待確認')}；${escape(s.policy?.timezone)} · 寬限 ${escape(s.policy?.graceMinutes)} 分鐘</p>
       <p>今天資料驗收：${today ? `${escape(view.checkpointType)} · ${escape(view.overallState)}，核心必需且已到期 ${escape(view.requiredAndDueCount)} 列` : '尚無今天有效資料評估，收集完整度未知；下方保留最近一次資料評估。'}</p>
       <div class="dop-checkpoints">${(s.checkpoints || []).map(c => `<article data-checkpoint="${escape(c.checkpointType)}" data-scheduler-state="${escape(c.state)}">
-        <h4>${escape(c.label)} · ${escape(c.checkTime)}</h4><strong>${escape(c.state)}</strong>
+        <h4>${escape(c.label)}</h4><strong>${escape(schedulerLabels[c.state] || c.state)}</strong>
+        <p>原定 ${escape(c.checkTime)} · 台北時間<br>實際開始：${taipeiTime(c.actualAttemptAt)}<br>完成：${taipeiTime(c.actualSuccessAt)}<br>延遲：${c.latenessMinutes == null ? '尚無紀錄' : `${escape(Number(c.latenessMinutes.toFixed(2)))} 分鐘`}</p>
         <p>${escape(c.reasonZh)}</p><p>影響：${escape(c.impactZh)}</p><p>下一步：${escape(c.minimumNextAction)}</p>
-        <details><summary>執行證據</summary><p>最後成功：${time(c.lastSuccessAt)}</p><pre>${escape(JSON.stringify({ receipt: c.receipt, lastSuccessRunId: c.lastSuccessRunId, evidenceState: c.evidenceState, graceUntil: c.graceUntil }, null, 2))}</pre></details>
+        <details><summary>執行證據</summary><p>最後成功：${time(c.lastSuccessAt)}</p><pre>${escape(JSON.stringify({ state: c.state, timeliness: c.timeliness,
+          expectedAt: c.expectedAt, graceUntil: c.graceUntil, actualAttemptAt: c.actualAttemptAt, actualSuccessAt: c.actualSuccessAt,
+          latenessMs: c.latenessMs, receipt: c.receipt, startObservation: c.startObservation,
+          lastSuccessRunId: c.lastSuccessRunId, evidenceState: c.evidenceState }, null, 2))}</pre></details>
       </article>`).join('')}</div>
       <p>${escape(s.reasonZh || '排程檢查時間不是資料公布期限；排程未執行與驗收工作失敗均不等於 DATA FAIL。')}</p>
+      <details><summary>當日完成度與準時性（分開記錄）</summary><p>${escape(s.completion)} · ${escape(s.punctuality)}；候選與手動測試不計入正式五日觀察。</p></details>
       <small>排程狀態觀測：${time(s.observedAt)}；來源資料時間未被更新。政策 ${escape(s.policy?.policyId)}</small></section>`;
   }
   function render(view) {
