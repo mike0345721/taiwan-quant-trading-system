@@ -141,7 +141,7 @@ export function buildCvdRelationshipProjection(generation, canonicalEvents, char
   const current = currentValid ? last : { ...last, relationship: { code: 'UNAVAILABLE', descriptiveCode: null, reason: s.currentReason || 'NO_LAWFUL_CUTOFF' }, current: null, previous: null,
     cumulativeCvd: null, comparisons: { volume: '前窗不可比較', deltaCvd: '前窗不可比較', response: '前窗不可比較', path: '前窗不可比較' } };
   const result = { schemaVersion: 'cru54-relationship-v1', ...SAFETY, timeframe, windowMs, generationHash: generation.generationHash,
-    evidenceKind: generation.sourceBinding?.path?.replaceAll('\\','/').includes('/data/cru54-private/fixtures/') ? 'SYNTHETIC_FIXTURE' : 'GOVERNED_FRAGMENT',
+    evidenceKind: generation.sourceBinding?.path?.replaceAll('\\','/').toLowerCase().includes('/data/cru54-private/fixtures/') ? 'SYNTHETIC_FIXTURE' : 'GOVERNED_FRAGMENT',
     semanticHash: generation.result.semanticHash, sourceMode: 'PINNED_HISTORICAL_GENERATION', sourceCutoff: chart.cutoff,
     current, observations: observations.map(o => ({ segment: o.segment, identity: o.identity, lineage: o.lineage,
       anchorEventTime: o.anchorEventTime, cumulativeCvd: o.cumulativeCvd, relationship: o.relationship,

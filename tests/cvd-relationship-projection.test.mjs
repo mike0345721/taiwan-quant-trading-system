@@ -31,6 +31,15 @@ test('same cutoff/window/as-of identity and exact accepted CVD vs CRU34/44 net-f
     assert.equal(p.method.pressureIndependentVote, false); assert.equal(p.method.formalDirectionPromoted, false);
   }
 });
+test('synthetic fixture labels preserve Windows case-insensitive source-root truth', () => {
+  const f = fixture();
+  for (const sourcePath of ['D:/repo/data/cru54-private/fixtures/test.ndjson', 'D:\\repo\\DATA\\CRU54-PRIVATE\\FIXTURES\\test.ndjson']) {
+    f.g.sourceBinding = { path: sourcePath };
+    assert.equal(f.build().evidenceKind, 'SYNTHETIC_FIXTURE');
+  }
+  f.g.sourceBinding = { path: 'D:/repo/data/live-events/test.ndjson' };
+  assert.equal(f.build().evidenceKind, 'GOVERNED_FRAGMENT');
+});
 test('delayed earlier-event changes only its later physical as-of snapshot, never history', () => {
   const specs = Array.from({ length: 14 }, (_, i) => ({ t: i * 10 }));
   const before = fixture(specs).build();
