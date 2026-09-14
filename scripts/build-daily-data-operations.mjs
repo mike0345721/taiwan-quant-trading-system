@@ -81,9 +81,9 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
   const runId = crypto.randomUUID();
   let inputTradeDate = null;
   const health = { schemaVersion: 'acceptance-job-health-v1', runMode: runContext?.runMode || 'MANUAL_OFFLINE', jobState: 'RUNNING', runId,
-    ...(runContext ? { runtimeCommit: runContext.runtimeCommit, triggerIdentity: runContext.triggerIdentity,
-      lastAutomaticAttemptAt: runContext.runMode === 'SCHEDULED' ? attemptAt : previous?.lastAutomaticAttemptAt ?? null,
-      lastAutomaticSuccessAt: previous?.lastAutomaticSuccessAt ?? null } : {}),
+    lastAutomaticAttemptAt: runContext?.runMode === 'SCHEDULED' ? attemptAt : previous?.lastAutomaticAttemptAt ?? null,
+    lastAutomaticSuccessAt: previous?.lastAutomaticSuccessAt ?? null,
+    ...(runContext ? { runtimeCommit: runContext.runtimeCommit, triggerIdentity: runContext.triggerIdentity } : {}),
     lastAttemptAt: attemptAt, lastSuccessAt: previous?.lastSuccessAt ?? null,
     lastFinalizedTradeDate: previous?.lastFinalizedTradeDate ?? null, lastFinalizedAt: previous?.lastFinalizedAt ?? null,
     inputTradeDate, checkpointType, jobReason: 'MANUAL_INVOCATION_STARTED', reportArtifactIdentity: null };

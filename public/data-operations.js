@@ -51,24 +51,30 @@
     return (next.acceptanceJobHealth?.lastAttemptAt || '') < (previous.acceptanceJobHealth?.lastAttemptAt || '');
   }
   function createChannel({ request, display, status, unauthorized }) {
-    let busy = false, previous = null;
-    return { async refresh() {
+    let busy = false, previous = null, generation = 0, activeController = null;
+    return { reset() {
+      generation++; activeController?.abort(); activeController = null;
+      busy = false; previous = null;
+    }, async refresh() {
       if (busy) return;
       busy = true;
       const controller = new AbortController();
+      const ticket = generation; activeController = controller;
       const timeout = setTimeout(() => controller.abort(), 15000);
       status('正在讀取驗收紀錄…');
       try {
         const payload = await request(controller.signal);
+        if (ticket !== generation) return;
         if (!payload?.data || payload.data.schemaVersion !== 'dashboard-data-operations-v1') throw new Error('INVALID_RESPONSE');
         if (isOlder(payload.data, previous)) { status('收到較舊或衝突的紀錄；保留已顯示版本，請核對驗收歷史。'); return; }
-        previous = payload.data;
-        display(previous);
-        status(previous.availability === 'AVAILABLE' ? '已讀取已保存紀錄（不改變來源時間）' : '目前無有效驗收產物');
+        if (payload.data.availability === 'AVAILABLE') previous = payload.data;
+        display(payload.data);
+        status(payload.data.availability === 'AVAILABLE' ? '已讀取已保存紀錄（不改變來源時間）' : '目前無有效驗收產物');
       } catch (err) {
+        if (ticket !== generation) return;
         status('驗收紀錄讀取失敗；既有顯示未更新，不能當作目前狀態。');
         if (err.status === 401) unauthorized();
-      } finally { clearTimeout(timeout); busy = false; }
+      } finally { clearTimeout(timeout); if (ticket === generation) { busy = false; activeController = null; } }
     } };
   }
   root.DataOperations = Object.freeze({ render, isOlder, createChannel });

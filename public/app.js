@@ -35,7 +35,7 @@ const dataOperationsChannel = window.DataOperations.createChannel({
 });
 $('data-operations-refresh').addEventListener('click', () => { if (state.csrfToken) void dataOperationsChannel.refresh(); });
 setInterval(() => {
-  if (dataOperationsPageActive && state.csrfToken && !document.hidden) void dataOperationsChannel.refresh();
+  if (dataOperationsPageActive && state.csrfToken && !document.hidden && !$('dashboard-view').classList.contains('hidden')) void dataOperationsChannel.refresh();
 }, 60000);
 
 function normalizeDashboardPageFragments() {
@@ -154,7 +154,11 @@ function show(view) {
   $(view).classList.remove('hidden');
   $('app')?.classList.toggle('is-dashboard-shell', view === 'dashboard-view');
   if (view === 'dashboard-view') flowChannel.start();
-  else { flowChannel.stop(); flowChannel.reset(); }
+  else {
+    flowChannel.stop(); flowChannel.reset(); dataOperationsChannel.reset();
+    $('data-operations-content').textContent = '登入後重新讀取資料營運紀錄。';
+    $('data-operations-read-status').textContent = '尚未讀取';
+  }
 }
 
 async function api(path, options = {}) {
@@ -4871,6 +4875,7 @@ $('refresh-button').addEventListener('click', async () => {
 
 $('logout-button').addEventListener('click', async () => {
   flowChannel.stop(); flowChannel.reset();
+  dataOperationsChannel.reset();
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
   state.csrfToken = '';
   show('login-view');

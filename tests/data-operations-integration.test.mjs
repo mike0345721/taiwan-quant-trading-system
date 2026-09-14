@@ -160,6 +160,17 @@ test('immutable receipt collision fails without overwriting existing receipt', t
   assert.equal(fs.readFileSync(receipt, 'utf8'), 'preserved');
   assert.equal(readDataOperations(f.options).acceptanceJobHealth.jobState, 'FAILED');
 });
+test('legacy manual writer preserves automatic history after scheduled invocation', t => {
+  const f = fixture(t);
+  const options = { dataRoot: f.options.dataRoot, outputRoot: f.options.outputRoot, calendarPath,
+    inputPath: path.join(f.options.evidenceRoot,'report.json'), checkpointType: 'EOD_CHECKPOINT', generatedAt: new Date().toISOString() };
+  const scheduled = runDailyDataOperations({ ...options,
+    runContext: { runMode:'SCHEDULED', triggerIdentity:'SYNTHETIC_TEST', runtimeCommit:'a'.repeat(40) } });
+  const manual = runDailyDataOperations(options);
+  assert.equal(manual.jobHealth.runMode,'MANUAL_OFFLINE');
+  assert.equal(manual.jobHealth.lastAutomaticAttemptAt,scheduled.jobHealth.lastAutomaticAttemptAt);
+  assert.equal(manual.jobHealth.lastAutomaticSuccessAt,scheduled.jobHealth.lastAutomaticSuccessAt);
+});
 test('missing/tampered canonical artifact returns unavailable UNKNOWN and null counts', t => {
   const f = fixture(t); let v = readDataOperations(f.options);
   assert.equal(v.availability, 'UNAVAILABLE'); assert.equal(v.overallState, 'UNKNOWN'); assert.equal(v.counts, null);
@@ -191,6 +202,24 @@ test('UI channel is single-flight, bounded, and preserves current view on stale 
   const pending = channel.refresh(); await channel.refresh(); assert.equal(calls, 1); resolve({ data: first }); await pending;
   const second = channel.refresh(); resolve({ data: { ...first, generatedAt: '2026-09-08T10:00:00Z' } }); await second;
   assert.equal(displays.length, 1);
+});
+test('unavailable display does not erase last valid artifact watermark', async () => {
+  const newer = { schemaVersion:'dashboard-data-operations-v1',availability:'AVAILABLE',tradeDate:'2026-09-14',checkpointType:'FINAL_TRADEDATE_CHECKPOINT',generatedAt:'2026-09-14T10:00:00Z',artifactIdentity:{reportHash:'new'} };
+  const queue = [newer,{schemaVersion:newer.schemaVersion,availability:'UNAVAILABLE'}, {...newer,tradeDate:'2026-09-09',artifactIdentity:{reportHash:'old'}}];
+  const displayed=[];
+  const channel=ui.createChannel({request:async()=>({data:queue.shift()}),display:v=>displayed.push(v),status:()=>{},unauthorized:()=>{}});
+  await channel.refresh(); await channel.refresh(); await channel.refresh();
+  assert.equal(displayed.length,2); assert.equal(displayed[1].availability,'UNAVAILABLE');
+});
+for (const oldResult of ['success','401']) test(`session reset ignores delayed old ${oldResult} and allows new session refresh`, async () => {
+  let settle; const displayed=[], statuses=[]; let unauthorized=0, count=0;
+  const channel=ui.createChannel({ request:()=> ++count === 1 ? new Promise((resolve,reject)=>{settle=oldResult==='success'?resolve:reject;})
+    : Promise.resolve({data:{schemaVersion:'dashboard-data-operations-v1',availability:'UNAVAILABLE'}}),
+    display:v=>displayed.push(v),status:v=>statuses.push(v),unauthorized:()=>{unauthorized++;} });
+  const old=channel.refresh(); channel.reset(); await channel.refresh();
+  const before=statuses.length;
+  settle(oldResult==='success'?{data:{schemaVersion:'dashboard-data-operations-v1',availability:'AVAILABLE'}}:{status:401});
+  await old; assert.equal(displayed.length,1); assert.equal(unauthorized,0); assert.equal(statuses.length,before);
 });
 test('actual protected HTTP: 401, login, canonical parity, no write route, preserved CSRF', { timeout: 25000 }, async t => {
   const f = fixture(t), runtime = path.join(f.root, 'runtime');
