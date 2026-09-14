@@ -56,10 +56,17 @@ foreach ($entry in $tasks) {
     userId=$userId; userSid=$userSid; description=$description; time=$entry.Time; checkpoint=$entry.Checkpoint; outputRoot=$OutputRoot }
 }
 function Assert-OwnedTask($task, $definition) {
+  # Task Scheduler may persist the local account as "user" instead of "HOST\user".
+  # Resolve both to the exact SID; do not weaken ownership to a username suffix.
+  $actualSid = $task.Principal.UserId
+  if ($actualSid -notmatch '^S-1-') {
+    $account = New-Object System.Security.Principal.NTAccount($actualSid)
+    $actualSid = $account.Translate([System.Security.Principal.SecurityIdentifier]).Value
+  }
   if ($task.TaskPath -ne '\' -or $task.Description -ne $definition.description -or $task.Actions.Count -ne 1 `
     -or $task.Actions[0].Execute -ne $definition.executable -or $task.Actions[0].Arguments -ne $definition.arguments `
     -or $task.Actions[0].WorkingDirectory -ne $definition.workingDirectory `
-    -or $task.Principal.UserId -notin @($definition.userId,$definition.userSid) `
+    -or $actualSid -ne $definition.userSid `
     -or $task.Principal.LogonType -ne 'Interactive' -or $task.Principal.RunLevel -ne 'Limited') {
     throw 'OPERATIONS_TASK_OWNERSHIP_MISMATCH'
   }
@@ -73,7 +80,7 @@ foreach ($definition in $definitions) {
   $existing = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction SilentlyContinue
   if ($Mode -eq 'Install' -and $existing) { throw 'OPERATIONS_TASK_ALREADY_EXISTS' }
   if ($Mode -eq 'Remove') {
-    if (-not $existing) { throw 'OPERATIONS_TASK_NOT_FOUND' }
+    if (-not $existing) { continue } # Safe cleanup after a partially completed install.
     Assert-OwnedTask $existing $definition
     # Preserve definition/result before deleting only this exact owned identity.
     [pscustomobject]@{ definition=$definition; info=(Get-ScheduledTaskInfo -InputObject $existing); xml=(Export-ScheduledTask -InputObject $existing) } | ConvertTo-Json -Depth 8
@@ -81,7 +88,8 @@ foreach ($definition in $definitions) {
 }
 foreach ($definition in $definitions) {
   if ($Mode -eq 'Remove') {
-    $existing = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction Stop
+    $existing = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction SilentlyContinue
+    if (-not $existing) { continue }
     Assert-OwnedTask $existing $definition
     if ($existing.State -eq 'Running') { throw 'OPERATIONS_TASK_STILL_RUNNING' }
     Unregister-ScheduledTask -InputObject $existing -Confirm:$false
