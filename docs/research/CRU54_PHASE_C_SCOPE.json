@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "cru54-phase-c-scope-v1",
+  "phaseBBase": "7f6bd0f8f8f4ae0a638bdc40513fdc5850f3caa9",
+  "approvedMain": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "branch": "codex/cru-54-cvd-current-main-v1",
+  "candidatePort": 3054,
+  "allowlist": [
+    "src/cvd-relationship-projection.mjs",
+    "src/cvd-relationship-artifact.mjs",
+    "src/cvd-candidate-server.mjs",
+    "scripts/prepare-cvd-relationship.mjs",
+    "scripts/start-cvd-relationship.mjs",
+    "scripts/audit-cru54-phase-c.mjs",
+    "public/cru54-relationship.html",
+    "public/cru54-relationship.js",
+    "public/cru54-relationship.css",
+    "tests/cvd-relationship-projection.test.mjs",
+    "tests/cvd-relationship-artifact.test.mjs",
+    "tests/cvd-relationship-api.test.mjs",
+    "docs/research/CRU54_PHASE_C_CONTRACT.md",
+    "docs/research/CRU54_PHASE_C_SCOPE.json"
+  ],
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  }
+}
