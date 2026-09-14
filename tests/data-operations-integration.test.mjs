@@ -95,6 +95,93 @@ test('candidate scheduler mode cannot target another runtime data root', t => {
   const f = fixture(t);
   assert.throws(() => runAcceptance({ ...f.options, runMode: 'CANDIDATE_SCHEDULER_TEST', triggerIdentity: 'TWQuant-CRU52-A2B-Test-unit' }), /CANDIDATE_DATA_ROOT/);
 });
+
+function buildFixture(t, candidate = false) {
+  const f = fixture(t);
+  if (candidate) f.options.dataRoot = path.join(source, 'data');
+  const id = `b1-test-${crypto.randomUUID()}`;
+  f.options.outputRoot = path.join(f.options.dataRoot, 'quality/daily-data-operations', id);
+  f.options.evidenceRoot = path.join(f.options.dataRoot, 'quality/daily-collection-acceptance', id);
+  if (candidate) t.after(() => {
+    for (const dir of [f.options.outputRoot, f.options.evidenceRoot]) {
+      assert.ok(dir.startsWith(path.join(source, 'data', 'quality') + path.sep));
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  const registryPath = path.join(source, 'config/data-requirements-v1.json');
+  f.manifest = { schemaVersion: 'data-operations-input-index-v1', governanceState: 'GOVERNED',
+    governanceReference: 'SYNTHETIC_B1_TEST_ONLY', evidenceRoot: f.options.evidenceRoot,
+    calendarSha256: sha256(calendarBytes), selection: 'BUILD_A1', sourceBindings: {
+      ledgerDataRoot: f.options.dataRoot, registryPath, registrySha256: sha256(fs.readFileSync(registryPath)),
+      dailyStatusPath: path.join(f.root, 'missing-status.json'), derivedArtifactPaths: [],
+      sessionsByCheckpoint: Object.fromEntries(CHECKPOINT_TYPES.map(type => [type, ['DAY', 'NIGHT']])) } };
+  f.save = () => fs.writeFileSync(f.options.manifestPath, JSON.stringify(f.manifest)); f.save();
+  return f;
+}
+
+test('B1 scheduled chain builds and pins current A1 before A2a without a pre-created pair', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-14T05:00:00Z') });
+  const f = buildFixture(t);
+  assert.equal(fs.existsSync(f.options.evidenceRoot), false);
+  const result = runAcceptance({ ...f.options, tradeDate: undefined, runMode: 'SCHEDULED', triggerIdentity: 'SYNTHETIC_B1' });
+  assert.equal(result.assessment.tradeDate, '2026-09-14');
+  assert.equal(result.jobHealth.jobState, 'SUCCEEDED');
+  const identity = result.jobHealth.inputResolutionIdentity;
+  assert.equal(identity.selection, 'BUILD_A1');
+  const pairRoot = path.join(f.options.evidenceRoot, identity.a1Build.buildId);
+  const reportBytes = fs.readFileSync(path.join(pairRoot, '2026-09-14.json'));
+  assert.equal(sha256(reportBytes), identity.reportSha256);
+  const inputs = JSON.parse(fs.readFileSync(path.join(pairRoot, '2026-09-14.inputs.json'))).inputs;
+  const expected = buildDailyDataOperations({ acceptanceReport: JSON.parse(reportBytes), acceptanceInputs: inputs,
+    checkpointType: result.assessment.checkpointType, generatedAt: result.assessment.generatedAt,
+    calendarJson: calendarBytes.toString(), inputArtifactIdentity: result.assessment.inputArtifactIdentity });
+  assert.deepEqual(result.assessment, expected);
+  assert.notEqual(expected.overallState, 'PASS'); // absent source data is not update/acceptance success
+  assert.equal(readDataOperations(f.options).artifactIdentity.reportHash, expected.reportHash);
+  assert.ok(ui.render(readDataOperations(f.options)).includes(expected.tradeDate));
+});
+
+test('B1 candidate scheduled non-trading date builds lawful NOT_EXPECTED without existing A1', t => {
+  const f = buildFixture(t, true);
+  const result = runAcceptance({ ...f.options, tradeDate: '2026-09-13', runMode: 'CANDIDATE_SCHEDULER_TEST',
+    triggerIdentity: 'SYNTHETIC_B1', checkpointType: 'FINAL_TRADEDATE_CHECKPOINT' });
+  assert.equal(result.assessment.overallState, 'NOT_EXPECTED');
+  assert.equal(result.assessment.requiredAndDueCount, 0);
+  assert.equal(result.jobHealth.lastAutomaticSuccessAt, null);
+});
+
+test('B1 fresh builds retain prior A1 pairs; child failure preserves prior A2a success/final history', t => {
+  const f = buildFixture(t);
+  const first = runAcceptance({ ...f.options, checkpointType: 'FINAL_TRADEDATE_CHECKPOINT' });
+  const id = first.jobHealth.inputResolutionIdentity;
+  const reportPath = path.join(f.options.evidenceRoot, id.a1Build.buildId, `${f.options.tradeDate}.json`);
+  const next = runAcceptance(f.options);
+  assert.notEqual(next.jobHealth.inputResolutionIdentity.a1Build.buildId, id.a1Build.buildId);
+  assert.equal(sha256(fs.readFileSync(reportPath)), id.reportSha256);
+  f.manifest.sourceBindings.batchEvidencePath = path.join(f.root, 'missing-batch.json'); f.save();
+  assert.throws(() => runAcceptance(f.options), /OPERATIONS_A1_BUILD_FAILED/);
+  const view = readDataOperations(f.options);
+  assert.equal(view.acceptanceJobHealth.jobState, 'FAILED');
+  assert.equal(view.acceptanceJobHealth.lastSuccessAt, next.jobHealth.lastSuccessAt);
+  assert.equal(view.acceptanceJobHealth.lastFinalizedTradeDate, first.jobHealth.lastFinalizedTradeDate);
+  assert.equal(view.artifactIdentity.reportHash, first.assessment.reportHash);
+  assert.equal(sha256(fs.readFileSync(reportPath)), id.reportSha256);
+});
+
+test('B1 scheduled mode cannot silently consume a dated or pinned historical pair', t => {
+  const f = fixture(t);
+  assert.throws(() => resolveAcceptanceInput({ ...f.options, now: new Date(), runMode: 'SCHEDULED' }), /SCHEDULED_A1_BUILD_REQUIRED/);
+  f.manifest.selection = 'DATED_A1_PAIR'; delete f.manifest.requests; f.save();
+  assert.throws(() => resolveAcceptanceInput({ ...f.options, now: new Date(), runMode: 'CANDIDATE_SCHEDULER_TEST' }), /SCHEDULED_A1_BUILD_REQUIRED/);
+});
+
+test('B1 source bindings fail closed on registry drift or source/output collision', t => {
+  const f = buildFixture(t);
+  f.manifest.sourceBindings.registrySha256 = '0'.repeat(64); f.save();
+  assert.throws(() => runAcceptance(f.options), /A1_REGISTRY_IDENTITY_MISMATCH/);
+  f.manifest.sourceBindings.dailyStatusPath = path.join(f.options.evidenceRoot, 'status.json'); f.save();
+  assert.throws(() => runAcceptance(f.options), /A1_OUTPUT_SOURCE_COLLISION/);
+});
 test('Windows installer dry validation requires explicit schedules and exact candidate actions', { skip: process.platform !== 'win32' }, () => {
   const installer = path.join(source, 'scripts/install-daily-data-operations-automation.ps1');
   const common = ['-NoProfile','-ExecutionPolicy','Bypass','-File',installer,'-CandidateTest','-TaskPrefix','TWQuant-CRU52-A2B-Test-unit',

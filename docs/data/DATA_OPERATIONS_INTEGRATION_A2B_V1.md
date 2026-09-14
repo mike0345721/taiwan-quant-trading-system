@@ -36,21 +36,50 @@ The input index is a **path/identity selection contract**, not a new dataset reg
   "schemaVersion": "data-operations-input-index-v1",
   "governanceState": "GOVERNED",
   "governanceReference": "the reviewed local input binding",
-  "evidenceRoot": "<absolute existing A.1 output root>",
+  "evidenceRoot": "<dataRoot>/quality/daily-collection-acceptance/a2b",
   "calendarSha256": "<SHA-256 of the existing governed calendar bytes>",
-  "selection": "DATED_A1_PAIR"
+  "selection": "BUILD_A1",
+  "sourceBindings": {
+    "ledgerDataRoot": "<absolute governed source data root>",
+    "registryPath": "<absolute existing data-requirements-v1.json>",
+    "registrySha256": "<SHA-256 of registry bytes>",
+    "dailyStatusPath": "<absolute existing daily-update status path>",
+    "databasePath": "<optional absolute governed readonly SQLite path>",
+    "derivedArtifactPaths": [],
+    "sessionsByCheckpoint": {
+      "DAY_CHECKPOINT": ["DAY", "NIGHT"],
+      "EOD_CHECKPOINT": ["DAY", "NIGHT"],
+      "FINAL_TRADEDATE_CHECKPOINT": ["DAY", "NIGHT"]
+    }
+  }
 }
 ```
 
-`DATED_A1_PAIR` reads exactly `<tradeDate>.json` and `<tradeDate>.inputs.json`, the
-existing A.1 CLI pair. It pins bytes/hashes, rereads them with those identities,
-and uses A.2a's original A.1 replay equality check. Missing inputs fail the job;
-there is no latest fallback or whole-drive search. A.1 remains the evidence
-producer: its own invocation must provide current reports. This consumer does
-not silently trigger a scan or run the daily-update pipeline.
+`SCHEDULED` and `CANDIDATE_SCHEDULER_TEST` require `BUILD_A1`; a pre-created dated
+pair is no longer a scheduler dependency. Inside the existing A.2a job guard,
+the runner invokes the existing A.1 CLI with explicit governed bindings before
+assessing A.2a. Calendar and registry bytes are hash-checked and copied into a
+fresh per-run UUID directory below evidenceRoot. The resulting dated report and
+replay-input pair are hash-pinned, replay-validated, and retained with that run's
+identity. Later checkpoints build into new directories; prior pairs/history stay.
+The child has a 10-minute bound; failure is `OPERATIONS_A1_BUILD_FAILED` within
+the existing failed-job lifecycle, preserving lastSuccess/FINAL and latest history.
 
-For frozen evidence use `selection: PINNED_REQUESTS` and `requests` (instead of
-DATED_A1_PAIR), with exactly one entry per tradeDate/checkpointType:
+A.1's optional `--ledger-data-root` selects only read-only ledger/audit inputs;
+its default remains dataRoot. All A.1 outputs remain under the candidate's own
+dataRoot/quality/daily-collection-acceptance. No collector, daily-update invocation,
+raw/DB/projection mutation or new A.1/A.2a calculation is introduced. Omit database
+when unavailable; optional `batchEvidencePath` may replace it, never both. Derived
+paths and per-checkpoint sessions must be explicit. Missing optional data retains
+existing UNKNOWN semantics; malformed explicitly bound batch evidence fails A.1.
+Governed non-trading dates build the existing lawful NOT_EXPECTED assessment even
+without prior A.1 files. Due deadlines are not inferred from scheduler exit codes.
+
+`MANUAL_REPLAY` may still use `DATED_A1_PAIR` to read the existing fixed dated pair,
+or `PINNED_REQUESTS` below. Neither mode silently falls back to latest.json.
+
+For frozen manual evidence use `selection: PINNED_REQUESTS` and `requests`,
+with exactly one entry per tradeDate/checkpointType:
 
 ```json
 {
@@ -152,8 +181,11 @@ After GPT review and separate Owner authorization only:
 3. Sync formal runtime as a whole version. Verify remote main = primary main =
    approvedMainCommit = runtimeCommit, identity VERIFIED and SYNCED.
 4. Run scoped L0–L5 on normal shortcut with the exact deployed version.
-5. Confirm current A.1 producer output path/pair is present and governed; freeze
-   input binding, Windows timezone, three explicit schedules and output root.
+5. Freeze the BUILD_A1 governed source bindings, per-checkpoint sessions, Windows
+   timezone, three explicit schedules and isolated A.1/A.2a output roots.
+   Expected schedule and missed/overdue observability require explicit disposition
+   before activation: an old SUCCEEDED/lastAutomaticAttemptAt cannot prove a task
+   that never started is currently healthy. This remains an activation gate.
 6. Separately authorize formal scheduler activation; inspect every persisted task.
 7. Start the 5 applicable trading-day gate. Weekends/holidays/NOT_EXPECTED do not
    count; no historical replay counts. Failed applicable days remain evidence.

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,8 @@ import { assertOperationsDate, CHECKPOINT_TYPES } from '../src/daily-data-operat
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-import { sha256, readBoundedFile } from '../src/daily-data-operations-files.mjs';
+import { sha256, readBoundedFile, contained, noLinks } from '../src/daily-data-operations-files.mjs';
+import { assertDailyAcceptanceOutputRoot } from '../src/daily-collection-acceptance-sweep.mjs';
 export { sha256, readBoundedFile } from '../src/daily-data-operations-files.mjs';
 export function taipeiDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
@@ -26,7 +28,8 @@ function pinned(root, ref) {
 
 // Explicit bounded request index, never a recursive filesystem search or mutable latest guess.
 // Scheduled mode asks for today's governed date. Historical replay requires an explicit date.
-export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now }) {
+export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now,
+  dataRoot, runMode = 'MANUAL_REPLAY' }) {
   assertOperationsDate(tradeDate);
   if (!CHECKPOINT_TYPES.includes(checkpointType)) fail('CHECKPOINT_INVALID');
   const manifestBytes = readBoundedFile(manifestPath, 1024 * 1024);
@@ -34,8 +37,20 @@ export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPat
   if (manifest.schemaVersion !== 'data-operations-input-index-v1' || manifest.governanceState !== 'GOVERNED'
     || !manifest.governanceReference
     || path.resolve(manifest.evidenceRoot || '') !== path.resolve(evidenceRoot)) fail('EVIDENCE_ROOT_OR_INDEX_INVALID');
-  let request;
-  if (manifest.selection === 'DATED_A1_PAIR') {
+  const calendarBytes = readBoundedFile(calendarPath);
+  if (sha256(calendarBytes) !== manifest.calendarSha256) fail('CALENDAR_IDENTITY_MISMATCH');
+  const calendar = loadGovernedTradingCalendar(calendarPath);
+  const day = resolveGovernedTradingDay(calendar, tradeDate);
+  if (!['TRADING_DAY', 'NON_TRADING_DAY'].includes(day.state)) fail('TRADE_DATE_UNGOVERNED');
+  if (runMode !== 'MANUAL_REPLAY' && manifest.selection !== 'BUILD_A1') fail('SCHEDULED_A1_BUILD_REQUIRED');
+  let request, buildIdentity = null;
+  if (manifest.selection === 'BUILD_A1') {
+    if (manifest.requests != null) fail('INPUT_AMBIGUOUS');
+    const built = buildCurrentAcceptance({ manifest, dataRoot, evidenceRoot, calendarPath, calendarBytes,
+      manifestPath, tradeDate, checkpointType, now });
+    request = built.request;
+    buildIdentity = built.identity;
+  } else if (manifest.selection === 'DATED_A1_PAIR') {
     if (manifest.requests != null) fail('INPUT_AMBIGUOUS');
     // Existing A.1 CLI's fixed dated pair, not latest.json. Each read is bounded;
     // A.2a replays and compares all A.1 pure fields before accepting the pair.
@@ -52,11 +67,6 @@ export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPat
     if (matches.length !== 1) fail(matches.length ? 'INPUT_AMBIGUOUS' : 'A1_INPUT_NOT_REGISTERED');
     request = matches[0];
   }
-  const calendar = loadGovernedTradingCalendar(calendarPath);
-  const day = resolveGovernedTradingDay(calendar, tradeDate);
-  if (!['TRADING_DAY', 'NON_TRADING_DAY'].includes(day.state)) fail('TRADE_DATE_UNGOVERNED');
-  const calendarBytes = readBoundedFile(calendarPath);
-  if (sha256(calendarBytes) !== manifest.calendarSha256) fail('CALENDAR_IDENTITY_MISMATCH');
   const report = pinned(evidenceRoot, request.report);
   const replay = pinned(evidenceRoot, request.acceptanceInputs);
   const due = request.dueRules ? pinned(evidenceRoot, request.dueRules) : null;
@@ -70,7 +80,62 @@ export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPat
     calendarJson: calendarBytes.toString('utf8'), dueRules: due?.json || {},
     inputPaths: [manifestPath, calendarPath, report.file, replay.file, ...(due ? [due.file] : [])],
     inputResolutionIdentity: { manifestSha256: sha256(manifestBytes), selection: manifest.selection || 'PINNED_REQUESTS',
-      reportSha256: sha256(report.bytes), acceptanceInputsFileSha256: sha256(replay.bytes), dueRulesSha256: due ? sha256(due.bytes) : null } };
+      reportSha256: sha256(report.bytes), acceptanceInputsFileSha256: sha256(replay.bytes), dueRulesSha256: due ? sha256(due.bytes) : null,
+      ...(buildIdentity ? { a1Build: buildIdentity } : {}) } };
+}
+
+// Runs inside A.2a's existing single-writer/failure lifecycle. Every invocation
+// gets a new A.1 directory; subsequent checkpoints cannot replace its input pair.
+function buildCurrentAcceptance({ manifest, dataRoot, evidenceRoot, calendarPath, calendarBytes,
+  manifestPath, tradeDate, checkpointType, now }) {
+  const binding = manifest.sourceBindings;
+  const allowed = ['ledgerDataRoot', 'registryPath', 'registrySha256', 'dailyStatusPath',
+    'databasePath', 'batchEvidencePath', 'derivedArtifactPaths', 'sessionsByCheckpoint'];
+  if (!binding || Object.keys(binding).some(key => !allowed.includes(key))) fail('A1_BINDING_INVALID');
+  for (const key of ['ledgerDataRoot', 'registryPath', 'dailyStatusPath']) {
+    if (!path.isAbsolute(binding[key] || '')) fail('A1_BINDING_PATH_REQUIRED');
+  }
+  const derived = binding.derivedArtifactPaths;
+  if (!Array.isArray(derived) || derived.length > 32) fail('A1_BINDING_INVALID');
+  noLinks(binding.ledgerDataRoot);
+  const sources = [path.join(binding.ledgerDataRoot, 'live-events'), binding.registryPath, binding.dailyStatusPath,
+    binding.databasePath, binding.batchEvidencePath, ...derived].filter(value => value != null);
+  for (const file of sources) {
+    if (typeof file !== 'string' || !path.isAbsolute(file) || file.includes('|')) fail('A1_BINDING_INVALID');
+    noLinks(file);
+    if (contained(evidenceRoot, file) || contained(file, evidenceRoot)) fail('A1_OUTPUT_SOURCE_COLLISION');
+  }
+  if (binding.databasePath && binding.batchEvidencePath) fail('A1_BINDING_AMBIGUOUS');
+  const registryBytes = readBoundedFile(binding.registryPath);
+  if (sha256(registryBytes) !== binding.registrySha256) fail('A1_REGISTRY_IDENTITY_MISMATCH');
+  const sessions = binding.sessionsByCheckpoint?.[checkpointType];
+  if (!Array.isArray(sessions) || !sessions.length || sessions.length > 2
+    || new Set(sessions).size !== sessions.length || sessions.some(s => !['DAY', 'NIGHT'].includes(s))) fail('A1_SESSIONS_REQUIRED');
+  assertDailyAcceptanceOutputRoot(dataRoot, evidenceRoot, [manifestPath, calendarPath, ...sources]);
+  noLinks(evidenceRoot);
+  const buildId = crypto.randomUUID();
+  const output = path.join(evidenceRoot, buildId);
+  fs.mkdirSync(output, { recursive: true });
+  // Pin the static governance bytes actually used by the child, not later reads.
+  fs.writeFileSync(path.join(output, 'calendar.json'), calendarBytes, { flag: 'wx' });
+  fs.writeFileSync(path.join(output, 'registry.json'), registryBytes, { flag: 'wx' });
+  const args = [path.join(appRoot, 'scripts/build-daily-collection-acceptance.mjs'),
+    `--trade-date=${tradeDate}`, `--generated-at=${now.toISOString()}`, `--sessions=${sessions.join(',')}`,
+    `--data-root=${dataRoot}`, `--output-root=${output}`, `--ledger-data-root=${binding.ledgerDataRoot}`,
+    `--calendar=${path.join(output, 'calendar.json')}`, `--registry=${path.join(output, 'registry.json')}`,
+    `--daily-status=${binding.dailyStatusPath}`];
+  if (binding.databasePath) args.push(`--database=${binding.databasePath}`);
+  if (binding.batchEvidencePath) args.push(`--batch-evidence=${binding.batchEvidencePath}`);
+  if (derived.length) args.push(`--derived-artifacts=${derived.join('|')}`);
+  try {
+    execFileSync(process.execPath, args, { cwd: appRoot, windowsHide: true, timeout: 10 * 60 * 1000,
+      maxBuffer: 2 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch { fail('A1_BUILD_FAILED'); }
+  const ref = name => ({ file: `${buildId}/${name}`, sha256: sha256(readBoundedFile(path.join(output, name))) });
+  return { request: { tradeDate, checkpointType, inputGeneratedAt: now.toISOString(),
+    report: ref(`${tradeDate}.json`), acceptanceInputs: ref(`${tradeDate}.inputs.json`), dueRules: manifest.dueRules },
+    identity: { buildId, sourceBindingsSha256: sha256(JSON.stringify(binding)),
+      calendarSha256: sha256(calendarBytes), registrySha256: sha256(registryBytes), sessions } };
 }
 
 export function runAcceptance(options) {
@@ -87,7 +152,7 @@ export function runAcceptance(options) {
   const runtimeCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: appRoot, encoding: 'utf8', windowsHide: true }).trim();
   return runDailyDataOperations({ dataRoot, outputRoot, calendarPath, checkpointType, generatedAt: now.toISOString(),
     runContext: { runMode, triggerIdentity, runtimeCommit },
-    resolveInput: () => resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now }) });
+    resolveInput: () => resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now, dataRoot, runMode }) });
 }
 
 export function validateAcceptanceLaunch(options) {
