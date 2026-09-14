@@ -3233,6 +3233,7 @@ function renderObservedFlow(flow) {
     : null, { reason });
   terminalWrite('dw-observed-flow-promotion', '尚未通過正式方向驗證', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
   renderObservedFlowDetail(value);
+  window.TraderTerminalShell?.refreshDrawer(traderTerminalRoot, '[data-terminal-card="observed-flow"]');
 }
 
 function terminalSetTrust(cardKey, evidence) {
