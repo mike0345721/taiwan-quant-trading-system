@@ -13,7 +13,9 @@
     for (const id of ['identity', 'origin', 'coverage']) $(id).textContent = '不可用：投影尚未通過載入驗證';
     for (const id of ['summary', 'price-reason', 'cutoff']) $(id).textContent = '';
     $('segments').replaceChildren(); $('empty').hidden = true;
-    $('relationship-title').textContent = '關係不可用'; $('relationship-detail').textContent = message;
+    $('relationship-title').textContent = '暫無法判讀'; $('relationship-detail').textContent = message;
+    $('handoff-title').textContent = '暫無法判讀'; $('handoff-reason').textContent = message;
+    for (const id of ['handoff-prior','handoff-current','handoff-gap','handoff-details']) $(id).replaceChildren();
     $('window-truth').textContent = '窗口未驗證'; $('timeline').replaceChildren();
     for (const id of ['change-price','change-volume','change-delta','change-pressure','change-path']) $(id).textContent = '不可用：載入失敗';
     for (const id of ['compare-price','compare-volume','compare-delta','compare-path','pressure-quality','decision-cutoff','timeline-status']) $(id).textContent = '';
@@ -30,8 +32,30 @@
       localization: { timeFormatter: t => time(t * 1000) }, crosshair: { mode: L.CrosshairMode.Normal } });
     return result;
   }
-  const labels = { ALIGNED: '力量與價格同向', ALIGNED_BUT_WEAKENING: '仍同向，較前窗弱化', PRESSURE_RESPONSE_MISMATCH: '力量與價格失配', OPPOSITE_DIVERGENCE: '力量與價格反向', MIXED_OR_QUALITY_LIMITED: '證據受限，保留判讀', UNAVAILABLE: '關係不可用' };
-  const short = { ALIGNED:'同向', ALIGNED_BUT_WEAKENING:'同向弱化', PRESSURE_RESPONSE_MISMATCH:'失配', OPPOSITE_DIVERGENCE:'反向', MIXED_OR_QUALITY_LIMITED:'證據受限', UNAVAILABLE:'不可用' };
+  const labels = { ALIGNED: '力價同步中', ALIGNED_BUT_WEAKENING: '同向但轉弱', PRESSURE_RESPONSE_MISMATCH: '力價不同步', OPPOSITE_DIVERGENCE: '力價反方向', MIXED_OR_QUALITY_LIMITED: '證據有分歧', UNAVAILABLE: '暫無法判讀' };
+  const short = labels;
+  const handoffLabels = { CONFIRMED_CONTINUATION:'延續獲確認', CONFIRMED_BUT_WEAKENING:'延續但轉弱', PRIOR_SESSION_REJECTED:'前勢遭拒絕', OPPOSITE_TAKEOVER:'反向已接手', UNCONFIRMED_OR_CONFLICT:'尚未獲確認', UNAVAILABLE:'暫無法判讀' };
+  function renderHandoff(h) {
+    $('handoff').hidden = !h; if (!h) return;
+    document.body.dataset.handoff = h.handoff.code;
+    $('handoff-title').textContent = handoffLabels[h.handoff.code];
+    $('handoff-kind').textContent = h.evidenceKind === 'SYNTHETIC_FIXTURE' ? 'SYNTHETIC · 合成情境' : h.evidenceKind === 'GOVERNED_FRAGMENT' ? '真實歷史片段 · 非即時' : '混合來源不可比較';
+    const side = (id,s) => {
+      const e=s?.evidence, identity=s?.identity;
+      $(id).replaceChildren();
+      for(const [tag,value] of [['b',identity ? `${identity[1]} ${identity[2]} · ${identity[0]}` : '上一階段缺資料'],
+        ['span',`Price Δ ${fmt(e?.response?.displacementPoints)} 點 · ΔCVD ${fmt(e?.deltaCvd)} 口`],
+        ['strong',labels[s?.relationship.code] || labels.UNAVAILABLE],
+        ['small',`${e?.complete ? '同段觀測窗' : 'PARTIAL'} · 分類 ${e?.pressure?.classifiedCoverage == null ? '未知' : (100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · 捕捉未證明`]]) {
+        const node=document.createElement(tag); node.textContent=value; $(id).append(node);
+      }
+    };
+    side('handoff-prior',h.prior); side('handoff-current',h.current);
+    $('handoff-gap').textContent = h.gap.points == null ? 'Gap 不可用' : `${h.gap.points > 0 ? '+' : ''}${fmt(h.gap.points)} 點`;
+    const message = { SESSIONS_NOT_GOVERNED_ADJACENT:'兩段歷史資料並非合法相鄰時段', ACTUAL_CONTRACT_NOT_COMPARABLE:'契約不同，不能交接比較', SESSION_SIDE_MISSING:'缺少上一合法時段', PRIOR_LAWFUL_PRICE_MISSING:'上一階段缺合法價格', CURRENT_LAWFUL_PRICE_MISSING:'目前階段缺合法價格', PARTIAL_QUALITY_COVERAGE_OR_RELATIONSHIP_LIMITED:'窗口、分類或關係證據不足', OPPOSITE_OBSERVED_OPENING_PRICE_GAP:'首筆觀測價格拒絕前勢，非反轉訊號', CLEAN_OPPOSITE_CURRENT_DIRECTION:'目前同窗力價已反向', SAME_CLEAN_DIRECTION:'前後同窗力價方向一致' };
+    $('handoff-reason').textContent = `${h.timeframe} · ${message[h.handoff.reason] || '資料來源或連續性不可比較'} · ${h.handoff.reason}`;
+    $('handoff-details').textContent = JSON.stringify({ prior:h.prior, current:h.current, pairing:h.pairing, gap:h.gap, availableAt:h.availableAt, method:h.method },null,2);
+  }
   const why = code => ({ WINDOW_INCOMPLETE:'觀測長度不足完整窗口', NO_CLASSIFIED_VOLUME:'尚無已分類成交，UNKNOWN 獨立保留', NO_OBSERVED_TICKS_IN_WINDOW:'本窗沒有合法觀測成交', ACCEPTED_CVD_NULL_GAP:'累積來源存在不可用缺口', CUTOFF_LINEAGE_UNUSABLE:'cutoff 時間或來源不可用', INSUFFICIENT_OBSERVATIONS:'價格觀測筆數不足', QUALITY_INSUFFICIENT_LONG_GAP:'價格路徑存在長缺口', QUALITY_INSUFFICIENT_EVENT_TIME_REGRESSION:'窗內事件時間倒退', UNAVAILABLE_ZERO_PATH:'價格路徑長度為零', PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE:'分類覆蓋不足', QUALITY_OR_EVIDENCE_LIMITED:'品質或證據組合不足', PRIOR_EQUAL_WINDOW_DETERIORATION:'同方向下，流量增量／價格位移／路徑效率至少一項較前窗減少', SAME_CUTOFF_DESCRIPTIVE_RELATIONSHIP:'同 cutoff 的已分類成交與價格描述', CAPTURE_COMPLETENESS_UNPROVEN:'捕捉完整性未證明' }[code] || reason(code));
   function renderRelationship(r) {
     document.querySelector('.eyebrow').textContent = `台股量化交易系統 · 隔離候選 PHASE C${r.evidenceKind === 'SYNTHETIC_FIXTURE' ? ' · SYNTHETIC 測試資料，非市場證據' : ' · 真實 governed 片段'}`;
@@ -115,7 +139,8 @@
     $('price-reason').textContent = `價格背景：${reason(p.priceReason)}；時間檢查排除 ${p.priceTimeLineageViolationCount} 筆。價格與 CVD 的可用成交集合可能不同，不互相補值。`;
     $('empty').hidden = bars.length > 0 && plottedPoints > 0; $('empty').textContent = `${bars.length ? '' : 'K／Volume 空白：沒有本身分合法價格 K 棒。 '}${plottedPoints ? '' : 'CVD 空白：' + reason(p.segments.find(s => s.clockInvalid)?.reason || p.reason)}`;
     $('segments').replaceChildren(...p.segments.map(s => { const div = document.createElement('div'); div.className = 'segment'; div.textContent = `段 ${s.index + 1} · ${s.identity.join(' / ')} · ${time(s.origin.eventTimeMs)} 起算｜觀測片段 · ${reason(s.reason)}${s.terminalInvalid ? ' · 尾端已失效' : ''}`; return div; }));
-    $('version').textContent = `隔離 PHASE C · HEAD ${p.head}`; $('cutoff').textContent = `cutoff #${p.cutoff.ledgerOrdinal} · generation ${p.generationHash.slice(0, 16)}`;
+    $('version').textContent = `隔離 ${p.previewType} · HEAD ${p.head}`; $('cutoff').textContent = `cutoff #${p.cutoff.ledgerOrdinal} · generation ${p.generationHash.slice(0, 16)}`;
+    $('preview-phase').textContent = `台股量化交易系統 · 隔離候選 ${p.previewType === 'ISOLATED_PHASE_D' ? 'PHASE D' : 'PHASE C'}`;
     renderRelationship(r);
     for (const button of $('frames').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.frame === p.timeframe));
   }
@@ -127,7 +152,14 @@
       if (response.status === 401 || rr.status === 401) { $('login').hidden = false; throw Error('需要本次隔離候選存取碼'); }
       if (!response.ok || !rr.ok) throw Error(reason(data.reason || relationship.reason));
       if(data.head!==relationship.head || data.generationHash!==relationship.generationHash || data.semanticHash!==relationship.semanticHash || data.cutoff.recordHash!==relationship.sourceCutoff.recordHash || data.timeframe!==relationship.timeframe) throw Error('比較資料 cutoff／版本不一致');
-      render(data, relationship); currentFrame = frame;
+      let handoff=null;
+      if(data.previewType==='ISOLATED_PHASE_D') {
+        const hr=await fetch(`/api/handoff?timeframe=${encodeURIComponent(frame)}`); handoff=await hr.json();
+        if(request!==serial) return;
+        if(!hr.ok || handoff.head!==data.head || handoff.generationHash!==data.generationHash || handoff.semanticHash!==data.semanticHash
+          || handoff.sourceCutoff?.recordHash!==data.cutoff.recordHash || handoff.timeframe!==data.timeframe) throw Error('市場交接來源／版本未通過核對');
+      }
+      render(data, relationship); renderHandoff(handoff); currentFrame = frame;
     } catch (e) { if (request === serial) error(e.message); }
   }
   $('frames').addEventListener('click', e => { if (e.target.dataset.frame) load(e.target.dataset.frame); });
