@@ -133,10 +133,12 @@ node scripts/materialize-cvd-observation.mjs <absolute-allowlisted-source.ndjson
 node --max-old-space-size=768 scripts/validate-cvd-observation.mjs <absolute-source.ndjson> 10000 DAY
 ```
 
-The history verifier uses independent full-size and 4,000-record persisted-suffix
+The history verifier uses independent full-size and at-most-4,000-record persisted-suffix
 runs at the same explicit cutoff, comparing the entire generation/checkpoint/history
 and hashes. DAY/NIGHT samples are bounded historical engineering evidence, not full
 session capture, live API or browser validation. V8 old-space is not an RSS hard cap.
+For small prefixes the resume batch is half the requested records, ensuring at least
+two persisted batches; a single-record request cannot certify continuation and is rejected.
 Source bytes, full checkpoints and private fixtures never go to GitHub. Sanitized
 results, actual commands and Level-3 exact-HEAD review are published in the Draft PR
 and linked from the CRU54 factual checkpoint with read-back.

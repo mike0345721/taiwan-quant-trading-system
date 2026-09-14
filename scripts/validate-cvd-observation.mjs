@@ -11,7 +11,7 @@ const [sourcePath, ordinalText, expectedSession] = process.argv.slice(2);
 try {
   const { head } = assertIsolatedWorktree(), stopOrdinal = Number(ordinalText);
   if (!['DAY', 'NIGHT'].includes(expectedSession) || !Number.isSafeInteger(stopOrdinal)
-      || stopOrdinal < 1 || stopOrdinal > 25_000) throw new Error('CVD_VALIDATION_REQUEST_INVALID');
+      || stopOrdinal < 2 || stopOrdinal > 25_000) throw new Error('CVD_VALIDATION_REQUEST_INVALID');
   const started = Date.now(), id = `history-${crypto.randomUUID()}`;
   function run(suffix, maxRecords) {
     let r, count = 0;
@@ -22,7 +22,8 @@ try {
     } while (r.generation.checkpoint.state.ordinal < stopOrdinal);
     return r.generation;
   }
-  const full = run('full', 25_000), resumed = run('resume', 4000);
+  const resumeBatchRecords = Math.min(4000, Math.floor(stopOrdinal / 2));
+  const full = run('full', 25_000), resumed = run('resume', resumeBatchRecords);
   // Compare source binding, checkpoint, snapshot, full history, cutoff and hashes, not just last CVD.
   assert.deepEqual(resumed, full);
   const segments = full.result.semantic.segments.filter(s => s.identity[2] === expectedSession);
@@ -32,7 +33,7 @@ try {
     prefixBytes: full.endByteOffset, prefixSha256: full.prefixSha256, sourceLedgerIdentity: full.sourceLedgerIdentity,
     cutoffRecordHash: full.checkpoint.state.terminalHash, semanticHash: full.result.semanticHash,
     generationHash: full.generationHash, resolverIdentity: full.checkpoint.state.resolverIdentity,
-    fullVersusPersistedSuffix: 'PASS', historyLastValue: full.result.semantic.series.at(-1)?.value ?? null,
+    fullVersusPersistedSuffix: 'PASS', resumeBatchRecords, historyLastValue: full.result.semantic.series.at(-1)?.value ?? null,
     snapshotValue: full.result.semantic.value, segments, elapsedMs: Date.now() - started,
     maxRssBytes: process.resourceUsage().maxRSS * 1024, limits: LIMITS,
     outputRunIds: [`${id}-full`, `${id}-resume`], ...SAFETY };
