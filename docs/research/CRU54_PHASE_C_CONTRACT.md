@@ -123,6 +123,8 @@ High-value K markers require a real transition between clean descriptive states.
 Place on first existing same-identity bar START >= decision availableAt, wholly
 inside the accepted segment's observed availability bounds, with no other segment
 overlap. If no such bar, omit marker; Timeline retains exact decision time/ordinal.
+Projection and browser both restrict markers to the identity and exact bar times
+actually displayed by the current K series; earlier contracts' markers stay off it.
 Do not use an earlier containing candle. At most the latest8 eligible markers and
 latest8 timeline events are shown, with totals and omission reason visible.
 Markers are circles with state-transition text, never trade arrows/predictions.

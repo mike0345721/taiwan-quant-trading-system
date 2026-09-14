@@ -119,6 +119,8 @@ test('markers never backpaint, cross segment, use initial state, or fabricate ba
   assert.equal(mapRelationshipMarkers([event], bars.slice(0,1), segments, 60000).length,0);
   assert.equal(mapRelationshipMarkers([event], bars.map(b=>({...b,session:'NIGHT'})), segments,60000).length,0);
   assert.equal(mapRelationshipMarkers([{...event,from:'MIXED_OR_QUALITY_LIMITED'}],bars,segments,60000).length,0);
+  assert.equal(mapRelationshipMarkers([event],bars,segments,60000,['TXFJ6',id[1],id[2],'TX:2']).length,0);
+  assert.equal(mapRelationshipMarkers([event],bars,segments,60000,id).length,1);
 });
 test('equal-window wording is deterministic without relative-strength scores', () => {
   assert.equal(compareEqualWindow(2,-1),'方向翻轉'); assert.equal(compareEqualWindow(2,1),'較前窗放大');

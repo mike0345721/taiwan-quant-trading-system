@@ -87,9 +87,10 @@ export function collapseRelationshipTimeline(observations) {
   return events;
 }
 
-export function mapRelationshipMarkers(timeline, bars, segments, windowMs) {
+export function mapRelationshipMarkers(timeline, bars, segments, windowMs, displayedIdentity = null) {
   const markers = []; const occupied = new Set();
   for (const event of timeline) {
+    if (displayedIdentity && !equal(event.identity.slice(0, 3), displayedIdentity.slice(0, 3))) continue;
     if (['UNAVAILABLE', 'MIXED_OR_QUALITY_LIMITED'].includes(event.from) || ['UNAVAILABLE', 'MIXED_OR_QUALITY_LIMITED'].includes(event.to)) continue;
     const segment = segments[event.segment];
     const start = timestampMs(segment.startAvailableAt) / 1000, end = timestampMs(segment.availableAt) / 1000;
@@ -140,12 +141,13 @@ export function buildCvdRelationshipProjection(generation, canonicalEvents, char
   const current = currentValid ? last : { ...last, relationship: { code: 'UNAVAILABLE', descriptiveCode: null, reason: s.currentReason || 'NO_LAWFUL_CUTOFF' }, current: null, previous: null,
     cumulativeCvd: null, comparisons: { volume: '前窗不可比較', deltaCvd: '前窗不可比較', response: '前窗不可比較', path: '前窗不可比較' } };
   const result = { schemaVersion: 'cru54-relationship-v1', ...SAFETY, timeframe, windowMs, generationHash: generation.generationHash,
+    evidenceKind: generation.sourceBinding?.path?.replaceAll('\\','/').includes('/data/cru54-private/fixtures/') ? 'SYNTHETIC_FIXTURE' : 'GOVERNED_FRAGMENT',
     semanticHash: generation.result.semanticHash, sourceMode: 'PINNED_HISTORICAL_GENERATION', sourceCutoff: chart.cutoff,
     current, observations: observations.map(o => ({ segment: o.segment, identity: o.identity, lineage: o.lineage,
       anchorEventTime: o.anchorEventTime, cumulativeCvd: o.cumulativeCvd, relationship: o.relationship,
       deltaCvd: o.current?.deltaCvd ?? null, complete: o.current?.complete ?? false,
       observedSpanMs: o.current?.observedSpanMs ?? null, requiredSpanMs: windowMs })),
-    timeline, markers: mapRelationshipMarkers(timeline, chart.bars, s.segments, windowMs),
+    timeline, markers: mapRelationshipMarkers(timeline, chart.bars, s.segments, windowMs, s.activeIdentity),
     history: { scope: 'OBSERVED_FRAGMENT', snapshotCount: observations.length, maxSnapshots: RELATIONSHIP_LIMITS.snapshots, initialStateIsTransition: false },
     method: { decisionClock: 'CUTOFF_AVAILABLE_AT', windowClock: 'CUTOFF_EVENT_TIME', cvd: 'ACCEPTED_PER_PHYSICAL_CUMULATIVE_DIFFERENCES', pressureIndependentVote: false,
       captureCompleteness: 'UNPROVEN', formalDirectionPromoted: false },

@@ -34,6 +34,7 @@
   const short = { ALIGNED:'同向', ALIGNED_BUT_WEAKENING:'同向弱化', PRESSURE_RESPONSE_MISMATCH:'失配', OPPOSITE_DIVERGENCE:'反向', MIXED_OR_QUALITY_LIMITED:'證據受限', UNAVAILABLE:'不可用' };
   const why = code => ({ WINDOW_INCOMPLETE:'觀測長度不足完整窗口', NO_CLASSIFIED_VOLUME:'尚無已分類成交，UNKNOWN 獨立保留', NO_OBSERVED_TICKS_IN_WINDOW:'本窗沒有合法觀測成交', ACCEPTED_CVD_NULL_GAP:'累積來源存在不可用缺口', CUTOFF_LINEAGE_UNUSABLE:'cutoff 時間或來源不可用', INSUFFICIENT_OBSERVATIONS:'價格觀測筆數不足', QUALITY_INSUFFICIENT_LONG_GAP:'價格路徑存在長缺口', QUALITY_INSUFFICIENT_EVENT_TIME_REGRESSION:'窗內事件時間倒退', UNAVAILABLE_ZERO_PATH:'價格路徑長度為零', PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE:'分類覆蓋不足', QUALITY_OR_EVIDENCE_LIMITED:'品質或證據組合不足', PRIOR_EQUAL_WINDOW_DETERIORATION:'同方向下，流量增量／價格位移／路徑效率至少一項較前窗減少', SAME_CUTOFF_DESCRIPTIVE_RELATIONSHIP:'同 cutoff 的已分類成交與價格描述', CAPTURE_COMPLETENESS_UNPROVEN:'捕捉完整性未證明' }[code] || reason(code));
   function renderRelationship(r) {
+    document.querySelector('.eyebrow').textContent = `台股量化交易系統 · 隔離候選 PHASE C${r.evidenceKind === 'SYNTHETIC_FIXTURE' ? ' · SYNTHETIC 測試資料，非市場證據' : ' · 真實 governed 片段'}`;
     const o = r.current, c = o?.current, relation = o?.relationship || {code:'UNAVAILABLE',reason:'NO_LAWFUL_TRADE'};
     $('relationship').dataset.code = relation.code; document.body.dataset.relationship = relation.code;
     $('relationship-title').textContent = labels[relation.code];
@@ -95,14 +96,15 @@
       histogram.setData(data); deltaCount+=data.filter(d=>d.value!=null).length;
     }
     if (!p.segments.length) chart.addSeries(L.HistogramSeries,{title:'ΔCVD 不可用'},3);
-    if (r.markers.length && L.createSeriesMarkers) L.createSeriesMarkers(candle, r.markers.slice(-8).map(m=>({time:m.time,position:'aboveBar',shape:'circle',color:'#80c9ff',text:`${short[m.from]}→${short[m.to]}`})));
+    const visibleMarkers = r.markers.filter(m=>m.identity[0]===p.actualContract && m.identity[1]===p.tradeDate && m.identity[2]===p.session && bars.some(b=>b.time===m.time)).slice(-8);
+    if (visibleMarkers.length && L.createSeriesMarkers) L.createSeriesMarkers(candle, visibleMarkers.map(m=>({time:m.time,position:'aboveBar',shape:'circle',color:'#80c9ff',text:`${short[m.from]}→${short[m.to]}`})));
     const height = $('chart').clientHeight; chart.panes()[0].setHeight(height * .60); chart.panes()[1].setHeight(height * .10); chart.panes()[2].setHeight(height * .20); chart.panes()[3].setHeight(height * .10);
     chart.timeScale().fitContent();
     if (p.currentCvd != null && p.display.currentPlotAvailable && lastPlotted !== p.currentCvd) throw Error('圖表端點與 API 不一致');
     document.body.dataset.endpoint = !p.display.currentPlotAvailable || p.currentCvd == null ? 'null' : String(lastPlotted);
     document.body.dataset.generation = p.generationHash; document.body.dataset.timeframe = p.timeframe;
     document.body.dataset.panes = String(chart.panes().length); document.body.dataset.points = String(plottedPoints);
-    document.body.dataset.deltaPoints = String(deltaCount); document.body.dataset.markers = String(Math.min(8,r.markers.length));
+    document.body.dataset.deltaPoints = String(deltaCount); document.body.dataset.markers = String(visibleMarkers.length);
     $('identity').textContent = `${p.actualContract || '契約未知'} / ${p.tradeDate || '交易日未知'} / ${p.session || '時段未知'} · ${p.continuityEpoch || '連續段未知'}`;
     $('origin').textContent = p.origin ? `${time(p.origin.eventTimeMs)} 起算｜${p.sessionStartProven ? '已證明 session 起點' : '觀測片段'}` : '起點不可用：等待有效觀測段';
     $('value').textContent = p.currentCvd == null ? `不可用：${reason(p.reason)}` : fmt(p.currentCvd);

@@ -36,6 +36,7 @@ if (bootstrap) {
     try { assert.throws(()=>prepareCvdRelationship(runId,b.bundleHash),/INJECTED_PARTIAL_WRITE/); } finally {fs.writeFileSync=originalWrite;}
     const receipt=prepareCvdRelationship(runId,b.bundleHash), loaded=loadCvdRelationship(receipt.bundleHash);
     assert.equal(loaded.relationships['1m'].current.relationship.code,'ALIGNED');
+    assert.equal(loaded.relationships['1m'].evidenceKind,'SYNTHETIC_FIXTURE');
     assert.equal(loaded.relationships['1m'].current.current.deltaCvd,12);
     assert.equal(loaded.charts['1m'].generationHash,receipt.generationHash);
     fs.writeFileSync(sourcePath,bytes.replace('100','999'));
