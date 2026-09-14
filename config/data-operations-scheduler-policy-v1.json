@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "data-operations-scheduler-policy-v1",
+  "policyId": "CRU52_OWNER_FROZEN_20260914_V1",
+  "timezone": "Asia/Taipei",
+  "windowsTimezone": "Taipei Standard Time",
+  "taskPrefix": "TWQuant-DataOperations",
+  "graceMinutes": 15,
+  "checkpoints": [
+    { "checkpointType": "DAY_CHECKPOINT", "label": "DAY", "checkTime": "13:55" },
+    { "checkpointType": "EOD_CHECKPOINT", "label": "EOD", "checkTime": "16:10" },
+    { "checkpointType": "FINAL_TRADEDATE_CHECKPOINT", "label": "FINAL", "checkTime": "18:10" }
+  ]
+}

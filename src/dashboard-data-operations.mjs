@@ -3,6 +3,7 @@ import path from 'node:path';
 import { validateDailyDataOperations, operationsHash, SAFETY } from './daily-data-operations.mjs';
 import { REASON_ZH } from './daily-collection-acceptance.mjs';
 import { assertOperationsOutputRoot, readBoundedFile, sha256 } from './daily-data-operations-files.mjs';
+import { readSchedulerHealth } from './data-operations-scheduler-health.mjs';
 
 const explanations = { ...REASON_ZH,
   DUE_SEMANTICS_UNGOVERNED: '來源何時應到尚無治理證據，維持未知',
@@ -74,7 +75,7 @@ function projectHealth(h) {
       [key, /^[a-f0-9]{64}$/.test(h.inputResolutionIdentity[key] || '') ? h.inputResolutionIdentity[key] : null])) : null;
   return result;
 }
-export function readDataOperations({ dataRoot, outputRoot }) {
+export function readDataOperations({ dataRoot, outputRoot, calendar, now = new Date() }) {
   let report = null, health = null, unavailableReason = null;
   const history = [];
   try {
@@ -104,6 +105,9 @@ export function readDataOperations({ dataRoot, outputRoot }) {
     }
   } catch { unavailableReason = 'ASSESSMENT_INVALID_OR_UNREADABLE'; }
   const view = projectDataOperations(report, health, history);
+  try { view.schedulerHealth = readSchedulerHealth({ dataRoot, outputRoot, calendar, now }); }
+  catch { view.schedulerHealth = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(),
+    tradeDate: null, applicability: 'UNKNOWN', checkpoints: [], reasonZh: '排程政策無法驗證，今日進度未知。' }; }
   if (unavailableReason) view.unavailableReason = unavailableReason;
   return view;
 }

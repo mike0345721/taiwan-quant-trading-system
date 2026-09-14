@@ -352,7 +352,7 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/data-operations') {
         sendJson(res, 200, { ok: true, data: readDataOperations({ dataRoot: config.dataDir,
-          outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT || path.join(config.dataDir, 'quality', 'daily-data-operations') }) },
+          outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT || path.join(config.dataDir, 'quality', 'daily-data-operations'), calendar: chartCalendar }) },
         { 'Cache-Control': 'no-store' });
         return;
       }

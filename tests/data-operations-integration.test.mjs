@@ -123,7 +123,7 @@ test('B1 scheduled chain builds and pins current A1 before A2a without a pre-cre
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-14T05:00:00Z') });
   const f = buildFixture(t);
   assert.equal(fs.existsSync(f.options.evidenceRoot), false);
-  const result = runAcceptance({ ...f.options, tradeDate: undefined, runMode: 'SCHEDULED', triggerIdentity: 'SYNTHETIC_B1' });
+  const result = runAcceptance({ ...f.options, tradeDate: undefined, runMode: 'SCHEDULED', triggerIdentity: 'TWQuant-DataOperations-EOD' });
   assert.equal(result.assessment.tradeDate, '2026-09-14');
   assert.equal(result.jobHealth.jobState, 'SUCCEEDED');
   const identity = result.jobHealth.inputResolutionIdentity;
@@ -329,7 +329,7 @@ test('actual protected HTTP: 401, login, canonical parity, no write route, prese
   assert.equal(login.status,200); const session = await login.json(); const cookie=login.headers.get('set-cookie').split(';')[0];
   const headers={cookie,'content-type':'application/json'};
   const response=await fetch(base+'/api/v1/data-operations',{headers}); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
-  const body=await response.json(); assert.deepEqual(body.data,readDataOperations({dataRoot,outputRoot}));
+  const body=await response.json(); assert.deepEqual(body.data,readDataOperations({dataRoot,outputRoot,now:new Date(body.data.schedulerHealth.observedAt)}));
   assert.equal(body.data.artifactIdentity.reportHash,canonical.assessment.reportHash);
   assert.ok(!JSON.stringify(body).includes(f.root));
   const before=fs.readdirSync(path.join(outputRoot,'runs'));

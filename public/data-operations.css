@@ -19,3 +19,12 @@
 .dop-details code { overflow-wrap: anywhere; }
 @media (max-width: 800px) { .dop-summary, .dop-gaps { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .dop-times { grid-template-columns: 1fr; } }
+.dop-scheduler { margin-bottom: 24px; }
+.dop-checkpoints { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.dop-checkpoints article { padding: 14px; border: 1px solid #304252; border-radius: 8px; overflow-wrap: anywhere; }
+.dop-checkpoints strong { color: #9cb6cd; }
+.dop-checkpoints [data-scheduler-state="SUCCEEDED"] strong { color: #5bd4b4; }
+.dop-checkpoints [data-scheduler-state="OVERDUE_NO_RECEIPT"] strong,
+.dop-checkpoints [data-scheduler-state="ACCEPTANCE_JOB_FAILED"] strong { color: #f5c86b; }
+.dop-checkpoints pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 800px) { .dop-checkpoints { grid-template-columns: 1fr; } }

@@ -15,6 +15,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$policy = Get-Content -Raw -LiteralPath (Join-Path $root 'config/data-operations-scheduler-policy-v1.json') | ConvertFrom-Json
 $runner = Join-Path $PSScriptRoot 'run-daily-data-operations-hidden.ps1'
 $validator = Join-Path $PSScriptRoot 'run-daily-data-operations-acceptance.mjs'
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
@@ -26,13 +27,19 @@ if ($CandidateTest) {
   if ($TradeDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw 'OPERATIONS_TEST_DATE_REQUIRED' }
   $runMode = 'CANDIDATE_SCHEDULER_TEST'
 } else {
-  if ($TaskPrefix -ne 'TWQuant-DataOperations') { throw 'OPERATIONS_FORMAL_TASK_ID_INVALID' }
+  if ($TaskPrefix -ne $policy.taskPrefix) { throw 'OPERATIONS_FORMAL_TASK_ID_INVALID' }
   if ($TradeDate) { throw 'OPERATIONS_FORMAL_REPLAY_REJECTED' }
   if ($Mode -ne 'Validate' -and -not $OwnerFormalActivationAuthorized) { throw 'OPERATIONS_OWNER_FORMAL_GATE_REQUIRED' }
   $runMode = 'SCHEDULED'
 }
 foreach ($value in @($DayCheckpointTime, $EodCheckpointTime, $FinalCheckpointTime)) {
   if ($value -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw 'OPERATIONS_EXPLICIT_SCHEDULE_TIME_REQUIRED' }
+}
+if (-not $CandidateTest) {
+  if ($policy.schemaVersion -ne 'data-operations-scheduler-policy-v1' -or $policy.checkpoints.Count -ne 3 -or
+      $DayCheckpointTime -ne $policy.checkpoints[0].checkTime -or $EodCheckpointTime -ne $policy.checkpoints[1].checkTime -or
+      $FinalCheckpointTime -ne $policy.checkpoints[2].checkTime) { throw 'OPERATIONS_FROZEN_SCHEDULE_MISMATCH' }
+  if ((Get-TimeZone).Id -ne $policy.windowsTimezone) { throw 'OPERATIONS_WINDOWS_TIMEZONE_MISMATCH' }
 }
 foreach ($value in @($DataRoot,$OutputRoot,$ManifestPath,$EvidenceRoot,$CalendarPath,$runner,$root)) {
   if ($value -match '["`\r\n]' -or -not [System.IO.Path]::IsPathRooted($value)) { throw 'OPERATIONS_TASK_PATH_INVALID' }
