@@ -58,7 +58,9 @@
   }
   const why = code => ({ WINDOW_INCOMPLETE:'觀測長度不足完整窗口', NO_CLASSIFIED_VOLUME:'尚無已分類成交，UNKNOWN 獨立保留', NO_OBSERVED_TICKS_IN_WINDOW:'本窗沒有合法觀測成交', ACCEPTED_CVD_NULL_GAP:'累積來源存在不可用缺口', CUTOFF_LINEAGE_UNUSABLE:'cutoff 時間或來源不可用', INSUFFICIENT_OBSERVATIONS:'價格觀測筆數不足', QUALITY_INSUFFICIENT_LONG_GAP:'價格路徑存在長缺口', QUALITY_INSUFFICIENT_EVENT_TIME_REGRESSION:'窗內事件時間倒退', UNAVAILABLE_ZERO_PATH:'價格路徑長度為零', PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE:'分類覆蓋不足', QUALITY_OR_EVIDENCE_LIMITED:'品質或證據組合不足', PRIOR_EQUAL_WINDOW_DETERIORATION:'同方向下，流量增量／價格位移／路徑效率至少一項較前窗減少', SAME_CUTOFF_DESCRIPTIVE_RELATIONSHIP:'同 cutoff 的已分類成交與價格描述', CAPTURE_COMPLETENESS_UNPROVEN:'捕捉完整性未證明' }[code] || reason(code));
   function renderRelationship(r) {
-    document.querySelector('.eyebrow').textContent = `台股量化交易系統 · 隔離候選 PHASE C${r.evidenceKind === 'SYNTHETIC_FIXTURE' ? ' · SYNTHETIC 測試資料，非市場證據' : ' · 真實 governed 片段'}`;
+    const phase = r.previewType === 'ISOLATED_PHASE_D' ? 'PHASE D' : 'PHASE C';
+    $('preview-phase').textContent = `台股量化交易系統 · 隔離候選 ${phase}${r.evidenceKind === 'SYNTHETIC_FIXTURE' ? ' · SYNTHETIC 測試資料，非市場證據' : ' · 真實 governed 片段'}`;
+    document.title = `力量與價格變化｜隔離 ${phase}`;
     const o = r.current, c = o?.current, relation = o?.relationship || {code:'UNAVAILABLE',reason:'NO_LAWFUL_TRADE'};
     $('relationship').dataset.code = relation.code; document.body.dataset.relationship = relation.code;
     $('relationship-title').textContent = labels[relation.code];
@@ -140,7 +142,6 @@
     $('empty').hidden = bars.length > 0 && plottedPoints > 0; $('empty').textContent = `${bars.length ? '' : 'K／Volume 空白：沒有本身分合法價格 K 棒。 '}${plottedPoints ? '' : 'CVD 空白：' + reason(p.segments.find(s => s.clockInvalid)?.reason || p.reason)}`;
     $('segments').replaceChildren(...p.segments.map(s => { const div = document.createElement('div'); div.className = 'segment'; div.textContent = `段 ${s.index + 1} · ${s.identity.join(' / ')} · ${time(s.origin.eventTimeMs)} 起算｜觀測片段 · ${reason(s.reason)}${s.terminalInvalid ? ' · 尾端已失效' : ''}`; return div; }));
     $('version').textContent = `隔離 ${p.previewType} · HEAD ${p.head}`; $('cutoff').textContent = `cutoff #${p.cutoff.ledgerOrdinal} · generation ${p.generationHash.slice(0, 16)}`;
-    $('preview-phase').textContent = `台股量化交易系統 · 隔離候選 ${p.previewType === 'ISOLATED_PHASE_D' ? 'PHASE D' : 'PHASE C'}`;
     renderRelationship(r);
     for (const button of $('frames').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.frame === p.timeframe));
   }
