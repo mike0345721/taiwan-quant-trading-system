@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "cru54-phase-a-scope-v1",
+  "base": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "branch": "codex/cru-54-cvd-current-main-v1",
+  "acceptedReference": "6c8f35ba1b5e9d8bb91a63760da2e79b45f32cfc",
+  "candidatePort": 3054,
+  "allowlist": [
+    "src/cvd-observation-core.mjs",
+    "src/cvd-observation-materializer.mjs",
+    "src/cvd-observation-isolation.mjs",
+    "scripts/materialize-cvd-observation.mjs",
+    "scripts/validate-cvd-observation.mjs",
+    "scripts/audit-cru54-scope.mjs",
+    "tests/cvd-observation-core.test.mjs",
+    "tests/cvd-observation-materializer.test.mjs",
+    "docs/research/CRU54_PHASE_A_CONTRACT.md",
+    "docs/research/CRU54_PHASE_A_SCOPE.json"
+  ],
+  "mustPreserve": [
+    "src/tx-intraday-pressure-path-efficiency.mjs",
+    "src/cru34-live-projection-worker.mjs",
+    "src/cru34-live-checkpoint.mjs",
+    "src/cru34-snapshot-artifact.mjs",
+    "src/cru44-multi-window-observed-flow.mjs",
+    "src/dashboard-tx-chart.mjs",
+    "src/market-state-forward-shadow-calendar.mjs",
+    "config/taifex-official-calendar-2026.json",
+    "server.mjs",
+    "public/app.js",
+    "package.json",
+    "tests/test-lanes.json"
+  ],
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  }
+}
