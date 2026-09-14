@@ -1,0 +1,21 @@
+.dop-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.dop-summary h3 { margin: 0 0 .75rem; }
+.dop-summary strong { font-size: 1.25rem; }
+.dop-state { display: inline-block; border: 1px solid currentColor; padding: .25rem .5rem; border-radius: .25rem; font-size: .875rem; }
+.dop-state[data-state="PASS"] { color: var(--good); }
+.dop-state[data-state="PARTIAL"] { color: var(--warning); }
+.dop-state[data-state="FAIL"], .dop-job-failure { color: var(--danger); }
+.dop-state[data-state="UNKNOWN"], .dop-state[data-state="PENDING"] { color: var(--muted); }
+.dop-state[data-state="NOT_EXPECTED"] { color: var(--muted); }
+.dop-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 0; }
+.dop-times dt, .dop-muted, .dop-mode { color: var(--muted); }
+.dop-times dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+.dop-gaps { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.dop-gaps li { border: 1px solid var(--line); padding: .75rem; min-width: 0; overflow-wrap: anywhere; }
+.dop-gaps p { margin: .5rem 0 0; line-height: 1.6; }
+.dop-details summary { cursor: pointer; padding: .75rem 0; }
+.dop-details td { vertical-align: top; white-space: normal; min-width: 10rem; overflow-wrap: anywhere; }
+.dop-details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-size: .75rem; }
+.dop-details code { overflow-wrap: anywhere; }
+@media (max-width: 800px) { .dop-summary, .dop-gaps { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .dop-times { grid-template-columns: 1fr; } }

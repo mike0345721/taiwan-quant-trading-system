@@ -26,6 +26,17 @@ const flowChannel = window.Cru49Flow.createFlowChannel({
   onUnauthorized: () => show('login-view'),
 });
 let researchPageRequest = null;
+let dataOperationsPageActive = false;
+const dataOperationsChannel = window.DataOperations.createChannel({
+  request: signal => api('/api/v1/data-operations', { signal, cache: 'no-store' }),
+  display: value => { $('data-operations-content').innerHTML = window.DataOperations.render(value); },
+  status: value => { $('data-operations-read-status').textContent = value; },
+  unauthorized: () => show('login-view'),
+});
+$('data-operations-refresh').addEventListener('click', () => { if (state.csrfToken) void dataOperationsChannel.refresh(); });
+setInterval(() => {
+  if (dataOperationsPageActive && state.csrfToken && !document.hidden && !$('dashboard-view').classList.contains('hidden')) void dataOperationsChannel.refresh();
+}, 60000);
 
 function normalizeDashboardPageFragments() {
   const host = document.querySelector('.dashboard-pages');
@@ -60,6 +71,8 @@ function setDashboardPage(page, { scroll = true } = {}) {
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
   if (state.csrfToken && ['options', 'research'].includes(selected)) void loadResearchPage();
+  dataOperationsPageActive = selected === 'quality';
+  if (state.csrfToken && dataOperationsPageActive) void dataOperationsChannel.refresh();
 }
 
 normalizeDashboardPageFragments();
@@ -141,7 +154,11 @@ function show(view) {
   $(view).classList.remove('hidden');
   $('app')?.classList.toggle('is-dashboard-shell', view === 'dashboard-view');
   if (view === 'dashboard-view') flowChannel.start();
-  else { flowChannel.stop(); flowChannel.reset(); }
+  else {
+    flowChannel.stop(); flowChannel.reset(); dataOperationsChannel.reset();
+    $('data-operations-content').textContent = '登入後重新讀取資料營運紀錄。';
+    $('data-operations-read-status').textContent = '尚未讀取';
+  }
 }
 
 async function api(path, options = {}) {
@@ -4858,6 +4875,7 @@ $('refresh-button').addEventListener('click', async () => {
 
 $('logout-button').addEventListener('click', async () => {
   flowChannel.stop(); flowChannel.reset();
+  dataOperationsChannel.reset();
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }
   state.csrfToken = '';
   show('login-view');

@@ -134,6 +134,8 @@ const sessions = (args.sessions || 'DAY,NIGHT').split(',').map((item) => item.tr
 if (!sessions.length || sessions.some((item) => !['DAY', 'NIGHT'].includes(item))) throw new Error('DAILY_ACCEPTANCE_SESSIONS_INVALID');
 
 const dataRoot = path.resolve(args['data-root'] || path.join(root, 'data'));
+// Optional explicit read-only ledger binding; output governance stays on dataRoot.
+const ledgerDataRoot = path.resolve(args['ledger-data-root'] || dataRoot);
 const outputRoot = path.resolve(args['output-root'] || path.join(dataRoot, 'quality', 'daily-collection-acceptance'));
 const calendarPath = path.resolve(args.calendar || path.join(root, 'config', 'taifex-official-calendar-2026.json'));
 const registryPath = path.resolve(args.registry || path.join(root, 'config', 'data-requirements-v1.json'));
@@ -158,8 +160,8 @@ const nightLedgerDates = ledgerDates.filter((date) => ledgerScope[date].includes
 if (marketDayState === 'NON_TRADING_DAY' ? calendarDate !== tradeDate : !ledgerDates.includes(calendarDate)) {
   throw new Error('DAILY_ACCEPTANCE_CALENDAR_DATE_NOT_IN_GOVERNED_LEDGER_SCOPE');
 }
-const ledgerPaths = ledgerDates.map((date) => path.join(dataRoot, 'live-events', `${date}.ndjson`));
-const ledgerAudit = auditEvidenceFor(ledgerPaths, path.join(dataRoot, 'live-events', 'futures-audits'));
+const ledgerPaths = ledgerDates.map((date) => path.join(ledgerDataRoot, 'live-events', `${date}.ndjson`));
+const ledgerAudit = auditEvidenceFor(ledgerPaths, path.join(ledgerDataRoot, 'live-events', 'futures-audits'));
 const cutoffBytesByFile = ledgerCutoffs(args['ledger-cutoffs']);
 const selectedLedgerNames = new Set(ledgerPaths.filter((filePath) => fs.existsSync(filePath)).map((filePath) => path.basename(filePath)));
 if (Object.keys(cutoffBytesByFile).length) {

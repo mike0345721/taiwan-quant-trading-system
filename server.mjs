@@ -18,6 +18,7 @@ import { marketFeedReadiness } from './src/market-feed.mjs';
 import { inspectIx0001Leadership, inspectShioajiBridge } from './src/shioaji-bridge-client.mjs';
 import { costScenarios } from './v2/src/trading-costs.mjs';
 import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
+import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
@@ -348,6 +349,13 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/v1/')) {
       const session = requireSession(req, res);
       if (!session) return;
+
+      if (req.method === 'GET' && pathname === '/api/v1/data-operations') {
+        sendJson(res, 200, { ok: true, data: readDataOperations({ dataRoot: config.dataDir,
+          outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT || path.join(config.dataDir, 'quality', 'daily-data-operations') }) },
+        { 'Cache-Control': 'no-store' });
+        return;
+      }
 
       if (req.method === 'GET' && pathname === '/api/v1/observed-flow') {
         sendJson(res, 200, { ok: true, data: currentObservedFlow() });
