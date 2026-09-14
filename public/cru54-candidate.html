@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CVD 觀測｜隔離候選</title><link rel="stylesheet" href="/candidate.css"><script src="/vendor.js" defer></script><script src="/candidate.js" defer></script></head>
+<body><main>
+<header><div><p class="eyebrow">台股量化交易系統 · 隔離候選 PHASE B</p><h1>成交量差累積觀測</h1><p>歷史觀測片段 · K 線／成交量／CVD · 非完整產品、非交易訊號</p></div><span class="chip">研究用途 · 正式權重 0</span></header>
+<form id="login" hidden><label for="access">候選存取碼</label><input id="access" type="password" autocomplete="off"><button>開啟隔離候選</button><p>請使用本次隔離程序產生的啟動連結或存取碼。</p></form>
+<section aria-label="資料身分" class="facts"><div><span>契約／交易日／時段</span><strong id="identity">正在載入身分</strong></div><div><span>觀測起點</span><strong id="origin">正在核對起點</strong></div><div><span>目前累積 CVD（口）</span><strong id="value">等待已驗證資料</strong></div><div><span>分類覆蓋／捕捉完整性</span><strong id="coverage">正在核對資料品質</strong></div></section>
+<p id="trust" class="trust" role="status">正在載入隔離投影，不會觸發原始資料重算。</p>
+<section class="chart-panel" aria-label="K 線、成交量與 CVD 共用時間軸">
+<div class="toolbar"><div><b>K 線</b><span>成交量薄窗 · CVD 獨立刻度</span></div><nav id="frames" aria-label="K 線週期"><button data-frame="1m" aria-pressed="true">1m</button><button data-frame="5m">5m</button><button data-frame="15m">15m</button><button data-frame="30m">30m</button><button data-frame="1h">1h</button><button data-frame="4h">4h</button></nav><button id="fit">完整範圍</button></div>
+<div id="chart"></div><p id="empty" hidden role="status"></p>
+<div class="chart-note"><span>拖曳／滾輪共用水平範圍；切換週期不重置 CVD</span><span id="endpoint">等待端點核對</span></div>
+</section>
+<section class="details"><p id="summary"></p><p id="price-reason"></p><p>CVD 橫軸採 availableAt，K 線採交易所事件分桶時間；兩者保留原始時鐘差異。分類覆蓋率不等於捕捉完整率。曲線顯示自觀測起點累積的位置，不解讀買賣方向。</p><div id="segments"></div></section>
+<footer><span id="version">版本身分待核對</span><span id="cutoff"></span><p>formalWeight=0 · researchOnly=true · executionAuthorized=false · orderRoutesEnabled=false</p></footer>
+</main></body></html>
