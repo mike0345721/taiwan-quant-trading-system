@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { buildDailyDataOperations, validateDailyDataOperations } from '../src/daily-data-operations.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { stableDailyAcceptanceJson } from '../src/daily-collection-acceptance.mjs';
+import { recordAutomaticCheckpoint, captureSchedulerStart, scheduledTiming } from '../src/data-operations-scheduler-health.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fileHash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -83,12 +84,18 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
   const health = { schemaVersion: 'acceptance-job-health-v1', runMode: runContext?.runMode || 'MANUAL_OFFLINE', jobState: 'RUNNING', runId,
     lastAutomaticAttemptAt: runContext?.runMode === 'SCHEDULED' ? attemptAt : previous?.lastAutomaticAttemptAt ?? null,
     lastAutomaticSuccessAt: previous?.lastAutomaticSuccessAt ?? null,
-    ...(runContext ? { runtimeCommit: runContext.runtimeCommit, triggerIdentity: runContext.triggerIdentity } : {}),
+    ...(runContext ? { runtimeCommit: runContext.runtimeCommit, triggerIdentity: runContext.triggerIdentity,
+      requestedTradeDate: runContext.requestedTradeDate ?? null, schedulerPolicySha256: runContext.schedulerPolicySha256 ?? null } : {}),
     lastAttemptAt: attemptAt, lastSuccessAt: previous?.lastSuccessAt ?? null,
     lastFinalizedTradeDate: previous?.lastFinalizedTradeDate ?? null, lastFinalizedAt: previous?.lastFinalizedAt ?? null,
     inputTradeDate, checkpointType, jobReason: 'MANUAL_INVOCATION_STARTED', reportArtifactIdentity: null };
   materialize(target, 'job-health.json', health);
   try {
+    if (health.schedulerPolicySha256) {
+      health.schedulerTiming = scheduledTiming(health);
+      health.schedulerStartIdentity = captureSchedulerStart({ dataRoot, outputRoot: target,
+        calendar: loadGovernedTradingCalendar(calendarPath), health, immutable });
+    }
     // A.2b resolves and pins input bytes inside the existing guarded job/failure lifecycle.
     // The original manual CLI and pure A.1/A.2a contracts remain unchanged.
     const prepared = resolveInput ? resolveInput() : null;
@@ -130,13 +137,18 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
       lastFinalizedTradeDate: advancesFinal ? assessment.tradeDate : health.lastFinalizedTradeDate,
       lastFinalizedAt: advancesFinal ? completedAt : health.lastFinalizedAt,
       jobReason: 'ASSESSMENT_WRITTEN_AND_VALIDATED', reportArtifactIdentity: identity };
+    if (success.schedulerPolicySha256) success.schedulerTiming = scheduledTiming(success);
     materialize(target, 'job-health.json', success);
-    immutable(target, `runs/${runId}.json`, success);
+    const receiptIdentity = immutable(target, `runs/${runId}.json`, success);
+    if (success.schedulerPolicySha256) recordAutomaticCheckpoint({ outputRoot: target, receipt: success, identity: receiptIdentity, materialize });
     return { assessment, jobHealth: success };
   } catch (err) {
     const failure = { ...health, jobState: 'FAILED', inputTradeDate, jobReason: err.message,
       failureClass: 'ACCEPTANCE_JOB_FAILURE_NOT_FEED_FAILURE' };
-    try { immutable(target, `runs/${runId}.failed.json`, failure); }
+    try {
+      const receiptIdentity = immutable(target, `runs/${runId}.failed.json`, failure);
+      if (failure.schedulerPolicySha256) recordAutomaticCheckpoint({ outputRoot: target, receipt: failure, identity: receiptIdentity, materialize });
+    }
     catch { /* Preserve original failure if the receipt sink is also broken. */ }
     try { materialize(target, 'job-health.json', failure); }
     catch { /* A broken health sink cannot attest the failure; CLI still exits nonzero. */ }

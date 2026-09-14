@@ -1,6 +1,7 @@
 param(
   [ValidateSet('Validate','Install','Remove')][string]$Mode = 'Validate',
   [switch]$CandidateTest,
+  [switch]$VerifyPersisted,
   [switch]$OwnerFormalActivationAuthorized,
   [Parameter(Mandatory)][string]$TaskPrefix,
   [Parameter(Mandatory)][string]$DataRoot,
@@ -15,6 +16,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$policy = Get-Content -Raw -LiteralPath (Join-Path $root 'config/data-operations-scheduler-policy-v1.json') | ConvertFrom-Json
 $runner = Join-Path $PSScriptRoot 'run-daily-data-operations-hidden.ps1'
 $validator = Join-Path $PSScriptRoot 'run-daily-data-operations-acceptance.mjs'
 $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
@@ -26,13 +28,19 @@ if ($CandidateTest) {
   if ($TradeDate -notmatch '^\d{4}-\d{2}-\d{2}$') { throw 'OPERATIONS_TEST_DATE_REQUIRED' }
   $runMode = 'CANDIDATE_SCHEDULER_TEST'
 } else {
-  if ($TaskPrefix -ne 'TWQuant-DataOperations') { throw 'OPERATIONS_FORMAL_TASK_ID_INVALID' }
+  if ($TaskPrefix -ne $policy.taskPrefix) { throw 'OPERATIONS_FORMAL_TASK_ID_INVALID' }
   if ($TradeDate) { throw 'OPERATIONS_FORMAL_REPLAY_REJECTED' }
   if ($Mode -ne 'Validate' -and -not $OwnerFormalActivationAuthorized) { throw 'OPERATIONS_OWNER_FORMAL_GATE_REQUIRED' }
   $runMode = 'SCHEDULED'
 }
 foreach ($value in @($DayCheckpointTime, $EodCheckpointTime, $FinalCheckpointTime)) {
   if ($value -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw 'OPERATIONS_EXPLICIT_SCHEDULE_TIME_REQUIRED' }
+}
+if (-not $CandidateTest) {
+  if ($policy.schemaVersion -ne 'data-operations-scheduler-policy-v1' -or $policy.checkpoints.Count -ne 3 -or
+      $DayCheckpointTime -ne $policy.checkpoints[0].checkTime -or $EodCheckpointTime -ne $policy.checkpoints[1].checkTime -or
+      $FinalCheckpointTime -ne $policy.checkpoints[2].checkTime) { throw 'OPERATIONS_FROZEN_SCHEDULE_MISMATCH' }
+  if ((Get-TimeZone).Id -ne $policy.windowsTimezone) { throw 'OPERATIONS_WINDOWS_TIMEZONE_MISMATCH' }
 }
 foreach ($value in @($DataRoot,$OutputRoot,$ManifestPath,$EvidenceRoot,$CalendarPath,$runner,$root)) {
   if ($value -match '["`\r\n]' -or -not [System.IO.Path]::IsPathRooted($value)) { throw 'OPERATIONS_TASK_PATH_INVALID' }
@@ -53,7 +61,8 @@ foreach ($entry in $tasks) {
   if ($TradeDate) { $arguments += " -TradeDate $TradeDate" }
   $description = "CRU52-A2B acceptance consumer; $runMode; $root; executionAuthorized=false"
   $definitions += [pscustomobject]@{ taskName=$name; executable=$powershell; arguments=$arguments; workingDirectory=$root;
-    userId=$userId; userSid=$userSid; description=$description; time=$entry.Time; checkpoint=$entry.Checkpoint; outputRoot=$OutputRoot }
+    userId=$userId; userSid=$userSid; description=$description; time=$entry.Time; checkpoint=$entry.Checkpoint; outputRoot=$OutputRoot;
+    startWhenAvailable=$true; wakeToRun=$false; multipleInstances='IgnoreNew'; executionTimeLimit='PT15M' }
 }
 function Assert-OwnedTask($task, $definition) {
   # Task Scheduler may persist the local account as "user" instead of "HOST\user".
@@ -71,8 +80,21 @@ function Assert-OwnedTask($task, $definition) {
     throw 'OPERATIONS_TASK_OWNERSHIP_MISMATCH'
   }
 }
+function Assert-TaskSettings($task) {
+  if ($task.Settings.StartWhenAvailable -ne $true -or $task.Settings.WakeToRun -ne $false -or
+      $task.Settings.MultipleInstances -ne 'IgnoreNew' -or $task.Settings.ExecutionTimeLimit -ne 'PT15M') {
+    throw 'OPERATIONS_TASK_SETTINGS_MISMATCH'
+  }
+}
 if ($Mode -eq 'Validate') {
-  [pscustomobject]@{ status='VALIDATED_ONLY'; formalSchedulerMutation=$false; definitions=$definitions } | ConvertTo-Json -Depth 5
+  if ($VerifyPersisted) {
+    foreach ($definition in $definitions) {
+      $persisted = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction Stop
+      Assert-OwnedTask $persisted $definition
+      Assert-TaskSettings $persisted
+    }
+  }
+  [pscustomobject]@{ status='VALIDATED_ONLY'; persistedVerified=[bool]$VerifyPersisted; formalSchedulerMutation=$false; definitions=$definitions } | ConvertTo-Json -Depth 5
   exit 0
 }
 # Preflight the complete task set before any mutation; never overwrite an existing task.
@@ -97,7 +119,7 @@ foreach ($definition in $definitions) {
   }
   $action = New-ScheduledTaskAction -Execute $definition.executable -Argument $definition.arguments -WorkingDirectory $root
   # Candidate tasks have no automatic trigger. Run manually for disposable validation.
-  $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -MultipleInstances IgnoreNew
+  $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -MultipleInstances IgnoreNew
   $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
   $taskArguments = @{ TaskName=$definition.taskName; TaskPath='\'; Action=$action; Settings=$settings; Principal=$principal; Description=$definition.description }
   if (-not $CandidateTest) {
@@ -106,5 +128,6 @@ foreach ($definition in $definitions) {
   Register-ScheduledTask @taskArguments | Out-Null
   $persisted = Get-ScheduledTask -TaskName $definition.taskName -TaskPath '\' -ErrorAction Stop
   Assert-OwnedTask $persisted $definition
+  Assert-TaskSettings $persisted
 }
 [pscustomobject]@{ status=$Mode; candidateTest=[bool]$CandidateTest; definitions=$definitions } | ConvertTo-Json -Depth 5

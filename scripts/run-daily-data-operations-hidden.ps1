@@ -23,6 +23,16 @@ if ($LASTEXITCODE -ne 0) { throw 'OPERATIONS_LAUNCH_VALIDATION_FAILED' }
 # is opened before validation, and no task result is interpreted as data PASS.
 Push-Location $root
 try {
-  & $node @arguments
-  exit $LASTEXITCODE
+  # Multiple missed checkpoints may start together after Windows becomes available.
+  # Wait at most ten minutes for the existing writer; never remove/take over its lock.
+  # Other failures are terminal and keep their original immutable failed receipt.
+  for ($attempt = 0; $attempt -le 120; $attempt++) {
+    # Windows PowerShell can promote native stderr to a terminating NativeCommandError.
+    $ErrorActionPreference = 'Continue'
+    & $node @arguments
+    $resultCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($resultCode -ne 75 -or $attempt -eq 120) { exit $resultCode }
+    Start-Sleep -Seconds 5
+  }
 } finally { Pop-Location }
