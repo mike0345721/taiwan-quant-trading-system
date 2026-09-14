@@ -10,6 +10,8 @@
   <script src="/vendor/lightweight-charts.js" defer></script>
   <script src="/trader-terminal-shell.js?v=ui1" defer></script>
   <script src="/observed-flow-refresh.js?v=cru49" defer></script>
+  <link rel="stylesheet" href="/data-operations.css?v=cru52-a2b">
+  <script src="/data-operations.js?v=cru52-a2b" defer></script>
   <script src="/app.js?v=cru49-refresh" defer></script>
 </head>
 <body>
@@ -856,6 +858,11 @@
         <p id="backtest-note" class="section-note">正在檢驗歷史資料…</p>
       </section>
 
+      <section class="section-block" data-page="quality">
+        <div class="section-heading"><div><p class="eyebrow">DATA OPERATIONS</p><h2>資料營運驗收</h2></div><button id="data-operations-refresh" type="button" class="secondary-button">重新讀取</button></div>
+        <p id="data-operations-read-status" class="section-note" role="status">開啟資料品質頁後讀取驗收紀錄</p>
+        <div id="data-operations-content"><p>尚未讀取資料營運紀錄；資料是否完整仍未知。</p></div>
+      </section>
       <section class="section-block" data-page="quality">
         <div class="section-heading"><div><p class="eyebrow">DATA QUALITY</p><h2>資料品質與安全狀態</h2></div><span id="quality-summary" class="source-badge">—</span></div>
         <div class="table-wrap">

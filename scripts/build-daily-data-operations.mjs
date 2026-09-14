@@ -8,39 +8,8 @@ import { stableDailyAcceptanceJson } from '../src/daily-collection-acceptance.mj
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fileHash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-function contained(base, target) {
-  const relative = path.relative(base, target);
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
-}
-function noLinks(target) {
-  let cursor = path.resolve(target);
-  while (true) {
-    if (fs.existsSync(cursor)) {
-      const stat = fs.lstatSync(cursor);
-      if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink > 1)) throw new Error('OPERATIONS_OUTPUT_LINK_REJECTED');
-    } else {
-      // existsSync is false for a dangling symlink.
-      try { if (fs.lstatSync(cursor).isSymbolicLink()) throw new Error('OPERATIONS_OUTPUT_LINK_REJECTED'); }
-      catch (err) { if (err.code !== 'ENOENT') throw err; }
-    }
-    const parent = path.dirname(cursor);
-    if (parent === cursor) break;
-    cursor = parent;
-  }
-}
-export function assertOperationsOutputRoot(dataRoot, outputRoot, inputPaths = []) {
-  const base = path.resolve(dataRoot, 'quality', 'daily-data-operations');
-  const target = path.resolve(outputRoot);
-  if (!contained(base, target)) throw new Error('OPERATIONS_OUTPUT_ROOT_NOT_GOVERNED');
-  noLinks(target);
-  // Outputs may never contain their own inputs, including through physical aliases.
-  const physicalTarget = fs.existsSync(target) ? fs.realpathSync(target) : target;
-  for (const input of inputPaths) {
-    const resolved = fs.existsSync(input) ? fs.realpathSync(input) : path.resolve(input);
-    if (contained(physicalTarget, resolved)) throw new Error('OPERATIONS_OUTPUT_INPUT_COLLISION');
-  }
-  return target;
-}
+import { contained, noLinks, assertOperationsOutputRoot } from '../src/daily-data-operations-files.mjs';
+export { assertOperationsOutputRoot } from '../src/daily-data-operations-files.mjs';
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function readOptional(file) { return fs.existsSync(file) ? readJson(file) : null; }
 function safeFile(base, relative) {
@@ -71,6 +40,7 @@ function materialize(base, relative, value) {
 }
 function newer(report, previous) {
   if (!previous) return true;
+  if (report.inputGeneratedAt < previous.inputGeneratedAt) return false;
   const left = `${report.tradeDate}|${report.generatedAt}`;
   const right = `${previous.tradeDate}|${previous.generatedAt}`;
   if (left === right && report.reportHash !== previous.reportHash) throw new Error('OPERATIONS_SAME_TIME_REVISION_CONFLICT');
@@ -101,7 +71,7 @@ export function runDailyDataOperations(options = {}) {
   }
 }
 function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath = null,
-  checkpointType, generatedAt, dataRoot, outputRoot, calendarPath } = {}) {
+  checkpointType, generatedAt, dataRoot, outputRoot, calendarPath, resolveInput = null, runContext = null } = {}) {
   const inputs = [inputPath, acceptanceInputsPath, dueRulesPath, calendarPath].filter(Boolean).map(p => path.resolve(p));
   const target = assertOperationsOutputRoot(dataRoot, outputRoot, inputs);
   fs.mkdirSync(target, { recursive: true });
@@ -110,20 +80,31 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
   const attemptAt = new Date().toISOString();
   const runId = crypto.randomUUID();
   let inputTradeDate = null;
-  const health = { schemaVersion: 'acceptance-job-health-v1', runMode: 'MANUAL_OFFLINE', jobState: 'RUNNING', runId,
+  const health = { schemaVersion: 'acceptance-job-health-v1', runMode: runContext?.runMode || 'MANUAL_OFFLINE', jobState: 'RUNNING', runId,
+    ...(runContext ? { runtimeCommit: runContext.runtimeCommit, triggerIdentity: runContext.triggerIdentity,
+      lastAutomaticAttemptAt: runContext.runMode === 'SCHEDULED' ? attemptAt : previous?.lastAutomaticAttemptAt ?? null,
+      lastAutomaticSuccessAt: previous?.lastAutomaticSuccessAt ?? null } : {}),
     lastAttemptAt: attemptAt, lastSuccessAt: previous?.lastSuccessAt ?? null,
     lastFinalizedTradeDate: previous?.lastFinalizedTradeDate ?? null, lastFinalizedAt: previous?.lastFinalizedAt ?? null,
     inputTradeDate, checkpointType, jobReason: 'MANUAL_INVOCATION_STARTED', reportArtifactIdentity: null };
   materialize(target, 'job-health.json', health);
   try {
-    const bytes = fs.readFileSync(inputPath);
+    // A.2b resolves and pins input bytes inside the existing guarded job/failure lifecycle.
+    // The original manual CLI and pure A.1/A.2a contracts remain unchanged.
+    const prepared = resolveInput ? resolveInput() : null;
+    if (prepared) {
+      inputPath = prepared.inputPath;
+      assertOperationsOutputRoot(dataRoot, outputRoot, prepared.inputPaths);
+      health.inputResolutionIdentity = prepared.inputResolutionIdentity;
+    }
+    const bytes = prepared?.inputBytes || fs.readFileSync(inputPath);
     const input = JSON.parse(bytes.toString('utf8'));
     loadGovernedTradingCalendar(calendarPath);
-    const calendarJson = fs.readFileSync(calendarPath, 'utf8');
+    const calendarJson = prepared?.calendarJson || fs.readFileSync(calendarPath, 'utf8');
     inputTradeDate = input.tradeDate;
     const assessment = buildDailyDataOperations({ acceptanceReport: input,
-      acceptanceInputs: acceptanceInputsPath ? readJson(acceptanceInputsPath) : null,
-      dueRules: dueRulesPath ? readJson(dueRulesPath) : {}, checkpointType, generatedAt, calendarJson,
+      acceptanceInputs: prepared ? prepared.acceptanceInputs : acceptanceInputsPath ? readJson(acceptanceInputsPath) : null,
+      dueRules: prepared ? prepared.dueRules : dueRulesPath ? readJson(dueRulesPath) : {}, checkpointType, generatedAt, calendarJson,
       inputArtifactIdentity: { file: path.basename(inputPath), sha256: fileHash(bytes), bytes: bytes.length } });
     validateDailyDataOperations(assessment);
     const kind = { DAY_CHECKPOINT: 'day', EOD_CHECKPOINT: 'eod', FINAL_TRADEDATE_CHECKPOINT: 'final' }[checkpointType];
@@ -134,6 +115,9 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
     if (newer(assessment, readOptional(safeFile(target, checkpointView)))) materialize(target, checkpointView, assessment);
     const latest = readOptional(safeFile(target, 'latest.json'));
     if (!latest || assessment.tradeDate > latest.tradeDate || (assessment.tradeDate === latest.tradeDate
+      && assessment.inputGeneratedAt >= latest.inputGeneratedAt
+      && ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'].indexOf(checkpointType)
+        >= ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'].indexOf(latest.checkpointType)
       && (assessment.generatedAt > latest.generatedAt || (assessment.generatedAt === latest.generatedAt
       && ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'].indexOf(checkpointType)
         >= ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'].indexOf(latest.checkpointType))))) {
@@ -142,6 +126,7 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
     const completedAt = new Date().toISOString();
     const advancesFinal = assessment.finalizationEligible && (!health.lastFinalizedTradeDate || assessment.tradeDate >= health.lastFinalizedTradeDate);
     const success = { ...health, jobState: 'SUCCEEDED', inputTradeDate, lastSuccessAt: completedAt,
+      ...(runContext?.runMode === 'SCHEDULED' ? { lastAutomaticSuccessAt: completedAt } : {}),
       lastFinalizedTradeDate: advancesFinal ? assessment.tradeDate : health.lastFinalizedTradeDate,
       lastFinalizedAt: advancesFinal ? completedAt : health.lastFinalizedAt,
       jobReason: 'ASSESSMENT_WRITTEN_AND_VALIDATED', reportArtifactIdentity: identity };

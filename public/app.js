@@ -26,6 +26,17 @@ const flowChannel = window.Cru49Flow.createFlowChannel({
   onUnauthorized: () => show('login-view'),
 });
 let researchPageRequest = null;
+let dataOperationsPageActive = false;
+const dataOperationsChannel = window.DataOperations.createChannel({
+  request: signal => api('/api/v1/data-operations', { signal, cache: 'no-store' }),
+  display: value => { $('data-operations-content').innerHTML = window.DataOperations.render(value); },
+  status: value => { $('data-operations-read-status').textContent = value; },
+  unauthorized: () => show('login-view'),
+});
+$('data-operations-refresh').addEventListener('click', () => { if (state.csrfToken) void dataOperationsChannel.refresh(); });
+setInterval(() => {
+  if (dataOperationsPageActive && state.csrfToken && !document.hidden) void dataOperationsChannel.refresh();
+}, 60000);
 
 function normalizeDashboardPageFragments() {
   const host = document.querySelector('.dashboard-pages');
@@ -60,6 +71,8 @@ function setDashboardPage(page, { scroll = true } = {}) {
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
   if (state.csrfToken && ['options', 'research'].includes(selected)) void loadResearchPage();
+  dataOperationsPageActive = selected === 'quality';
+  if (state.csrfToken && dataOperationsPageActive) void dataOperationsChannel.refresh();
 }
 
 normalizeDashboardPageFragments();
