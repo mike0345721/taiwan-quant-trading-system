@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runDailyDataOperations, assertOperationsOutputRoot } from './build-daily-data-operations.mjs';
 import { assertOperationsDate, CHECKPOINT_TYPES } from '../src/daily-data-operations.mjs';
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
-import { loadSchedulerPolicy } from '../src/data-operations-scheduler-health.mjs';
+import { resolveScheduledCheckpointRequest } from '../src/data-operations-scheduler-health.mjs';
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 import { sha256, readBoundedFile, contained, noLinks } from '../src/daily-data-operations-files.mjs';
@@ -147,13 +147,16 @@ export function runAcceptance(options) {
   if (!dataRoot || !outputRoot || !manifestPath || !evidenceRoot || !calendarPath) fail('EXPLICIT_PATHS_REQUIRED');
   assertOperationsOutputRoot(dataRoot, outputRoot, [manifestPath, evidenceRoot, calendarPath]);
   const now = new Date();
-  const tradeDate = runMode === 'SCHEDULED' ? taipeiDate(now) : options.tradeDate;
   if (runMode === 'SCHEDULED' && options.tradeDate) fail('SCHEDULED_REPLAY_REJECTED');
   if (runMode !== 'MANUAL_REPLAY' && !/^[A-Za-z0-9_-]{1,120}$/.test(triggerIdentity || '')) fail('TRIGGER_IDENTITY_REQUIRED');
+  // Reject pre-due Windows catch-up before the guarded writer or A.1 builder can
+  // materialize an early high-rank checkpoint and pin today's latest.json.
+  const scheduled = runMode === 'SCHEDULED' ? resolveScheduledCheckpointRequest(checkpointType, now) : null;
+  const tradeDate = scheduled ? scheduled.tradeDate : options.tradeDate;
   const runtimeCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: appRoot, encoding: 'utf8', windowsHide: true }).trim();
   return runDailyDataOperations({ dataRoot, outputRoot, calendarPath, checkpointType, generatedAt: now.toISOString(),
     runContext: { runMode, triggerIdentity, runtimeCommit, requestedTradeDate: tradeDate,
-      schedulerPolicySha256: runMode === 'SCHEDULED' ? loadSchedulerPolicy().sha256 : null },
+      schedulerPolicySha256: scheduled?.policySha256 ?? null },
     resolveInput: () => resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now, dataRoot, runMode }) });
 }
 

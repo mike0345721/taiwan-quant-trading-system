@@ -38,6 +38,15 @@ export function scheduledTiming(receipt, policy = loadSchedulerPolicy()) {
     latenessMs, latenessMinutes: latenessMs === null ? null : latenessMs / 60000,
     timeliness: valid ? attempt <= grace ? 'ON_TIME' : 'LATE' : 'UNKNOWN' };
 }
+export function resolveScheduledCheckpointRequest(checkpointType, now, policy = loadSchedulerPolicy()) {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error('OPERATIONS_SCHEDULER_DATE_INVALID');
+  const tradeDate = schedulerDate(now);
+  const timing = scheduledTiming({ requestedTradeDate: tradeDate, checkpointType, lastAttemptAt: now.toISOString() }, policy);
+  // SAME_TRADE_DATE_ONLY_CATCH_UP: an undated Windows catch-up is eligible only
+  // after today's own check time. Never infer/backfill a prior missed occurrence.
+  if (now.getTime() < Date.parse(timing.expectedAt)) throw new Error('OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE');
+  return { tradeDate, policySha256: policy.sha256 };
+}
 function indexFile(tradeDate, checkpointType, policy) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) throw new Error('OPERATIONS_SCHEDULER_DATE_INVALID');
   return `automatic-checkpoints/${tradeDate}/${definition(policy, checkpointType).label.toLowerCase()}.json`;

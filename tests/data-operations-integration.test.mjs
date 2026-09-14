@@ -8,7 +8,7 @@ import net from 'node:net';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDailyCollectionAcceptance } from '../src/daily-collection-acceptance.mjs';
 import { buildDailyDataOperations, CHECKPOINT_TYPES } from '../src/daily-data-operations.mjs';
 import { runAcceptance, resolveAcceptanceInput, sha256, taipeiDate } from '../scripts/run-daily-data-operations-acceptance.mjs';
@@ -145,8 +145,70 @@ test('Windows simultaneous catch-up launchers wait for owned guard then complete
   assert.equal(fs.existsSync(path.join(f.options.outputRoot,'automatic-checkpoints')),false);
 });
 
+for(const checkpointType of ['EOD_CHECKPOINT','FINAL_TRADEDATE_CHECKPOINT']) {
+  test(`cross-day wake: ${checkpointType} next morning is rejected before any A1/A2a write, including CLI`, t => {
+    const now='2026-09-15T01:00:00Z'; t.mock.timers.enable({apis:['Date'],now:new Date(now)});
+    const f=buildFixture(t), label=checkpointType==='EOD_CHECKPOINT'?'EOD':'FINAL';
+    const options={...f.options,tradeDate:undefined,checkpointType,runMode:'SCHEDULED',triggerIdentity:`TWQuant-DataOperations-${label}`};
+    const previous=readDataOperations({...options,now:new Date('2026-09-14T15:00:00Z')}).schedulerHealth;
+    assert.equal(previous.checkpoints.find(c=>c.checkpointType===checkpointType).state,'OVERDUE_NO_RECEIPT');
+    assert.throws(()=>runAcceptance(options),/OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE/);
+    const clock=path.join(f.root,'controlled-clock.mjs');
+    fs.writeFileSync(clock,`const RealDate=Date;globalThis.Date=class extends RealDate {constructor(...args){super(...(args.length?args:['${now}']));}static now(){return RealDate.parse('${now}');}};`);
+    const cli=spawnSync(process.execPath,['--import',pathToFileURL(clock).href,path.join(source,'scripts/run-daily-data-operations-acceptance.mjs'),
+      `--data-root=${options.dataRoot}`,`--output-root=${options.outputRoot}`,`--manifest=${options.manifestPath}`,
+      `--evidence-root=${options.evidenceRoot}`,`--calendar=${calendarPath}`,`--checkpoint=${checkpointType}`,
+      '--run-mode=SCHEDULED',`--trigger-identity=${options.triggerIdentity}`],{cwd:source,windowsHide:true,encoding:'utf8'});
+    assert.equal(cli.status,1,cli.stderr);assert.match(cli.stderr,/OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE/);assert.equal(cli.stdout,'');
+    assert.equal(fs.existsSync(options.evidenceRoot),false,'no current-date A1 build');
+    assert.equal(fs.existsSync(options.outputRoot),false,'no assessment, latest, guard, health or automatic receipt/index');
+    assert.deepEqual(readDataOperations({...options,now:new Date('2026-09-14T15:00:00Z')}).schedulerHealth,previous,'prior missed day remains unchanged');
+  });
+}
+test('rejected morning EOD/FINAL preserves prior history; legitimate current DAY -> EOD -> FINAL advances latest', t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-09-14T05:55:00Z')});
+  const f=buildFixture(t), options={...f.options,tradeDate:undefined,runMode:'SCHEDULED'};
+  const run=(checkpointType,label)=>runAcceptance({...options,checkpointType,triggerIdentity:`TWQuant-DataOperations-${label}`});
+  const prior=run('DAY_CHECKPOINT','DAY');
+  const snapshot=base=>{
+    const files={};const walk=relative=>{for(const entry of fs.readdirSync(path.join(base,relative),{withFileTypes:true})){
+      const file=path.join(relative,entry.name);if(entry.isDirectory())walk(file);else files[file]=sha256(fs.readFileSync(path.join(base,file)));
+    }};walk('');return files;
+  };
+  const outputBefore=snapshot(options.outputRoot), a1Before=snapshot(options.evidenceRoot);
+  t.mock.timers.setTime(new Date('2026-09-15T01:00:00Z').getTime());
+  for(const [kind,label] of [['EOD_CHECKPOINT','EOD'],['FINAL_TRADEDATE_CHECKPOINT','FINAL']]) {
+    assert.throws(()=>run(kind,label),/OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE/);
+  }
+  assert.deepEqual(snapshot(options.outputRoot),outputBefore);assert.deepEqual(snapshot(options.evidenceRoot),a1Before);
+  for(const [kind,label,time] of [['DAY_CHECKPOINT','DAY','13:55'],['EOD_CHECKPOINT','EOD','16:10'],['FINAL_TRADEDATE_CHECKPOINT','FINAL','18:10']]) {
+    t.mock.timers.setTime(new Date(`2026-09-15T${time}:00+08:00`).getTime());
+    const result=run(kind,label), latest=JSON.parse(fs.readFileSync(path.join(options.outputRoot,'latest.json')));
+    assert.equal(result.assessment.tradeDate,'2026-09-15');assert.equal(latest.checkpointType,kind);
+    assert.equal(latest.reportHash,result.assessment.reportHash);assert.notEqual(latest.overallState,'PASS');
+    const view=readDataOperations(options), c=view.schedulerHealth.checkpoints.find(c=>c.checkpointType===kind);
+    assert.equal(c.state,'ON_TIME_SUCCEEDED');assert.equal(view.checkpointType,kind);
+    assert.equal(view.overallState,result.assessment.overallState);
+  }
+  for(const file of Object.keys(outputBefore).filter(f=>f.startsWith('runs'+path.sep)||f.startsWith('2026-09-14'+path.sep))) {
+    assert.equal(sha256(fs.readFileSync(path.join(options.outputRoot,file))),outputBefore[file],'prior immutable bytes preserved');
+  }
+  for(const kind of ['eod','final']) assert.equal(fs.existsSync(path.join(options.outputRoot,'automatic-checkpoints/2026-09-14',kind+'.json')),false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(options.outputRoot,'runs',prior.jobHealth.runId+'.json'))).requestedTradeDate,'2026-09-14');
+});
+test('same-day 14:27 scheduled runner remains late with immutable overdue start and canonical PARTIAL', t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-09-15T06:27:00Z')});
+  const f=buildFixture(t), result=runAcceptance({...f.options,tradeDate:undefined,runMode:'SCHEDULED',checkpointType:'DAY_CHECKPOINT',triggerIdentity:'TWQuant-DataOperations-DAY'});
+  const h=result.jobHealth, startBytes=fs.readFileSync(path.join(f.options.outputRoot,`runs/${h.runId}.scheduler-start.json`));
+  assert.equal(sha256(startBytes),h.schedulerStartIdentity.sha256);assert.equal(JSON.parse(startBytes).stateBeforeAttempt,'OVERDUE_NO_RECEIPT');
+  assert.equal(h.schedulerTiming.timeliness,'LATE');assert.equal(h.schedulerTiming.latenessMs,32*60000);
+  const view=readDataOperations(f.options);assert.equal(view.schedulerHealth.checkpoints[0].state,'LATE_SUCCEEDED');
+  assert.equal(view.overallState,result.assessment.overallState);assert.equal(view.overallState,'PARTIAL');
+  assert.ok(ui.render(view).includes('延遲：32 分鐘'));assert.ok(ui.render(view).includes('data-state="PARTIAL"'));
+});
+
 test('B1 scheduled chain builds and pins current A1 before A2a without a pre-created pair', t => {
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-14T05:00:00Z') });
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-14T08:10:00Z') });
   const f = buildFixture(t);
   assert.equal(fs.existsSync(f.options.evidenceRoot), false);
   const result = runAcceptance({ ...f.options, tradeDate: undefined, runMode: 'SCHEDULED', triggerIdentity: 'TWQuant-DataOperations-EOD' });

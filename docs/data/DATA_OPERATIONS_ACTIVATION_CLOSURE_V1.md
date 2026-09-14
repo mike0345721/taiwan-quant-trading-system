@@ -15,6 +15,21 @@ the UI renders the API projection. Explicit installer time arguments must match
 the policy and Windows timezone must match; the installer never changes OS time.
 Candidate task validation retains isolated explicit test times.
 
+Catch-up policy is **SAME_TRADE_DATE_ONLY_CATCH_UP**. Before entering the guarded
+A.2a writer (and before any A.1 build), a SCHEDULED invocation resolves today's
+Taipei date and checks today's own frozen checkpoint time. Before that time it
+exits nonzero with `OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE`: no A.1/A.2a output,
+job-health/start/terminal receipt, automatic pointer or latest.json is written.
+This is a rejected scheduler invocation, not DATA FAIL. Existing history and
+prior missed dates remain untouched/unrecovered. No cross-day recovery is inferred.
+For example, a missed Monday EOD/FINAL launched Tuesday09:00 is rejected; Tuesday's
+normal DAY→EOD→FINAL progression remains possible. At the exact current-day check
+time or later, normal on-time/late processing remains unchanged. Validate-only
+continues to validate static launch paths, not whether a future invocation is due.
+An undated task still cannot prove its original trigger occurrence; after today's
+check time it can only assess today, never attest recovery of an earlier date.
+Explicit governed occurrence-date recovery is a future, separately authorized design.
+
 All three definitions use StartWhenAvailable=true, WakeToRun=false, Limited /
 Interactive, IgnoreNew, and PT15M. Install verifies the persisted settings and
 identity. `-Mode Validate -VerifyPersisted` performs the same read-only checks on

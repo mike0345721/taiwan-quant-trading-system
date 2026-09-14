@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadSchedulerPolicy, readSchedulerHealth, recordAutomaticCheckpoint, captureSchedulerStart, scheduledTiming } from '../src/data-operations-scheduler-health.mjs';
+import { loadSchedulerPolicy, readSchedulerHealth, recordAutomaticCheckpoint, captureSchedulerStart, scheduledTiming, resolveScheduledCheckpointRequest } from '../src/data-operations-scheduler-health.mjs';
 import { buildDailyCollectionAcceptance } from '../src/daily-collection-acceptance.mjs';
 import { sha256 } from '../src/daily-data-operations-files.mjs';
 import { readDataOperations } from '../src/dashboard-data-operations.mjs';
@@ -15,6 +15,21 @@ import { runDailyDataOperations } from '../scripts/build-daily-data-operations.m
 
 const policy = loadSchedulerPolicy(), date = '2026-09-14';
 const root = fileURLToPath(new URL('..', import.meta.url));
+for (const c of policy.checkpoints) test(`same-trade-date-only admission: ${c.label} rejects before own time; exact/grace/late allowed`, () => {
+  const expected=Date.parse(`2026-09-15T${c.checkTime}:00+08:00`);
+  for(const time of [Date.parse('2026-09-15T09:00:00+08:00'),expected-1]) {
+    assert.throws(()=>resolveScheduledCheckpointRequest(c.checkpointType,new Date(time)),/OPERATIONS_SCHEDULED_CHECKPOINT_NOT_DUE/);
+  }
+  for(const offset of [0,15*60000,32*60000]) {
+    assert.deepEqual(resolveScheduledCheckpointRequest(c.checkpointType,new Date(expected+offset)),{
+      tradeDate:'2026-09-15',policySha256:policy.sha256});
+  }
+});
+test('scheduled admission resolves Taipei rather than UTC date and fails closed on invalid request', () => {
+  assert.throws(()=>resolveScheduledCheckpointRequest('FINAL_TRADEDATE_CHECKPOINT',new Date('2026-09-14T16:01:00Z')),/CHECKPOINT_NOT_DUE/);
+  assert.throws(()=>resolveScheduledCheckpointRequest('FINAL_TRADEDATE_CHECKPOINT',new Date('invalid')),/SCHEDULER_DATE_INVALID/);
+  assert.throws(()=>resolveScheduledCheckpointRequest('other',new Date('2026-09-15T12:00:00Z')),/SCHEDULER_CHECKPOINT_INVALID/);
+});
 const browser = { setTimeout, clearTimeout, AbortController };
 vm.runInNewContext(fs.readFileSync(path.join(root, 'public/data-operations.js'), 'utf8'), browser);
 function fixture(t) {
