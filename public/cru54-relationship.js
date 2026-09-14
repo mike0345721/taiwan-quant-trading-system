@@ -43,7 +43,8 @@
     const side = (id,s) => {
       const e=s?.evidence, identity=s?.identity;
       $(id).replaceChildren();
-      for(const [tag,value] of [['b',identity ? `${identity[1]} ${identity[2]} · ${identity[0]}` : '上一階段缺資料'],
+      const stage = id === 'handoff-prior' ? '上一階段' : '目前階段';
+      for(const [tag,value] of [['b',identity ? `${stage}｜${identity[1]} ${identity[2]} · ${identity[0]}` : `${stage}缺資料`],
         ['span',`Price Δ ${fmt(e?.response?.displacementPoints)} 點 · ΔCVD ${fmt(e?.deltaCvd)} 口`],
         ['strong',labels[s?.relationship.code] || labels.UNAVAILABLE],
         ['small',`${e?.complete ? '同段觀測窗' : 'PARTIAL'} · 分類 ${e?.pressure?.classifiedCoverage == null ? '未知' : (100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · 捕捉未證明`]]) {
