@@ -47,7 +47,7 @@
       $(id).replaceChildren();
       const stage = id === 'handoff-prior' ? '上一階段' : '目前階段';
       for(const [tag,value] of [['b',identity ? `${stage}｜${identity[1]} ${identity[2]} · ${identity[0]}` : `${stage}缺資料`],
-        ['span',`Price Δ ${fmt(e?.response?.displacementPoints)} 點 · ΔCVD ${fmt(e?.deltaCvd)} 口`],
+        ['span',`Price Δ ${fmt(h.primaryEvidence==='SESSION_CONTEXT' ? e?.priceDelta : e?.response?.displacementPoints)} 點 · ΔCVD ${fmt(e?.deltaCvd)} 口`],
         ['strong',labels[s?.relationship.code] || labels.UNAVAILABLE],
         ['small',`${s?.contextScope==='OBSERVED_SEGMENT_TO_NOW'?'觀測累積':s?.contextScope==='SESSION_TO_NOW'?'本盤累積':e?.complete?'同段觀測窗':'PARTIAL'} · 分類 ${e?.pressure?.classifiedCoverage == null ? '未知' : (100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · 捕捉未證明`]]) {
         const node=document.createElement(tag); node.textContent=value; $(id).append(node);
