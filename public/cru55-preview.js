@@ -9,11 +9,11 @@ function numericClass(el,value){el.classList.remove('positive-text','negative-te
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=markerApi=null;markerData=[];document.body.dataset.markerCount='0';}
 function fail(message){
-  for(const id of ['context-price','context-price-delta','price','price-change'])$(id).className='price-neutral';
+  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change'])$(id).className='price-neutral';
   $('chart-empty').hidden=true;text('chart-empty','');
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
-  for(const id of ['context-price','context-price-delta','price','price-change','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
+  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change','chart-contract','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
   for(const id of ['quote-metrics','context-core-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
   $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').hidden=false;$('path-value').title='不可用';for(const id of ['handoff-prior','handoff-gap','handoff-current'])$(id).hidden=true;text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
@@ -51,9 +51,9 @@ function renderContext(c){
   text('context-relationship',LABELS[c.relationship.code]||LABELS.UNAVAILABLE);text('context-quality',e?.quality?.status||'UNAVAILABLE');
   const relation=windowPresentation({current:{relationship:c.relationship,current:e}});$('context-light').className=`light ${relation.tone}`;
   text('context-price',fmt(c.lastPrice?.price));const percent=observedPricePercent(c);text('context-price-delta',e?.priceDelta==null?'觀測漲跌 不可用':`觀測漲跌 ${signed(e.priceDelta)} 點（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('context-price-delta').title='漲跌百分比以已觀測起點價為基準，非昨收漲跌幅';
-  text('price',fmt(c.lastPrice?.price));text('price-change',e?.priceDelta==null?'觀測漲跌不可用':`${signed(e.priceDelta)}（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('price-change').title='觀測漲跌：以本盤已觀測起點價為基準，非昨收漲跌幅';
+  text('price',fmt(c.lastPrice?.price));text('price-change',e?.priceDelta==null?'觀測漲跌不可用':`${signed(e.priceDelta)}（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('price-change').title='觀測漲跌：以本盤已觀測起點價為基準，非昨收漲跌幅';text('chart-price',$('price').textContent);text('chart-price-change',$('price-change').textContent);$('chart-price-change').title=$('price-change').title;
   $('quote-metrics').replaceChildren(metric('觀測起點價',fmt(c.firstPrice?.price)),metric('觀測成交量 · 口',fmt(e?.observedVolume)),metric('未平倉 · 口','不可用'));
-  for(const id of ['context-price','context-price-delta','price','price-change'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
+  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
   $('context-core-metrics').replaceChildren(
     coloredMetric('CVD 累積',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
     coloredMetric('ΔCVD',signed(e?.deltaCvd),e?.deltaCvd),
@@ -104,7 +104,7 @@ function render(data){
   const p=data.chart,r=data.relationship,c=r.current?.current,m=windowPresentation(data.scan[frame]);
   if(p.generationHash!==r.generationHash||p.semanticHash!==r.semanticHash||p.cutoff.recordHash!==r.sourceCutoff.recordHash||p.cutoff.recordHash!==data.context.sourceCutoff.recordHash)throw Error('cutoff / 來源未通過核對');
   document.body.dataset.error='false';document.body.dataset.view=data.view;document.body.dataset.timeframe=frame;document.body.dataset.head=data.head;
-  text('contract',p.actualContract||'UNKNOWN');text('chart-identity',`${p.actualContract||'UNKNOWN'} / ${p.tradeDate||'UNKNOWN'} / ${p.session||'UNKNOWN'}`);
+  text('contract',p.actualContract||'UNKNOWN');text('chart-contract',p.actualContract||'UNKNOWN');text('chart-identity',`${p.actualContract||'UNKNOWN'} / ${p.tradeDate||'UNKNOWN'} / ${p.session||'UNKNOWN'}`);
   text('session-pill',p.session||'UNKNOWN');$('source-light').className=`light ${p.freshness.state==='LIVE'?'positive':['STALE','DELAYED','WARMING'].includes(p.freshness.state)?'warning':'neutral'}`;text('trust',p.freshness.state);text('freshness',`${data.context.sessionStartProven?'盤中累積':'觀測片段'}｜${shortTime(p.lastTradeAvailableAtMs)}`);
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'合成資料｜僅檢查 UI 互動，不代表真實行情':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
   text('selected-truth',`${frame} ${m.state} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
@@ -125,7 +125,7 @@ function renderLower(){
   text('options-value',o?.oiPcRatio==null?'UNAVAILABLE':`P/C ${fmt(o.oiPcRatio)}`);pairs('options-metrics',[['Call / Put Wall',o?`${fmt(o.callWall?.strike)} / ${fmt(o.putWall?.strike)}`:'不可用'],['契約',o?.contract||'UNAVAILABLE']]);
   text('breadth-value',b?`${fmt(b.advance)} / ${fmt(b.decline)}`:'UNAVAILABLE');pairs('breadth-metrics',[['上市上漲 / 下跌','家'],['平盤',fmt(b?.unchanged)]]);
 }
-async function load(){const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('handoff-reason','所選商品／月份無資料');text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
+async function load(){text('chart-product-name',({TX:'台指期',MTX:'小型臺指期',TMF:'微型臺指期'})[selectedProduct]||'商品');const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('handoff-reason','所選商品／月份無資料');text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
 function details(which){
   const c=current;let title='資料品質',copy='',value=null;
   const contextDate=lower?`歷史來源日期 ${lower.asOfDate}；不是所選盤別的同步證據。`:'背景未載入。';
