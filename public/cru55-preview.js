@@ -10,6 +10,7 @@ function metric(label,value){const el=node('div',null,'metric');el.append(node('
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=null;}
 function fail(message){
   for(const id of ['context-price','context-price-delta'])$(id).className='price-neutral';
+  $('chart-empty').hidden=true;text('chart-empty','');
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
   for(const id of ['context-price','context-price-delta','price','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
@@ -122,7 +123,7 @@ function renderLower(){
   text('options-value',o?.oiPcRatio==null?'UNAVAILABLE':`P/C ${fmt(o.oiPcRatio)}`);pairs('options-metrics',[['Call / Put Wall',o?`${fmt(o.callWall?.strike)} / ${fmt(o.putWall?.strike)}`:'不可用'],['契約',o?.contract||'UNAVAILABLE']]);
   text('breadth-value',b?`${fmt(b.advance)} / ${fmt(b.decline)}`:'UNAVAILABLE');pairs('breadth-metrics',[['上市上漲 / 下跌','家'],['平盤',fmt(b?.unchanged)]]);
 }
-async function load(){const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('contract',`${selectedProduct} · ${selectedMonth}`);text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
+async function load(){text('product-name',({TX:'TX 台指期貨',MTX:'MTX 小型臺指期',TMF:'TMF 微型臺指期'})[selectedProduct]||'商品未提供');const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('contract',`${selectedProduct} · ${selectedMonth}`);text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
 function details(which){
   const c=current;let title='資料品質',copy='',value=null;
   const contextDate=lower?`歷史來源日期 ${lower.asOfDate}；不是所選盤別的同步證據。`:'背景未載入。';
