@@ -1,0 +1,18 @@
+✔ timeline reads accepted availableAt lineage and missing stays unknown (1.9426ms)
+✔ handoff scope distinguishes unavailable identity from observed accumulation (0.4568ms)
+✔ source kind, exact cutoff, timeframe endpoint and frozen safety fail closed (10.7909ms)
+✔ bounded reader rejects over-budget before reading bytes and rejects hardlinks (24.5635ms)
+✔ one window presentation preserves partial/warming/unavailable and direction limitations (1.3925ms)
+✔ CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace (0.8959ms)
+✔ isolated authenticated API is memory-only and returns one exact scan/evidence source (208.1228ms)
+✔ restored force cells reuse original boundaries and never infer incomplete window direction (0.8174ms)
+✔ observed percent uses accepted first price and never backfills missing price with response (0.9761ms)
+✔ context explanatory copy describes accepted evidence and preserves fragment/stale/unknown truth (0.7673ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 577.823

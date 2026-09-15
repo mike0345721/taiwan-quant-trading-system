@@ -1,0 +1,18 @@
+{
+  "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+  "initial": "Ask GPT Decision Assistant\n✕\n\n互動預覽｜尚未啟用 AI 回答。文字不會送出或保存。\n\n目前畫面範圍\n\nTX · TXFI6 · DAY · 1m\n\n觀測截止 2026/9/7 08:45:42 · OBSERVED_SEGMENT_TO_NOW\n\n真實觀測片段 · STALE · 捕捉完整性 UNPROVEN\n\n問題類型\n解讀\n解釋\n比較\n資料可信度\n想釐清什麼？\n限本次試填，關閉即清空。\n尚未啟用 · 無法送出\n\n定位為快照解釋，非買賣指令或交易訊號。\n\n互動範圍與資料規則",
+  "draft": {
+    "disabled": true,
+    "draft": "這個觀測片段的資料可信度如何？\n",
+    "focus": "ask-question",
+    "open": true
+  },
+  "closed": {
+    "category": "interpret",
+    "draft": "",
+    "focus": "ask-open",
+    "open": false,
+    "scope": ""
+  },
+  "unavailable": "Ask GPT Decision Assistant\n✕\n\n互動預覽｜尚未啟用 AI 回答。文字不會送出或保存。\n\n目前畫面範圍\n\nTX / 2026-10 · UNAVAILABLE\n\n沒有已核對的快照\n\n資料不可用；未帶入上一筆市場證據\n\n問題類型\n解讀\n解釋\n比較\n資料可信度\n想釐清什麼？\n限本次試填，關閉即清空。\n尚未啟用 · 無法送出\n\n定位為快照解釋，非買賣指令或交易訊號。\n\n互動範圍與資料規則"
+}

@@ -1,0 +1,956 @@
+[
+  {
+    "capturedAt": "2026-09-15T12:27:37.263Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 171.578125,
+        "height": 79.578125,
+        "right": 1109.25,
+        "selector": ".identity-bar",
+        "width": 1003.25,
+        "x": 106,
+        "y": 92
+      },
+      {
+        "bottom": 171.578125,
+        "height": 79.578125,
+        "right": 1891,
+        "selector": ".handoff",
+        "width": 771.75,
+        "x": 1119.25,
+        "y": 92
+      },
+      {
+        "bottom": 348.5625,
+        "height": 122.046875,
+        "right": 1412.890625,
+        "selector": ".fast-scan",
+        "width": 1305.890625,
+        "x": 107,
+        "y": 226.515625
+      },
+      {
+        "bottom": 1038.5625,
+        "height": 690,
+        "right": 1412.890625,
+        "selector": ".chart-wrap",
+        "width": 1305.890625,
+        "x": 107,
+        "y": 348.5625
+      },
+      {
+        "bottom": 558.984375,
+        "height": 379.40625,
+        "right": 1890.984375,
+        "selector": ".session",
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 179.578125
+      },
+      {
+        "bottom": 958.171875,
+        "height": 389.1875,
+        "right": 1890.984375,
+        "selector": ".relationships",
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 568.984375
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +2,026",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "2026",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      382,
+      1,
+      59,
+      1,
+      152,
+      1,
+      66,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE",
+        "tone": "negative"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "demo",
+    "viewport": [
+      1920,
+      1080
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 1060.703125,
+        "height": 92.53125,
+        "left": 1423.890625,
+        "right": 1890.984375,
+        "top": 968.171875,
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 968.171875
+      },
+      "text": "Ask GPT Decision Assistant\nUI PREVIEW · 未啟用\n\n解讀目前快照，釐清力價關係與資料可信度。\n\nAsk GPT ›\n想了解目前的市場快照？"
+    }
+  },
+  {
+    "capturedAt": "2026-09-15T12:27:38.993Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 171.578125,
+        "height": 79.578125,
+        "right": 1109.25,
+        "selector": ".identity-bar",
+        "width": 1003.25,
+        "x": 106,
+        "y": 92
+      },
+      {
+        "bottom": 171.578125,
+        "height": 79.578125,
+        "right": 1891,
+        "selector": ".handoff",
+        "width": 771.75,
+        "x": 1119.25,
+        "y": 92
+      },
+      {
+        "bottom": 348.5625,
+        "height": 122.046875,
+        "right": 1412.890625,
+        "selector": ".fast-scan",
+        "width": 1305.890625,
+        "x": 107,
+        "y": 226.515625
+      },
+      {
+        "bottom": 1038.5625,
+        "height": 690,
+        "right": 1412.890625,
+        "selector": ".chart-wrap",
+        "width": 1305.890625,
+        "x": 107,
+        "y": 348.5625
+      },
+      {
+        "bottom": 575.484375,
+        "height": 395.90625,
+        "right": 1890.984375,
+        "selector": ".session",
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 179.578125
+      },
+      {
+        "bottom": 974.671875,
+        "height": 389.1875,
+        "right": 1890.984375,
+        "selector": ".relationships",
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 585.484375
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +295",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "295",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      382,
+      1,
+      59,
+      1,
+      152,
+      1,
+      66,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "day",
+    "viewport": [
+      1920,
+      1080
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 1077.203125,
+        "height": 92.53125,
+        "left": 1423.890625,
+        "right": 1890.984375,
+        "top": 984.671875,
+        "width": 467.09375,
+        "x": 1423.890625,
+        "y": 984.671875
+      },
+      "text": "Ask GPT Decision Assistant\nUI PREVIEW · 未啟用\n\n解讀目前快照，釐清力價關係與資料可信度。\n\nAsk GPT ›\n想了解目前的市場快照？"
+    }
+  },
+  {
+    "capturedAt": "2026-09-15T12:27:40.802Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 885.78125,
+        "selector": ".identity-bar",
+        "width": 799.78125,
+        "x": 86,
+        "y": 88
+      },
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 1511,
+        "selector": ".handoff",
+        "width": 615.21875,
+        "x": 895.78125,
+        "y": 88
+      },
+      {
+        "bottom": 315.71875,
+        "height": 103.203125,
+        "right": 1120,
+        "selector": ".fast-scan",
+        "width": 1033,
+        "x": 87,
+        "y": 212.515625
+      },
+      {
+        "bottom": 769.71875,
+        "height": 454,
+        "right": 1120,
+        "selector": ".chart-wrap",
+        "width": 1033,
+        "x": 87,
+        "y": 315.71875
+      },
+      {
+        "bottom": 500.5,
+        "height": 326.921875,
+        "right": 1511,
+        "selector": ".session",
+        "width": 380,
+        "x": 1131,
+        "y": 173.578125
+      },
+      {
+        "bottom": 732.1875,
+        "height": 223.6875,
+        "right": 1511,
+        "selector": ".relationships",
+        "width": 380,
+        "x": 1131,
+        "y": 508.5
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +2,026",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "2026",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      245,
+      1,
+      38,
+      1,
+      97,
+      1,
+      43,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE",
+        "tone": "negative"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "demo",
+    "viewport": [
+      1536,
+      864
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 773.578125,
+        "height": 33.390625,
+        "left": 1131,
+        "right": 1511,
+        "top": 740.1875,
+        "width": 380,
+        "x": 1131,
+        "y": 740.1875
+      },
+      "text": "Ask GPT ›\n想了解目前的市場快照？"
+    }
+  },
+  {
+    "capturedAt": "2026-09-15T12:27:42.441Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 885.78125,
+        "selector": ".identity-bar",
+        "width": 799.78125,
+        "x": 86,
+        "y": 88
+      },
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 1511,
+        "selector": ".handoff",
+        "width": 615.21875,
+        "x": 895.78125,
+        "y": 88
+      },
+      {
+        "bottom": 315.71875,
+        "height": 103.203125,
+        "right": 1120,
+        "selector": ".fast-scan",
+        "width": 1033,
+        "x": 87,
+        "y": 212.515625
+      },
+      {
+        "bottom": 769.71875,
+        "height": 454,
+        "right": 1120,
+        "selector": ".chart-wrap",
+        "width": 1033,
+        "x": 87,
+        "y": 315.71875
+      },
+      {
+        "bottom": 515.890625,
+        "height": 342.3125,
+        "right": 1511,
+        "selector": ".session",
+        "width": 380,
+        "x": 1131,
+        "y": 173.578125
+      },
+      {
+        "bottom": 747.578125,
+        "height": 223.6875,
+        "right": 1511,
+        "selector": ".relationships",
+        "width": 380,
+        "x": 1131,
+        "y": 523.890625
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +295",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "295",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      245,
+      1,
+      38,
+      1,
+      97,
+      1,
+      43,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "day",
+    "viewport": [
+      1536,
+      864
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 788.96875,
+        "height": 33.390625,
+        "left": 1131,
+        "right": 1511,
+        "top": 755.578125,
+        "width": 380,
+        "x": 1131,
+        "y": 755.578125
+      },
+      "text": "Ask GPT ›\n想了解目前的市場快照？"
+    }
+  },
+  {
+    "capturedAt": "2026-09-15T12:27:44.225Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 789.6875,
+        "selector": ".identity-bar",
+        "width": 703.6875,
+        "x": 86,
+        "y": 88
+      },
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 1341,
+        "selector": ".handoff",
+        "width": 541.3125,
+        "x": 799.6875,
+        "y": 88
+      },
+      {
+        "bottom": 315.71875,
+        "height": 103.203125,
+        "right": 950,
+        "selector": ".fast-scan",
+        "width": 863,
+        "x": 87,
+        "y": 212.515625
+      },
+      {
+        "bottom": 691.703125,
+        "height": 375.984375,
+        "right": 950,
+        "selector": ".chart-wrap",
+        "width": 863,
+        "x": 87,
+        "y": 315.71875
+      },
+      {
+        "bottom": 485.5,
+        "height": 311.921875,
+        "right": 1341,
+        "selector": ".session",
+        "width": 380,
+        "x": 961,
+        "y": 173.578125
+      },
+      {
+        "bottom": 703.1875,
+        "height": 209.6875,
+        "right": 1341,
+        "selector": ".relationships",
+        "width": 380,
+        "x": 961,
+        "y": 493.5
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +2,026",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "2026",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      199,
+      1,
+      31,
+      1,
+      79,
+      1,
+      34,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE",
+        "tone": "negative"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE",
+        "tone": "warning"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE",
+        "tone": "positive"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "demo",
+    "viewport": [
+      1366,
+      768
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 740.578125,
+        "height": 29.390625,
+        "left": 1224.9375,
+        "right": 1341,
+        "top": 711.1875,
+        "width": 116.0625,
+        "x": 1224.9375,
+        "y": 711.1875
+      },
+      "text": "Ask GPT ›"
+    }
+  },
+  {
+    "capturedAt": "2026-09-15T12:27:45.817Z",
+    "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+    "core": [
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 789.6875,
+        "selector": ".identity-bar",
+        "width": 703.6875,
+        "x": 86,
+        "y": 88
+      },
+      {
+        "bottom": 165.578125,
+        "height": 77.578125,
+        "right": 1341,
+        "selector": ".handoff",
+        "width": 541.3125,
+        "x": 799.6875,
+        "y": 88
+      },
+      {
+        "bottom": 315.71875,
+        "height": 103.203125,
+        "right": 950,
+        "selector": ".fast-scan",
+        "width": 863,
+        "x": 87,
+        "y": 212.515625
+      },
+      {
+        "bottom": 707.09375,
+        "height": 391.375,
+        "right": 950,
+        "selector": ".chart-wrap",
+        "width": 863,
+        "x": 87,
+        "y": 315.71875
+      },
+      {
+        "bottom": 500.890625,
+        "height": 327.3125,
+        "right": 1341,
+        "selector": ".session",
+        "width": 380,
+        "x": 961,
+        "y": 173.578125
+      },
+      {
+        "bottom": 718.578125,
+        "height": 209.6875,
+        "right": 1341,
+        "selector": ".relationships",
+        "width": 380,
+        "x": 961,
+        "y": 508.890625
+      }
+    ],
+    "coreTextOverflow": [],
+    "cvd": "CVD +295",
+    "cvdSign": "買方主動成交累積較多",
+    "duplicateIds": [],
+    "endpoint": "295",
+    "head": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+    "horizontalOverflow": 0,
+    "lower": [
+      {
+        "id": "spot",
+        "visible": true
+      },
+      {
+        "id": "futures",
+        "visible": true
+      },
+      {
+        "id": "options",
+        "visible": true
+      },
+      {
+        "id": "breadth",
+        "visible": true
+      },
+      {
+        "id": "risk",
+        "visible": true
+      }
+    ],
+    "panes": [
+      208,
+      1,
+      32,
+      1,
+      83,
+      1,
+      36,
+      28
+    ],
+    "scanTableConsistent": true,
+    "scans": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "textBelow11": [],
+    "timeframe": "1m",
+    "trust": "STALE",
+    "view": "day",
+    "viewport": [
+      1366,
+      768
+    ],
+    "ask": {
+      "rect": {
+        "bottom": 755.96875,
+        "height": 29.390625,
+        "left": 1224.9375,
+        "right": 1341,
+        "top": 726.578125,
+        "width": 116.0625,
+        "x": 1224.9375,
+        "y": 726.578125
+      },
+      "text": "Ask GPT ›"
+    }
+  }
+]

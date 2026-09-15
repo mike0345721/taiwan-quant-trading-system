@@ -1,0 +1,18 @@
+{
+  "sourceHead": "181e78d07dc5e3509c5ba769252b427ecfa7abb8",
+  "revision": 7,
+  "sha256": {
+    "assistant-interaction.json": "c15c4a99ea54dec85783efdfd00fe16ed946d26926088a4d00c15c956cb85089",
+    "browser-evidence.json": "43e707cceb319d9da181dcf2845458e6d6bb462a9054ada25012b30f287b7e03",
+    "OWNER_REVIEW_GUIDE.md": "95b1f956df07aa4953bb0d00f11b583d842b7e5dfd80befba5d1ab3386b6c2af",
+    "screenshots/assistant-1366x768.jpg": "c9fd4ac426dec35515f03ead4013fdf419d21e2f1f16c6ba6d1840aa458fa6f3",
+    "screenshots/day-1366x768.jpg": "d59508eb84e1f8eaae7f8b83b0ccf868ce99dd8f5567b27833fcc37112b4fe09",
+    "screenshots/day-1536x864.jpg": "109718aaf0945b7d62b3b94492a59bb06e2d2c13af35380a925fc7a956c8052f",
+    "screenshots/day-1920x1080.jpg": "eec202b6d4b621d3dc2dc69685668e30b75a637347654e24af9a5027e972aed2",
+    "screenshots/demo-1366x768.jpg": "bb4de8a00062310e5f82a82f767cfd6ba187cb2c091e7305aa3816a682314f11",
+    "screenshots/demo-1536x864.jpg": "bad8071f3c990ae88fe5e03291b329fd0875b3cecedfb3bc01f0da9e0c3ae763",
+    "screenshots/demo-1920x1080.jpg": "53795075bec0539c91388e1189817c90cf4bf4468c09cfca42c4643b41203242",
+    "tests.tap": "7a5b0686c0bf02b3e4e71a273fd95f8fda12f8806e23ad957bc620a972392a56",
+    "VALIDATION.md": "16b54d9cdc88e4e7bba4d1d0da19ddea9fd81a9169aaaa18a34d961d749c784b"
+  }
+}
