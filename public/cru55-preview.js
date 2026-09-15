@@ -54,10 +54,10 @@ function renderContext(c){
   $('quote-metrics').replaceChildren(metric('觀測起點價',fmt(c.firstPrice?.price)),metric('觀測成交量 · 口',fmt(e?.observedVolume)),metric('未平倉 · 口','不可用'));
   for(const id of ['context-price','context-price-delta'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
   $('context-core-metrics').replaceChildren(
-    coloredMetric('CVD 累積 · 口',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
-    coloredMetric('ΔCVD · 口',signed(e?.deltaCvd),e?.deltaCvd),
-    coloredMetric('主動成交壓力',fmt(e?.pressure?.pressureRatio),e?.pressure?.pressureRatio),
-    coloredMetric('價格反應 · 點',signed(e?.response?.displacementPoints),e?.response?.displacementPoints,'price'));
+    coloredMetric('CVD 累積',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
+    coloredMetric('ΔCVD',signed(e?.deltaCvd),e?.deltaCvd),
+    coloredMetric('主動壓力',fmt(e?.pressure?.pressureRatio),e?.pressure?.pressureRatio),
+    coloredMetric('價格反應',signed(e?.response?.displacementPoints),e?.response?.displacementPoints,'price'));
   text('context-explanation',relationshipExplanation(c.relationship.code));text('context-summary',contextSummary(c));
   const path=e?.pathEfficiency?.value;text('path-value',path==null?'不可用':String(path));$('path-fill').style.width=path==null?'0%':`${100*path}%`;
   const coverage=e?.pressure?.classifiedCoverage;text('coverage',`分類覆蓋率 ${coverage==null?'未知':(100*coverage).toFixed(2)+'%'}`);text('unknown',`UNKNOWN ${fmt(e?.unknownVolume)}`);$('coverage-fill').style.width=coverage==null?'0%':`${100*coverage}%`;
