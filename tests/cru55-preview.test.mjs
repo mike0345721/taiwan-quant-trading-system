@@ -7,7 +7,7 @@ import {createPreviewServer} from '../src/cru55-preview-server.mjs';
 import {validateView,boundedRead} from '../src/cru55-preview-bundle.mjs';
 import {sessionFixture,calendar} from './cvd-session-context-fixture.mjs';
 import {buildSessionContext,buildSessionContextHandoff} from '../src/cvd-session-context-projection.mjs';
-import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES,timelineTime,scopeLabel} from '../public/cru55-presentation.mjs';
+import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES,timelineTime,scopeLabel,pressureCells,evidenceDirection} from '../public/cru55-presentation.mjs';
 const fixture=sessionFixture();
 const sessionContext=buildSessionContext(fixture.g,fixture,fixture.events,calendar);
 const handoffs=Object.fromEntries(FRAMES.map(f=>[f,buildSessionContextHandoff(null,fixture,[],fixture.events,calendar,null,sessionContext,f)]));
@@ -59,4 +59,18 @@ test('isolated authenticated API is memory-only and returns one exact scan/evide
     assert.equal((await fetch(base+'/api/order',{headers})).status,404);
     assert.equal((await fetch(base+'/api/lower',{headers})).status,200);
   }finally{fs.readFileSync=saved.read;fs.openSync=saved.open;await new Promise(r=>server.close(r));}
+});
+
+test('restored force cells reuse original boundaries and never infer incomplete window direction',()=>{
+  for(const [ratio,cells] of [[0,0],[.099,0],[.1,1],[.324,1],[.325,2],[.549,2],[.55,3],[.774,3],[.775,4],[1,4]]){
+    assert.equal(pressureCells(ratio).cells,cells);assert.equal(pressureCells(-ratio).cells,cells);
+  }
+  for(const bad of [null,undefined,NaN,Infinity,1.01,-1.01])assert.deepEqual(pressureCells(bad),{cells:0,direction:'neutral'});
+  for(const state of ['PARTIAL','WARMING','UNAVAILABLE'])for(const value of [-1,0,1]){
+    assert.deepEqual(pressureCells(value,state),{cells:0,direction:'neutral'});assert.deepEqual(evidenceDirection(value,state),{symbol:'—',direction:'neutral'});
+  }
+  assert.deepEqual(evidenceDirection(null,'AVAILABLE'),{symbol:'—',direction:'neutral'});
+  assert.deepEqual(evidenceDirection(-2,'AVAILABLE'),{symbol:'▼',direction:'negative'});
+  assert.deepEqual(evidenceDirection(2,'AVAILABLE'),{symbol:'▲',direction:'positive'});
+  assert.deepEqual(evidenceDirection(0,'AVAILABLE'),{symbol:'＝',direction:'neutral'});
 });

@@ -1,4 +1,4 @@
-import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel} from '/presentation.mjs';
+import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const shortTime=t=>t==null?'未知':new Date(t).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const text=(id,s)=>{$(id).textContent=s;},node=(tag,s,cls)=>{const el=document.createElement(tag);if(s!=null)el.textContent=s;if(cls)el.className=cls;return el;};
@@ -10,33 +10,55 @@ function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)ch
 function fail(message){
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   numericClass($('change-delta'),null);document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
-  for(const id of ['price','contract','cvd-value','change-price','change-volume','change-delta','change-path','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
-  for(const id of ['session-metrics','timeline'])$(id).replaceChildren();
+  for(const id of ['context-price','context-price-delta','change-pressure','change-coverage','price','contract','cvd-value','change-price','change-volume','change-delta','change-path','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
+  for(const id of ['quote-metrics','session-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['price-context','context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
-  text('trust','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';renderScan({});
+  text('trust','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';$('selected-pressure-bar').replaceChildren(pressureBar(null,'UNAVAILABLE'));renderScan({});
 }
 async function api(route){const r=await fetch(route);if(r.status===401){$('login').hidden=false;throw Error('請以本次 launcher 的本機啟動連結登入。');}if(!r.ok)throw Error(`資料無法載入（${r.status}）`);return r.json();}
 async function authenticate(token){const r=await fetch('/session',{method:'POST',headers:{'Content-Type':'text/plain'},body:token});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
+function pressureBar(ratio,state) {
+  const {cells,direction}=pressureCells(ratio,state),bar=node('span',null,'pressure-segments');
+  bar.dataset.cells=String(cells);bar.dataset.direction=direction;bar.setAttribute('aria-hidden','true');
+  for(let i=0;i<9;i++){const active=direction==='positive'?i>4&&i<=4+cells:direction==='negative'?i<4&&i>=4-cells:false;bar.append(node('i',null,i===4?'center':active?direction:''));}return bar;
+}
+function directionCell(value,state,kind) {
+  const d=evidenceDirection(value,state),cell=node('td',null,`direction-cell ${kind}-${d.direction}`);
+  cell.dataset.direction=d.direction;cell.append(node('b',d.symbol));cell.title=state==='AVAILABLE'?signed(value):`${state} · 已觀測 ${signed(value)} · 不推定窗口方向`;
+  cell.append(node('small',state==='AVAILABLE'?signed(value):'—'));return cell;
+}
 function renderScan(scan){
-  const lights=[],rows=[];
+  const lights=[],rows=[],forces=[];
   for(const f of FRAMES){const m=windowPresentation(scan[f]);
     const b=node('button',null,'scan-button');b.type='button';b.dataset.frame=f;b.dataset.state=m.state;b.dataset.code=m.code;b.dataset.tone=m.tone;b.setAttribute('aria-pressed',String(f===frame));b.setAttribute('aria-label',`${f} ${m.label} ${m.state}`);b.title=`${m.label} · ${m.state}`;
     b.append(node('i',null,`light ${m.tone}`),node('b',f),node('small',m.state));lights.push(b);
-    const tr=node('tr');tr.dataset.frame=f;tr.dataset.state=m.state;tr.dataset.code=m.code;tr.dataset.tone=m.tone;tr.classList.toggle('selected',f===frame);
-    const first=node('td'),name=node('button',f);name.type='button';name.dataset.frame=f;name.className='row-window';name.setAttribute('aria-label',`選擇 ${f} 最近變化`);first.append(node('i',null,`light ${m.tone}`),name);
-    const middle=node('td');middle.append(node('b',m.label),node('small',`Δ ${signed(m.delta)} · P ${signed(m.response)}`));
-    const end=node('td');end.append(node('span',m.state,'truth-state'));if(m.span!=null)end.append(node('small',`${Math.floor(m.span/1000)}s 觀測`));tr.append(first,middle,end);rows.push(tr);
-  }$('fast-lights').replaceChildren(...lights);$('relationship-rows').replaceChildren(...rows);
+    const force=node('button',null,'force-window');force.type='button';Object.assign(force.dataset,{frame:f,state:m.state,code:m.code,tone:m.tone});force.setAttribute('aria-pressed',String(f===frame));force.setAttribute('aria-label',`${f} 力道明細 ${m.state}`);
+    force.append(node('strong',f),pressureBar(m.pressure,m.state),node('small',m.state));forces.push(force);
+    const tr=node('tr');Object.assign(tr.dataset,{frame:f,state:m.state,code:m.code,tone:m.tone});tr.classList.toggle('selected',f===frame);
+    const first=node('td'),name=node('button',f);name.type='button';name.dataset.frame=f;name.className='row-window';name.setAttribute('aria-label',`選擇 ${f} 最近變化`);first.append(name);
+    const relation=node('td',null,'relationship-cell');relation.append(node('i',null,`light ${m.tone}`),node('b',m.label));
+    const end=node('td');end.append(node('span',m.state,`truth-state ${m.state.toLowerCase()}`));
+    tr.append(first,directionCell(m.response,m.state,'price'),directionCell(m.delta,m.state,'flow'),relation,end);rows.push(tr);
+  }$('fast-lights').replaceChildren(...lights);$('force-windows').replaceChildren(...forces);$('relationship-rows').replaceChildren(...rows);
+}
+function coloredMetric(label,value,raw,kind='flow') {
+  const el=metric(label,value);el.classList.add(`${kind}-${raw>0?'positive':raw<0?'negative':'neutral'}`);return el;
 }
 function renderContext(c){
   const e=c.evidence;text('context-label',c.label);text('context-scope',c.scope==='SESSION_TO_NOW'?'SESSION_TO_NOW':c.scope==='OBSERVED_SEGMENT_TO_NOW'?'OBSERVED SEGMENT':'UNAVAILABLE');
-  text('context-relationship',LABELS[c.relationship.code]||LABELS.UNAVAILABLE);text('context-quality',`${c.freshness.state} · ${e?.quality?.status||'UNAVAILABLE'} · 捕捉 UNPROVEN`);
-  $('session-metrics').replaceChildren(...[
-    ['Price Δ · 點',signed(e?.priceDelta)],['觀測 Volume · 口',fmt(e?.observedVolume)],['CVD · 口',signed(c.cumulativeCvd)],['ΔCVD · 口',signed(e?.deltaCvd)],['Executed Pressure',fmt(e?.pressure?.pressureRatio)],['Price Response · 點',signed(e?.response?.displacementPoints)]
-  ].map(([k,v])=>metric(k,v)));
+  text('context-relationship',LABELS[c.relationship.code]||LABELS.UNAVAILABLE);text('context-quality',`${c.freshness.state} · ${e?.quality?.status||'UNAVAILABLE'}`);
+  const relation=windowPresentation({current:{relationship:c.relationship,current:e}});$('context-light').className=`light ${relation.tone}`;
+  text('context-price',fmt(c.lastPrice?.price));text('context-price-delta',`觀測漲跌 ${signed(e?.priceDelta)} 點`);
+  $('quote-metrics').replaceChildren(metric('觀測起點價',fmt(c.firstPrice?.price)),metric('觀測成交量 · 口',fmt(e?.observedVolume)),metric('未平倉 · 口','不可用'));
+  for(const id of ['context-price','context-price-delta'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
+  $('session-metrics').replaceChildren(
+    coloredMetric('CVD 累積 · 口',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
+    coloredMetric('ΔCVD · 口',signed(e?.deltaCvd),e?.deltaCvd),
+    coloredMetric('主動成交壓力',fmt(e?.pressure?.pressureRatio),e?.pressure?.pressureRatio),
+    coloredMetric('價格反應 · 點',signed(e?.response?.displacementPoints),e?.response?.displacementPoints,'price'));
   const path=e?.pathEfficiency?.value;text('path-value',path==null?'不可用':String(path));$('path-fill').style.width=path==null?'0%':`${100*path}%`;
-  text('coverage',`classifiedCoverage ${e?.pressure?.classifiedCoverage==null?'未知':(100*e.pressure.classifiedCoverage).toFixed(2)+'%'}`);text('unknown',`UNKNOWN ${fmt(e?.unknownVolume)}`);
-  text('origin',`起點 ${shortTime(c.origin?.eventTimeMs)} → ${shortTime(c.cutoff?.availableAtMs)} · ${fmt(c.observedSpanMs==null?null:c.observedSpanMs/1000)} 秒\n${c.sessionStartProven?'盤別起點已證明':'觀測起算 · 非完整盤別'}`);
+  const coverage=e?.pressure?.classifiedCoverage;text('coverage',`分類覆蓋率 ${coverage==null?'未知':(100*coverage).toFixed(2)+'%'}`);text('unknown',`UNKNOWN ${fmt(e?.unknownVolume)}`);$('coverage-fill').style.width=coverage==null?'0%':`${100*coverage}%`;
+  text('origin',`起點 ${shortTime(c.origin?.eventTimeMs)} → ${shortTime(c.cutoff?.availableAtMs)} · ${fmt(c.observedSpanMs==null?null:c.observedSpanMs/1000)} 秒 · ${c.sessionStartProven?'盤別起點已證明':'觀測起算 · 非完整盤別'}`);
   document.body.dataset.contextScope=c.scope;
 }
 function renderHandoff(h){
@@ -47,7 +69,7 @@ function renderHandoff(h){
 function renderChart(p,r){
   clearChart();const L=window.LightweightCharts;if(!L?.createChart)throw Error('圖表相依套件未載入');
   chart=L.createChart($('chart'),{autoSize:true,layout:{background:{type:'solid',color:'#081827'},textColor:'#A9BDD0',fontSize:11,fontFamily:'Inter, system-ui, "Noto Sans TC", sans-serif',panes:{separatorColor:'#21445F',enableResize:false}},grid:{vertLines:{color:'#10263A'},horzLines:{color:'#10263A'}},rightPriceScale:{minimumWidth:75,scaleMargins:{top:.12,bottom:.12}},timeScale:{timeVisible:true,secondsVisible:true,rightOffset:4,tickMarkFormatter:t=>shortTime(t*1000)},localization:{timeFormatter:t=>time(t*1000)},crosshair:{mode:L.CrosshairMode.Normal}});
-  const colors=window.TraderTerminalShell.PALETTES[palette];
+  const colors=window.TraderTerminalShell.PALETTES[palette];document.documentElement.style.setProperty('--price-up',colors.up);document.documentElement.style.setProperty('--price-down',colors.down);
   candle=chart.addSeries(L.CandlestickSeries,{upColor:colors.up,downColor:colors.down,wickUpColor:colors.up,wickDownColor:colors.down,borderVisible:false},0);
   const bars=p.bars.filter(b=>b.actualContract===p.actualContract&&b.tradeDate===p.tradeDate&&b.session===p.session);
   candle.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));
@@ -66,10 +88,10 @@ function renderChart(p,r){
   if(p.currentCvd!=null&&p.display.currentPlotAvailable&&endpoint!==p.currentCvd)throw Error('圖表與 API 累積端點不一致');
   document.body.dataset.endpoint=p.display.currentPlotAvailable&&p.currentCvd!=null?String(endpoint):'null';
   document.body.dataset.priceBars=String(bars.length);document.body.dataset.panes=String(chart.panes().length);document.body.dataset.cvdChunks=String(chunks.length);
-  text('price',bars.length?fmt(bars.at(-1).close):'價格不可用');text('price-context',bars.length?'最後合法 K 棒收價':'本片段無合法價格 K 棒');text('volume-subset',bars.length?`價格合法子集 · ${fmt(bars.reduce((n,b)=>n+b.volume,0))} 口`:'無合法價格子集');
+  text('price',bars.length?fmt(bars.at(-1).close):'價格不可用');text('price-context',bars.length?'最後合法 K 棒收價':'本片段無合法價格 K 棒');text('volume-subset',bars.length?fmt(bars.reduce((n,b)=>n+b.volume,0)):'不可用');
   text('cvd-value',`CVD ${signed(p.currentCvd)}`);text('cvd-sign',p.currentCvd==null?'累積不可用':p.currentCvd>0?'買方主動成交累積較多':p.currentCvd<0?'賣方主動成交累積較多':'已分類買賣累積差為 0');
   text('endpoint',p.currentCvd==null||!p.display.currentPlotAvailable?'目前端點不可用 · 歷史曲線不代表有效現值':`同 cutoff 累積 ${signed(p.currentCvd)} · 已核對端點`);
-  $('chart-empty').hidden=bars.length>0;text('chart-empty','K 線 / Volume：本片段無合法價格 K 棒。CVD 與價格的合法輸入集合不同。');
+  $('chart-empty').hidden=bars.length>0;text('chart-empty','此片段尚無可顯示的 K 線與成交量。');
   text('vwap','VWAP · UNAVAILABLE（片段未提供）');
 }
 function render(data){
@@ -81,6 +103,7 @@ function render(data){
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC / UI DEMO — 合成資料，僅檢查版面與互動；所有市場證據均為合成。':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
   text('selected-truth',`${frame} ${m.state} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
   text('change-price',signed(c?.response?.displacementPoints));text('change-volume',fmt(c?.observedVolume));text('change-delta',signed(c?.deltaCvd));text('change-path',c?.pathEfficiency?.value==null?'不可用':String(c.pathEfficiency.value));numericClass($('change-delta'),c?.deltaCvd);
+  text('force-window',frame);text('change-pressure',fmt(m.pressure));text('change-coverage',m.coverage==null?'不可用':`${(100*m.coverage).toFixed(2)}%`);$('selected-pressure-bar').replaceChildren(pressureBar(m.pressure,m.state));
   renderScan(data.scan);renderContext(data.context);renderHandoff(data.handoff);renderChart(p,r);
   const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(timelineTime(e))} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);

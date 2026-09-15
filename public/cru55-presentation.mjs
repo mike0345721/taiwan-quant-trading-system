@@ -18,7 +18,18 @@ export function windowPresentation(row) {
   else if(code==='ALIGNED')tone=e.deltaCvd>0?'positive':e.deltaCvd<0?'negative':'neutral';
   if(state==='WARMING')tone='warning';
   if(state==='PARTIAL'||state==='UNAVAILABLE')tone='neutral';
-  return {code,label:LABELS[code]||LABELS.UNAVAILABLE,state,tone,delta:e?.deltaCvd??null,response:e?.response?.displacementPoints??null,path:e?.pathEfficiency?.value??null,span:e?.observedSpanMs??null};
+  return {code,label:LABELS[code]||LABELS.UNAVAILABLE,state,tone,delta:e?.deltaCvd??null,response:e?.response?.displacementPoints??null,path:e?.pathEfficiency?.value??null,span:e?.observedSpanMs??null,pressure:e?.pressure?.pressureRatio??null,coverage:e?.pressure?.classifiedCoverage??null};
+}
+// Original Dashboard's 9-cell pressure display, not a new strength score.
+// Partial/warming/unavailable windows retain their raw evidence but no direction.
+export function pressureCells(ratio,state='AVAILABLE') {
+  if(state!=='AVAILABLE'||!Number.isFinite(ratio)||Math.abs(ratio)>1)return {cells:0,direction:'neutral'};
+  const a=Math.abs(ratio),cells=a<.1?0:a<.325?1:a<.55?2:a<.775?3:4;
+  return {cells,direction:cells===0?'neutral':ratio>0?'positive':'negative'};
+}
+export function evidenceDirection(value,state) {
+  if(state!=='AVAILABLE'||!Number.isFinite(value))return {symbol:'—',direction:'neutral'};
+  return value>0?{symbol:'▲',direction:'positive'}:value<0?{symbol:'▼',direction:'negative'}:{symbol:'＝',direction:'neutral'};
 }
 export function cvdChunks(projection) {
   const chunks=[];
