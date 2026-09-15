@@ -1,0 +1,71 @@
+TAP version 13
+# Subtest: timeline reads accepted availableAt lineage and missing stays unknown
+ok 1 - timeline reads accepted availableAt lineage and missing stays unknown
+  ---
+  duration_ms: 1.2785
+  type: 'test'
+  ...
+# Subtest: handoff scope distinguishes unavailable identity from observed accumulation
+ok 2 - handoff scope distinguishes unavailable identity from observed accumulation
+  ---
+  duration_ms: 0.2525
+  type: 'test'
+  ...
+# Subtest: source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+ok 3 - source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+  ---
+  duration_ms: 9.894
+  type: 'test'
+  ...
+# Subtest: bounded reader rejects over-budget before reading bytes and rejects hardlinks
+ok 4 - bounded reader rejects over-budget before reading bytes and rejects hardlinks
+  ---
+  duration_ms: 18.4217
+  type: 'test'
+  ...
+# Subtest: one window presentation preserves partial/warming/unavailable and direction limitations
+ok 5 - one window presentation preserves partial/warming/unavailable and direction limitations
+  ---
+  duration_ms: 1.3471
+  type: 'test'
+  ...
+# Subtest: CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+ok 6 - CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+  ---
+  duration_ms: 0.6168
+  type: 'test'
+  ...
+# Subtest: isolated authenticated API is memory-only and returns one exact scan/evidence source
+ok 7 - isolated authenticated API is memory-only and returns one exact scan/evidence source
+  ---
+  duration_ms: 231.5539
+  type: 'test'
+  ...
+# Subtest: restored force cells reuse original boundaries and never infer incomplete window direction
+ok 8 - restored force cells reuse original boundaries and never infer incomplete window direction
+  ---
+  duration_ms: 0.5766
+  type: 'test'
+  ...
+# Subtest: observed percent uses accepted first price and never backfills missing price with response
+ok 9 - observed percent uses accepted first price and never backfills missing price with response
+  ---
+  duration_ms: 0.3951
+  type: 'test'
+  ...
+# Subtest: context explanatory copy describes accepted evidence and preserves fragment/stale/unknown truth
+ok 10 - context explanatory copy describes accepted evidence and preserves fragment/stale/unknown truth
+  ---
+  duration_ms: 0.2996
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 584.2899
+# sourceHead 3f8b2edf33f3829f18581b2421f0d0cd46b63aaa
