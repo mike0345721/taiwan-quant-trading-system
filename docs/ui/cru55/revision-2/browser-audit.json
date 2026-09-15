@@ -1,0 +1,2041 @@
+{
+  "sourceHead": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+  "runtimePid": 11996,
+  "capturedAt": "2026-09-15T10:25:02.225Z",
+  "audits": [
+    {
+      "capturedAt": "2026-09-15T10:19:43.648Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 98.78125,
+          "height": 34.78125,
+          "right": 1341,
+          "selector": ".identity-bar",
+          "width": 1255,
+          "x": 86,
+          "y": 64
+        },
+        {
+          "bottom": 191.5,
+          "height": 46.78125,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 1255,
+          "x": 86,
+          "y": 144.71875
+        },
+        {
+          "bottom": 279.828125,
+          "height": 39.390625,
+          "right": 950,
+          "selector": ".fast-scan",
+          "width": 863,
+          "x": 87,
+          "y": 240.4375
+        },
+        {
+          "bottom": 747.328125,
+          "height": 340,
+          "right": 950,
+          "selector": ".chart-wrap",
+          "width": 863,
+          "x": 87,
+          "y": 407.328125
+        },
+        {
+          "bottom": 531.734375,
+          "height": 330.234375,
+          "right": 1341,
+          "selector": ".session",
+          "width": 380,
+          "x": 961,
+          "y": 201.5
+        },
+        {
+          "bottom": 763.421875,
+          "height": 223.6875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 961,
+          "y": 539.734375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        179,
+        1,
+        28,
+        1,
+        71,
+        1,
+        31,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1366,
+        768
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "negative",
+              "positive"
+            ],
+            "frame": "1m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "5m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "15m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "30m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "1h",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "2",
+            "code": "OPPOSITE_DIVERGENCE",
+            "direction": "positive",
+            "frame": "1m",
+            "state": "AVAILABLE",
+            "tone": "negative"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "5m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "15m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "30m",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "2",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "1h",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 407.328125,
+          "top": 279.828125
+        },
+        "restoredFields": {
+          "path": "0.1529051987767584",
+          "price": "42,103",
+          "priceDelta": "觀測漲跌 +100 點",
+          "volumeLabel": "成交量（口） 6,478"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:19:45.118Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 98.78125,
+          "height": 34.78125,
+          "right": 1341,
+          "selector": ".identity-bar",
+          "width": 1255,
+          "x": 86,
+          "y": 64
+        },
+        {
+          "bottom": 177.5,
+          "height": 46.78125,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 1255,
+          "x": 86,
+          "y": 130.71875
+        },
+        {
+          "bottom": 265.828125,
+          "height": 39.390625,
+          "right": 950,
+          "selector": ".fast-scan",
+          "width": 863,
+          "x": 87,
+          "y": 226.4375
+        },
+        {
+          "bottom": 733.328125,
+          "height": 340,
+          "right": 950,
+          "selector": ".chart-wrap",
+          "width": 863,
+          "x": 87,
+          "y": 393.328125
+        },
+        {
+          "bottom": 531.484375,
+          "height": 343.984375,
+          "right": 1341,
+          "selector": ".session",
+          "width": 380,
+          "x": 961,
+          "y": 187.5
+        },
+        {
+          "bottom": 763.171875,
+          "height": 223.6875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 961,
+          "y": 539.484375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        179,
+        1,
+        28,
+        1,
+        71,
+        1,
+        31,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1366,
+        768
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "5m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "15m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "30m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1h",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "5m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "15m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "30m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 393.328125,
+          "top": 265.828125
+        },
+        "restoredFields": {
+          "path": "0.05988515176374077",
+          "price": "47,350",
+          "priceDelta": "觀測漲跌 +73 點",
+          "volumeLabel": "成交量（口） 55"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:20:39.580Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 106.78125,
+          "height": 34.78125,
+          "right": 1511,
+          "selector": ".identity-bar",
+          "width": 1425,
+          "x": 86,
+          "y": 72
+        },
+        {
+          "bottom": 185.59375,
+          "height": 46.875,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 1425,
+          "x": 86,
+          "y": 138.71875
+        },
+        {
+          "bottom": 279.859375,
+          "height": 45.328125,
+          "right": 1120,
+          "selector": ".fast-scan",
+          "width": 1033,
+          "x": 87,
+          "y": 234.53125
+        },
+        {
+          "bottom": 761.453125,
+          "height": 354,
+          "right": 1120,
+          "selector": ".chart-wrap",
+          "width": 1033,
+          "x": 87,
+          "y": 407.453125
+        },
+        {
+          "bottom": 555.71875,
+          "height": 360.125,
+          "right": 1511,
+          "selector": ".session",
+          "width": 380,
+          "x": 1131,
+          "y": 195.59375
+        },
+        {
+          "bottom": 787.40625,
+          "height": 223.6875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 1131,
+          "y": 563.71875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        187,
+        1,
+        29,
+        1,
+        74,
+        1,
+        33,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1536,
+        864
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "5m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "15m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "30m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1h",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "5m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "15m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "30m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 407.453125,
+          "top": 279.859375
+        },
+        "restoredFields": {
+          "path": "0.05988515176374077",
+          "price": "47,350",
+          "priceDelta": "觀測漲跌 +73 點",
+          "volumeLabel": "成交量（口） 55"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:20:41.091Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 106.78125,
+          "height": 34.78125,
+          "right": 1511,
+          "selector": ".identity-bar",
+          "width": 1425,
+          "x": 86,
+          "y": 72
+        },
+        {
+          "bottom": 199.59375,
+          "height": 46.875,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 1425,
+          "x": 86,
+          "y": 152.71875
+        },
+        {
+          "bottom": 293.859375,
+          "height": 45.328125,
+          "right": 1120,
+          "selector": ".fast-scan",
+          "width": 1033,
+          "x": 87,
+          "y": 248.53125
+        },
+        {
+          "bottom": 775.453125,
+          "height": 354,
+          "right": 1120,
+          "selector": ".chart-wrap",
+          "width": 1033,
+          "x": 87,
+          "y": 421.453125
+        },
+        {
+          "bottom": 555.96875,
+          "height": 346.375,
+          "right": 1511,
+          "selector": ".session",
+          "width": 380,
+          "x": 1131,
+          "y": 209.59375
+        },
+        {
+          "bottom": 787.65625,
+          "height": 223.6875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 1131,
+          "y": 563.96875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        187,
+        1,
+        29,
+        1,
+        74,
+        1,
+        33,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1536,
+        864
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "negative",
+              "positive"
+            ],
+            "frame": "1m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "5m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "15m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "30m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "1h",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "2",
+            "code": "OPPOSITE_DIVERGENCE",
+            "direction": "positive",
+            "frame": "1m",
+            "state": "AVAILABLE",
+            "tone": "negative"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "5m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "15m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "30m",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "2",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "1h",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 421.453125,
+          "top": 293.859375
+        },
+        "restoredFields": {
+          "path": "0.1529051987767584",
+          "price": "42,103",
+          "priceDelta": "觀測漲跌 +100 點",
+          "volumeLabel": "成交量（口） 6,478"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:20:42.753Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 196.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 143.625
+        },
+        {
+          "bottom": 302.765625,
+          "height": 49.328125,
+          "right": 1412.890625,
+          "selector": ".fast-scan",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 253.4375
+        },
+        {
+          "bottom": 1012.359375,
+          "height": 570,
+          "right": 1412.890625,
+          "selector": ".chart-wrap",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 442.359375
+        },
+        {
+          "bottom": 618.828125,
+          "height": 412.328125,
+          "right": 1890.984375,
+          "selector": ".session",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 206.5
+        },
+        {
+          "bottom": 1018.015625,
+          "height": 389.1875,
+          "right": 1890.984375,
+          "selector": ".relationships",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 628.828125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "5m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "15m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "30m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1h",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "5m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "15m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "30m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 442.359375,
+          "top": 302.765625
+        },
+        "restoredFields": {
+          "path": "0.05988515176374077",
+          "price": "47,350",
+          "priceDelta": "觀測漲跌 +73 點",
+          "volumeLabel": "成交量（口） 55"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:20:44.372Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 210.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 157.625
+        },
+        {
+          "bottom": 316.765625,
+          "height": 49.328125,
+          "right": 1412.890625,
+          "selector": ".fast-scan",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 267.4375
+        },
+        {
+          "bottom": 1026.359375,
+          "height": 570,
+          "right": 1412.890625,
+          "selector": ".chart-wrap",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 456.359375
+        },
+        {
+          "bottom": 632.828125,
+          "height": 412.328125,
+          "right": 1890.984375,
+          "selector": ".session",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 220.5
+        },
+        {
+          "bottom": 1032.015625,
+          "height": 389.1875,
+          "right": 1890.984375,
+          "selector": ".relationships",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 642.828125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "negative",
+              "positive"
+            ],
+            "frame": "1m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "5m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "15m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "30m",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "positive",
+              "positive"
+            ],
+            "frame": "1h",
+            "state": "AVAILABLE"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "2",
+            "code": "OPPOSITE_DIVERGENCE",
+            "direction": "positive",
+            "frame": "1m",
+            "state": "AVAILABLE",
+            "tone": "negative"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "5m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED_BUT_WEAKENING",
+            "direction": "positive",
+            "frame": "15m",
+            "state": "AVAILABLE",
+            "tone": "warning"
+          },
+          {
+            "cells": "3",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "30m",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "2",
+            "code": "ALIGNED",
+            "direction": "positive",
+            "frame": "1h",
+            "state": "AVAILABLE",
+            "tone": "positive"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 456.359375,
+          "top": 316.765625
+        },
+        "restoredFields": {
+          "path": "0.1529051987767584",
+          "price": "42,103",
+          "priceDelta": "觀測漲跌 +100 點",
+          "volumeLabel": "成交量（口） 6,478"
+        }
+      }
+    },
+    {
+      "capturedAt": "2026-09-15T10:21:23.951Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 196.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 143.625
+        },
+        {
+          "bottom": 302.765625,
+          "height": 49.328125,
+          "right": 1412.890625,
+          "selector": ".fast-scan",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 253.4375
+        },
+        {
+          "bottom": 1012.359375,
+          "height": 570,
+          "right": 1412.890625,
+          "selector": ".chart-wrap",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 442.359375
+        },
+        {
+          "bottom": 618.828125,
+          "height": 412.328125,
+          "right": 1890.984375,
+          "selector": ".session",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 206.5
+        },
+        {
+          "bottom": 1018.015625,
+          "height": 389.1875,
+          "right": 1890.984375,
+          "selector": ".relationships",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 628.828125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +5",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "5",
+      "head": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "4h",
+      "trust": "STALE",
+      "view": "night",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "restored": {
+        "directions": [
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "5m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "15m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "30m",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "1h",
+            "state": "PARTIAL"
+          },
+          {
+            "arrows": [
+              "neutral",
+              "neutral"
+            ],
+            "frame": "4h",
+            "state": "PARTIAL"
+          }
+        ],
+        "force": [
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "5m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "15m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "30m",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "1h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          },
+          {
+            "cells": "0",
+            "code": "MIXED_OR_QUALITY_LIMITED",
+            "direction": "neutral",
+            "frame": "4h",
+            "state": "PARTIAL",
+            "tone": "neutral"
+          }
+        ],
+        "forceBounds": {
+          "bottom": 442.359375,
+          "top": 302.765625
+        },
+        "restoredFields": {
+          "path": "0.043478260869565216",
+          "price": "不可用",
+          "priceDelta": "觀測漲跌 不可用 點",
+          "volumeLabel": "成交量（口） 不可用"
+        }
+      }
+    }
+  ],
+  "interactions": [
+    {
+      "detail": "1m",
+      "endpoint": "2026",
+      "frame": "1m",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "1m",
+      "view": "demo"
+    },
+    {
+      "detail": "5m",
+      "endpoint": "2026",
+      "frame": "5m",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "5m",
+      "view": "demo"
+    },
+    {
+      "detail": "15m",
+      "endpoint": "2026",
+      "frame": "15m",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "15m",
+      "view": "demo"
+    },
+    {
+      "detail": "30m",
+      "endpoint": "2026",
+      "frame": "30m",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "30m",
+      "view": "demo"
+    },
+    {
+      "detail": "1h",
+      "endpoint": "2026",
+      "frame": "1h",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "1h",
+      "view": "demo"
+    },
+    {
+      "detail": "4h",
+      "endpoint": "2026",
+      "frame": "4h",
+      "price": "42,103",
+      "priceDelta": "觀測漲跌 +100 點",
+      "selected": "4h",
+      "view": "demo"
+    },
+    {
+      "detail": "1m",
+      "endpoint": "295",
+      "frame": "1m",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "1m",
+      "view": "day"
+    },
+    {
+      "detail": "5m",
+      "endpoint": "295",
+      "frame": "5m",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "5m",
+      "view": "day"
+    },
+    {
+      "detail": "15m",
+      "endpoint": "295",
+      "frame": "15m",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "15m",
+      "view": "day"
+    },
+    {
+      "detail": "30m",
+      "endpoint": "295",
+      "frame": "30m",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "30m",
+      "view": "day"
+    },
+    {
+      "detail": "1h",
+      "endpoint": "295",
+      "frame": "1h",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "1h",
+      "view": "day"
+    },
+    {
+      "detail": "4h",
+      "endpoint": "295",
+      "frame": "4h",
+      "price": "47,350",
+      "priceDelta": "觀測漲跌 +73 點",
+      "selected": "4h",
+      "view": "day"
+    },
+    {
+      "detail": "1m",
+      "endpoint": "5",
+      "frame": "1m",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "1m",
+      "view": "night"
+    },
+    {
+      "detail": "5m",
+      "endpoint": "5",
+      "frame": "5m",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "5m",
+      "view": "night"
+    },
+    {
+      "detail": "15m",
+      "endpoint": "5",
+      "frame": "15m",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "15m",
+      "view": "night"
+    },
+    {
+      "detail": "30m",
+      "endpoint": "5",
+      "frame": "30m",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "30m",
+      "view": "night"
+    },
+    {
+      "detail": "1h",
+      "endpoint": "5",
+      "frame": "1h",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "1h",
+      "view": "night"
+    },
+    {
+      "detail": "4h",
+      "endpoint": "5",
+      "frame": "4h",
+      "price": "不可用",
+      "priceDelta": "觀測漲跌 不可用 點",
+      "selected": "4h",
+      "view": "night"
+    }
+  ],
+  "palette": {
+    "cvd": "rgb(70, 199, 244)",
+    "flowArrow": "rgb(35, 224, 165)",
+    "price": "rgb(55, 214, 122)",
+    "priceArrow": "rgb(55, 214, 122)"
+  },
+  "controlledFailure": {
+    "endpoint": "null",
+    "error": "true",
+    "force": [
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      },
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      },
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      },
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      },
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      },
+      {
+        "direction": "neutral",
+        "state": "UNAVAILABLE"
+      }
+    ],
+    "prices": [
+      {
+        "cls": "price-neutral",
+        "id": "context-price",
+        "text": "不可用"
+      },
+      {
+        "cls": "price-neutral",
+        "id": "context-price-delta",
+        "text": "不可用"
+      }
+    ],
+    "trust": "UNAVAILABLE"
+  },
+  "blockingConsoleErrors": [],
+  "notes": [
+    "The controlled server-stop network error and expected authentication 401 during restart are intentional fault probes, excluded from normal console acceptance.",
+    "Prior immutable revision evidence remains unchanged."
+  ],
+  "checks": {
+    "viewportCoreFits": true,
+    "horizontalOverflowZero": true,
+    "textFloor": true,
+    "noDuplicateIds": true,
+    "noTextClipping": true,
+    "sameWindowState": true,
+    "incompleteDirectionSuppressed": true,
+    "timeframeInvariance": true
+  }
+}

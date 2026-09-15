@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: timeline reads accepted availableAt lineage and missing stays unknown
+ok 1 - timeline reads accepted availableAt lineage and missing stays unknown
+  ---
+  duration_ms: 1.2917
+  type: 'test'
+  ...
+# Subtest: handoff scope distinguishes unavailable identity from observed accumulation
+ok 2 - handoff scope distinguishes unavailable identity from observed accumulation
+  ---
+  duration_ms: 0.3235
+  type: 'test'
+  ...
+# Subtest: source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+ok 3 - source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+  ---
+  duration_ms: 10.8721
+  type: 'test'
+  ...
+# Subtest: bounded reader rejects over-budget before reading bytes and rejects hardlinks
+ok 4 - bounded reader rejects over-budget before reading bytes and rejects hardlinks
+  ---
+  duration_ms: 20.1392
+  type: 'test'
+  ...
+# Subtest: one window presentation preserves partial/warming/unavailable and direction limitations
+ok 5 - one window presentation preserves partial/warming/unavailable and direction limitations
+  ---
+  duration_ms: 1.3721
+  type: 'test'
+  ...
+# Subtest: CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+ok 6 - CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+  ---
+  duration_ms: 0.6902
+  type: 'test'
+  ...
+# Subtest: isolated authenticated API is memory-only and returns one exact scan/evidence source
+ok 7 - isolated authenticated API is memory-only and returns one exact scan/evidence source
+  ---
+  duration_ms: 218.0693
+  type: 'test'
+  ...
+# Subtest: restored force cells reuse original boundaries and never infer incomplete window direction
+ok 8 - restored force cells reuse original boundaries and never infer incomplete window direction
+  ---
+  duration_ms: 0.6834
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 550.6559

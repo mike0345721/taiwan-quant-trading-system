@@ -1,0 +1,126 @@
+{
+  "sourceHead": "5ae0e6f885265b6e9f9cffbad9552bdbd3f4d33e",
+  "previousEvidenceHead": "b932d4da52b6e8f552cc44324a1c31d7dbd55b24",
+  "branch": "codex/cru-55-premerge-ui-v1",
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  },
+  "files": [
+    {
+      "path": "browser-audit.json",
+      "sha256": "8d99c3f67e2763a7bb5dd0a41b47ec63e26fa813f9c9d4c92d75d62c408f1908",
+      "bytes": 47646
+    },
+    {
+      "path": "OWNER_REVIEW_GUIDE.md",
+      "sha256": "c6ef5ec1f01e8b2b1c3e526121eac0cc31e43261381a762c9063f7636cfe2aeb",
+      "bytes": 4477
+    },
+    {
+      "path": "screenshots/day-1366x768.jpg",
+      "sha256": "19b50f790c19cc6daa00647e80a1c759839765f7b5d6404a6f51453f2712f79f",
+      "bytes": 160279
+    },
+    {
+      "path": "screenshots/day-1536x864.jpg",
+      "sha256": "53d43558f667fa9142ac1cce697056a6d8ae744aabc78e66f4175780e0974f98",
+      "bytes": 186510
+    },
+    {
+      "path": "screenshots/day-1920x1080.jpg",
+      "sha256": "ab990602ba308af9e7930edd120f0ccfe14627ae4e617f04dea40c136d449521",
+      "bytes": 218015
+    },
+    {
+      "path": "screenshots/demo-1366x768.jpg",
+      "sha256": "59918c4aa45f1b012dab6143ae80fe16551d86b37337391d3103f54e4825c48f",
+      "bytes": 170061
+    },
+    {
+      "path": "screenshots/demo-1536x864.jpg",
+      "sha256": "f2782a31ec7218788ab0b81e3b76e48d3ada06e4b91ffea03c481c63bdcc30e4",
+      "bytes": 195782
+    },
+    {
+      "path": "screenshots/demo-1920x1080.jpg",
+      "sha256": "6701fde2270bda8c4e67fafdd7118a2aeb4a44f28826cb6e98c080fc0dc154e7",
+      "bytes": 236502
+    },
+    {
+      "path": "screenshots/night-1920x1080.jpg",
+      "sha256": "c8115445213dfca5efd4e79ce9a116c3f1a6f529c675020083065272d3af5785",
+      "bytes": 207349
+    },
+    {
+      "path": "tests.tap",
+      "sha256": "8713de0a67bfec41b095018260e618fa592834c557016257b99bff2c1c7d8f73",
+      "bytes": 1971
+    },
+    {
+      "path": "VALIDATION.md",
+      "sha256": "2e9b954efb9411996f05c7026d983fa1fd2c7c4085887ededd4ee8525acfa3ca",
+      "bytes": 4518
+    }
+  ],
+  "images": [
+    {
+      "file": "day-1366x768.jpg",
+      "size": [
+        1366,
+        768
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "day-1536x864.jpg",
+      "size": [
+        1536,
+        864
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "day-1920x1080.jpg",
+      "size": [
+        1920,
+        1080
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "demo-1366x768.jpg",
+      "size": [
+        1366,
+        768
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "demo-1536x864.jpg",
+      "size": [
+        1536,
+        864
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "demo-1920x1080.jpg",
+      "size": [
+        1920,
+        1080
+      ],
+      "format": "JPEG"
+    },
+    {
+      "file": "night-1920x1080.jpg",
+      "size": [
+        1920,
+        1080
+      ],
+      "format": "JPEG"
+    }
+  ]
+}
