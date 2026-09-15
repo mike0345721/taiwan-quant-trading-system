@@ -3,6 +3,8 @@ export const FRAMES=['1m','5m','15m','30m','1h','4h'];
 export const FLOW={positive:'#23E0A5',negative:'#FF5F76',neutral:'#718395'};
 export const fmt=x=>x==null?'不可用':Number(x).toLocaleString('zh-TW',{maximumFractionDigits:3});
 export const signed=x=>x==null?'不可用':`${x>0?'+':''}${fmt(x)}`;
+export const timelineTime=event=>event?.lineage?.availableAtMs??null;
+export const scopeLabel=scope=>scope==='SESSION_TO_NOW'?'本盤累積':scope==='OBSERVED_SEGMENT_TO_NOW'?'觀測累積':'UNAVAILABLE';
 // One presentation model shared by Fast Scan and Explain; never a second classifier.
 export function windowPresentation(row) {
   const o=row?.current,e=o?.current,code=o?.relationship?.code||'UNAVAILABLE';

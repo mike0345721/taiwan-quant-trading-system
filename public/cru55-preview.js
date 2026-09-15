@@ -1,4 +1,4 @@
-import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks} from '/presentation.mjs';
+import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const shortTime=t=>t==null?'未知':new Date(t).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const text=(id,s)=>{$(id).textContent=s;},node=(tag,s,cls)=>{const el=document.createElement(tag);if(s!=null)el.textContent=s;if(cls)el.className=cls;return el;};
@@ -9,6 +9,7 @@ function metric(label,value){const el=node('div',null,'metric');el.append(node('
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=null;}
 function fail(message){
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
+  numericClass($('change-delta'),null);document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
   for(const id of ['price','contract','cvd-value','change-price','change-volume','change-delta','change-path','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
   for(const id of ['session-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['price-context','context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
@@ -40,7 +41,7 @@ function renderContext(c){
 }
 function renderHandoff(h){
   text('handoff-state',`${handoffLabels[h.handoff.code]||'暫無法判讀'} · ${h.handoff.code}`);
-  const side=s=>s?.identity?`${s.identity[2]} ${s.identity[1]}｜${s.contextScope==='SESSION_TO_NOW'?'本盤累積':'觀測累積'} · CVD ${signed(s.evidence?.deltaCvd)}`:'缺少合法時段';
+  const side=s=>s?.identity?`${s.identity[2]} ${s.identity[1]}｜${scopeLabel(s.contextScope)} · CVD ${signed(s.evidence?.deltaCvd)}`:'缺少合法時段';
   text('handoff-prior',side(h.prior));text('handoff-current',side(h.current));text('handoff-gap',`${h.gap.label||'觀測片段端點差'} ${signed(h.gap.points)}`);
 }
 function renderChart(p,r){
@@ -79,9 +80,9 @@ function render(data){
   text('trust',p.freshness.state);text('freshness',`來源 ${time(p.lastTradeAvailableAtMs)} · 非即時`);
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC / UI DEMO — 合成資料，僅檢查版面與互動；所有市場證據均為合成。':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
   text('selected-truth',`${frame} ${m.state} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
-  text('change-price',signed(c?.response?.displacementPoints));text('change-volume',fmt(c?.observedVolume));text('change-delta',signed(c?.deltaCvd));text('change-path',fmt(c?.pathEfficiency?.value));numericClass($('change-delta'),c?.deltaCvd);
+  text('change-price',signed(c?.response?.displacementPoints));text('change-volume',fmt(c?.observedVolume));text('change-delta',signed(c?.deltaCvd));text('change-path',c?.pathEfficiency?.value==null?'不可用':String(c.pathEfficiency.value));numericClass($('change-delta'),c?.deltaCvd);
   renderScan(data.scan);renderContext(data.context);renderHandoff(data.handoff);renderChart(p,r);
-  const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(e.availableAtMs)} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
+  const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(timelineTime(e))} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);
   for(const b of $('frames').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.frame===frame));renderLower();
 }

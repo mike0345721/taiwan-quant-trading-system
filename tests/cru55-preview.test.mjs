@@ -7,11 +7,19 @@ import {createPreviewServer} from '../src/cru55-preview-server.mjs';
 import {validateView,boundedRead} from '../src/cru55-preview-bundle.mjs';
 import {sessionFixture,calendar} from './cvd-session-context-fixture.mjs';
 import {buildSessionContext,buildSessionContextHandoff} from '../src/cvd-session-context-projection.mjs';
-import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES} from '../public/cru55-presentation.mjs';
+import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES,timelineTime,scopeLabel} from '../public/cru55-presentation.mjs';
 const fixture=sessionFixture();
 const sessionContext=buildSessionContext(fixture.g,fixture,fixture.events,calendar);
 const handoffs=Object.fromEntries(FRAMES.map(f=>[f,buildSessionContextHandoff(null,fixture,[],fixture.events,calendar,null,sessionContext,f)]));
 const view={...fixture,sessionContext,handoffs,kind:'SYNTHETIC_FIXTURE'};
+test('timeline reads accepted availableAt lineage and missing stays unknown',()=>{
+  assert.equal(timelineTime({lineage:{availableAtMs:1789353900001},time:1}),1789353900001);
+  assert.equal(timelineTime({lineage:{availableAtMs:null},time:1}),null);
+});
+test('handoff scope distinguishes unavailable identity from observed accumulation',()=>{
+  assert.equal(scopeLabel('SESSION_TO_NOW'),'本盤累積');assert.equal(scopeLabel('OBSERVED_SEGMENT_TO_NOW'),'觀測累積');
+  assert.equal(scopeLabel('UNAVAILABLE'),'UNAVAILABLE');assert.equal(scopeLabel(null),'UNAVAILABLE');
+});
 test('source kind, exact cutoff, timeframe endpoint and frozen safety fail closed',()=>{
   validateView(view);
   assert.throws(()=>validateView({...view,kind:'GOVERNED_FRAGMENT'}),/SOURCE_KIND/);
