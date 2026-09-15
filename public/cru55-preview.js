@@ -16,7 +16,7 @@ function fail(message){
   for(const id of ['context-price','context-price-delta','price','price-change','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
   for(const id of ['quote-metrics','context-core-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
-  $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');for(const id of ['handoff-prior','handoff-gap','handoff-current'])$(id).hidden=true;text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
+  $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').hidden=false;$('path-value').title='不可用';for(const id of ['handoff-prior','handoff-gap','handoff-current'])$(id).hidden=true;text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
 }
 async function api(route){const r=await fetch(route);if(r.status===401){$('login').hidden=false;throw Error('請以本次 launcher 的本機啟動連結登入。');}if(!r.ok)throw Error(`資料無法載入（${r.status}）`);return r.json();}
 async function authenticate(token){const r=await fetch('/session',{method:'POST',headers:{'Content-Type':'text/plain'},body:token});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
@@ -94,7 +94,7 @@ function renderChart(p,r){
   if(p.currentCvd!=null&&p.display.currentPlotAvailable&&endpoint!==p.currentCvd)throw Error('圖表與 API 累積端點不一致');
   document.body.dataset.endpoint=p.display.currentPlotAvailable&&p.currentCvd!=null?String(endpoint):'null';
   document.body.dataset.priceBars=String(bars.length);document.body.dataset.panes=String(chart.panes().length);document.body.dataset.cvdChunks=String(chunks.length);
-  text('price',bars.length?fmt(bars.at(-1).close):'價格不可用');text(bars.length?'最後合法 K 棒收價':'本片段無合法價格 K 棒');text('volume-subset',bars.length?fmt(bars.reduce((n,b)=>n+b.volume,0)):'不可用');
+  text('volume-subset',bars.length?fmt(bars.reduce((n,b)=>n+b.volume,0)):'不可用');
   text('cvd-value',`CVD ${signed(p.currentCvd)}`);text('cvd-sign',p.currentCvd==null?'累積不可用':p.currentCvd>0?'買方主動成交累積較多':p.currentCvd<0?'賣方主動成交累積較多':'已分類買賣累積差為 0');
   text('endpoint',p.currentCvd==null||!p.display.currentPlotAvailable?'目前端點不可用 · 歷史曲線不代表有效現值':`同 cutoff 累積 ${signed(p.currentCvd)} · 已核對端點`);
   $('chart-empty').hidden=bars.length>0;text('chart-empty','此片段尚無可顯示的 K 線與成交量。');
