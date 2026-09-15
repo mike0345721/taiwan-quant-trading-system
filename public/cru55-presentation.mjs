@@ -5,6 +5,20 @@ export const fmt=x=>x==null?'不可用':Number(x).toLocaleString('zh-TW',{maximu
 export const signed=x=>x==null?'不可用':`${x>0?'+':''}${fmt(x)}`;
 export const timelineTime=event=>event?.lineage?.availableAtMs??null;
 export const scopeLabel=scope=>scope==='SESSION_TO_NOW'?'本盤累積':scope==='OBSERVED_SEGMENT_TO_NOW'?'觀測累積':'UNAVAILABLE';
+// Display arithmetic on accepted observed endpoints, never previous-close/session return.
+export function observedPricePercent(context) {
+  const first=context?.firstPrice?.price,last=context?.lastPrice?.price,delta=context?.evidence?.priceDelta;
+  return Number.isFinite(first)&&first>0&&Number.isFinite(last)&&Number.isFinite(delta)?delta/first*100:null;
+}
+export function relationshipExplanation(code) {
+  return ({ALIGNED:'主動成交壓力與價格位移同向。',ALIGNED_BUT_WEAKENING:'力價仍同向；相較前窗，流量、位移或路徑效率有減弱。',PRESSURE_RESPONSE_MISMATCH:'有淨主動成交壓力，價格位移尚未跟隨。',OPPOSITE_DIVERGENCE:'主動成交壓力與價格位移方向相反。',MIXED_OR_QUALITY_LIMITED:'窗口、分類覆蓋或價格證據不足，暫不推定完整方向。',UNAVAILABLE:'缺少可用證據，暫無法判讀。'})[code]||'缺少可用證據，暫無法判讀。';
+}
+export function contextSummary(context) {
+  if(!context?.evidence||context.relationship?.code==='UNAVAILABLE')return '本盤證據不可用，暫無法彙整。';
+  const c=context.cumulativeCvd,pressure=c==null?'累積主動成交差未知':c>0?'買方主動成交累積較多':c<0?'賣方主動成交累積較多':'已分類買賣累積差為零';
+  const scope=context.sessionStartProven?'本盤累積':'僅觀測片段';
+  return `${pressure}；${scope}。${context.freshness?.state==='LIVE'?'':`${context.freshness?.state||'UNAVAILABLE'}，非即時盤勢。`}`;
+}
 // One presentation model shared by Fast Scan and Explain; never a second classifier.
 export function windowPresentation(row) {
   const o=row?.current,e=o?.current,code=o?.relationship?.code||'UNAVAILABLE';

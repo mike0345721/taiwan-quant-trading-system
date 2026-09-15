@@ -1,8 +1,9 @@
-import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection} from '/presentation.mjs';
+import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection,observedPricePercent,relationshipExplanation,contextSummary} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const shortTime=t=>t==null?'未知':new Date(t).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const text=(id,s)=>{$(id).textContent=s;},node=(tag,s,cls)=>{const el=document.createElement(tag);if(s!=null)el.textContent=s;if(cls)el.className=cls;return el;};
-let current=null,lower=null,chart=null,candle=null,volume=null,serial=0,frame='1m',view='day',palette='red-up',chartObserver=null;
+let current=null,lower=null,chart=null,candle=null,volume=null,serial=0,frame='1m',view='day',selectedProduct='TX',selectedMonth='2026-09',palette='red-up',chartObserver=null;
+const selectionAvailable=()=>selectedProduct==='TX'&&selectedMonth==='2026-09';
 const handoffLabels={CONFIRMED_CONTINUATION:'延續獲確認',CONFIRMED_BUT_WEAKENING:'延續但轉弱',PRIOR_SESSION_REJECTED:'前勢遭拒絕',OPPOSITE_TAKEOVER:'反向已接手',UNCONFIRMED_OR_CONFLICT:'尚未獲確認',UNAVAILABLE:'暫無法判讀'};
 function numericClass(el,value){el.classList.remove('positive-text','negative-text');if(value>0)el.classList.add('positive-text');else if(value<0)el.classList.add('negative-text');}
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
@@ -10,11 +11,11 @@ function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)ch
 function fail(message){
   for(const id of ['context-price','context-price-delta'])$(id).className='price-neutral';
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
-  numericClass($('change-delta'),null);document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
-  for(const id of ['context-price','context-price-delta','change-pressure','change-coverage','price','contract','cvd-value','change-price','change-volume','change-delta','change-path','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
-  for(const id of ['quote-metrics','session-metrics','timeline'])$(id).replaceChildren();
+  document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
+  for(const id of ['context-price','context-price-delta','price','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
+  for(const id of ['quote-metrics','context-core-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['price-context','context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
-  text('trust','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';$('selected-pressure-bar').replaceChildren(pressureBar(null,'UNAVAILABLE'));renderScan({});
+  text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
 }
 async function api(route){const r=await fetch(route);if(r.status===401){$('login').hidden=false;throw Error('請以本次 launcher 的本機啟動連結登入。');}if(!r.ok)throw Error(`資料無法載入（${r.status}）`);return r.json();}
 async function authenticate(token){const r=await fetch('/session',{method:'POST',headers:{'Content-Type':'text/plain'},body:token});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
@@ -49,14 +50,15 @@ function renderContext(c){
   const e=c.evidence;text('context-label',c.label);text('context-scope',c.scope==='SESSION_TO_NOW'?'SESSION_TO_NOW':c.scope==='OBSERVED_SEGMENT_TO_NOW'?'OBSERVED SEGMENT':'UNAVAILABLE');
   text('context-relationship',LABELS[c.relationship.code]||LABELS.UNAVAILABLE);text('context-quality',`${c.freshness.state} · ${e?.quality?.status||'UNAVAILABLE'}`);
   const relation=windowPresentation({current:{relationship:c.relationship,current:e}});$('context-light').className=`light ${relation.tone}`;
-  text('context-price',fmt(c.lastPrice?.price));text('context-price-delta',`觀測漲跌 ${signed(e?.priceDelta)} 點`);
+  text('context-price',fmt(c.lastPrice?.price));const percent=observedPricePercent(c);text('context-price-delta',e?.priceDelta==null?'觀測漲跌 不可用':`觀測漲跌 ${signed(e.priceDelta)} 點（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('context-price-delta').title='漲跌百分比以已觀測起點價為基準，非昨收漲跌幅';
   $('quote-metrics').replaceChildren(metric('觀測起點價',fmt(c.firstPrice?.price)),metric('觀測成交量 · 口',fmt(e?.observedVolume)),metric('未平倉 · 口','不可用'));
   for(const id of ['context-price','context-price-delta'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
-  $('session-metrics').replaceChildren(
+  $('context-core-metrics').replaceChildren(
     coloredMetric('CVD 累積 · 口',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
     coloredMetric('ΔCVD · 口',signed(e?.deltaCvd),e?.deltaCvd),
     coloredMetric('主動成交壓力',fmt(e?.pressure?.pressureRatio),e?.pressure?.pressureRatio),
     coloredMetric('價格反應 · 點',signed(e?.response?.displacementPoints),e?.response?.displacementPoints,'price'));
+  text('context-explanation',relationshipExplanation(c.relationship.code));text('context-summary',contextSummary(c));
   const path=e?.pathEfficiency?.value;text('path-value',path==null?'不可用':String(path));$('path-fill').style.width=path==null?'0%':`${100*path}%`;
   const coverage=e?.pressure?.classifiedCoverage;text('coverage',`分類覆蓋率 ${coverage==null?'未知':(100*coverage).toFixed(2)+'%'}`);text('unknown',`UNKNOWN ${fmt(e?.unknownVolume)}`);$('coverage-fill').style.width=coverage==null?'0%':`${100*coverage}%`;
   text('origin',`起點 ${shortTime(c.origin?.eventTimeMs)} → ${shortTime(c.cutoff?.availableAtMs)} · ${fmt(c.observedSpanMs==null?null:c.observedSpanMs/1000)} 秒 · ${c.sessionStartProven?'盤別起點已證明':'觀測起算 · 非完整盤別'}`);
@@ -103,16 +105,15 @@ function render(data){
   text('trust',p.freshness.state);text('freshness',`來源 ${time(p.lastTradeAvailableAtMs)} · 非即時`);
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC / UI DEMO — 合成資料，僅檢查版面與互動；所有市場證據均為合成。':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
   text('selected-truth',`${frame} ${m.state} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
-  text('change-price',signed(c?.response?.displacementPoints));text('change-volume',fmt(c?.observedVolume));text('change-delta',signed(c?.deltaCvd));text('change-path',c?.pathEfficiency?.value==null?'不可用':String(c.pathEfficiency.value));numericClass($('change-delta'),c?.deltaCvd);
-  text('force-window',frame);text('change-pressure',fmt(m.pressure));text('change-coverage',m.coverage==null?'不可用':`${(100*m.coverage).toFixed(2)}%`);$('selected-pressure-bar').replaceChildren(pressureBar(m.pressure,m.state));
+  text('force-window',frame);
   renderScan(data.scan);renderContext(data.context);renderHandoff(data.handoff);renderChart(p,r);
   const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(timelineTime(e))} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);
   for(const b of $('frames').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.frame===frame));renderLower();
 }
 function renderLower(){
-  const demo=view==='demo',s=demo?null:lower;
-  text('lower-date',demo?'SYNTHETIC / UI DEMO · 真實背景不混入':s?`STALE · ${s.asOfDate} 歷史快照`:'MISSING · 未載入背景快照');
+  const demo=view==='demo',s=demo||!selectionAvailable()?null:lower;
+  text('lower-date',!selectionAvailable()?'UNAVAILABLE · 所選商品／月份無資料':demo?'SYNTHETIC / UI DEMO · 真實背景不混入':s?`STALE · ${s.asOfDate} 歷史快照`:'MISSING · 未載入背景快照');
   const val=(part,k)=>s?.[part]?.ok?s[part].data?.[k]:null;
   const pairs=(id,values)=>$(id).replaceChildren(...values.map(([k,v])=>{const row=node('div');row.append(node('span',k),node('strong',v));return row;}));
   const index=val('marketOverview','twii'),f=val('futuresMarket','txDay'),o=s?.options?.ok?s.options.data:null,b=val('marketBreadth','listed');
@@ -121,7 +122,7 @@ function renderLower(){
   text('options-value',o?.oiPcRatio==null?'UNAVAILABLE':`P/C ${fmt(o.oiPcRatio)}`);pairs('options-metrics',[['Call / Put Wall',o?`${fmt(o.callWall?.strike)} / ${fmt(o.putWall?.strike)}`:'不可用'],['契約',o?.contract||'UNAVAILABLE']]);
   text('breadth-value',b?`${fmt(b.advance)} / ${fmt(b.decline)}`:'UNAVAILABLE');pairs('breadth-metrics',[['上市上漲 / 下跌','家'],['平盤',fmt(b?.unchanged)]]);
 }
-async function load(){const request=++serial;fail('正在載入隔離投影…');text('trust','載入中');renderLower();try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
+async function load(){const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('contract',`${selectedProduct} · ${selectedMonth}`);text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
 function details(which){
   const c=current;let title='資料品質',copy='',value=null;
   const contextDate=lower?`歷史來源日期 ${lower.asOfDate}；不是所選盤別的同步證據。`:'背景未載入。';
@@ -130,17 +131,18 @@ function details(which){
     case 'change':title=`${frame}｜最近變化`;copy='Relationship → Change → Rate / Persistence → Level。ΔCVD 是同窗淨主動成交增量；重疊窗口不能加總。PARTIAL 是觀測片段，不能當成完整窗口。';value=c?.relationship.current;break;
     case 'handoff':title='Market Handoff｜市場交接';copy='上一盤 → 觀測片段端點差 → 本盤。DAY / NIGHT CVD 分開；不連線、不相減、不插補休市 Volume / Pressure / Path。';value=c?.handoff;break;
     case 'scope':title='版本與預覽範圍';copy='CRU-55 隔離 Dashboard 預覽。保留原版導覽、價格配色、K / Volume 主區域、Fast Scan、右側解釋與下方產品模組。\nVWAP 位置保留，CRU-54 接受的價格片段未提供 VWAP；不另推算。正式 runtime 目前未啟動，UI 以 approved main source 為基礎對照。\nAsk GPT 使用「複製快照」供人工討論；不呼叫 GPT API。完整研究頁、資料更新、正式日誌與營運控制未接入本隔離預覽。';value=c?{head:c.head,acceptedHead:c.acceptedHead,approvedMain:c.approvedMain,view:c.view,kind:c.kind,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}:null;break;
-    case 'spot':title='現貨 / 指數貢獻';copy=contextDate+'\n沒有本盤 index leadership 資料，貢獻保留 UNAVAILABLE。';value=view==='demo'?null:{marketOverview:lower?.marketOverview,spotInstitutional:lower?.spotInstitutional};break;
-    case 'futures':title='期貨流向';copy=contextDate+'\n法人 OI 不代表主動成交方向。缺失的前日差值保留不可用，不採快照中的佔位 0。';value=view==='demo'?null:{market:lower?.futuresMarket,institutional:lower?.futuresInstitutional};break;
-    case 'options':title='選擇權背景';copy=contextDate+'\n歷史到期契約的 OI / Max Pain 不推論本盤價格，不代表 Dealer inventory 或成本。';value=view==='demo'?null:lower?.options;break;
-    case 'breadth':title='市場參與度';copy=contextDate;value=view==='demo'?null:lower?.marketBreadth;break;
-    case 'global':title='海外背景';copy=contextDate+'\n已有 USD/TWD / VIX 僅作歷史背景；NQ / SOX 同步本盤資料 UNAVAILABLE。';value=view==='demo'?null:{usdTwd:lower?.marketOverview?.data?.usdtwd,vix:lower?.marketOverview?.data?.vix,source:lower?.marketOverview?.source};break;
+    case 'spot':title='現貨 / 指數貢獻';copy=contextDate+'\n沒有本盤 index leadership 資料，貢獻保留 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{marketOverview:lower?.marketOverview,spotInstitutional:lower?.spotInstitutional};break;
+    case 'futures':title='期貨流向';copy=contextDate+'\n法人 OI 不代表主動成交方向。缺失的前日差值保留不可用，不採快照中的佔位 0。';value=view==='demo'||!selectionAvailable()?null:{market:lower?.futuresMarket,institutional:lower?.futuresInstitutional};break;
+    case 'options':title='選擇權背景';copy=contextDate+'\n歷史到期契約的 OI / Max Pain 不推論本盤價格，不代表 Dealer inventory 或成本。';value=view==='demo'||!selectionAvailable()?null:lower?.options;break;
+    case 'breadth':title='市場參與度';copy=contextDate;value=view==='demo'||!selectionAvailable()?null:lower?.marketBreadth;break;
+    case 'global':title='海外背景';copy=contextDate+'\n已有 USD/TWD / VIX 僅作歷史背景；NQ / SOX 同步本盤資料 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{usdTwd:lower?.marketOverview?.data?.usdtwd,vix:lower?.marketOverview?.data?.vix,source:lower?.marketOverview?.source};break;
     case 'risk':title='風險 / 衝突';copy='本盤風險模型尚無合法輸出。UNAVAILABLE 不等於低風險。formalWeight=0；研究未 Promotion。';break;
     default:title='Data Trust｜資料品質';copy='STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。';value=c?{freshness:c.chart.freshness,contextScope:c.context.scope,origin:c.context.origin,cutoff:c.chart.cutoff,summary:c.chart.summary,priceReason:c.chart.priceReason,priceExclusions:c.chart.priceTimeLineageViolationCount,segments:c.chart.segments.map(({points,...s})=>s),generation:c.chart.generationHash}:null;
   }text('drawer-title',title);text('drawer-copy',copy);text('drawer-json',value?JSON.stringify(value,null,2):'UNAVAILABLE');$('drawer').showModal();
 }
 for(const f of FRAMES){const b=node('button',f);b.dataset.frame=f;b.type='button';b.setAttribute('aria-pressed',String(f===frame));$('frames').append(b);}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-frame]');if(target){frame=target.dataset.frame;load();}const open=e.target.closest('[data-open]');if(open)details(open.dataset.open);});
+$('product-select').addEventListener('change',()=>{selectedProduct=$('product-select').value;load();});$('month-select').addEventListener('change',()=>{selectedMonth=$('month-select').value;load();});
 $('view').addEventListener('change',()=>{view=$('view').value;load();});$('refresh').addEventListener('click',load);$('fit').addEventListener('click',()=>chart?.timeScale().fitContent());
 $('palette').addEventListener('change',()=>{palette=$('palette').value;if(current)renderChart(current.chart,current.relationship);});
 $('detail-open').addEventListener('click',()=>details('quality'));$('drawer-close').addEventListener('click',()=>$('drawer').close());

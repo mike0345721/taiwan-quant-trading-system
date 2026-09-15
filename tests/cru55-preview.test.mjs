@@ -7,7 +7,7 @@ import {createPreviewServer} from '../src/cru55-preview-server.mjs';
 import {validateView,boundedRead} from '../src/cru55-preview-bundle.mjs';
 import {sessionFixture,calendar} from './cvd-session-context-fixture.mjs';
 import {buildSessionContext,buildSessionContextHandoff} from '../src/cvd-session-context-projection.mjs';
-import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES,timelineTime,scopeLabel,pressureCells,evidenceDirection} from '../public/cru55-presentation.mjs';
+import {windowPresentation,cvdChunks,deltaChunks,FLOW,FRAMES,timelineTime,scopeLabel,pressureCells,evidenceDirection,observedPricePercent,relationshipExplanation,contextSummary} from '../public/cru55-presentation.mjs';
 const fixture=sessionFixture();
 const sessionContext=buildSessionContext(fixture.g,fixture,fixture.events,calendar);
 const handoffs=Object.fromEntries(FRAMES.map(f=>[f,buildSessionContextHandoff(null,fixture,[],fixture.events,calendar,null,sessionContext,f)]));
@@ -73,4 +73,17 @@ test('restored force cells reuse original boundaries and never infer incomplete 
   assert.deepEqual(evidenceDirection(-2,'AVAILABLE'),{symbol:'▼',direction:'negative'});
   assert.deepEqual(evidenceDirection(2,'AVAILABLE'),{symbol:'▲',direction:'positive'});
   assert.deepEqual(evidenceDirection(0,'AVAILABLE'),{symbol:'＝',direction:'neutral'});
+});
+
+test('observed percent uses accepted first price and never backfills missing price with response',()=>{
+  const c={firstPrice:{price:42003},lastPrice:{price:42103},evidence:{priceDelta:100,response:{displacementPoints:100}}};
+  assert.equal(observedPricePercent(c),100/42003*100);
+  for(const change of [x=>x.firstPrice=null,x=>x.lastPrice=null,x=>x.evidence.priceDelta=null,x=>x.firstPrice.price=0,x=>x.firstPrice.price=-1]){const x=structuredClone(c);change(x);assert.equal(observedPricePercent(x),null);}
+  const x=structuredClone(c);x.evidence.priceDelta=-100;assert.ok(observedPricePercent(x)<0);
+});
+test('context explanatory copy describes accepted evidence and preserves fragment/stale/unknown truth',()=>{
+  assert.match(relationshipExplanation('MIXED_OR_QUALITY_LIMITED'),/不足/);assert.match(relationshipExplanation('UNAVAILABLE'),/缺少/);
+  assert.match(contextSummary({evidence:{},relationship:{code:'ALIGNED'},cumulativeCvd:12,sessionStartProven:false,freshness:{state:'STALE'}}),/買方主動成交累積較多；僅觀測片段。STALE/);
+  assert.match(contextSummary({evidence:{},relationship:{code:'ALIGNED'},cumulativeCvd:null,sessionStartProven:false,freshness:{state:'UNAVAILABLE'}}),/未知/);
+  assert.match(contextSummary(null),/不可用/);
 });
