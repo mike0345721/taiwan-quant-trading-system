@@ -11,10 +11,10 @@
 <section class="handoff panel" aria-label="Market Handoff"><div><h2>市場交接 <small>Market Handoff</small></h2><b id="handoff-state">UNAVAILABLE</b></div><span id="handoff-prior">上一盤不可用</span><span class="handoff-gap" id="handoff-gap">觀測片段端點差 不可用</span><span id="handoff-current">本盤不可用</span><button data-open="handoff">交接證據 ›</button></section>
 <div class="cockpit-grid">
 <section class="evidence panel" id="evidence" aria-label="主要價格與力量證據">
-<div class="chart-heading"><h2>K 線 <small id="chart-identity">TX / 等待來源</small></h2><div class="chart-tools"><span id="vwap">VWAP · UNAVAILABLE</span><button id="fit">完整範圍</button></div></div>
+<div class="chart-heading"><h2>K 線 <small id="chart-identity">TX / 等待來源</small></h2><nav id="frames" aria-label="K 線與最近變化週期"></nav><div class="chart-tools"><span id="vwap">VWAP · UNAVAILABLE</span><button id="fit">完整範圍</button></div></div>
 <div class="fast-scan"><span>盤中力道 <small>Fast Scan</small></span><div id="fast-lights" aria-label="多時窗盤中力道"></div></div>
-<div class="frame-bar"><nav id="frames" aria-label="K 線與最近變化週期"></nav><span id="selected-truth">最近變化 · 尚無窗口</span></div>
-<section class="force-panel" aria-label="台指期盤中力道表"><div class="force-heading"><h3>台指期盤中力道 <small>多時段力道表</small></h3><small>主動成交壓力 · 選取時窗 <b id="force-window">1m</b></small></div><div id="force-windows" class="force-windows"></div>
+
+<section class="force-panel" aria-label="台指期盤中力道表"><div class="force-heading"><h3>台指期盤中力道 <small>多時段力道表</small></h3><small><span id="selected-truth">最近變化 · 尚無窗口</span> · 選取 <b id="force-window">1m</b></small></div><div id="force-windows" class="force-windows"></div>
 <div class="change-strip" aria-label="選取時窗力道明細"><div class="selected-pressure"><span>主動成交壓力</span><b id="change-pressure">不可用</b><div id="selected-pressure-bar"></div></div><div><span>價格反應 · 點</span><b id="change-price">不可用</b></div><div><span>觀測成交量 · 口</span><b id="change-volume">不可用</b></div><div><span>ΔCVD · 口</span><b id="change-delta">不可用</b></div><div><span>路徑效率</span><b id="change-path">不可用</b></div><div><span>分類覆蓋率</span><b id="change-coverage">不可用</b></div><button data-open="change" aria-label="最近變化證據與比較">明細 ›</button></div></section>
 <div class="chart-wrap"><div id="chart"></div><div class="pane-label volume-label">成交量（口） <span id="volume-subset"></span></div><div class="pane-label cvd-label"><strong id="cvd-value">CVD 不可用</strong><span id="cvd-sign">累積主動成交壓力</span><small>可見範圍自動縮放 · 各段独立起算</small></div><div class="pane-label delta-label">ΔCVD <span>正：主動買淨增量 · 負：主動賣淨增量</span></div><p id="chart-empty" hidden></p></div>
 <div class="chart-foot"><span id="endpoint">端點待核對</span><span>ΔCVD 為所選滾動窗，重疊柱不可加總</span></div>

@@ -8,6 +8,7 @@ function numericClass(el,value){el.classList.remove('positive-text','negative-te
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=null;}
 function fail(message){
+  for(const id of ['context-price','context-price-delta'])$(id).className='price-neutral';
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   numericClass($('change-delta'),null);document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
   for(const id of ['context-price','context-price-delta','change-pressure','change-coverage','price','contract','cvd-value','change-price','change-volume','change-delta','change-path','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
