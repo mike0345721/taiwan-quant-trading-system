@@ -59,7 +59,8 @@ function renderChart(p,r){
   if(!p.segments.length)chart.addSeries(L.HistogramSeries,{},3);
   const markers=r.markers.filter(m=>m.identity[0]===p.actualContract&&m.identity[1]===p.tradeDate&&m.identity[2]===p.session&&bars.some(b=>b.time===m.time)).slice(-8);
   if(markers.length&&L.createSeriesMarkers)L.createSeriesMarkers(candle,markers.map(m=>({time:m.time,position:'aboveBar',shape:'circle',color:'#46C7F4',text:`${LABELS[m.from]}→${LABELS[m.to]}`})));
-  const resize=()=>{if(!chart)return;const h=$('chart').clientHeight-28;const ratios=[.58,.09,.23,.10];let top=0;chart.panes().forEach((pane,i)=>{pane.setHeight(Math.round(h*ratios[i]));if(i===1)document.querySelector('.volume-label').style.top=`${top+2}px`;if(i===2)document.querySelector('.cvd-label').style.top=`${top+2}px`;if(i===3)document.querySelector('.delta-label').style.top=`${top+2}px`;top+=pane.getHeight();});chart.timeScale().fitContent();};
+  const ratios=[.58,.09,.23,.10];chart.panes().forEach((pane,i)=>pane.setStretchFactor(ratios[i]));
+  const resize=()=>{if(!chart)return;const h=$('chart').clientHeight-31;document.querySelector('.volume-label').style.top=`${h*.58+2}px`;document.querySelector('.cvd-label').style.top=`${h*.67+3}px`;document.querySelector('.delta-label').style.top=`${h*.90+4}px`;chart.timeScale().fitContent();};
   resize();chartObserver=new ResizeObserver(resize);chartObserver.observe($('chart'));
   if(p.currentCvd!=null&&p.display.currentPlotAvailable&&endpoint!==p.currentCvd)throw Error('圖表與 API 累積端點不一致');
   document.body.dataset.endpoint=p.display.currentPlotAvailable&&p.currentCvd!=null?String(endpoint):'null';
