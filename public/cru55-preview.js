@@ -59,7 +59,7 @@ function renderChart(p,r){
   for(const chunk of deltaChunks(p,r)){const hist=chart.addSeries(L.HistogramSeries,{base:0,priceFormat:{type:'volume'},priceLineVisible:false,lastValueVisible:false,autoscaleInfoProvider:base=>{const i=base();if(!i)return null;const a=Math.max(Math.abs(i.priceRange.minValue),Math.abs(i.priceRange.maxValue),1);return {...i,priceRange:{minValue:Math.min(i.priceRange.minValue,-a*.1),maxValue:Math.max(i.priceRange.maxValue,a*.1)}};}},3);hist.setData(chunk.data);hist.priceScale().applyOptions({scaleMargins:{top:.30,bottom:.10}});hist.createPriceLine({price:0,color:'#A9BDD0',lineWidth:1,lineStyle:L.LineStyle.Solid,axisLabelVisible:true,title:''});}
   if(!p.segments.length)chart.addSeries(L.HistogramSeries,{},3);
   const markers=r.markers.filter(m=>m.identity[0]===p.actualContract&&m.identity[1]===p.tradeDate&&m.identity[2]===p.session&&bars.some(b=>b.time===m.time)).slice(-8);
-  if(markers.length&&L.createSeriesMarkers)L.createSeriesMarkers(candle,markers.map(m=>({time:m.time,position:'aboveBar',shape:'circle',color:'#46C7F4',text:`${LABELS[m.from]}→${LABELS[m.to]}`})));
+  if(markers.length&&L.createSeriesMarkers)L.createSeriesMarkers(candle,markers.map(m=>({time:m.time,position:'aboveBar',shape:'circle',color:'#46C7F4',text:''})));
   const ratios=[.58,.09,.23,.10];chart.panes().forEach((pane,i)=>pane.setStretchFactor(ratios[i]));
   const resize=()=>{if(!chart)return;const h=$('chart').clientHeight-31;document.querySelector('.volume-label').style.top=`${h*.58+2}px`;document.querySelector('.cvd-label').style.top=`${h*.67+3}px`;document.querySelector('.delta-label').style.top=`${h*.90+4}px`;chart.timeScale().fitContent();};
   resize();chartObserver=new ResizeObserver(resize);chartObserver.observe($('chart'));
