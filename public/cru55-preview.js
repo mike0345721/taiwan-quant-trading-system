@@ -11,7 +11,7 @@ function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)ch
 function fail(message){
   for(const id of ['context-price','context-price-delta','chart-price','chart-price-change'])$(id).className='price-neutral';
   $('chart-empty').hidden=true;text('chart-empty','');
-  current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
+  if($('ask-drawer').open)$('ask-drawer').close();current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
   for(const id of ['context-price','context-price-delta','chart-price','chart-price-change','chart-contract','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
   for(const id of ['quote-metrics','context-core-metrics','timeline'])$(id).replaceChildren();
@@ -67,7 +67,7 @@ function renderContext(c){
 }
 function renderHandoff(h){
   const unavailable=h.handoff.code==='UNAVAILABLE',comparable=h.pairing?.state==='COMPARABLE';$('handoff-strip').dataset.unavailable=String(unavailable);
-  const reason=h.handoff.reason||h.pairing?.reason;const reasons={SESSION_SIDE_MISSING:'缺少相鄰盤別',SESSIONS_NOT_GOVERNED_ADJACENT:'盤別不相鄰',SESSION_CONTEXT_UNAVAILABLE:'盤別背景不可用'};
+  const reason=h.handoff.reason||h.pairing?.reason;const reasons={SESSION_SIDE_MISSING:'缺少合法相鄰盤別',SESSIONS_NOT_GOVERNED_ADJACENT:'盤別不相鄰',SESSION_CONTEXT_UNAVAILABLE:'盤別背景不可用'};
   text('handoff-state',handoffLabels[h.handoff.code]||'暫無法判讀');text('handoff-reason',unavailable?(reasons[reason]||'交接證據不足'):h.handoff.code);$('handoff-reason').title=`${h.handoff.code} · ${reason||''}`;
   text('handoff-prior',comparable?fmt(h.prior?.lastPrice?.price):'不可用');text('handoff-current',h.current?.reason?'不可用':fmt(h.current?.firstPrice?.price));text('handoff-gap',h.gap.state==='AVAILABLE'?signed(h.gap.points):'不可用');
 }
@@ -106,7 +106,7 @@ function render(data){
   text('contract',p.actualContract||'UNKNOWN');text('chart-contract',p.actualContract||'UNKNOWN');text('chart-identity',`${p.actualContract||'UNKNOWN'} / ${p.tradeDate||'UNKNOWN'} / ${p.session||'UNKNOWN'}`);
   text('session-pill',p.session||'UNKNOWN');$('source-light').className=`light ${p.freshness.state==='LIVE'?'positive':['STALE','DELAYED','WARMING'].includes(p.freshness.state)?'warning':'neutral'}`;text('trust',p.freshness.state);text('freshness',`${data.context.sessionStartProven?'盤中累積':'觀測片段'}｜${shortTime(p.lastTradeAvailableAtMs)}`);
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'合成資料｜僅檢查 UI 互動，不代表真實行情':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
-  text('selected-truth',`${frame} ${m.state} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
+  text('selected-truth',`${frame}${m.state==='AVAILABLE'?'':` ${m.state}`} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
 
   renderScan(data.scan);renderContext(data.context);renderHandoff(data.handoff);renderChart(p,r);
   const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(timelineTime(e))} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
@@ -145,6 +145,18 @@ function details(which){
 function updateMarkers(){const shown=$('show-markers').checked&&document.querySelector('.timeline').open;markerApi?.setMarkers(shown?markerData:[]);document.body.dataset.markerCount=String(shown?markerData.length:0);}
 $('show-markers').addEventListener('change',updateMarkers);document.querySelector('.timeline').addEventListener('toggle',updateMarkers);
 document.addEventListener('click',e=>{const target=e.target.closest('[data-frame]');if(target){frame=target.dataset.frame;load();}const open=e.target.closest('[data-open]');if(open)details(open.dataset.open);});
+// UI-only placeholder: reads the already-rendered source; no request, storage or answer.
+function openAsk(){
+  $('ask-form').reset();const c=current;
+  text('ask-identity',c?`${selectedProduct} · ${c.chart.actualContract||'UNAVAILABLE'} · ${c.chart.session||'UNAVAILABLE'} · ${frame}`:`${selectedProduct} / ${selectedMonth} · UNAVAILABLE`);
+  text('ask-cutoff',c?`觀測截止 ${time(c.context.cutoff?.availableAtMs)} · ${c.context.scope}`:'沒有已核對的快照');
+  text('ask-source',c?`${c.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC / UI DEMO':'真實觀測片段'} · ${c.chart.freshness.state} · 捕捉完整性 ${c.context.captureCompleteness||'UNPROVEN'}`:'資料不可用；未帶入上一筆市場證據');
+  $('ask-drawer').showModal();$('ask-kind').focus();
+}
+$('ask-open').addEventListener('click',openAsk);
+$('ask-close').addEventListener('click',()=>$('ask-drawer').close());
+$('ask-drawer').addEventListener('close',()=>{$('ask-form').reset();for(const id of ['ask-identity','ask-cutoff','ask-source'])text(id,'');$('ask-open').focus();});
+$('ask-form').addEventListener('submit',e=>e.preventDefault());
 $('product-select').addEventListener('change',()=>{selectedProduct=$('product-select').value;load();});$('month-select').addEventListener('change',()=>{selectedMonth=$('month-select').value;load();});
 $('view').addEventListener('change',()=>{view=$('view').value;load();});$('refresh').addEventListener('click',load);$('fit').addEventListener('click',()=>chart?.timeScale().fitContent());
 $('palette').addEventListener('change',()=>{palette=$('palette').value;if(current)renderChart(current.chart,current.relationship);});
