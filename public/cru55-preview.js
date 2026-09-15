@@ -9,14 +9,14 @@ function numericClass(el,value){el.classList.remove('positive-text','negative-te
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=markerApi=null;markerData=[];document.body.dataset.markerCount='0';}
 function fail(message){
-  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change'])$(id).className='price-neutral';
+  for(const id of ['context-price','context-price-delta','chart-price','chart-price-change'])$(id).className='price-neutral';
   $('chart-empty').hidden=true;text('chart-empty','');
   current=null;clearChart();document.body.dataset.error='true';document.body.dataset.endpoint='null';document.body.dataset.contextScope='UNAVAILABLE';
   document.body.dataset.priceBars='0';document.body.dataset.panes='0';document.body.dataset.cvdChunks='0';text('chart-identity','來源未驗證');
-  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change','chart-contract','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
+  for(const id of ['context-price','context-price-delta','chart-price','chart-price-change','chart-contract','session-pill','contract','cvd-value','path-value','context-label','context-relationship','handoff-prior','handoff-current','handoff-gap'])text(id,'不可用');
   for(const id of ['quote-metrics','context-core-metrics','timeline'])$(id).replaceChildren();
   for(const id of ['context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
-  $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').hidden=false;$('path-value').title='不可用';for(const id of ['handoff-prior','handoff-gap','handoff-current'])$(id).hidden=true;text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
+  $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').title='UNAVAILABLE';$('handoff-reason').hidden=false;$('path-value').title='不可用';text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
 }
 async function api(route){const r=await fetch(route);if(r.status===401){$('login').hidden=false;throw Error('請以本次 launcher 的本機啟動連結登入。');}if(!r.ok)throw Error(`資料無法載入（${r.status}）`);return r.json();}
 async function authenticate(token){const r=await fetch('/session',{method:'POST',headers:{'Content-Type':'text/plain'},body:token});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
@@ -51,9 +51,9 @@ function renderContext(c){
   text('context-relationship',LABELS[c.relationship.code]||LABELS.UNAVAILABLE);text('context-quality',e?.quality?.status||'UNAVAILABLE');
   const relation=windowPresentation({current:{relationship:c.relationship,current:e}});$('context-light').className=`light ${relation.tone}`;
   text('context-price',fmt(c.lastPrice?.price));const percent=observedPricePercent(c);text('context-price-delta',e?.priceDelta==null?'觀測漲跌 不可用':`觀測漲跌 ${signed(e.priceDelta)} 點（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('context-price-delta').title='漲跌百分比以已觀測起點價為基準，非昨收漲跌幅';
-  text('price',fmt(c.lastPrice?.price));text('price-change',e?.priceDelta==null?'觀測漲跌不可用':`${signed(e.priceDelta)}（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('price-change').title='觀測漲跌：以本盤已觀測起點價為基準，非昨收漲跌幅';text('chart-price',$('price').textContent);text('chart-price-change',$('price-change').textContent);$('chart-price-change').title=$('price-change').title;
+  text('chart-price',fmt(c.lastPrice?.price));text('chart-price-change',e?.priceDelta==null?'觀測漲跌不可用':`${signed(e.priceDelta)}（${percent==null?'不可用':`${percent>0?'+':''}${percent.toFixed(2)}%`}）`);$('chart-price-change').title='觀測漲跌：以本盤已觀測起點價為基準，非昨收漲跌幅';
   $('quote-metrics').replaceChildren(metric('觀測起點價',fmt(c.firstPrice?.price)),metric('觀測成交量 · 口',fmt(e?.observedVolume)),metric('未平倉 · 口','不可用'));
-  for(const id of ['context-price','context-price-delta','price','price-change','chart-price','chart-price-change'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
+  for(const id of ['context-price','context-price-delta','chart-price','chart-price-change'])$(id).className=e?.priceDelta>0?'price-positive':e?.priceDelta<0?'price-negative':'price-neutral';
   $('context-core-metrics').replaceChildren(
     coloredMetric('CVD 累積',signed(c.cumulativeCvd),c.cumulativeCvd,'cvd'),
     coloredMetric('ΔCVD',signed(e?.deltaCvd),e?.deltaCvd),
@@ -66,11 +66,10 @@ function renderContext(c){
   document.body.dataset.contextScope=c.scope;
 }
 function renderHandoff(h){
-  const unavailable=h.handoff.code==='UNAVAILABLE';$('handoff-strip').dataset.unavailable=String(unavailable);for(const id of ['handoff-prior','handoff-gap','handoff-current'])$(id).hidden=unavailable;
-  const reason=h.handoff.reason||h.pairing?.reason;const reasons={SESSION_SIDE_MISSING:'缺少合法相鄰盤別',SESSIONS_NOT_GOVERNED_ADJACENT:'觀測盤別並非合法相鄰盤別',SESSION_CONTEXT_UNAVAILABLE:'本盤或上一盤背景不可用'};text('handoff-reason',unavailable?(reasons[reason]||`交接證據不足 · ${reason||'UNAVAILABLE'}`):'');$('handoff-reason').hidden=!unavailable;
-  text('handoff-state',`${handoffLabels[h.handoff.code]||'暫無法判讀'} · ${h.handoff.code}`);
-  const side=s=>s?.identity?`${s.identity[2]} ${s.identity[1]}｜${scopeLabel(s.contextScope)} · CVD ${signed(s.evidence?.deltaCvd)}`:'缺少合法時段';
-  text('handoff-prior',side(h.prior));text('handoff-current',side(h.current));text('handoff-gap',`${h.gap.label||'觀測片段端點差'} ${signed(h.gap.points)}`);
+  const unavailable=h.handoff.code==='UNAVAILABLE',comparable=h.pairing?.state==='COMPARABLE';$('handoff-strip').dataset.unavailable=String(unavailable);
+  const reason=h.handoff.reason||h.pairing?.reason;const reasons={SESSION_SIDE_MISSING:'缺少相鄰盤別',SESSIONS_NOT_GOVERNED_ADJACENT:'盤別不相鄰',SESSION_CONTEXT_UNAVAILABLE:'盤別背景不可用'};
+  text('handoff-state',handoffLabels[h.handoff.code]||'暫無法判讀');text('handoff-reason',unavailable?(reasons[reason]||'交接證據不足'):h.handoff.code);$('handoff-reason').title=`${h.handoff.code} · ${reason||''}`;
+  text('handoff-prior',comparable?fmt(h.prior?.lastPrice?.price):'不可用');text('handoff-current',h.current?.reason?'不可用':fmt(h.current?.firstPrice?.price));text('handoff-gap',h.gap.state==='AVAILABLE'?signed(h.gap.points):'不可用');
 }
 function renderChart(p,r){
   clearChart();const L=window.LightweightCharts;if(!L?.createChart)throw Error('圖表相依套件未載入');
