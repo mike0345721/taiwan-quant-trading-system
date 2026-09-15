@@ -1,0 +1,901 @@
+{
+  "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+  "audits": [
+    {
+      "capturedAt": "2026-09-15T11:50:16.365Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 153.78125,
+          "height": 61.78125,
+          "right": 1211.1875,
+          "selector": ".identity-bar",
+          "width": 1105.1875,
+          "x": 106,
+          "y": 92
+        },
+        {
+          "bottom": 153.78125,
+          "height": 61.78125,
+          "right": 1890.984375,
+          "selector": ".handoff",
+          "width": 669.796875,
+          "x": 1221.1875,
+          "y": 92
+        },
+        {
+          "bottom": 330.765625,
+          "height": 122.046875,
+          "right": 1412.890625,
+          "selector": ".fast-scan",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 208.71875
+        },
+        {
+          "bottom": 1020.765625,
+          "height": 690,
+          "right": 1412.890625,
+          "selector": ".chart-wrap",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 330.765625
+        },
+        {
+          "bottom": 557.6875,
+          "height": 395.90625,
+          "right": 1890.984375,
+          "selector": ".session",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 161.78125
+        },
+        {
+          "bottom": 956.875,
+          "height": 389.1875,
+          "right": 1890.984375,
+          "selector": ".relationships",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 567.6875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        382,
+        1,
+        59,
+        1,
+        152,
+        1,
+        66,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T11:50:18.065Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 153.78125,
+          "height": 61.78125,
+          "right": 1211.1875,
+          "selector": ".identity-bar",
+          "width": 1105.1875,
+          "x": 106,
+          "y": 92
+        },
+        {
+          "bottom": 153.78125,
+          "height": 61.78125,
+          "right": 1890.984375,
+          "selector": ".handoff",
+          "width": 669.796875,
+          "x": 1221.1875,
+          "y": 92
+        },
+        {
+          "bottom": 330.765625,
+          "height": 122.046875,
+          "right": 1412.890625,
+          "selector": ".fast-scan",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 208.71875
+        },
+        {
+          "bottom": 1020.765625,
+          "height": 690,
+          "right": 1412.890625,
+          "selector": ".chart-wrap",
+          "width": 1305.890625,
+          "x": 107,
+          "y": 330.765625
+        },
+        {
+          "bottom": 541.1875,
+          "height": 379.40625,
+          "right": 1890.984375,
+          "selector": ".session",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 161.78125
+        },
+        {
+          "bottom": 940.375,
+          "height": 389.1875,
+          "right": 1890.984375,
+          "selector": ".relationships",
+          "width": 467.09375,
+          "x": 1423.890625,
+          "y": 551.1875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        382,
+        1,
+        59,
+        1,
+        152,
+        1,
+        66,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T11:50:20.195Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 956.765625,
+          "selector": ".identity-bar",
+          "width": 870.765625,
+          "x": 86,
+          "y": 88
+        },
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 544.234375,
+          "x": 966.765625,
+          "y": 88
+        },
+        {
+          "bottom": 299.921875,
+          "height": 103.203125,
+          "right": 1120,
+          "selector": ".fast-scan",
+          "width": 1033,
+          "x": 87,
+          "y": 196.71875
+        },
+        {
+          "bottom": 753.921875,
+          "height": 454,
+          "right": 1120,
+          "selector": ".chart-wrap",
+          "width": 1033,
+          "x": 87,
+          "y": 299.921875
+        },
+        {
+          "bottom": 500.09375,
+          "height": 342.3125,
+          "right": 1511,
+          "selector": ".session",
+          "width": 380,
+          "x": 1131,
+          "y": 157.78125
+        },
+        {
+          "bottom": 731.78125,
+          "height": 223.6875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 1131,
+          "y": 508.09375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        245,
+        1,
+        38,
+        1,
+        97,
+        1,
+        43,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1536,
+        864
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T11:50:21.819Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 956.765625,
+          "selector": ".identity-bar",
+          "width": 870.765625,
+          "x": 86,
+          "y": 88
+        },
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 544.234375,
+          "x": 966.765625,
+          "y": 88
+        },
+        {
+          "bottom": 299.921875,
+          "height": 103.203125,
+          "right": 1120,
+          "selector": ".fast-scan",
+          "width": 1033,
+          "x": 87,
+          "y": 196.71875
+        },
+        {
+          "bottom": 753.921875,
+          "height": 454,
+          "right": 1120,
+          "selector": ".chart-wrap",
+          "width": 1033,
+          "x": 87,
+          "y": 299.921875
+        },
+        {
+          "bottom": 484.703125,
+          "height": 326.921875,
+          "right": 1511,
+          "selector": ".session",
+          "width": 380,
+          "x": 1131,
+          "y": 157.78125
+        },
+        {
+          "bottom": 716.390625,
+          "height": 223.6875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 1131,
+          "y": 492.703125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        245,
+        1,
+        38,
+        1,
+        97,
+        1,
+        43,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1536,
+        864
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T11:50:23.777Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 852.140625,
+          "selector": ".identity-bar",
+          "width": 766.140625,
+          "x": 86,
+          "y": 88
+        },
+        {
+          "bottom": 149.78125,
+          "height": 61.78125,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 478.859375,
+          "x": 862.140625,
+          "y": 88
+        },
+        {
+          "bottom": 299.921875,
+          "height": 103.203125,
+          "right": 950,
+          "selector": ".fast-scan",
+          "width": 863,
+          "x": 87,
+          "y": 196.71875
+        },
+        {
+          "bottom": 659.921875,
+          "height": 360,
+          "right": 950,
+          "selector": ".chart-wrap",
+          "width": 863,
+          "x": 87,
+          "y": 299.921875
+        },
+        {
+          "bottom": 485.09375,
+          "height": 327.3125,
+          "right": 1341,
+          "selector": ".session",
+          "width": 380,
+          "x": 961,
+          "y": 157.78125
+        },
+        {
+          "bottom": 702.78125,
+          "height": 209.6875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 961,
+          "y": 493.09375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        191,
+        1,
+        30,
+        1,
+        76,
+        1,
+        32,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1366,
+        768
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T11:50:25.377Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 174.21875,
+          "height": 86.21875,
+          "right": 852.140625,
+          "selector": ".identity-bar",
+          "width": 766.140625,
+          "x": 86,
+          "y": 88
+        },
+        {
+          "bottom": 174.21875,
+          "height": 86.21875,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 478.859375,
+          "x": 862.140625,
+          "y": 88
+        },
+        {
+          "bottom": 324.359375,
+          "height": 103.203125,
+          "right": 950,
+          "selector": ".fast-scan",
+          "width": 863,
+          "x": 87,
+          "y": 221.15625
+        },
+        {
+          "bottom": 684.359375,
+          "height": 360,
+          "right": 950,
+          "selector": ".chart-wrap",
+          "width": 863,
+          "x": 87,
+          "y": 324.359375
+        },
+        {
+          "bottom": 494.140625,
+          "height": 311.921875,
+          "right": 1341,
+          "selector": ".session",
+          "width": 380,
+          "x": 961,
+          "y": 182.21875
+        },
+        {
+          "bottom": 711.828125,
+          "height": 209.6875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 380,
+          "x": 961,
+          "y": 502.140625
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "e7b4a419a6b5e76c5cde64ca0fc7a75aa26f015b",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        191,
+        1,
+        30,
+        1,
+        76,
+        1,
+        32,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1366,
+        768
+      ]
+    }
+  ],
+  "quoteConsistency": {
+    "chartColor": "rgb(255, 107, 107)",
+    "chartDelta": "+100（+0.24%）",
+    "chartPrice": "42,103",
+    "color": "rgb(255, 107, 107)",
+    "delta": "+100（+0.24%）",
+    "logo": true,
+    "price": "42,103",
+    "selectorColor": "rgb(234, 244, 255)",
+    "selectorFont": "16px"
+  },
+  "missingMonth": {
+    "chartDelta": "不可用",
+    "chartPrice": "不可用",
+    "contract": "不可用",
+    "delta": "不可用",
+    "price": "不可用",
+    "trust": "UNAVAILABLE"
+  },
+  "console": []
+}
