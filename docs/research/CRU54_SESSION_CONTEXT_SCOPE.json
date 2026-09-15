@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "cru54-session-context-scope-v1",
+  "acceptedD": "b012da2b78b5b603004e438017d7b1a0585a0e16",
+  "approvedMain": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "branch": "codex/cru-54-cvd-current-main-v1",
+  "candidatePort": 3054,
+  "allowlist": [
+    "src/cvd-session-context-projection.mjs",
+    "src/cvd-session-context-artifact.mjs",
+    "src/cvd-candidate-server.mjs",
+    "scripts/prepare-cvd-session-context.mjs",
+    "scripts/start-cvd-session-context.mjs",
+    "scripts/audit-cru54-session-context.mjs",
+    "public/cru54-relationship.html",
+    "public/cru54-relationship.js",
+    "public/cru54-relationship.css",
+    "tests/cvd-session-context-fixture.mjs",
+    "tests/cvd-session-context-projection.test.mjs",
+    "tests/cvd-session-context-api.test.mjs",
+    "tests/cvd-session-context-artifact.test.mjs",
+    "docs/research/CRU54_SESSION_CONTEXT_CONTRACT.md",
+    "docs/research/CRU54_SESSION_CONTEXT_SCOPE.json"
+  ],
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  }
+}

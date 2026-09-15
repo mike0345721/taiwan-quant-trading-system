@@ -8,7 +8,9 @@
   const reason = x => reasons[x] || x || '原因未知';
   function clearChart() { if (chart) { chart.remove(); chart = null; } series = []; }
   function error(message) {
-    clearChart(); document.body.dataset.error = 'true'; document.body.dataset.endpoint = 'null';
+    clearChart(); document.body.dataset.error = 'true';
+    document.body.dataset.contextScope='UNAVAILABLE'; $('context-label').textContent='暫無法判讀';
+    for(const id of ['context-relationship','context-trust','context-metrics','context-origin','context-details']) $(id).replaceChildren(); document.body.dataset.endpoint = 'null';
     $('trust').textContent = message; $('value').textContent = '不可用：載入失敗'; $('endpoint').textContent = '端點未驗證';
     for (const id of ['identity', 'origin', 'coverage']) $(id).textContent = '不可用：投影尚未通過載入驗證';
     for (const id of ['summary', 'price-reason', 'cutoff']) $(id).textContent = '';
@@ -47,19 +49,31 @@
       for(const [tag,value] of [['b',identity ? `${stage}｜${identity[1]} ${identity[2]} · ${identity[0]}` : `${stage}缺資料`],
         ['span',`Price Δ ${fmt(e?.response?.displacementPoints)} 點 · ΔCVD ${fmt(e?.deltaCvd)} 口`],
         ['strong',labels[s?.relationship.code] || labels.UNAVAILABLE],
-        ['small',`${e?.complete ? '同段觀測窗' : 'PARTIAL'} · 分類 ${e?.pressure?.classifiedCoverage == null ? '未知' : (100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · 捕捉未證明`]]) {
+        ['small',`${s?.contextScope==='OBSERVED_SEGMENT_TO_NOW'?'觀測累積':s?.contextScope==='SESSION_TO_NOW'?'本盤累積':e?.complete?'同段觀測窗':'PARTIAL'} · 分類 ${e?.pressure?.classifiedCoverage == null ? '未知' : (100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · 捕捉未證明`]]) {
         const node=document.createElement(tag); node.textContent=value; $(id).append(node);
       }
     };
     side('handoff-prior',h.prior); side('handoff-current',h.current);
+    $('handoff-gap-label').textContent=h.gap.label || '休市 Gap';
     $('handoff-gap').textContent = h.gap.points == null ? 'Gap 不可用' : `${h.gap.points > 0 ? '+' : ''}${fmt(h.gap.points)} 點`;
-    const message = { SESSIONS_NOT_GOVERNED_ADJACENT:'兩段歷史資料並非合法相鄰時段', ACTUAL_CONTRACT_NOT_COMPARABLE:'契約不同，不能交接比較', SESSION_SIDE_MISSING:'缺少上一合法時段', PRIOR_LAWFUL_PRICE_MISSING:'上一階段缺合法價格', CURRENT_LAWFUL_PRICE_MISSING:'目前階段缺合法價格', PARTIAL_QUALITY_COVERAGE_OR_RELATIONSHIP_LIMITED:'窗口、分類或關係證據不足', OPPOSITE_OBSERVED_OPENING_PRICE_GAP:'首筆觀測價格拒絕前勢，非反轉訊號', CLEAN_OPPOSITE_CURRENT_DIRECTION:'目前同窗力價已反向', SAME_CLEAN_DIRECTION:'前後同窗力價方向一致' };
-    $('handoff-reason').textContent = `${h.timeframe} · ${message[h.handoff.reason] || '資料來源或連續性不可比較'} · ${h.handoff.reason}`;
+    const message = { OFFICIAL_OPEN_CLOSE_BOUNDARIES_UNPROVEN:'開收盤邊界未證明，不判定前勢拒絕', SESSION_CONTEXT_UNAVAILABLE:'本盤背景來源不可用', SESSIONS_NOT_GOVERNED_ADJACENT:'兩段歷史資料並非合法相鄰時段', ACTUAL_CONTRACT_NOT_COMPARABLE:'契約不同，不能交接比較', SESSION_SIDE_MISSING:'缺少上一合法時段', PRIOR_LAWFUL_PRICE_MISSING:'上一階段缺合法價格', CURRENT_LAWFUL_PRICE_MISSING:'目前階段缺合法價格', PARTIAL_QUALITY_COVERAGE_OR_RELATIONSHIP_LIMITED:'窗口、分類或關係證據不足', OPPOSITE_OBSERVED_OPENING_PRICE_GAP:'首筆觀測價格拒絕前勢，非反轉訊號', CLEAN_OPPOSITE_CURRENT_DIRECTION:'目前同窗力價已反向', SAME_CLEAN_DIRECTION:'前後同窗力價方向一致' };
+    $('handoff-reason').textContent = `${h.primaryEvidence==='SESSION_CONTEXT'?'本盤背景；最近變化 '+h.timeframe:h.timeframe} · ${message[h.handoff.reason] || '資料來源或連續性不可比較'} · ${h.handoff.reason}`;
     $('handoff-details').textContent = JSON.stringify({ prior:h.prior, current:h.current, pairing:h.pairing, gap:h.gap, availableAt:h.availableAt, method:h.method },null,2);
+  }
+  function renderContext(c) {
+    $('session-context').hidden=!c; if(!c) return;
+    document.body.dataset.contextScope=c.scope; document.body.dataset.contextCvd=String(c.cumulativeCvd);
+    $('context-label').textContent=c.label;
+    $('context-relationship').textContent=labels[c.relationship.code] || labels.UNAVAILABLE;
+    $('context-trust').textContent=`${c.freshness.state} · ${c.evidence?.quality.status || 'UNAVAILABLE'} · 捕捉完整性未證明`;
+    const e=c.evidence;
+    $('context-metrics').textContent=`Price Δ ${fmt(e?.priceDelta)} 點 · Volume ${fmt(e?.observedVolume)} 口 · ΔCVD ${fmt(e?.deltaCvd)} 口 · CVD ${fmt(c.cumulativeCvd)} 口 · Pressure ${e?.pressure.pressureRatio==null?'不可用':(100*e.pressure.pressureRatio).toFixed(1)+'%'} · Response ${fmt(e?.response.displacementPoints)} 點 · Path ${fmt(e?.pathEfficiency.value)} · 分類 ${e?.pressure.classifiedCoverage==null?'未知':(100*e.pressure.classifiedCoverage).toFixed(1)+'%'} · UNKNOWN ${fmt(e?.unknownVolume)} 口`;
+    $('context-origin').textContent=`${c.tradeDate} ${c.actualContract} · ${c.continuityEpoch} · ${time(c.origin?.eventTimeMs)} → ${time(c.cutoff?.availableAtMs)}（cutoff 可知時間） · 觀測 ${fmt(c.observedSpanMs==null?null:c.observedSpanMs/1000)} 秒 · ${c.sessionStartProven?'盤別起點已證明':'觀測起算，非完整盤別'} · 固定長窗仍各自暖機`;
+    $('context-details').textContent=JSON.stringify(c,null,2);
   }
   const why = code => ({ WINDOW_INCOMPLETE:'觀測長度不足完整窗口', NO_CLASSIFIED_VOLUME:'尚無已分類成交，UNKNOWN 獨立保留', NO_OBSERVED_TICKS_IN_WINDOW:'本窗沒有合法觀測成交', ACCEPTED_CVD_NULL_GAP:'累積來源存在不可用缺口', CUTOFF_LINEAGE_UNUSABLE:'cutoff 時間或來源不可用', INSUFFICIENT_OBSERVATIONS:'價格觀測筆數不足', QUALITY_INSUFFICIENT_LONG_GAP:'價格路徑存在長缺口', QUALITY_INSUFFICIENT_EVENT_TIME_REGRESSION:'窗內事件時間倒退', UNAVAILABLE_ZERO_PATH:'價格路徑長度為零', PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE:'分類覆蓋不足', QUALITY_OR_EVIDENCE_LIMITED:'品質或證據組合不足', PRIOR_EQUAL_WINDOW_DETERIORATION:'同方向下，流量增量／價格位移／路徑效率至少一項較前窗減少', SAME_CUTOFF_DESCRIPTIVE_RELATIONSHIP:'同 cutoff 的已分類成交與價格描述', CAPTURE_COMPLETENESS_UNPROVEN:'捕捉完整性未證明' }[code] || reason(code));
   function renderRelationship(r) {
-    const phase = r.previewType === 'ISOLATED_PHASE_D' ? 'PHASE D' : 'PHASE C';
+    const phase = r.previewType === 'ISOLATED_SESSION_CONTEXT' ? 'SESSION CONTEXT V1' : r.previewType === 'ISOLATED_PHASE_D' ? 'PHASE D' : 'PHASE C';
     $('preview-phase').textContent = `台股量化交易系統 · 隔離候選 ${phase}${r.evidenceKind === 'SYNTHETIC_FIXTURE' ? ' · SYNTHETIC 測試資料，非市場證據' : ' · 真實 governed 片段'}`;
     document.title = `力量與價格變化｜隔離 ${phase}`;
     const o = r.current, c = o?.current, relation = o?.relationship || {code:'UNAVAILABLE',reason:'NO_LAWFUL_TRADE'};
@@ -155,13 +169,18 @@
       if (!response.ok || !rr.ok) throw Error(reason(data.reason || relationship.reason));
       if(data.head!==relationship.head || data.generationHash!==relationship.generationHash || data.semanticHash!==relationship.semanticHash || data.cutoff.recordHash!==relationship.sourceCutoff.recordHash || data.timeframe!==relationship.timeframe) throw Error('比較資料 cutoff／版本不一致');
       let handoff=null;
-      if(data.previewType==='ISOLATED_PHASE_D') {
+      if(['ISOLATED_PHASE_D','ISOLATED_SESSION_CONTEXT'].includes(data.previewType)) {
         const hr=await fetch(`/api/handoff?timeframe=${encodeURIComponent(frame)}`); handoff=await hr.json();
         if(request!==serial) return;
         if(!hr.ok || handoff.head!==data.head || handoff.generationHash!==data.generationHash || handoff.semanticHash!==data.semanticHash
           || handoff.sourceCutoff?.recordHash!==data.cutoff.recordHash || handoff.timeframe!==data.timeframe) throw Error('市場交接來源／版本未通過核對');
       }
-      render(data, relationship); renderHandoff(handoff); currentFrame = frame;
+      let context=null;
+      if(data.previewType==='ISOLATED_SESSION_CONTEXT') {
+        const cr=await fetch('/api/session-context'); context=await cr.json(); if(request!==serial) return;
+        if(!cr.ok || context.head!==data.head || context.generationHash!==data.generationHash || context.semanticHash!==data.semanticHash || context.sourceCutoff?.recordHash!==data.cutoff.recordHash) throw Error('本盤背景來源／版本未通過核對');
+      }
+      render(data, relationship); renderHandoff(handoff); renderContext(context); currentFrame = frame;
     } catch (e) { if (request === serial) error(e.message); }
   }
   $('frames').addEventListener('click', e => { if (e.target.dataset.frame) load(e.target.dataset.frame); });

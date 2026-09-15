@@ -5,8 +5,8 @@ import { SAFETY } from './cvd-observation-core.mjs';
 
 // This handler receives a bounded, already verified memory projection and fixed assets only.
 // It has no ledger path, fs dependency, collector or materializer call.
-export function createCvdCandidateServer({ frames, relationships = null, handoffs = null, assets, head, port = 3054, token = crypto.randomBytes(32).toString('hex') }) {
-  const previewType = handoffs ? 'ISOLATED_PHASE_D' : relationships ? 'ISOLATED_PHASE_C' : 'ISOLATED_PHASE_B';
+export function createCvdCandidateServer({ frames, relationships = null, handoffs = null, sessionContext = null, assets, head, port = 3054, token = crypto.randomBytes(32).toString('hex') }) {
+  const previewType = sessionContext ? 'ISOLATED_SESSION_CONTEXT' : handoffs ? 'ISOLATED_PHASE_D' : relationships ? 'ISOLATED_PHASE_C' : 'ISOLATED_PHASE_B';
   const cookie = crypto.randomBytes(32).toString('hex');
   const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
   const expectedHost = `127.0.0.1:${port}`;
@@ -35,6 +35,13 @@ export function createCvdCandidateServer({ frames, relationships = null, handoff
       if (url.pathname.startsWith('/api/')) {
         if (!(req.headers.cookie || '').split(';').some(c => c.trim() === `cru54=${cookie}`)) return json(res, 401, { reason: 'CANDIDATE_SESSION_REQUIRED' });
         if (url.pathname === '/api/identity') return json(res, 200, { head, previewType, ...SAFETY, sourceMode: 'PINNED_HISTORICAL_GENERATION', rawReadsPerRequest: 0 });
+        if (sessionContext && url.pathname === '/api/session-context') {
+          if ([...url.searchParams].length) return json(res,400,{reason:'SESSION_CONTEXT_HAS_NO_TIMEFRAME'});
+          const p=frames['1m'];
+          if (!p || sessionContext.generationHash!==p.generationHash || sessionContext.semanticHash!==p.semanticHash
+            || sessionContext.sourceCutoff?.recordHash!==p.cutoff.recordHash) return json(res,503,{reason:'SESSION_CONTEXT_BINDING_INVALID',...SAFETY});
+          return json(res,200,{...sessionContext,freshness:withFreshness(p).freshness,head,previewType,rawReadsPerRequest:0});
+        }
         if (url.pathname !== '/api/cvd' && !(relationships && url.pathname === '/api/relationship') && !(handoffs && url.pathname === '/api/handoff')) return json(res, 404, { reason: 'ROUTE_UNAVAILABLE' });
         if ([...url.searchParams.keys()].some(k => k !== 'timeframe') || url.searchParams.getAll('timeframe').length > 1) return json(res, 400, { reason: 'QUERY_UNSUPPORTED' });
         const timeframe = url.searchParams.get('timeframe') || '1m';
