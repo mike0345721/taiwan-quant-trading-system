@@ -1,0 +1,85 @@
+{
+  "schema": "cru55-owner-review-evidence-v1",
+  "sourceHead": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+  "acceptedHead": "66de7e9a416e9f2386eed1c9e8688afea1b804ab",
+  "approvedMain": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "privateBundleHash": "ffe569570d66f3ae2971ac319ef0568e5757d1d52fa1c90f1715e8c08678193b",
+  "screenshots": [
+    {
+      "file": "real-day-1366x768.jpg",
+      "width": 1366,
+      "height": 768,
+      "sha256": "1c478c6d3354d45ed5db9c2ad1b59256e3ffe0a3d02ec159c5120d91c3e13aa5"
+    },
+    {
+      "file": "real-day-1536x864.jpg",
+      "width": 1536,
+      "height": 864,
+      "sha256": "2b9b767f3bd89436d94c8001a5fe15e73b45637e52f70608307570aba98049bd"
+    },
+    {
+      "file": "real-day-1920x1080.jpg",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "ea7c8612f499d3c71790839ba9dee2352ed1eba91c497a632ac615daf6f2cb25"
+    },
+    {
+      "file": "real-day-full-page-1920.jpg",
+      "width": 1905,
+      "height": 1306,
+      "sha256": "de29dfdd5b1800b43c84ed10b49ac5c2565d70096b2d09480df87969a5774007"
+    },
+    {
+      "file": "real-lower-modules-1920x1080.jpg",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "fa4728f4c5a1b38faaea847796ba2f5b0602ca2d1b2f50939d3ddc04157f29e2"
+    },
+    {
+      "file": "real-night-1920x1080.jpg",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "563bdd6e22f033aec3a7f7b2ba310fbead1a3c83af9e790aacffab5a8ea0e5a3"
+    },
+    {
+      "file": "synthetic-1366x768.jpg",
+      "width": 1366,
+      "height": 768,
+      "sha256": "0d39f630be563c5dbf0cc96ca088319b708126c462fb47a3fbabdb5279d163da"
+    },
+    {
+      "file": "synthetic-1536x864.jpg",
+      "width": 1536,
+      "height": 864,
+      "sha256": "8bd38e1306f9c1a2c3a4676003a7c0a2e8dac2a39e9220e0a8f8c39aaaf1bbb4"
+    },
+    {
+      "file": "synthetic-1920x1080.jpg",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "6520fd7ea7a05f0c7676329159bd253d97f9024e667f91217c7377b66319b347"
+    }
+  ],
+  "files": [
+    {
+      "file": "browser-audit.json",
+      "sha256": "a632be32ed4bb85509065396d62044532f4d4f6fc935a25e347d214d0c1f1952"
+    },
+    {
+      "file": "OWNER_REVIEW_GUIDE.md",
+      "sha256": "d180b8ffc0349be298348d30d1e1574db412eaf436a8faa16e617e74c42fa5e9"
+    },
+    {
+      "file": "tests.tap",
+      "sha256": "953e4704ee783fc1c41ba40615fc48f6356b9fd301680340437aa0e0483e8f49"
+    },
+    {
+      "file": "VALIDATION.md",
+      "sha256": "474040b74ee3f4c7b3374990076424e3e24bc6cd321d58e44681b811bfeb4365"
+    }
+  ],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false
+}

@@ -1,0 +1,394 @@
+TAP version 13
+# Subtest: timeline reads accepted availableAt lineage and missing stays unknown
+ok 1 - timeline reads accepted availableAt lineage and missing stays unknown
+  ---
+  duration_ms: 1.6138
+  type: 'test'
+  ...
+# Subtest: handoff scope distinguishes unavailable identity from observed accumulation
+ok 2 - handoff scope distinguishes unavailable identity from observed accumulation
+  ---
+  duration_ms: 0.2378
+  type: 'test'
+  ...
+# Subtest: source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+ok 3 - source kind, exact cutoff, timeframe endpoint and frozen safety fail closed
+  ---
+  duration_ms: 18.2826
+  type: 'test'
+  ...
+# Subtest: bounded reader rejects over-budget before reading bytes and rejects hardlinks
+ok 4 - bounded reader rejects over-budget before reading bytes and rejects hardlinks
+  ---
+  duration_ms: 37.0488
+  type: 'test'
+  ...
+# Subtest: one window presentation preserves partial/warming/unavailable and direction limitations
+ok 5 - one window presentation preserves partial/warming/unavailable and direction limitations
+  ---
+  duration_ms: 2.1374
+  type: 'test'
+  ...
+# Subtest: CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+ok 6 - CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace
+  ---
+  duration_ms: 1.0229
+  type: 'test'
+  ...
+# Subtest: isolated authenticated API is memory-only and returns one exact scan/evidence source
+ok 7 - isolated authenticated API is memory-only and returns one exact scan/evidence source
+  ---
+  duration_ms: 269.4128
+  type: 'test'
+  ...
+# Subtest: six timeframes preserve accepted semantic endpoint, UNKNOWN, observed origin and cutoff; no checkpoint exposed
+ok 8 - six timeframes preserve accepted semantic endpoint, UNKNOWN, observed origin and cutoff; no checkpoint exposed
+  ---
+  duration_ms: 16.9471
+  type: 'test'
+  ...
+# Subtest: all unknown/empty/boundary remain null and explain unavailability
+ok 9 - all unknown/empty/boundary remain null and explain unavailability
+  ---
+  duration_ms: 5.2065
+  type: 'test'
+  ...
+# Subtest: bounded selection retains physical first/last/extrema; gaps do not disappear
+ok 10 - bounded selection retains physical first/last/extrema; gaps do not disappear
+  ---
+  duration_ms: 682.6951
+  type: 'test'
+  ...
+# Subtest: corrupt semantic/price binding/unsupported frame refused; poisoned plot time never sorted
+ok 11 - corrupt semantic/price binding/unsupported frame refused; poisoned plot time never sorted
+  ---
+  duration_ms: 3.7125
+  type: 'test'
+  ...
+# Subtest: freshness never promotes a pinned sample to LIVE and uses trade time, not request time
+ok 12 - freshness never promotes a pinned sample to LIVE and uses trade time, not request time
+  ---
+  duration_ms: 1.625
+  type: 'test'
+  ...
+# Subtest: timezone-less origin uses canonical Taipei epoch, independent of browser timezone
+ok 13 - timezone-less origin uses canonical Taipei epoch, independent of browser timezone
+  ---
+  duration_ms: 1.6125
+  type: 'test'
+  ...
+# Subtest: different session/contract segments stay separate with independent origins and gaps
+ok 14 - different session/contract segments stay separate with independent origins and gaps
+  ---
+  duration_ms: 2.2384
+  type: 'test'
+  ...
+# Subtest: accepted C evidence and independent CVD/path retained exactly at all six selected windows
+ok 15 - accepted C evidence and independent CVD/path retained exactly at all six selected windows
+  ---
+  duration_ms: 57.5657
+  type: 'test'
+  ...
+# Subtest: governed Friday NIGHT to Monday DAY; closed-market gap has no fabricated activity
+ok 16 - governed Friday NIGHT to Monday DAY; closed-market gap has no fabricated activity
+  ---
+  duration_ms: 26.9936
+  type: 'test'
+  ...
+# Subtest: governed DAY to same-calendar afternoon NIGHT resolves next official tradeDate
+ok 17 - governed DAY to same-calendar afternoon NIGHT resolves next official tradeDate
+  ---
+  duration_ms: 60.513
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC continuation
+ok 18 - SYNTHETIC continuation
+  ---
+  duration_ms: 26.6269
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC weakening
+ok 19 - SYNTHETIC weakening
+  ---
+  duration_ms: 31.4575
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC rejection despite same clean current
+ok 20 - SYNTHETIC rejection despite same clean current
+  ---
+  duration_ms: 37.7605
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC takeover before rejection
+ok 21 - SYNTHETIC takeover before rejection
+  ---
+  duration_ms: 26.5907
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC partial
+ok 22 - SYNTHETIC partial
+  ---
+  duration_ms: 8.7007
+  type: 'test'
+  ...
+# Subtest: SYNTHETIC missing current lawful price
+ok 23 - SYNTHETIC missing current lawful price
+  ---
+  duration_ms: 26.5334
+  type: 'test'
+  ...
+# Subtest: partial prior cannot form clean direction; partial current may show only supported opening rejection
+ok 24 - partial prior cannot form clean direction; partial current may show only supported opening rejection
+  ---
+  duration_ms: 44.7548
+  type: 'test'
+  ...
+# Subtest: zero gap is lawful zero, missing prices never become zero
+ok 25 - zero gap is lawful zero, missing prices never become zero
+  ---
+  duration_ms: 59.2692
+  type: 'test'
+  ...
+# Subtest: rollover, non-adjacent actual historical identities, missing lineage, source mix and missing side fail closed
+ok 26 - rollover, non-adjacent actual historical identities, missing lineage, source mix and missing side fail closed
+  ---
+  duration_ms: 116.158
+  type: 'test'
+  ...
+# Subtest: future prior availability cannot backpaint an earlier current cutoff
+ok 27 - future prior availability cannot backpaint an earlier current cutoff
+  ---
+  duration_ms: 24.4931
+  type: 'test'
+  ...
+# Subtest: exact six five-character Relationship labels shared by first-screen, Timeline and safe K markers
+ok 28 - exact six five-character Relationship labels shared by first-screen, Timeline and safe K markers
+  ---
+  duration_ms: 1.1814
+  type: 'test'
+  ...
+# Subtest: same cutoff/window/as-of identity and exact accepted CVD vs CRU34/44 net-flow parity in six windows
+ok 29 - same cutoff/window/as-of identity and exact accepted CVD vs CRU34/44 net-flow parity in six windows
+  ---
+  duration_ms: 45.4811
+  type: 'test'
+  ...
+# Subtest: synthetic fixture labels preserve Windows case-insensitive source-root truth
+ok 30 - synthetic fixture labels preserve Windows case-insensitive source-root truth
+  ---
+  duration_ms: 16.1591
+  type: 'test'
+  ...
+# Subtest: delayed earlier-event changes only its later physical as-of snapshot, never history
+ok 31 - delayed earlier-event changes only its later physical as-of snapshot, never history
+  ---
+  duration_ms: 17.8112
+  type: 'test'
+  ...
+# Subtest: 43 seconds is an observed fragment, never a complete 15m delta or prior comparison
+ok 32 - 43 seconds is an observed fragment, never a complete 15m delta or prior comparison
+  ---
+  duration_ms: 2.2794
+  type: 'test'
+  ...
+# Subtest: lawful prior equal windows share actual current cutoff and compare exact magnitudes
+ok 33 - lawful prior equal windows share actual current cutoff and compare exact magnitudes
+  ---
+  duration_ms: 4.6928
+  type: 'test'
+  ...
+# Subtest: cross-session refusal: new segment has its own delta/origin and no prior comparison
+ok 34 - cross-session refusal: new segment has its own delta/origin and no prior comparison
+  ---
+  duration_ms: 1.6536
+  type: 'test'
+  ...
+# Subtest: cross-contract refusal: new segment has its own delta/origin and no prior comparison
+ok 35 - cross-contract refusal: new segment has its own delta/origin and no prior comparison
+  ---
+  duration_ms: 1.3954
+  type: 'test'
+  ...
+# Subtest: cross-tradeDate refusal: new segment has its own delta/origin and no prior comparison
+ok 36 - cross-tradeDate refusal: new segment has its own delta/origin and no prior comparison
+  ---
+  duration_ms: 1.2857
+  type: 'test'
+  ...
+# Subtest: continuity break and A-B-A within one epoch never pool old A data
+ok 37 - continuity break and A-B-A within one epoch never pool old A data
+  ---
+  duration_ms: 3.6755
+  type: 'test'
+  ...
+# Subtest: UNKNOWN remains independent; all unknown is not zero/neutral; invalid accepted null cannot be repaired from counters
+ok 38 - UNKNOWN remains independent; all unknown is not zero/neutral; invalid accepted null cannot be repaired from counters
+  ---
+  duration_ms: 7.2866
+  type: 'test'
+  ...
+# Subtest: unaligned source/hash/cutoff identity is rejected instead of a relationship
+ok 39 - unaligned source/hash/cutoff identity is rejected instead of a relationship
+  ---
+  duration_ms: 6.4142
+  type: 'test'
+  ...
+# Subtest: ALIGNED / MISMATCH / OPPOSITE / QUALITY_LIMITED / UNAVAILABLE fixtures use frozen evidence
+ok 40 - ALIGNED / MISMATCH / OPPOSITE / QUALITY_LIMITED / UNAVAILABLE fixtures use frozen evidence
+  ---
+  duration_ms: 24.8439
+  type: 'test'
+  ...
+# Subtest: timeline identical-state collapse and segment reset; only actual state transitions at availableAt
+ok 41 - timeline identical-state collapse and segment reset; only actual state transitions at availableAt
+  ---
+  duration_ms: 0.9645
+  type: 'test'
+  ...
+# Subtest: markers never backpaint, cross segment, use initial state, or fabricate bar location
+ok 42 - markers never backpaint, cross segment, use initial state, or fabricate bar location
+  ---
+  duration_ms: 0.9658
+  type: 'test'
+  ...
+# Subtest: equal-window wording is deterministic without relative-strength scores
+ok 43 - equal-window wording is deterministic without relative-strength scores
+  ---
+  duration_ms: 0.71
+  type: 'test'
+  ...
+# Subtest: terminal non-tick boundary invalidates current comparisons without rewriting historical observations
+ok 44 - terminal non-tick boundary invalidates current comparisons without rewriting historical observations
+  ---
+  duration_ms: 16.9457
+  type: 'test'
+  ...
+# Subtest: bounded history fails closed instead of losing unseen state transitions
+ok 45 - bounded history fails closed instead of losing unseen state transitions
+  ---
+  duration_ms: 34.5563
+  type: 'test'
+  ...
+# Subtest: DAY full/observed label requires accepted proof=false
+ok 46 - DAY full/observed label requires accepted proof=false
+  ---
+  duration_ms: 53.7519
+  type: 'test'
+  ...
+# Subtest: DAY full/observed label requires accepted proof=true
+ok 47 - DAY full/observed label requires accepted proof=true
+  ---
+  duration_ms: 33.5528
+  type: 'test'
+  ...
+# Subtest: NIGHT full/observed label requires accepted proof=false
+ok 48 - NIGHT full/observed label requires accepted proof=false
+  ---
+  duration_ms: 34.326
+  type: 'test'
+  ...
+# Subtest: NIGHT full/observed label requires accepted proof=true
+ok 49 - NIGHT full/observed label requires accepted proof=true
+  ---
+  duration_ms: 33.2699
+  type: 'test'
+  ...
+# Subtest: context uses inclusive first cumulative increment; fixed windows remain independent
+ok 50 - context uses inclusive first cumulative increment; fixed windows remain independent
+  ---
+  duration_ms: 33.3421
+  type: 'test'
+  ...
+# Subtest: all UNKNOWN preserves volume and null CVD, never neutral
+ok 51 - all UNKNOWN preserves volume and null CVD, never neutral
+  ---
+  duration_ms: 33.5016
+  type: 'test'
+  ...
+# Subtest: same-segment fence: actualContract
+ok 52 - same-segment fence: actualContract
+  ---
+  duration_ms: 21.143
+  type: 'test'
+  ...
+# Subtest: same-segment fence: session
+ok 53 - same-segment fence: session
+  ---
+  duration_ms: 23.8123
+  type: 'test'
+  ...
+# Subtest: same-segment fence: tradeDate
+ok 54 - same-segment fence: tradeDate
+  ---
+  duration_ms: 22.0288
+  type: 'test'
+  ...
+# Subtest: same-segment fence: continuityEpoch
+ok 55 - same-segment fence: continuityEpoch
+  ---
+  duration_ms: 17.6241
+  type: 'test'
+  ...
+# Subtest: same-segment fence: availabilityLineageStatus
+ok 56 - same-segment fence: availabilityLineageStatus
+  ---
+  duration_ms: 21.3655
+  type: 'test'
+  ...
+# Subtest: same-segment fence: recordHash
+ok 57 - same-segment fence: recordHash
+  ---
+  duration_ms: 22.4859
+  type: 'test'
+  ...
+# Subtest: continuity break/null gap and terminal mismatch fail closed
+ok 58 - continuity break/null gap and terminal mismatch fail closed
+  ---
+  duration_ms: 34.4157
+  type: 'test'
+  ...
+# Subtest: unproven early tick never creates proof, inconsistent true proof fails closed
+ok 59 - unproven early tick never creates proof, inconsistent true proof fails closed
+  ---
+  duration_ms: 39.894
+  type: 'test'
+  ...
+# Subtest: accepted timestamp semantics and missing strict price endpoints preserve context
+ok 60 - accepted timestamp semantics and missing strict price endpoints preserve context
+  ---
+  duration_ms: 15.0592
+  type: 'test'
+  ...
+# Subtest: handoff uses context across all frames while recent partial truth remains; no cross-gap math
+ok 61 - handoff uses context across all frames while recent partial truth remains; no cross-gap math
+  ---
+  duration_ms: 52.6219
+  type: 'test'
+  ...
+# Subtest: observed endpoint price difference cannot imply official opening rejection
+ok 62 - observed endpoint price difference cannot imply official opening rejection
+  ---
+  duration_ms: 39.1522
+  type: 'test'
+  ...
+# Subtest: nonadjacency and rollover remain unavailable
+ok 63 - nonadjacency and rollover remain unavailable
+  ---
+  duration_ms: 66.1409
+  type: 'test'
+  ...
+# Subtest: context contains no second CVD accumulator or classification parsing
+ok 64 - context contains no second CVD accumulator or classification parsing
+  ---
+  duration_ms: 1.7569
+  type: 'test'
+  ...
+1..64
+# tests 64
+# suites 0
+# pass 64
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1049.8381

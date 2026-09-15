@@ -1,0 +1,2624 @@
+{
+  "sourceHead": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+  "browser": "Codex In-app Browser",
+  "bundleHash": "ffe569570d66f3ae2971ac319ef0568e5757d1d52fa1c90f1715e8c08678193b",
+  "audits": [
+    {
+      "capturedAt": "2026-09-15T06:19:04.439Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 98.78125,
+          "height": 34.78125,
+          "right": 1341,
+          "selector": ".identity-bar",
+          "width": 1255,
+          "x": 86,
+          "y": 64
+        },
+        {
+          "bottom": 177.5,
+          "height": 46.78125,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 1255,
+          "x": 86,
+          "y": 130.71875
+        },
+        {
+          "bottom": 265.828125,
+          "height": 39.390625,
+          "right": 998,
+          "selector": ".fast-scan",
+          "width": 911,
+          "x": 87,
+          "y": 226.4375
+        },
+        {
+          "bottom": 670.703125,
+          "height": 340,
+          "right": 998,
+          "selector": ".chart-wrap",
+          "width": 911,
+          "x": 87,
+          "y": 330.703125
+        },
+        {
+          "bottom": 469.421875,
+          "height": 281.921875,
+          "right": 1341,
+          "selector": ".session",
+          "width": 332,
+          "x": 1009,
+          "y": 187.5
+        },
+        {
+          "bottom": 753.609375,
+          "height": 276.1875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 332,
+          "x": 1009,
+          "y": 477.421875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        179,
+        1,
+        28,
+        1,
+        71,
+        1,
+        31,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1366,
+        768
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:19:06.363Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 98.78125,
+          "height": 34.78125,
+          "right": 1341,
+          "selector": ".identity-bar",
+          "width": 1255,
+          "x": 86,
+          "y": 64
+        },
+        {
+          "bottom": 191.5,
+          "height": 46.78125,
+          "right": 1341,
+          "selector": ".handoff",
+          "width": 1255,
+          "x": 86,
+          "y": 144.71875
+        },
+        {
+          "bottom": 279.828125,
+          "height": 39.390625,
+          "right": 998,
+          "selector": ".fast-scan",
+          "width": 911,
+          "x": 87,
+          "y": 240.4375
+        },
+        {
+          "bottom": 684.703125,
+          "height": 340,
+          "right": 998,
+          "selector": ".chart-wrap",
+          "width": 911,
+          "x": 87,
+          "y": 344.703125
+        },
+        {
+          "bottom": 483.421875,
+          "height": 281.921875,
+          "right": 1341,
+          "selector": ".session",
+          "width": 332,
+          "x": 1009,
+          "y": 201.5
+        },
+        {
+          "bottom": 767.609375,
+          "height": 276.1875,
+          "right": 1341,
+          "selector": ".relationships",
+          "width": 332,
+          "x": 1009,
+          "y": 491.421875
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        179,
+        1,
+        28,
+        1,
+        71,
+        1,
+        31,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1366,
+        768
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:19:08.470Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 106.78125,
+          "height": 34.78125,
+          "right": 1511,
+          "selector": ".identity-bar",
+          "width": 1425,
+          "x": 86,
+          "y": 72
+        },
+        {
+          "bottom": 185.59375,
+          "height": 46.875,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 1425,
+          "x": 86,
+          "y": 138.71875
+        },
+        {
+          "bottom": 279.859375,
+          "height": 45.328125,
+          "right": 1122.65625,
+          "selector": ".fast-scan",
+          "width": 1035.65625,
+          "x": 87,
+          "y": 234.53125
+        },
+        {
+          "bottom": 700.734375,
+          "height": 354,
+          "right": 1122.65625,
+          "selector": ".chart-wrap",
+          "width": 1035.65625,
+          "x": 87,
+          "y": 346.734375
+        },
+        {
+          "bottom": 498.953125,
+          "height": 303.359375,
+          "right": 1511,
+          "selector": ".session",
+          "width": 377.34375,
+          "x": 1133.65625,
+          "y": 195.59375
+        },
+        {
+          "bottom": 801.140625,
+          "height": 294.1875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 377.34375,
+          "x": 1133.65625,
+          "y": 506.953125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        187,
+        1,
+        29,
+        1,
+        74,
+        1,
+        33,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1536,
+        864
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:19:10.413Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 106.78125,
+          "height": 34.78125,
+          "right": 1511,
+          "selector": ".identity-bar",
+          "width": 1425,
+          "x": 86,
+          "y": 72
+        },
+        {
+          "bottom": 199.59375,
+          "height": 46.875,
+          "right": 1511,
+          "selector": ".handoff",
+          "width": 1425,
+          "x": 86,
+          "y": 152.71875
+        },
+        {
+          "bottom": 293.859375,
+          "height": 45.328125,
+          "right": 1122.65625,
+          "selector": ".fast-scan",
+          "width": 1035.65625,
+          "x": 87,
+          "y": 248.53125
+        },
+        {
+          "bottom": 714.734375,
+          "height": 354,
+          "right": 1122.65625,
+          "selector": ".chart-wrap",
+          "width": 1035.65625,
+          "x": 87,
+          "y": 360.734375
+        },
+        {
+          "bottom": 512.953125,
+          "height": 303.359375,
+          "right": 1511,
+          "selector": ".session",
+          "width": 377.34375,
+          "x": 1133.65625,
+          "y": 209.59375
+        },
+        {
+          "bottom": 815.140625,
+          "height": 294.1875,
+          "right": 1511,
+          "selector": ".relationships",
+          "width": 377.34375,
+          "x": 1133.65625,
+          "y": 520.953125
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        187,
+        1,
+        29,
+        1,
+        74,
+        1,
+        33,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1536,
+        864
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:19:12.687Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 196.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 143.625
+        },
+        {
+          "bottom": 302.765625,
+          "height": 49.328125,
+          "right": 1430.625,
+          "selector": ".fast-scan",
+          "width": 1323.625,
+          "x": 107,
+          "y": 253.4375
+        },
+        {
+          "bottom": 943.640625,
+          "height": 570,
+          "right": 1430.625,
+          "selector": ".chart-wrap",
+          "width": 1323.625,
+          "x": 107,
+          "y": 373.640625
+        },
+        {
+          "bottom": 577.234375,
+          "height": 370.734375,
+          "right": 1891,
+          "selector": ".session",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 206.5
+        },
+        {
+          "bottom": 1007.046875,
+          "height": 419.8125,
+          "right": 1891,
+          "selector": ".relationships",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 587.234375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +295",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "295",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "day",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:19:14.647Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 210.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 157.625
+        },
+        {
+          "bottom": 316.765625,
+          "height": 49.328125,
+          "right": 1430.625,
+          "selector": ".fast-scan",
+          "width": 1323.625,
+          "x": 107,
+          "y": 267.4375
+        },
+        {
+          "bottom": 957.640625,
+          "height": 570,
+          "right": 1430.625,
+          "selector": ".chart-wrap",
+          "width": 1323.625,
+          "x": 107,
+          "y": 387.640625
+        },
+        {
+          "bottom": 591.234375,
+          "height": 370.734375,
+          "right": 1891,
+          "selector": ".session",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 220.5
+        },
+        {
+          "bottom": 1021.046875,
+          "height": 419.8125,
+          "right": 1891,
+          "selector": ".relationships",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 601.234375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +2,026",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "2026",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "demo",
+      "viewport": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "capturedAt": "2026-09-15T06:20:01.393Z",
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "core": [
+        {
+          "bottom": 111.6875,
+          "height": 37.6875,
+          "right": 1891,
+          "selector": ".identity-bar",
+          "width": 1785,
+          "x": 106,
+          "y": 74
+        },
+        {
+          "bottom": 196.5,
+          "height": 52.875,
+          "right": 1891,
+          "selector": ".handoff",
+          "width": 1785,
+          "x": 106,
+          "y": 143.625
+        },
+        {
+          "bottom": 302.765625,
+          "height": 49.328125,
+          "right": 1430.625,
+          "selector": ".fast-scan",
+          "width": 1323.625,
+          "x": 107,
+          "y": 253.4375
+        },
+        {
+          "bottom": 943.640625,
+          "height": 570,
+          "right": 1430.625,
+          "selector": ".chart-wrap",
+          "width": 1323.625,
+          "x": 107,
+          "y": 373.640625
+        },
+        {
+          "bottom": 577.234375,
+          "height": 370.734375,
+          "right": 1891,
+          "selector": ".session",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 206.5
+        },
+        {
+          "bottom": 1007.046875,
+          "height": 419.8125,
+          "right": 1891,
+          "selector": ".relationships",
+          "width": 449.375,
+          "x": 1441.625,
+          "y": 587.234375
+        }
+      ],
+      "coreTextOverflow": [],
+      "cvd": "CVD +5",
+      "cvdSign": "買方主動成交累積較多",
+      "duplicateIds": [],
+      "endpoint": "5",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "horizontalOverflow": 0,
+      "lower": [
+        {
+          "id": "spot",
+          "visible": true
+        },
+        {
+          "id": "futures",
+          "visible": true
+        },
+        {
+          "id": "options",
+          "visible": true
+        },
+        {
+          "id": "breadth",
+          "visible": true
+        },
+        {
+          "id": "risk",
+          "visible": true
+        }
+      ],
+      "panes": [
+        313,
+        1,
+        49,
+        1,
+        124,
+        1,
+        53,
+        28
+      ],
+      "scanTableConsistent": true,
+      "scans": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "textBelow11": [],
+      "timeframe": "1m",
+      "trust": "STALE",
+      "view": "night",
+      "viewport": [
+        1920,
+        1080
+      ]
+    }
+  ],
+  "timeframeInteractions": [
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "1m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "5m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "15m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "30m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "1h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "295",
+      "frame": "4h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "day"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "1m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "5m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "15m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "30m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "1h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "5",
+      "frame": "4h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "0",
+      "rows": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "night"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "1m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "121",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "5m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "25",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "15m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "9",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "30m",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "5",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "1h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "3",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    },
+    {
+      "contextScope": "OBSERVED_SEGMENT_TO_NOW",
+      "endpoint": "2026",
+      "frame": "4h",
+      "head": "0d5996707fbad7266753c41fba3ad832ee3919ca",
+      "priceBars": "1",
+      "rows": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "scan": [
+        {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        }
+      ],
+      "view": "demo"
+    }
+  ],
+  "uiChecks": {
+    "testedHead": "47ffe9c49b08b0346d882a69a2744edc4ce5cc41",
+    "unchangedByFinalCssOffset": true,
+    "checks": [
+      {
+        "check": "price palette switch",
+        "result": "green-up selected, CVD endpoint 2026 retained"
+      },
+      {
+        "check": "spot",
+        "title": "現貨 / 指數貢獻",
+        "bodyAvailable": true
+      },
+      {
+        "check": "futures",
+        "title": "期貨流向",
+        "bodyAvailable": true
+      },
+      {
+        "check": "options",
+        "title": "選擇權背景",
+        "bodyAvailable": true
+      },
+      {
+        "check": "breadth",
+        "title": "市場參與度",
+        "bodyAvailable": true
+      },
+      {
+        "check": "risk",
+        "title": "風險 / 衝突",
+        "bodyAvailable": true
+      },
+      {
+        "check": "global",
+        "title": "海外背景",
+        "bodyAvailable": true
+      },
+      {
+        "check": "context",
+        "title": "Session Context｜本盤背景",
+        "bodyAvailable": true
+      },
+      {
+        "check": "change",
+        "title": "1m｜最近變化",
+        "bodyAvailable": true
+      },
+      {
+        "check": "handoff",
+        "title": "Market Handoff｜市場交接",
+        "bodyAvailable": true
+      },
+      {
+        "check": "scope",
+        "title": "版本與預覽範圍",
+        "bodyAvailable": true
+      },
+      {
+        "check": "copy",
+        "result": "已複製隔離快照 · 僅供人工討論"
+      }
+    ]
+  },
+  "blockingConsoleErrors": 0,
+  "console": [],
+  "controlledFaultCheck": {
+    "kind": "restart-invalidates-session",
+    "testedHead": "26766c2b853fdff296c2781429fe62322647920c",
+    "unchangedCodeSinceTest": true,
+    "result": "PASS",
+    "cleared": {
+      "error": "true",
+      "endpoint": "null",
+      "panes": "0",
+      "trust": "UNAVAILABLE",
+      "delta": "不可用",
+      "deltaClass": ""
+    },
+    "note": "Expected401 excluded from normal-operation console gate."
+  }
+}
