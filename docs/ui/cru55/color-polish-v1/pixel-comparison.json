@@ -1,0 +1,290 @@
+[
+  {
+    "kind": "demo",
+    "width": 1920,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 0.7342663553773537,
+        "region": [
+          17,
+          361,
+          1309,
+          727
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 3.2649518803849573,
+        "region": [
+          17,
+          744,
+          1309,
+          787
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          804,
+          1309,
+          940
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          957,
+          1309,
+          1007
+        ]
+      }
+    },
+    "screenshotSize": [
+      1905,
+      1072
+    ]
+  },
+  {
+    "kind": "demo",
+    "width": 1536,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 1.1449752835545564,
+        "region": [
+          17,
+          330,
+          1027,
+          559
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 3.4770177017701775,
+        "region": [
+          17,
+          576,
+          1027,
+          598
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          615,
+          1027,
+          696
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          713,
+          1027,
+          740
+        ]
+      }
+    },
+    "screenshotSize": [
+      1521,
+      856
+    ]
+  },
+  {
+    "kind": "demo",
+    "width": 1366,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 1.3304189435336975,
+        "region": [
+          17,
+          330,
+          867,
+          513
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 3.254222222222222,
+        "region": [
+          17,
+          530,
+          867,
+          545
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          562,
+          867,
+          625
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          642,
+          867,
+          660
+        ]
+      }
+    },
+    "screenshotSize": [
+      1351,
+      760
+    ]
+  },
+  {
+    "kind": "real",
+    "width": 1920,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 0.435815611835761,
+        "region": [
+          17,
+          361,
+          1309,
+          727
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 0.06500347997216023,
+        "region": [
+          17,
+          744,
+          1309,
+          787
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          804,
+          1309,
+          940
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          957,
+          1309,
+          1007
+        ]
+      }
+    },
+    "screenshotSize": [
+      1905,
+      1072
+    ]
+  },
+  {
+    "kind": "real",
+    "width": 1536,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 0.5843054174413075,
+        "region": [
+          17,
+          330,
+          1027,
+          559
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 0.036978697869786976,
+        "region": [
+          17,
+          576,
+          1027,
+          598
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          615,
+          1027,
+          696
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          713,
+          1027,
+          740
+        ]
+      }
+    },
+    "screenshotSize": [
+      1521,
+      856
+    ]
+  },
+  {
+    "kind": "real",
+    "width": 1366,
+    "fixedDOMIdentical": true,
+    "priceColorsChanged": true,
+    "panes": {
+      "K": {
+        "meanAbsoluteRGBDifference": 0.6284824346405229,
+        "region": [
+          17,
+          330,
+          867,
+          522
+        ]
+      },
+      "Volume": {
+        "meanAbsoluteRGBDifference": 0.028799019607843136,
+        "region": [
+          17,
+          539,
+          867,
+          555
+        ]
+      },
+      "CVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          572,
+          867,
+          639
+        ]
+      },
+      "DeltaCVD": {
+        "meanAbsoluteRGBDifference": 0.0,
+        "region": [
+          17,
+          656,
+          867,
+          676
+        ]
+      }
+    },
+    "screenshotSize": [
+      1351,
+      760
+    ]
+  }
+]
