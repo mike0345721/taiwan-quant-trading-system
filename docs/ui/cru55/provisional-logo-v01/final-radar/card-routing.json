@@ -1,0 +1,28 @@
+[
+  {
+    "card": "spot",
+    "url": "http://127.0.0.1:3055/workspace?space=spot",
+    "active": "台股現貨"
+  },
+  {
+    "card": "breadth",
+    "url": "http://127.0.0.1:3055/workspace?space=spot&section=breadth",
+    "active": "台股現貨",
+    "section": "03\n市場廣度"
+  },
+  {
+    "card": "futures",
+    "url": "http://127.0.0.1:3055/workspace?space=futures",
+    "active": "台指期貨"
+  },
+  {
+    "card": "options",
+    "url": "http://127.0.0.1:3055/workspace?space=options",
+    "active": "選擇權"
+  },
+  {
+    "card": "global",
+    "url": "http://127.0.0.1:3055/workspace?space=global",
+    "active": "海外市場"
+  }
+]

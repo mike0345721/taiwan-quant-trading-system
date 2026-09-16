@@ -1,0 +1,122 @@
+[
+  {
+    "control": "settings",
+    "title": "設定",
+    "open": true
+  },
+  {
+    "control": "handoff",
+    "title": "Market Handoff｜市場交接",
+    "open": true
+  },
+  {
+    "control": "change",
+    "title": "1m｜最近變化",
+    "open": true
+  },
+  {
+    "control": "context",
+    "title": "Session Context｜本盤背景",
+    "open": true
+  },
+  {
+    "control": "scope",
+    "title": "版本與預覽範圍",
+    "open": true
+  },
+  {
+    "control": "risk",
+    "title": "風險 / 衝突",
+    "open": true
+  },
+  {
+    "control": "Data Trust",
+    "title": "Data Trust｜資料品質",
+    "copy": "STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。"
+  },
+  {
+    "control": "refresh",
+    "value": "CVD +295"
+  },
+  {
+    "control": "copy",
+    "result": "已複製隔離快照 · 僅供人工討論"
+  },
+  {
+    "control": "fit",
+    "chartCanvasCount": 19
+  },
+  {
+    "control": "Ask GPT",
+    "sendEnabled": false,
+    "source": "真實觀測片段 · STALE · 捕捉完整性 UNPROVEN"
+  },
+  {
+    "control": "Ask close",
+    "cleared": "",
+    "state": {
+      "focus": "ask-open",
+      "question": ""
+    }
+  },
+  {
+    "control": "table row selection",
+    "selected": "1m PARTIAL · 觀測 42s / 60s"
+  },
+  {
+    "control": "unsupported month",
+    "cvd": "不可用",
+    "trust": "UNAVAILABLE"
+  },
+  {
+    "control": "unsupported product",
+    "notice": "MTX / 2026-09 · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料"
+  },
+  {
+    "control": "night",
+    "cvd": "CVD +5",
+    "notice": "真實歷史觀測片段 · 2026-09-14 NIGHT · 完整盤別未證明 · 捕捉完整性 UNPROVEN"
+  },
+  {
+    "control": "sidebar collapse",
+    "collapsed": true
+  },
+  {
+    "control": "timeline",
+    "head": "63c70fc",
+    "markers": "8"
+  },
+  {
+    "control": "workspace refresh",
+    "enabled": false
+  },
+  {
+    "control": "workspace quality",
+    "text": "續公布\":\n            - text: TAIFEX official institutional CSV\n            - generic: 日盤收盤後陸續公布\n          - cell \"2026-09-16\"\n          - cell \"下午03:10:33\"\n          - cell \"最新可用\":\n            - generic: 最新可用\n        - row \"選擇權 TXO 各到期契約成交量、OI 與履約價結構 TAIFEX DailyMarketReportOpt 日盤收盤後更新 2026-09-15 下午03:10:33 等待官方公布 OpenAPI 日期落後；官方選擇權 CSV 備援失敗：This operation was aborted\":\n          - cell \"選擇權 TXO 各到期契約成交量、OI 與履約價結構\":\n            - text: 選擇權\n            - generic: TXO 各到期契約成交量、OI 與履約價結構\n          - cell \"TAIFEX DailyMarketReportOpt 日盤收盤後更新\":\n            - text: TAIFEX DailyMarketReportOpt\n            - generic: 日盤收盤後更新\n          - cell \"2026-09-15\"\n          - cell \"下午03:10:33\"\n          - cell \"等待官方公布 OpenAPI 日期落後；官方選擇權 CSV 備援失敗：This operation was aborted\":\n            - generic: 等待官方公布\n            - generic: OpenAPI 日期落後；官方選擇權 CSV 備援失敗：This operation was aborted\n        - row \"大額交易人 TX+MTX/4+TMF/20 換算後的臺指期貨大額交易人未沖銷部位 TAIFEX official large-trader table 日盤收盤後陸續公布 2026-09-16 下午03:10:34 最新可用\":\n          - cell \"大額交易人 TX+MTX/4+TMF/20 換算後的臺指期貨大額交易人未沖銷部位\":\n            - text: 大額交易人\n            - generic: TX+MTX/4+TMF/20 換算後的臺指期貨大額交易人未沖銷部位\n          - cell \"TAIFEX official large-trader table 日盤收盤後陸續公布\":\n            - text: TAIFEX official large-trader table\n            - generic: 日盤收盤後陸續公布\n          - cell \"2026-09-16\"\n          - cell \"下午03:10:34\"\n          - cell \"最新可用\":\n            - generic: 最新可用\n  - paragraph: V3.9.7 新增透明莊家地圖 Beta，以公開 OI 顯示重心、結構區、牆位歷史與 Max Pain；不推定真實莊家部位或成本，不含下單端點。"
+  },
+  {
+    "control": "research top route",
+    "url": "http://127.0.0.1:3055/workspace?space=research",
+    "active": "研究回測"
+  },
+  {
+    "control": "replay",
+    "bars": [
+      1,
+      2,
+      60
+    ]
+  },
+  {
+    "control": "workspace refresh settled",
+    "enabled": true
+  },
+  {
+    "control": "options selectors",
+    "values": {
+      "chart": "資料至 2026-09-10｜202609｜到期 2026-09-16｜同契約有效 60 日｜換約後重新累積\n\nCall OI 牆\n50,000 點\n前日 50,000 點｜變化 0 點\nPut OI 牆\n43,000 點\n前日 40,000 點｜變化 +3,000 點\nMax Pain\n45,500 點\n前日 45,500 點｜變化 0 點\n台指期參考\n46,870 點\n前日 47,187 點｜變化 -317 點\nCall 未平倉量\n34,467 口\n前日 31,635 口｜變化 +2,832 口\nPut 未平倉量\n32,898 口\n前日 32,020 口｜變化 +878 口\nCall OI 每日增減\n近 12 個有效交易日\n08-26\n09-02\n09-10\n滑鼠移到柱狀圖可查看日期與數值\nPut OI 每日增減\n近 12 個有效交易日\n08-26\n09-02\n09-10\n滑鼠移到柱狀圖可查看日期與數值\n\n202609｜到期 2026-09-16｜剩 6 天。Call／Put牆未同步移動，較像區間調整或訊號衝突。 Max Pain較前日 0 點。本區只比較同一契約；換約後重新累積，不跨到期日串接。\n\n展開近 60 日歷史明細",
+      "oi": "202610",
+      "v2": "202609"
+    }
+  }
+]

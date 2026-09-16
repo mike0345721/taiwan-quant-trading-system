@@ -1,0 +1,118 @@
+[
+  {
+    "cards": 6,
+    "clipping": [],
+    "head": "CRU-55 · HEAD 669b99e4e221 · REAL FRAGMENT",
+    "logo": {
+      "alt": "台股決策雷達 Logo：雷達、K 線與波浪",
+      "complete": true,
+      "naturalWidth": 1170,
+      "rect": {
+        "bottom": 41,
+        "height": 34,
+        "left": 14,
+        "right": 48,
+        "top": 7,
+        "width": 34,
+        "x": 14,
+        "y": 7
+      },
+      "wordmarkClip": "none"
+    },
+    "overflow": false,
+    "sidebar": false,
+    "small": [],
+    "viewport": [
+      1366,
+      768
+    ],
+    "label": "compact-1366"
+  },
+  {
+    "cards": 6,
+    "clipping": [],
+    "head": "CRU-55 · HEAD 669b99e4e221 · SYNTHETIC",
+    "logo": {
+      "alt": "台股決策雷達 Logo：雷達、K 線與波浪",
+      "complete": true,
+      "naturalWidth": 1170,
+      "rect": {
+        "bottom": 41,
+        "height": 34,
+        "left": 14,
+        "right": 48,
+        "top": 7,
+        "width": 34,
+        "x": 14,
+        "y": 7
+      },
+      "wordmarkClip": "none"
+    },
+    "overflow": false,
+    "sidebar": false,
+    "small": [],
+    "viewport": [
+      1536,
+      864
+    ],
+    "label": "compact-1536"
+  },
+  {
+    "cards": 6,
+    "clipping": [],
+    "head": "CRU-55 · HEAD 669b99e4e221 · SYNTHETIC",
+    "logo": {
+      "alt": "台股決策雷達 Logo：雷達、K 線與波浪",
+      "complete": true,
+      "naturalWidth": 1170,
+      "rect": {
+        "bottom": 47,
+        "height": 40,
+        "left": 14,
+        "right": 54,
+        "top": 7,
+        "width": 40,
+        "x": 14,
+        "y": 7
+      },
+      "wordmarkClip": "none"
+    },
+    "overflow": false,
+    "sidebar": false,
+    "small": [],
+    "viewport": [
+      1920,
+      1080
+    ],
+    "label": "regular-1920"
+  },
+  {
+    "cards": 6,
+    "clipping": [],
+    "head": "CRU-55 · HEAD 669b99e4e221 · SYNTHETIC",
+    "logo": {
+      "alt": "台股決策雷達 Logo：雷達、K 線與波浪",
+      "complete": true,
+      "naturalWidth": 1170,
+      "rect": {
+        "bottom": 37.6875,
+        "height": 30,
+        "left": 14,
+        "right": 44,
+        "top": 7.6875,
+        "width": 30,
+        "x": 14,
+        "y": 7.6875
+      },
+      "wordmarkClip": "inset(50%)"
+    },
+    "overflow": false,
+    "sidebar": false,
+    "small": [],
+    "viewport": [
+      640,
+      900
+    ],
+    "label": "icon-only-640"
+  }
+]

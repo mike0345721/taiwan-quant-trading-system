@@ -1,0 +1,410 @@
+[
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "1m PARTIAL · 觀測 42s / 60s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  },
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "5m PARTIAL · 觀測 42s / 300s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  },
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "15m PARTIAL · 觀測 42s / 900s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  },
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "30m PARTIAL · 觀測 42s / 1800s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  },
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "1h PARTIAL · 觀測 42s / 3600s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  },
+  {
+    "cvd": "CVD +295",
+    "scan": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ],
+    "selected": "4h PARTIAL · 觀測 42s / 14400s",
+    "table": [
+      {
+        "f": "1m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "5m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "15m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "30m",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "1h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      },
+      {
+        "f": "4h",
+        "state": "PARTIAL",
+        "tone": "neutral"
+      }
+    ]
+  }
+]

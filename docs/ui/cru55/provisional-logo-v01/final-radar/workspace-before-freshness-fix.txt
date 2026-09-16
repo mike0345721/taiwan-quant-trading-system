@@ -1,0 +1,382 @@
+- main:
+  - generic "Global App Bar":
+    - strong: 台股決策雷達
+    - generic: 面板產生時間：下午03:00:47｜研究資料日：2026-09-16
+    - navigation "主要工作區":
+      - link "總覽":
+        - /url: /
+      - link "台股現貨":
+        - /url: /workspace?space=spot
+      - link "台指期貨":
+        - /url: /workspace?space=futures
+      - link "選擇權":
+        - /url: /workspace?space=options
+      - link "海外市場":
+        - /url: /workspace?space=global
+      - link "研究回測":
+        - /url: /workspace?space=research
+    - button "資料品質"
+    - generic: 漲跌配色
+    - combobox "漲跌配色：台股（紅漲綠跌）":
+      - option "台股（紅漲綠跌）" [selected]
+      - option "國際（綠漲紅跌）"
+    - button "資料擷取未啟用" [disabled]
+    - button "重新讀取畫面"
+    - button "登出"
+  - paragraph: CRU-55 · ISOLATED INTEGRATION｜背景各有資料日；未啟用資料擷取與 GPT 回答。
+  - navigation "台指期貨 功能":
+    - button "展開側邊欄":
+      - generic: ‹
+    - button "01":
+      - generic: "01"
+    - button "02" [active] [pressed]:
+      - generic: "02"
+    - button "03":
+      - generic: "03"
+    - button "04":
+      - generic: "04"
+    - button "ⓘ":
+      - generic: ⓘ
+  - region:
+    - generic "Forward Shadow｜歷史研究狀態：UNKNOWN":
+      - text: Forward Shadow｜歷史研究狀態：
+      - strong: UNKNOWN
+    - strong: 台指期貨 · UNAVAILABLE · ACTUAL_CONTRACT_NOT_REPORTED
+    - generic "TX_TICK_SOURCE_UNAVAILABLE": UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+    - generic "2026-09-17 · NIGHT"
+    - generic "QUALITY_STATUS_UNAVAILABLE": UNAVAILABLE · QUALITY_STATUS_UNAVAILABLE
+    - generic "次要資料 / Detail"
+    - group "市場摘要 Market Summary":
+      - generic "資料狀態 3 項需注意":
+        - strong: 資料狀態
+        - generic: 3 項需注意
+    - region "決策價格圖":
+      - heading "決策價格圖" [level=3]
+      - generic: NIGHT
+      - generic: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+      - generic: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+      - group "TX 圖表週期":
+        - button "1m"
+        - button "5m" [pressed]
+        - button "15m"
+        - button "30m"
+        - button "1h"
+        - button "4h"
+        - button "1D"
+      - generic: LIVE · 5m · READ ONLY
+      - button "顯示參考線"
+      - button "⛶ 放大圖表"
+      - tablist "台指期多時間成交力道":
+        - tab "1分 -0.22":
+          - strong: 1分
+          - generic: "-0.22"
+        - tab "5分 +0.14" [selected]:
+          - strong: 5分
+          - generic: "+0.14"
+        - tab "15分 +0.00":
+          - strong: 15分
+          - generic: "+0.00"
+        - tab "30分 -0.00":
+          - strong: 30分
+          - generic: "-0.00"
+        - tab "1小時 -0.16":
+          - strong: 1小時
+          - generic: "-0.16"
+        - tab "4小時 不可判定":
+          - strong: 4小時
+          - generic: 不可判定
+        - tab "本交易日 待定義":
+          - strong: 本交易日
+          - generic: 待定義
+      - generic: 最新成交
+      - strong: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+      - generic "台指期 governed multi-timeframe K 線圖":
+        - table:
+          - row "Charting by TradingView":
+            - cell
+            - cell "Charting by TradingView":
+              - link "Charting by TradingView":
+                - /url: https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart&utm_source=127.0.0.1/workspace
+            - cell
+          - row:
+            - cell
+            - cell
+            - cell
+      - strong: 圖表目前無法顯示
+      - paragraph: 目前沒有合法 TX Tick 可顯示
+      - generic: 移到 K 棒查看目前／收盤、漲跌、最高、最低、振幅與成交量
+      - text: Charts by
+      - link "TradingView":
+        - /url: https://www.tradingview.com/
+      - text: · Lightweight Charts™
+      - article:
+        - generic: NIGHT VWAP
+        - strong: UNAVAILABLE · TX_TICK_VOLUME_UNAVAILABLE
+      - article:
+        - generic: 本時段 H / L
+        - strong: UNAVAILABLE · SESSION_HIGH_LOW_UNAVAILABLE
+      - article:
+        - generic: RVOL
+        - strong: 尚未實作
+      - article:
+        - generic: 追價風險
+        - strong: RESEARCH_PENDING
+      - article:
+        - generic: 資料時間
+        - strong: UNAVAILABLE · AVAILABLE_AT_NOT_REPORTED
+      - article:
+        - generic: 品質
+        - strong: UNAVAILABLE · QUALITY_STATUS_UNAVAILABLE
+    - complementary:
+      - region "即時盤況":
+        - heading "即時盤況" [level=3]
+        - generic: Market Pulse
+        - generic: DESCRIPTIVE ONLY
+        - article:
+          - generic: TX 最新成交
+          - strong: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+          - generic: 即時／重播
+        - article:
+          - generic: VWAP / 距離
+          - strong: UNAVAILABLE · TX_TICK_VOLUME_UNAVAILABLE
+          - generic: NIGHT VWAP · 本時段
+        - article:
+          - generic: 最新結構變化
+          - strong: 目前沒有新的 governed 盤中結構事件。
+          - generic: 完成 5 分鐘證據
+        - article:
+          - generic: 成交量
+          - generic: Volume
+          - strong: UNAVAILABLE · LATEST_BAR_VOLUME_UNAVAILABLE
+        - article:
+          - generic: 相對量
+          - generic: RVOL
+          - strong: UNAVAILABLE · DERIVATION_NOT_IMPLEMENTED
+        - article:
+          - generic: 基差
+          - generic: Basis
+          - strong: UNAVAILABLE · CONTRACT_IDENTITY_INCOMPLETE
+      - region "台指期盤中力道":
+        - heading "台指期盤中力道" [level=3]
+        - generic: 成交觀測
+        - generic: 資料過舊
+        - paragraph: 成交力道 → 價格反應 → 路徑效率 · 僅描述觀察事實，非交易訊號
+        - status:
+          - strong: 資料過舊 · STALE · 2026-09-16
+          - generic: TXFI6 · DAY · 最後合法更新 下午01:30:00
+        - generic "近中遠成交力道摘要":
+          - article:
+            - generic: 近端
+            - strong: 已治理 3/3 · raw 比值方向不同
+            - generic: 1分、5分已驗證；15分已治理
+          - article:
+            - generic: 中端
+            - strong: 30分已治理；1小時已治理
+            - generic: 30分／1小時
+          - article:
+            - generic: 遠端
+            - strong: 4小時不可用；本交易日待定義
+            - generic: 4小時／本交易日
+        - tabpanel "5分 +0.14":
+          - generic: 選取時窗
+          - strong: 5分
+          - article:
+            - generic: 成交壓力
+            - strong: "+0.135"
+            - generic: 方向判定受限
+          - article:
+            - generic: 價格反應
+            - strong: 0 點
+            - generic: 價格持平
+          - article:
+            - generic: 路徑效率
+            - strong: "0.000"
+            - generic: 僅表示路徑直接程度
+          - article:
+            - generic: 分類覆蓋率
+            - strong: 98.6%
+            - generic: 可判定成交占比
+          - status: 有限制｜分類覆蓋尚未完整
+        - text: 可判定成交占比
+        - strong: 1分 100.0% · 5分 98.6%
+        - text: 資料品質
+        - strong: 有限制
+        - text: 資料來源
+        - strong: 資料過舊 · TXFI6 · 2026-09-16 · 下午01:30:00
+        - text: 正式驗證狀態
+        - strong: 尚未通過正式方向驗證
+        - button "查看證據 / Detail"
+    - region "現貨 / 指數貢獻":
+      - heading "現貨 / 指數貢獻" [level=3]
+      - generic: Spot Contribution
+      - generic "INDEX_LEADERSHIP_UNAVAILABLE": UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - generic "UNAVAILABLE · IX0001 DAY"
+      - generic "INDEX_LEADERSHIP_UNAVAILABLE": UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - generic: QUALITY_INSUFFICIENT
+      - generic "IX0001 個股指數貢獻點數排行":
+        - paragraph: UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - article:
+        - generic: 主要正貢獻
+        - paragraph: UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - article:
+        - generic: 主要負貢獻
+        - paragraph: UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - generic: 產業貢獻
+      - generic: 總和檢核等待資料
+      - paragraph: UNAVAILABLE · INDEX_LEADERSHIP_UNAVAILABLE
+      - paragraph: 描述性原始資料 · NOT PROMOTED · NOT A TRADING SIGNAL
+      - button "更多 >"
+    - heading "期貨流向" [level=3]
+    - generic: Futures Flow
+    - generic "promotionState=NOT_PROMOTED": AVAILABLE · PASS
+    - strong: 外資期貨淨部位 -76,351
+    - heading "PRICE" [level=4]
+    - article:
+      - generic: TX
+      - strong: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+    - article:
+      - generic: VWAP 關係
+      - strong: UNAVAILABLE · TX_TICK_VOLUME_UNAVAILABLE
+    - article:
+      - generic: 基差
+      - strong: UNAVAILABLE · CONTRACT_IDENTITY_INCOMPLETE
+    - heading "POSITION / CONTEXT" [level=4]
+    - article:
+      - generic: 外資
+      - strong: "-76,351 口 · EOD"
+    - article:
+      - generic: 自營商
+      - strong: "-175 口 · EOD"
+    - article:
+      - generic: 投信
+      - strong: +73,046 口 · EOD
+    - heading "OI" [level=4]
+    - article:
+      - generic: 未平倉量
+      - strong: UNAVAILABLE · CONTRACT_IDENTITY_INCOMPLETE
+    - article:
+      - generic: OI 變化
+      - strong: UNAVAILABLE · CONTRACT_IDENTITY_INCOMPLETE
+    - generic: 外資期貨單日變化 無法比較 · EOD
+    - generic: 投信期貨淨部位 73,046 · EOD
+    - paragraph: Futures context is currently UNAVAILABLE.
+    - button "更多 >"
+    - heading "選擇權情緒" [level=3]
+    - generic: Options Context
+    - generic "promotionState=NOT_PROMOTED": STALE · QUALITY_INSUFFICIENT
+    - strong: EOD OI P/C Ratio 0.82
+    - article:
+      - generic: Call Wall
+      - strong: 50,000 · EOD · STALE
+    - article:
+      - generic: Put Wall
+      - strong: 45,000 · EOD · STALE
+    - article:
+      - generic: Max Pain
+      - strong: 45,550 · EOD · STALE
+    - article:
+      - generic: OI Context
+      - strong: 0.82 P/C · EOD · STALE
+    - generic: OI 結構
+    - strong: 0.82 · EOD · STALE
+    - generic: Call Wall 50,000 · EOD
+    - generic: Put Wall 45,000 · EOD
+    - paragraph: Verified options context is currently UNAVAILABLE.
+    - button "更多 >"
+    - heading "市場參與度" [level=3]
+    - generic: Breadth
+    - generic "promotionState=NOT_PROMOTED": STALE · QUALITY_INSUFFICIENT
+    - strong: 上市上漲／下跌／平盤 733 / 213 / 120
+    - article:
+      - generic: 上漲
+      - strong: "962"
+    - article:
+      - generic: 平盤
+      - strong: "204"
+    - article:
+      - generic: 下跌
+      - strong: "768"
+    - generic "市場參與度：上漲 962，平盤 204，下跌 768；breadth · 2026-09-16 · STALE · 2026-09-16T07:00:47.309Z"
+    - article:
+      - generic: 漲跌比
+      - strong: 1.25 上／下
+    - article:
+      - generic: 參與強度
+      - strong: RESEARCH_PENDING
+    - generic: 上櫃上漲／下跌／平盤 229 / 555 / 84 · 批次
+    - generic: 上市漲停／跌停 24 / 0 · 批次
+    - paragraph: EOD 背景資料 · descriptive evidence only
+    - button "更多 >"
+    - region "風險監控":
+      - heading "風險監控" [level=3]
+      - paragraph: 衝突、完整度與資料信任分開呈現；不使用分數、信心值或隱藏權重。
+      - generic: Risk / Conflict
+      - generic: READ ONLY · NOT A TRADING SIGNAL
+      - strong: N/A
+      - generic: UNAVAILABLE · RISK_STATUS_UNAVAILABLE
+      - generic "查看排除、缺失與技術原因"
+      - button "更多 >"
+    - heading "全球市場總覽" [level=3]
+    - generic: Global Context
+    - generic "cardLayer=GLOBAL_FX_FAMILY; promotionState=NOT_PROMOTED": FAMILY AVAILABLE · PASS
+    - article "SOX / 費半：11,931.32；EOD／延遲／研究背景":
+      - generic: SOX / 費半
+      - strong: 11,931.32
+      - generic "AVAILABLE"
+      - emphasis: EOD／延遲／研究背景
+    - article "SOX 日變化：0.37%；EOD／延遲／研究背景":
+      - generic: SOX 日變化
+      - strong: 0.37%
+      - generic "AVAILABLE"
+      - emphasis: EOD／延遲／研究背景
+    - article "VIX：17.20；EOD／延遲":
+      - generic: VIX
+      - strong: "17.20"
+      - generic "AVAILABLE"
+      - emphasis: EOD／延遲
+    - article "USD/TWD：31.77；EOD／延遲":
+      - generic: USD/TWD
+      - strong: "31.77"
+      - generic "AVAILABLE"
+      - emphasis: EOD／延遲
+    - article "NDX Proxy：-0.29；代理資料":
+      - generic: NDX Proxy
+      - strong: "-0.29"
+      - generic "AVAILABLE"
+      - emphasis: 代理資料
+    - article "True NQ：UNAVAILABLE · GLOBAL_VALUE_UNAVAILABLE；來源缺口":
+      - generic: True NQ
+      - strong: UNAVAILABLE · GLOBAL_VALUE_UNAVAILABLE
+      - generic "GLOBAL_VALUE_UNAVAILABLE": UNAVAILABLE · GLOBAL_VALUE_UNAVAILABLE
+      - emphasis: 來源缺口
+    - paragraph: EOD / DELAYED / RESEARCH CONTEXT · descriptive evidence only
+    - button "更多 >"
+    - heading "資料健康度" [level=3]
+    - generic: Data Health
+    - generic: UNAVAILABLE · DATA_HEALTH_UNAVAILABLE
+    - strong: N/A
+    - generic: 健康度
+    - article:
+      - generic: 行情資料
+      - strong: UNAVAILABLE · TX_TICK_SOURCE_UNAVAILABLE
+    - article:
+      - generic: 法人籌碼
+      - strong: STALE
+    - article:
+      - generic: 期貨數據
+      - strong: UNAVAILABLE · MISSING_REQUIRED_QUOTE_TYPE
+    - article:
+      - generic: 選擇權資料
+      - strong: STALE
+    - article:
+      - generic: 國際數據
+      - strong: DELAYED
+    - paragraph: Missing ≠ 0 · Delayed ≠ Live · Stale ≠ Current
+    - button "更多 >"
+    - generic "Ask GPT COPY MODE · NOT A TRADING SIGNAL ＋":
+      - generic: Ask GPT
+      - generic: COPY MODE · NOT A TRADING SIGNAL
+      - strong: ＋
+    - generic "證據明細 / 市場變化 / 人工決策日誌"
+  - text: ＋ ＋ ＋ ＋ ＋ ＋ ＋ ＋ ＋ ＋ ＋
+  - paragraph: V3.9.7 新增透明莊家地圖 Beta，以公開 OI 顯示重心、結構區、牆位歷史與 Max Pain；不推定真實莊家部位或成本，不含下單端點。

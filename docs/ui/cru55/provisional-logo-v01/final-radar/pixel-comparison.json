@@ -1,0 +1,56 @@
+[
+  {
+    "viewport": [
+      1366,
+      768
+    ],
+    "imageSize": [
+      1351,
+      760
+    ],
+    "fixedColorsSame": true,
+    "priceColorsChanged": true,
+    "pixelDifferenceMean": {
+      "K": 1.3222415086253079,
+      "Volume": 3.0349281045751635,
+      "CVD": 0.0,
+      "DeltaCVD": 0.0
+    }
+  },
+  {
+    "viewport": [
+      1536,
+      864
+    ],
+    "imageSize": [
+      1521,
+      856
+    ],
+    "fixedColorsSame": true,
+    "priceColorsChanged": true,
+    "pixelDifferenceMean": {
+      "K": 1.0985415135400003,
+      "Volume": 3.44023402340234,
+      "CVD": 0.0,
+      "DeltaCVD": 0.0
+    }
+  },
+  {
+    "viewport": [
+      1920,
+      1080
+    ],
+    "imageSize": [
+      1905,
+      1449
+    ],
+    "fixedColorsSame": true,
+    "priceColorsChanged": true,
+    "pixelDifferenceMean": {
+      "K": 0.7210661658969024,
+      "Volume": 3.951334389324886,
+      "CVD": 0.0,
+      "DeltaCVD": 0.0
+    }
+  }
+]
