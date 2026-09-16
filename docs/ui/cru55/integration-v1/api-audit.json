@@ -1,0 +1,358 @@
+{
+  "head": "9f1bedd0e6036ead82b55a225edb6533fef38d7b",
+  "createdAt": "2026-09-16T01:14:15.994Z",
+  "results": [
+    {
+      "route": "/api/preview",
+      "method": "GET",
+      "status": 401,
+      "expected": 401,
+      "ms": 79
+    },
+    {
+      "route": "/api/auth/login",
+      "method": "POST",
+      "status": 200,
+      "expected": 200,
+      "ms": 84
+    },
+    {
+      "route": "/api/session",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 17
+    },
+    {
+      "route": "/api/identity",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 18
+    },
+    {
+      "route": "/api/identity",
+      "method": "GET",
+      "status": 403,
+      "expected": 403,
+      "ms": 22
+    },
+    {
+      "route": "/api/v1/refresh",
+      "method": "POST",
+      "status": 403,
+      "expected": 403,
+      "ms": 17
+    },
+    {
+      "route": "/api/v2/daily-update",
+      "method": "POST",
+      "status": 403,
+      "expected": 403,
+      "ms": 12
+    },
+    {
+      "route": "/api/v1/decision-journal",
+      "method": "POST",
+      "status": 403,
+      "expected": 403,
+      "ms": 16
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=1m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 31
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=5m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 29
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=15m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 25
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=30m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 31
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=1h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 39
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=4h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 26
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=1m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 24
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=5m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 28
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=15m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 16
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=30m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 25
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=1h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 17
+    },
+    {
+      "route": "/api/preview?view=night&timeframe=4h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 24
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=1m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 47
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=5m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 35
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=15m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 41
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=30m",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 50
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=1h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 38
+    },
+    {
+      "route": "/api/preview?view=demo&timeframe=4h",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 31
+    },
+    {
+      "route": "/api/preview?view=day&timeframe=invalid",
+      "method": "GET",
+      "status": 400,
+      "expected": 400,
+      "ms": 15
+    },
+    {
+      "route": "/api/lower",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 14
+    },
+    {
+      "route": "/api/v1/dashboard",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 813
+    },
+    {
+      "route": "/api/v1/data-operations",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 79
+    },
+    {
+      "route": "/api/v1/observed-flow",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 41
+    },
+    {
+      "route": "/api/v1/index-leadership",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 38
+    },
+    {
+      "route": "/api/v2/research?days=20",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 89
+    },
+    {
+      "route": "/api/v1/decision-journal?limit=20",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "ms": 36
+    },
+    {
+      "route": "/api/v2/backtests",
+      "method": "GET",
+      "status": 503,
+      "expected": 503,
+      "ms": 34
+    },
+    {
+      "route": "/api/auth/logout",
+      "method": "POST",
+      "status": 200,
+      "expected": 200,
+      "ms": 31
+    },
+    {
+      "route": "/api/identity",
+      "method": "GET",
+      "status": 401,
+      "expected": 401,
+      "ms": 32
+    }
+  ],
+  "endpoints": {
+    "day": 295,
+    "night": 5,
+    "demo": 2026
+  },
+  "sourceDates": {
+    "marketOverview": "2026-09-15",
+    "marketBreadth": "2026-09-15",
+    "spotInstitutional": "2026-09-15",
+    "futuresMarket": "2026-09-16",
+    "futuresInstitutional": "2026-09-15",
+    "options": "2026-09-15"
+  },
+  "globalDates": [
+    {
+      "symbol": "NDX",
+      "tradeDate": "2026-09-09",
+      "availableAt": "2026-09-10T08:43:20.196Z"
+    },
+    {
+      "symbol": "SOX",
+      "tradeDate": "2026-09-09",
+      "availableAt": "2026-09-10T08:43:19.199Z"
+    },
+    {
+      "symbol": "USDTWD",
+      "tradeDate": "2026-09-10",
+      "availableAt": "2026-09-10T08:43:20.454Z"
+    }
+  ],
+  "details": [
+    {
+      "route": "/api/v1/data-operations",
+      "ok": true,
+      "availability": "AVAILABLE"
+    },
+    {
+      "route": "/api/v1/observed-flow",
+      "ok": true
+    },
+    {
+      "route": "/api/v1/index-leadership",
+      "ok": true
+    },
+    {
+      "route": "/api/v2/research?days=20",
+      "ok": true,
+      "status": {
+        "firstDate": "2026-09-09",
+        "lastDate": "2026-09-10",
+        "alignedDays": 2,
+        "futuresDays": 294,
+        "optionDays": 294,
+        "strikeRows": 329250,
+        "issues": {
+          "error": 0,
+          "warning": 0,
+          "info": 4
+        }
+      },
+      "sourceDates": [
+        {
+          "symbol": "NDX",
+          "tradeDate": "2026-09-09",
+          "availableAt": "2026-09-10T08:43:20.196Z"
+        },
+        {
+          "symbol": "SOX",
+          "tradeDate": "2026-09-09",
+          "availableAt": "2026-09-10T08:43:19.199Z"
+        },
+        {
+          "symbol": "USDTWD",
+          "tradeDate": "2026-09-10",
+          "availableAt": "2026-09-10T08:43:20.454Z"
+        }
+      ]
+    },
+    {
+      "route": "/api/v1/decision-journal?limit=20",
+      "ok": true
+    }
+  ],
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  },
+  "auth": "ISOLATED_COOKIE_AND_MAIN_CSRF_PASS",
+  "upstreamMutations": "BLOCKED",
+  "backtests": "UNAVAILABLE_WITH_REASON: formal report missing",
+  "result": "PASS"
+}

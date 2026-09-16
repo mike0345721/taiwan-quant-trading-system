@@ -1,0 +1,1676 @@
+[
+  {
+    "endpoint": "CVD +295",
+    "frame": "1m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +295",
+    "frame": "5m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +295",
+    "frame": "15m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +295",
+    "frame": "30m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +295",
+    "frame": "1h",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +295",
+    "frame": "4h",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "day"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "1m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "5m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "15m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "30m",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "1h",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +5",
+    "frame": "4h",
+    "lights": [
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "5m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "15m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "30m",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "1h",
+        "state": "PARTIAL"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "5m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "5m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "15m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "15m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "30m",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "30m————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "1h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "1h————證據有分歧PARTIAL"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "night"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "1m",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "5m",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "15m",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "30m",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "1h",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  },
+  {
+    "endpoint": "CVD +2,026",
+    "frame": "4h",
+    "lights": [
+      {
+        "code": "OPPOSITE_DIVERGENCE",
+        "frame": "1m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "5m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED_BUT_WEAKENING",
+        "frame": "15m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "30m",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "ALIGNED",
+        "frame": "1h",
+        "state": "AVAILABLE"
+      },
+      {
+        "code": "MIXED_OR_QUALITY_LIMITED",
+        "frame": "4h",
+        "state": "PARTIAL"
+      }
+    ],
+    "rows": [
+      {
+        "data": {
+          "code": "OPPOSITE_DIVERGENCE",
+          "frame": "1m",
+          "state": "AVAILABLE",
+          "tone": "negative"
+        },
+        "text": "1m▼-5▲+17力價反方向AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "5m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "5m▲+2▲+190同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED_BUT_WEAKENING",
+          "frame": "15m",
+          "state": "AVAILABLE",
+          "tone": "warning"
+        },
+        "text": "15m▲+22▲+484同向但轉弱AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "30m",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "30m▲+52▲+965力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "ALIGNED",
+          "frame": "1h",
+          "state": "AVAILABLE",
+          "tone": "positive"
+        },
+        "text": "1h▲+89▲+1,502力價同步中AVAILABLE"
+      },
+      {
+        "data": {
+          "code": "MIXED_OR_QUALITY_LIMITED",
+          "frame": "4h",
+          "state": "PARTIAL",
+          "tone": "neutral"
+        },
+        "text": "4h————證據有分歧PARTIAL"
+      }
+    ],
+    "view": "demo"
+  }
+]

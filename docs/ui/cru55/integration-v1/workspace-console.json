@@ -1,0 +1,8 @@
+[
+  {
+    "level": "error",
+    "message": "[V2_BACKTESTS] V2_BACKTEST_NOT_READY",
+    "timestamp": "2026-09-16T01:27:23.652Z",
+    "url": "http://127.0.0.1:3055/app.js?v=cru49-refresh"
+  }
+]

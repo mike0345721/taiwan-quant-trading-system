@@ -1,0 +1,21 @@
+✔ context cards preserve missing data, gated institutional deltas and separate source dates (50.3342ms)
+✔ failed sources cannot leak cached values and NDX remains explicitly a proxy (1.6477ms)
+✔ failed breadth source suppresses both listed and OTC cached counts (0.6312ms)
+✔ timeline reads accepted availableAt lineage and missing stays unknown (2.2464ms)
+✔ handoff scope distinguishes unavailable identity from observed accumulation (0.6557ms)
+✔ source kind, exact cutoff, timeframe endpoint and frozen safety fail closed (13.6928ms)
+✔ bounded reader rejects over-budget before reading bytes and rejects hardlinks (21.1991ms)
+✔ one window presentation preserves partial/warming/unavailable and direction limitations (2.7321ms)
+✔ CVD breaks nulls and segment resets; delta retains signed rolling values and null whitespace (1.9168ms)
+✔ isolated authenticated API is memory-only and returns one exact scan/evidence source (249.7357ms)
+✔ restored force cells reuse original boundaries and never infer incomplete window direction (1.014ms)
+✔ observed percent uses accepted first price and never backfills missing price with response (1.2295ms)
+✔ context explanatory copy describes accepted evidence and preserves fragment/stale/unknown truth (0.815ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 757.2894

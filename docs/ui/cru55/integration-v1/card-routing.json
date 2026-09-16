@@ -1,0 +1,27 @@
+[
+  {
+    "id": "spot",
+    "url": "http://127.0.0.1:3055/workspace?space=spot",
+    "selected": "市場總覽"
+  },
+  {
+    "id": "breadth",
+    "url": "http://127.0.0.1:3055/workspace?space=spot&section=breadth",
+    "selected": "市場廣度"
+  },
+  {
+    "id": "futures",
+    "url": "http://127.0.0.1:3055/workspace?space=futures",
+    "selected": "法人與期貨背景"
+  },
+  {
+    "id": "options",
+    "url": "http://127.0.0.1:3055/workspace?space=options",
+    "selected": "契約與 OI 結構"
+  },
+  {
+    "id": "global",
+    "url": "http://127.0.0.1:3055/workspace?space=global",
+    "selected": "海外背景 / EOD"
+  }
+]

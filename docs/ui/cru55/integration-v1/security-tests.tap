@@ -1,0 +1,12 @@
+✔ scrypt password hash can be verified (275.2844ms)
+✔ session expires (27.7848ms)
+✔ remembered session uses its own lifetime (1.4332ms)
+✔ login rate limiter blocks repeated failures (1.2362ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 566.2405

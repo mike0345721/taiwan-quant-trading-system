@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "cru55-producer-readonly-audit-v1",
+  "reviewLevel": "L3",
+  "candidateHead": "9f1bedd0e6036ead82b55a225edb6533fef38d7b",
+  "formalApprovedHead": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "acceptedCvdHead": "66de7e9a416e9f2386eed1c9e8688afea1b804ab",
+  "capturedAt": "2026-09-16T01:19:54.050Z",
+  "captureCompletedAt": "2026-09-16T01:19:54.064Z",
+  "method": "Independent loadFlowRefresh() call with unchanged main producer validation and the integration launcher logical paths; no HTTP authentication or formal write.",
+  "readOnly": true,
+  "paths": {
+    "logical": {
+      "dataRoot": "D:\\Taiwan stock\\approved-main-runtime\\data",
+      "projectionRoot": "D:\\Taiwan stock\\approved-main-runtime\\data\\runtime\\cru34-live",
+      "snapshotPath": "D:\\Taiwan stock\\approved-main-runtime\\data\\runtime\\cru34-live\\latest.json",
+      "statusPath": "D:\\Taiwan stock\\approved-main-runtime\\data\\runtime\\cru34-live\\status.json"
+    },
+    "physical": {
+      "snapshotPath": "D:\\Taiwan stock\\standalone-v1\\data\\runtime\\cru34-live\\latest.json",
+      "statusPath": "D:\\Taiwan stock\\standalone-v1\\data\\runtime\\cru34-live\\status.json"
+    },
+    "snapshotPhysicalAllowlistMatch": true,
+    "statusPhysicalAllowlistMatch": true,
+    "producerDeclaredLogicalPathsMatch": true
+  },
+  "producer": {
+    "status": "AVAILABLE",
+    "observedAt": "2026-09-16T01:19:52.378Z"
+  },
+  "flow": {
+    "schemaVersion": "dashboard-observed-flow-v1",
+    "sourceState": "LIVE",
+    "unavailableReason": null,
+    "hasWindows": true,
+    "source": {
+      "sourceMode": "LIVE",
+      "truthState": "LIVE",
+      "tradeDate": "2026-09-16",
+      "availableAt": "2026-09-16T09:19:47.789436+08:00",
+      "materializedAt": null,
+      "observedAt": "2026-09-16T01:19:51.092Z",
+      "validUntil": "2026-09-16T01:20:17.789Z"
+    },
+    "windows": {
+      "1m": {
+        "label": "1分",
+        "truthState": null,
+        "windowMs": 60000,
+        "status": "QUALITY_INSUFFICIENT",
+        "unavailableReason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+        "pressure": {
+          "status": "QUALITY_INSUFFICIENT",
+          "unavailableReason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+          "pressureRatio": 0.34375,
+          "classifiedCoverage": 0.9552238805970149
+        },
+        "response": {
+          "status": "READY",
+          "unavailableReason": null,
+          "directionRelation": "PRESSURE_UNAVAILABLE"
+        },
+        "pathEfficiency": {
+          "status": "READY",
+          "value": 0.12941176470588237,
+          "unavailableReason": null,
+          "tickCount": 49,
+          "maxObservedGapMs": 7670,
+          "maxAllowedGapMs": 30000
+        }
+      },
+      "5m": {
+        "label": "5分",
+        "truthState": null,
+        "windowMs": 300000,
+        "status": "QUALITY_INSUFFICIENT",
+        "unavailableReason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+        "pressure": {
+          "status": "QUALITY_INSUFFICIENT",
+          "unavailableReason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+          "pressureRatio": 0.29545454545454547,
+          "classifiedCoverage": 0.9777777777777777
+        },
+        "response": {
+          "status": "READY",
+          "unavailableReason": null,
+          "directionRelation": "PRESSURE_UNAVAILABLE"
+        },
+        "pathEfficiency": {
+          "status": "READY",
+          "value": 0.024305555555555556,
+          "unavailableReason": null,
+          "tickCount": 325,
+          "maxObservedGapMs": 11351,
+          "maxAllowedGapMs": 30000
+        }
+      }
+    }
+  },
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false,
+  "limitations": [
+    "Point-in-time natural producer state can change; this is not a promise of future LIVE freshness.",
+    "Contains source/path/status and aggregate quality metrics only; excludes credentials, session cookies, raw ticks and raw snapshots.",
+    "This producer audit does not promote CVD evidence or constitute Owner acceptance."
+  ]
+}

@@ -1,0 +1,8453 @@
+{
+  "head": "9f1bedd0e6036ead82b55a225edb6533fef38d7b",
+  "audits": [
+    {
+      "label": "replay-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "replay-date-select",
+          "label": "選擇盤中回放交易日"
+        },
+        {
+          "disabled": false,
+          "id": "replay-reset",
+          "label": "回到第 1 根"
+        },
+        {
+          "disabled": true,
+          "id": "replay-next",
+          "label": "下一根 5 分 K"
+        },
+        {
+          "disabled": true,
+          "id": "replay-all",
+          "label": "顯示完整日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "5 分鐘 K 棒與價格確認",
+        "歷史逐根回放"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "歷史逐根回放",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "futures"
+    },
+    {
+      "label": "futures-term-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "基差與近遠月",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "futures"
+    },
+    {
+      "label": "options-契約與 OI 結構-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "契約與 OI 結構",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "options"
+    },
+    {
+      "label": "options-Dealer Map-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "Dealer Map",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "options"
+    },
+    {
+      "label": "options-異常雷達-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "異常雷達",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "options"
+    },
+    {
+      "label": "options-履約價 OI 變化-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "履約價 OI 變化",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "options"
+    },
+    {
+      "label": "global-海外背景 / EOD-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01海外背景 / EOD"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02歷史研究結果"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "海外市場背景",
+        "第一階段海外背景測試"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "海外背景 / EOD",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "global"
+    },
+    {
+      "label": "global-歷史研究結果-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01海外背景 / EOD"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02歷史研究結果"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "海外市場背景",
+        "第一階段海外背景測試"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "歷史研究結果",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "global"
+    },
+    {
+      "label": "research-今日研究-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "\n            六軸影子評分與構成紀錄\n            影子觀察 26/100｜正式權重 0\n          "
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開完整研究雷達與四道閘門VIX、IV、風險群組、AUC與研究細節"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "今日三秒決策",
+        "中性・低波動，等待價格",
+        "研究分項溫度",
+        "今日風險作戰板",
+        "今日風險溫度",
+        "等待歷史資料校準",
+        "沒有方向優勢",
+        "今日盤面操作參考",
+        "台股現貨",
+        "臺指期貨",
+        "臺指選擇權",
+        "風險提醒"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "今日研究",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "research-研究回測-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "研究回測",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "research-逐根回放-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "replay-date-select",
+          "label": "選擇盤中回放交易日"
+        },
+        {
+          "disabled": false,
+          "id": "replay-reset",
+          "label": "回到第 1 根"
+        },
+        {
+          "disabled": true,
+          "id": "replay-next",
+          "label": "下一根 5 分 K"
+        },
+        {
+          "disabled": true,
+          "id": "replay-all",
+          "label": "顯示完整日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "5 分鐘 K 棒與價格確認",
+        "歷史逐根回放"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "逐根回放",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "research-快照 / 人工日誌-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Forward Shadow｜歷史研究狀態：UNKNOWN"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "次要資料 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "盤中"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "回顧"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料狀態2 項需注意"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1D"
+        },
+        {
+          "disabled": false,
+          "id": "tt-level-toggle",
+          "label": "顯示參考線"
+        },
+        {
+          "disabled": false,
+          "id": "tt-chart-expand",
+          "label": "⛶ 放大圖表"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1m",
+          "label": "1分+0.71"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-5m",
+          "label": "5分+0.34"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-15m",
+          "label": "15分+0.24"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-30m",
+          "label": "30分+0.24"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1h",
+          "label": "1小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-4h",
+          "label": "4小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-tradingDay",
+          "label": "本交易日待定義"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "TradingView"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看證據 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看排除、缺失與技術原因"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Ask GPTCOPY MODE · NOT A TRADING SIGNAL＋"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "最大反方證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "哪些資料目前不能信？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "現在市場發生什麼？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "交易前檢查"
+        },
+        {
+          "disabled": false,
+          "id": "dw-copy-gpt-prompt",
+          "label": "Copy question + snapshot"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據明細 / 市場變化 / 人工決策日誌"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "決策價格圖",
+        "即時盤況",
+        "台指期盤中力道",
+        "現貨 / 指數貢獻",
+        "期貨流向",
+        "選擇權情緒",
+        "市場參與度",
+        "風險監控",
+        "全球市場總覽",
+        "資料健康度"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "快照 / 人工日誌",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "quality-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "data-operations-refresh",
+          "label": "重新讀取"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "執行證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "執行證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "執行證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "當日完成度與準時性（分開記錄）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "全部資料列、原始原因、處置與工作身分"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "資料營運驗收",
+        "今日進度 · 2026-09-16",
+        "最近一次資料營運評估",
+        "資料品質與安全狀態"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "spot-市場總覽-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "市場總覽",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-現貨法人-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "現貨法人",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-市場廣度-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "市場廣度",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-融資融券-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "融資融券",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-權值與衝突證據-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Forward Shadow｜歷史研究狀態：UNKNOWN"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "次要資料 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "盤中"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "回顧"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料狀態2 項需注意"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1D"
+        },
+        {
+          "disabled": false,
+          "id": "tt-level-toggle",
+          "label": "顯示參考線"
+        },
+        {
+          "disabled": false,
+          "id": "tt-chart-expand",
+          "label": "⛶ 放大圖表"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1m",
+          "label": "1分+0.75"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-5m",
+          "label": "5分+0.43"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-15m",
+          "label": "15分+0.28"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-30m",
+          "label": "30分+0.25"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1h",
+          "label": "1小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-4h",
+          "label": "4小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-tradingDay",
+          "label": "本交易日待定義"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "TradingView"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看證據 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看排除、缺失與技術原因"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Ask GPTCOPY MODE · NOT A TRADING SIGNAL＋"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "最大反方證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "哪些資料目前不能信？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "現在市場發生什麼？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "交易前檢查"
+        },
+        {
+          "disabled": false,
+          "id": "dw-copy-gpt-prompt",
+          "label": "Copy question + snapshot"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據明細 / 市場變化 / 人工決策日誌"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "決策價格圖",
+        "即時盤況",
+        "台指期盤中力道",
+        "現貨 / 指數貢獻",
+        "期貨流向",
+        "選擇權情緒",
+        "市場參與度",
+        "風險監控",
+        "全球市場總覽",
+        "資料健康度"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "權值與衝突證據",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "市場總覽",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "spot"
+    },
+    {
+      "label": "spot-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01市場總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02現貨法人"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03市場廣度"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04融資融券"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "05權值與衝突證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看加權指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指夜盤說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看臺指波動率指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃漲跌家數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（7）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看距離結算日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美國 VIX說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看櫃買指數說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看美元／台幣說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料更新時間說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看資料異常說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部現貨欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近5日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資近20日說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三大法人合計說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資歷史百分位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商自行說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商避險說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看法人與指數背離說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上市上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上櫃上漲／下跌說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看上漲成交量占比說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看電子／金融／傳產強弱說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看前十大權值股貢獻說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 4 日歷史明細"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "市場總覽",
+        "現貨法人",
+        "融資融券"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "section": "市場總覽",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "spot"
+    },
+    {
+      "label": "futures-price-flow-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Forward Shadow｜歷史研究狀態：UNKNOWN"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "次要資料 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "盤中"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "回顧"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料狀態2 項需注意"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1D"
+        },
+        {
+          "disabled": false,
+          "id": "tt-level-toggle",
+          "label": "顯示參考線"
+        },
+        {
+          "disabled": false,
+          "id": "tt-chart-expand",
+          "label": "⛶ 放大圖表"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1m",
+          "label": "1分+0.71"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-5m",
+          "label": "5分+0.48"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-15m",
+          "label": "15分+0.33"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-30m",
+          "label": "30分+0.27"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1h",
+          "label": "1小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-4h",
+          "label": "4小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-tradingDay",
+          "label": "本交易日待定義"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "TradingView"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看證據 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看排除、缺失與技術原因"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Ask GPTCOPY MODE · NOT A TRADING SIGNAL＋"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "最大反方證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "哪些資料目前不能信？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "現在市場發生什麼？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "交易前檢查"
+        },
+        {
+          "disabled": false,
+          "id": "dw-copy-gpt-prompt",
+          "label": "Copy question + snapshot"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據明細 / 市場變化 / 人工決策日誌"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "決策價格圖",
+        "即時盤況",
+        "台指期盤中力道",
+        "現貨 / 指數貢獻",
+        "期貨流向",
+        "選擇權情緒",
+        "市場參與度",
+        "風險監控",
+        "全球市場總覽",
+        "資料健康度"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "section": "盤中價格 / VWAP / Flow",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "futures"
+    },
+    {
+      "label": "futures-price-flow-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Forward Shadow｜歷史研究狀態：UNKNOWN"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "次要資料 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "盤中"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "回顧"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料狀態2 項需注意"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1D"
+        },
+        {
+          "disabled": false,
+          "id": "tt-level-toggle",
+          "label": "顯示參考線"
+        },
+        {
+          "disabled": false,
+          "id": "tt-chart-expand",
+          "label": "⛶ 放大圖表"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1m",
+          "label": "1分+0.66"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-5m",
+          "label": "5分+0.47"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-15m",
+          "label": "15分+0.33"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-30m",
+          "label": "30分+0.26"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1h",
+          "label": "1小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-4h",
+          "label": "4小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-tradingDay",
+          "label": "本交易日待定義"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "TradingView"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看證據 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看排除、缺失與技術原因"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Ask GPTCOPY MODE · NOT A TRADING SIGNAL＋"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "最大反方證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "哪些資料目前不能信？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "現在市場發生什麼？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "交易前檢查"
+        },
+        {
+          "disabled": false,
+          "id": "dw-copy-gpt-prompt",
+          "label": "Copy question + snapshot"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據明細 / 市場變化 / 人工決策日誌"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "決策價格圖",
+        "即時盤況",
+        "台指期盤中力道",
+        "現貨 / 指數貢獻",
+        "期貨流向",
+        "選擇權情緒",
+        "市場參與度",
+        "風險監控",
+        "全球市場總覽",
+        "資料健康度"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "盤中價格 / VWAP / Flow",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "futures"
+    },
+    {
+      "label": "futures-price-flow-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Forward Shadow｜歷史研究狀態：UNKNOWN"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "次要資料 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "盤中"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "回顧"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料狀態2 項需注意"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1D"
+        },
+        {
+          "disabled": false,
+          "id": "tt-level-toggle",
+          "label": "顯示參考線"
+        },
+        {
+          "disabled": false,
+          "id": "tt-chart-expand",
+          "label": "⛶ 放大圖表"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1m",
+          "label": "1分+0.66"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-5m",
+          "label": "5分+0.47"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-15m",
+          "label": "15分+0.33"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-30m",
+          "label": "30分+0.26"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-1h",
+          "label": "1小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-4h",
+          "label": "4小時暖機中"
+        },
+        {
+          "disabled": false,
+          "id": "dw-flow-tab-tradingDay",
+          "label": "本交易日待定義"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "TradingView"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看證據 / Detail"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看排除、缺失與技術原因"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "Ask GPTCOPY MODE · NOT A TRADING SIGNAL＋"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "最大反方證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "哪些資料目前不能信？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "現在市場發生什麼？"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "交易前檢查"
+        },
+        {
+          "disabled": false,
+          "id": "dw-copy-gpt-prompt",
+          "label": "Copy question + snapshot"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "更多 >"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據明細 / 市場變化 / 人工決策日誌"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "決策價格圖",
+        "即時盤況",
+        "台指期盤中力道",
+        "現貨 / 指數貢獻",
+        "期貨流向",
+        "選擇權情緒",
+        "市場參與度",
+        "風險監控",
+        "全球市場總覽",
+        "資料健康度"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "盤中價格 / VWAP / Flow",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "futures"
+    },
+    {
+      "label": "futures-background-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01法人與期貨背景"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02盤中價格 / VWAP / Flow"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03歷史逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04基差與近遠月"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 3 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部期貨欄位與評分"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資淨部位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資5日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看市場未平倉說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看期現貨基差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看台指期近月說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（12）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看外資空單說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看自營商淨部位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看投信淨部位說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看近月成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看夜盤未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Top 5 L/S說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Top 10 L/S說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Top 5 多方集中度說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Top 5 空方集中度說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看未平倉單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看近月／次月價差說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看價格 × OI 判讀說明"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "台指期籌碼"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "法人與期貨背景",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "futures"
+    },
+    {
+      "label": "options-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "契約與 OI 結構",
+      "sidebar": 190,
+      "smallText": [
+        {
+          "id": "as-of",
+          "text": "面板產生時間：上午09:10:35｜研究資料日：2026-09-16"
+        },
+        {
+          "id": "",
+          "text": "Max Pain 45,550"
+        },
+        {
+          "id": "",
+          "text": "21800"
+        },
+        {
+          "id": "",
+          "text": "22800"
+        },
+        {
+          "id": "",
+          "text": "23800"
+        },
+        {
+          "id": "",
+          "text": "24800"
+        },
+        {
+          "id": "",
+          "text": "25800"
+        },
+        {
+          "id": "",
+          "text": "26800"
+        },
+        {
+          "id": "",
+          "text": "27800"
+        },
+        {
+          "id": "",
+          "text": "28800"
+        },
+        {
+          "id": "",
+          "text": "29800"
+        },
+        {
+          "id": "",
+          "text": "43000"
+        },
+        {
+          "id": "",
+          "text": "44000"
+        },
+        {
+          "id": "",
+          "text": "45000"
+        },
+        {
+          "id": "",
+          "text": "45550"
+        },
+        {
+          "id": "",
+          "text": "47000"
+        },
+        {
+          "id": "",
+          "text": "48000"
+        },
+        {
+          "id": "",
+          "text": "50000"
+        },
+        {
+          "id": "",
+          "text": "上方：Call OI 壓力（紅）・最大刻度 3,411 口"
+        },
+        {
+          "id": "",
+          "text": "下方：Put OI 支撐（綠）"
+        }
+      ],
+      "width": 1536,
+      "workspace": "options"
+    },
+    {
+      "label": "options-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "section": "契約與 OI 結構",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "options"
+    },
+    {
+      "label": "global-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01海外背景 / EOD"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02歷史研究結果"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "海外市場背景",
+        "第一階段海外背景測試"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "section": "海外背景 / EOD",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "global"
+    },
+    {
+      "label": "global-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01海外背景 / EOD"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02歷史研究結果"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "海外市場背景",
+        "第一階段海外背景測試"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "海外背景 / EOD",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "global"
+    },
+    {
+      "label": "research-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "研究回測",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "research"
+    },
+    {
+      "label": "research-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "section": "研究回測",
+      "sidebar": 190,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "research"
+    },
+    {
+      "label": "research-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "研究回測",
+      "sidebar": 175,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "sidebar-collapsed-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹展開"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01今日研究"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03逐根回放"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04快照 / 人工日誌"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "120日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "250日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "20日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "60日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "90日"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "正式研究與回測",
+        "期現貨基差與近遠月結構",
+        "第一階段海外背景測試",
+        "V2.6 增量價值與風險過濾",
+        "台指 K 棒、外資部位與市場 OI",
+        "近幾日籌碼趨勢",
+        "加權指數",
+        "外資現貨當日買賣超",
+        "外資現貨近5日累積",
+        "外資臺股期貨淨部位",
+        "外資臺股期貨淨部位日變化",
+        "選擇權 OI P/C Ratio",
+        "近端 Call OI",
+        "近端 Put OI",
+        "綜合籌碼分數",
+        "評分歷史檢驗"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "section": "研究回測",
+      "sidebar": 46,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "research"
+    },
+    {
+      "label": "options-loaded-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "market-palette-select",
+          "label": "漲跌配色：台股（紅漲綠跌）"
+        },
+        {
+          "disabled": true,
+          "id": "daily-update-button",
+          "label": "資料擷取未啟用"
+        },
+        {
+          "disabled": false,
+          "id": "refresh-button",
+          "label": "重新讀取畫面"
+        },
+        {
+          "disabled": false,
+          "id": "logout-button",
+          "label": "登出"
+        },
+        {
+          "disabled": false,
+          "id": "side-nav-toggle",
+          "label": "‹收合"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "01契約與 OI 結構"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "02Dealer Map"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "03異常雷達"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "04履約價 OI 變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "ⓘ資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開近 10 日歷史明細"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開 OI 結構區與同契約歷史"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開全部選擇權欄位與說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看主力契約說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看OI P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看成交量 P/C Ratio說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Call OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看最大 Put OI 履約價說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "展開進階指標（9）"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 成交量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put 未平倉量說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Max Pain說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Call OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看Put OI 單日增減說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看選擇權波動資料說明"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看履約價分布狀態說明"
+        },
+        {
+          "disabled": false,
+          "id": "option-contract-select",
+          "label": "選擇選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "分數怎麼算？"
+        },
+        {
+          "disabled": false,
+          "id": "v2-contract-select",
+          "label": "V2選擇權契約"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "3日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5日"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "查看三年牆位研究摘要"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "headings": [
+        "選擇權籌碼",
+        "透明莊家地圖 Beta",
+        "選擇權異常雷達",
+        "Call異常排行",
+        "Put異常排行",
+        "已納入",
+        "等待即時行情",
+        "安全邊界",
+        "選擇權歷史攻防",
+        "履約價 OI 增減攻防",
+        "Call／Put 牆與 Max Pain 時間軸攻防圖"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "section": "Dealer Map",
+      "sidebar": 189.75,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "options"
+    },
+    {
+      "label": "overview-day-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 無合法狀態轉換 · 不補造事件"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +295",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "Ask GPT Decision Assistant",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "overview"
+    },
+    {
+      "label": "overview-day-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 無合法狀態轉換 · 不補造事件"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +295",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "overview"
+    },
+    {
+      "label": "overview-day-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 無合法狀態轉換 · 不補造事件"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +295",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "overview"
+    },
+    {
+      "label": "overview-demo-1920",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 力價反方向 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 8 個可見轉換"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +2,026",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "Ask GPT Decision Assistant",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 1080,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1920,
+      "workspace": "overview"
+    },
+    {
+      "label": "overview-demo-1536",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 力價反方向 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 8 個可見轉換"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +2,026",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 864,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1536,
+      "workspace": "overview"
+    },
+    {
+      "label": "overview-demo-1366",
+      "controls": [
+        {
+          "disabled": false,
+          "id": "",
+          "label": "跳到決策工作台"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "總覽"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台股現貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "台指期貨"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇權"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "海外市場"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "研究回測"
+        },
+        {
+          "disabled": false,
+          "id": "view",
+          "label": "真實 DAY 片段真實 NIGHT 片段SYNTHETIC / UI DEMO"
+        },
+        {
+          "disabled": false,
+          "id": "palette",
+          "label": "台股｜紅漲綠跌國際｜綠漲紅跌"
+        },
+        {
+          "disabled": false,
+          "id": "refresh",
+          "label": "更新畫面"
+        },
+        {
+          "disabled": false,
+          "id": "copy",
+          "label": "複製快照"
+        },
+        {
+          "disabled": false,
+          "id": "detail-open",
+          "label": "資料品質"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "設定"
+        },
+        {
+          "disabled": false,
+          "id": "product-select",
+          "label": "TX 台指期貨MTX 小型臺指期 · 無資料TMF 微型臺指期 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "month-select",
+          "label": "2026-092026-10 · 無資料2026-11 · 無資料"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "證據 ›"
+        },
+        {
+          "disabled": false,
+          "id": "fit",
+          "label": "完整範圍"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "時窗明細 ›"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1m 力價反方向 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "5m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "15m 同向但轉弱 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "30m 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "1h 力價同步中 AVAILABLE"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "4h 證據有分歧 PARTIAL"
+        },
+        {
+          "disabled": false,
+          "id": "tv-attr-logo",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "關係變化 8 個可見轉換"
+        },
+        {
+          "disabled": false,
+          "id": "show-markers",
+          "label": ""
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "即時盤況完整證據"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 5m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 15m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 30m 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 1h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "選擇 4h 最近變化"
+        },
+        {
+          "disabled": false,
+          "id": "ask-open",
+          "label": "Ask GPT ›想了解目前的市場快照？"
+        },
+        {
+          "disabled": false,
+          "id": "spot",
+          "label": "現貨 / 指數結構"
+        },
+        {
+          "disabled": false,
+          "id": "breadth",
+          "label": "市場參與度"
+        },
+        {
+          "disabled": false,
+          "id": "futures",
+          "label": "期貨 / 法人背景"
+        },
+        {
+          "disabled": false,
+          "id": "options",
+          "label": "選擇權結構"
+        },
+        {
+          "disabled": false,
+          "id": "global",
+          "label": "海外市場背景"
+        },
+        {
+          "disabled": false,
+          "id": "risk",
+          "label": "風險 / 衝突"
+        },
+        {
+          "disabled": false,
+          "id": "",
+          "label": "版本 / 範圍"
+        }
+      ],
+      "coreClipped": [],
+      "duplicateIds": [],
+      "endpoint": "CVD +2,026",
+      "headings": [
+        "市場交接 Market Handoff",
+        "台指期 TXFI6",
+        "盤中力道 燈號：力價關係 · 分段條：主動成交壓力",
+        "即時盤況 SESSION CONTEXT",
+        "多時間力價關係",
+        "市場背景",
+        "現貨 / 指數結構",
+        "市場參與度",
+        "期貨 / 法人背景",
+        "選擇權結構",
+        "海外市場背景",
+        "風險 / 衝突"
+      ],
+      "height": 768,
+      "overflow": 0,
+      "sidebar": 0,
+      "smallText": [],
+      "width": 1366,
+      "workspace": "overview"
+    }
+  ]
+}
