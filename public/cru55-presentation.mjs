@@ -29,7 +29,8 @@ export function windowPresentation(row) {
   else if(code==='MIXED_OR_QUALITY_LIMITED')state='PARTIAL';
   else if(code==='ALIGNED_BUT_WEAKENING' || code==='PRESSURE_RESPONSE_MISMATCH')tone='warning';
   else if(code==='OPPOSITE_DIVERGENCE')tone='negative';
-  else if(code==='ALIGNED')tone=e.deltaCvd>0?'positive':e.deltaCvd<0?'negative':'neutral';
+  // Alignment is evidence agreement, including aligned selling; never price direction.
+  else if(code==='ALIGNED')tone='positive';
   if(state==='WARMING')tone='warning';
   if(state==='PARTIAL'||state==='UNAVAILABLE')tone='neutral';
   return {code,label:LABELS[code]||LABELS.UNAVAILABLE,state,tone,delta:e?.deltaCvd??null,response:e?.response?.displacementPoints??null,path:e?.pathEfficiency?.value??null,span:e?.observedSpanMs??null,pressure:e?.pressure?.pressureRatio??null,coverage:e?.pressure?.classifiedCoverage??null};

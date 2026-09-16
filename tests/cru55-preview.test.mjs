@@ -32,7 +32,10 @@ test('bounded reader rejects over-budget before reading bytes and rejects hardli
 });
 test('one window presentation preserves partial/warming/unavailable and direction limitations',()=>{
   const row=(code,complete=true,delta=2,status='READY')=>({current:{relationship:{code},current:{complete,deltaCvd:delta,quality:{status}}}});
-  assert.equal(windowPresentation(row('ALIGNED')).tone,'positive');assert.equal(windowPresentation(row('ALIGNED',true,-2)).tone,'negative');
+  assert.equal(windowPresentation(row('ALIGNED')).tone,'positive');assert.equal(windowPresentation(row('ALIGNED',true,-2)).tone,'positive');
+  assert.equal(windowPresentation(row('ALIGNED',true,0)).tone,'positive');
+  assert.equal(windowPresentation(row('OPPOSITE_DIVERGENCE')).tone,'negative');
+  assert.equal(windowPresentation(row('PRESSURE_RESPONSE_MISMATCH')).tone,'warning');
   assert.equal(windowPresentation(row('ALIGNED_BUT_WEAKENING')).tone,'warning');
   assert.deepEqual([windowPresentation(row('ALIGNED',false)).state,windowPresentation(row('ALIGNED',false)).tone],['PARTIAL','neutral']);
   assert.equal(windowPresentation(row('ALIGNED',true,2,'WARMING_UP')).state,'WARMING');assert.equal(windowPresentation(null).state,'UNAVAILABLE');
