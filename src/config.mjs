@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
 const cru55Candidate = process.env.CRU55_INTEGRATION_CANDIDATE === '1';
-const candidateData = path.join(appRoot, 'data/cru55-private/integration-runtime');
+const candidateRun = process.env.CRU55_RUN_ID || '';
+if (cru55Candidate && !/^run-[0-9]{13}-[a-f0-9]{12}$/.test(candidateRun)) throw Error('CRU55_RUN_ID_REQUIRED');
+const candidateData = path.join(appRoot, 'data/cru55-private/integration-runtime', candidateRun);
 
 function intEnv(name, fallback, min, max) {
   const raw = process.env[name];

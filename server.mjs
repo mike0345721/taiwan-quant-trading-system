@@ -70,7 +70,7 @@ validateConfig();
 // Explicit isolated integration only. Formal startup retains the existing path.
 const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration.mjs').then(m => m.prepareIntegration(config)) : null;
 
-const cache = new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
+const cache = cru55 ? { init: async () => {}, loadLatest: async () => structuredClone(cru55.seed), listHistory: async (limit = 30) => structuredClone(cru55.history.slice(0, limit)) } : new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
 await cache.init();
 let latestSnapshot = await cache.loadLatest();
 const marketData = new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
