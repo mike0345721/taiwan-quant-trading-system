@@ -1,13 +1,14 @@
 # Provisional Logo v0.1
 
-Owner request 2026-09-16; isolated CRU-55 only. Uses the existing Owner-confirmed blue slash SVG from the original visual reference. No new symbol or full identity system.
+Owner supplied radar / candlestick / wave artwork on 2026-09-16, superseding the earlier blue-slash reference. Original JPEG bytes are retained without retouching, vector reinterpretation or additional glow. Scoped to isolated CRU-55 Overview Header; no full identity system.
 
-- Header regular (>1600 CSS px): 36x32 mark, 18px product name, 11px existing subtitle.
-- Compact (701–1600): 28x26 mark, 16px product name; subtitle hidden.
-- Icon-only (<=700): 24x24 mark; product name remains screen-reader accessible.
-- Vector paths and blue/cyan gradient unchanged; no raster scaling, shadows, glow, price palette binding or new navigation control.
-- SVG accessible product name remains available in all modes. Provisional version in brand metadata/title.
-- Overview remains without sidebar. Cockpit, six context cards, routing and Color Semantics Freeze unchanged.
-- Responsive rules affect the brand only; no mobile production acceptance implied.
+- Header regular (>1600 CSS px): 40x40 image, 18px name, 11px existing subtitle.
+- Compact (701–1600): 34x34 image, 16px name; subtitle hidden.
+- Icon-only (<=700): 30x30 image; product name remains screen-reader accessible.
+- Original Deep Navy/Cyan image, object-fit contain, circular presentation boundary. No price palette binding or new navigation control.
+- Image has descriptive alt text. Provisional version in brand metadata/title.
+- Overview without sidebar, Decision Cockpit, six cards and Color Semantics Freeze preserved.
+- Asset served only by explicit candidate asset mapping, correct image/jpeg MIME. No runtime data/producer behavior changes.
+- Small image retains radar ring / diagonal scan / candle / waves; fine background radar grid is decorative and need not carry information at 30px.
 
 No Merge, formal rollout, backend, collector, intelligence or execution.

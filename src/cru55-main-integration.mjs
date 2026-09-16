@@ -31,7 +31,7 @@ export function prepareIntegration(config) {
   checkPrivateTree(config.dataDir);
   const bundle=loadPreview(process.env.CRU55_BUNDLE_HASH);
   const lower=JSON.parse(boundedRead(path.join(config.dataDir,'context.json'),2*1024*1024));
-  const routes={'/':'cru55-preview.html','/index.html':'cru55-preview.html','/preview.css':'cru55-preview.css','/preview.js':'cru55-preview.js','/presentation.mjs':'cru55-presentation.mjs','/context-cards.mjs':'cru55-context-cards.mjs','/terminal.js':'trader-terminal-shell.js','/workspace':'index.html','/workspace.css':'cru55-workspace.css','/workspace.js':'cru55-workspace.js'};
+  const routes={'/cru55-provisional-logo-v01.jpg':'cru55-provisional-logo-v01.jpg','/':'cru55-preview.html','/index.html':'cru55-preview.html','/preview.css':'cru55-preview.css','/preview.js':'cru55-preview.js','/presentation.mjs':'cru55-presentation.mjs','/context-cards.mjs':'cru55-context-cards.mjs','/terminal.js':'trader-terminal-shell.js','/workspace':'index.html','/workspace.css':'cru55-workspace.css','/workspace.js':'cru55-workspace.js'};
   const assets=Object.fromEntries(Object.entries(routes).map(([r,f])=>[r,fs.readFileSync(path.join(ROOT,'public',f))]));
   const identity={head,acceptedHead:ACCEPTED,approvedMain:MAIN,previewType:'CRU55_CURRENT_MAIN_INTEGRATION_CANDIDATE',rawReadsPerRequest:0,...SAFETY};
   return {
@@ -58,8 +58,8 @@ export function prepareIntegration(config) {
       if(Object.hasOwn(assets,url.pathname)){
         let body=assets[url.pathname];
         if(url.pathname==='/workspace')body=Buffer.from(body.toString().replace('</head>','<link rel="stylesheet" href="/workspace.css"><script src="/workspace.js" defer></script></head>'));
-        const type=url.pathname==='/'||url.pathname==='/index.html'||url.pathname==='/workspace'?'text/html':url.pathname.endsWith('.css')?'text/css':'text/javascript';
-        res.writeHead(200,{'Content-Type':type+'; charset=utf-8'});res.end(body);return true;
+        const type=url.pathname==='/'||url.pathname==='/index.html'||url.pathname==='/workspace'?'text/html':url.pathname.endsWith('.css')?'text/css':url.pathname.endsWith('.jpg')?'image/jpeg':'text/javascript';
+        res.writeHead(200,{'Content-Type':type==='image/jpeg'?type:type+'; charset=utf-8'});res.end(body);return true;
       }
       if(url.pathname==='/vendor.js'){
         const file=path.join(ROOT,'node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js');res.writeHead(200,{'Content-Type':'text/javascript'});res.end(fs.readFileSync(file));return true;
