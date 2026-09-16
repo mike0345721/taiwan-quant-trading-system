@@ -1,10 +1,12 @@
 {
   "sourceHead": "dd536a88a72ef49c1d793ae1448682a032428514",
+  "hashBasis": "Git blob bytes",
   "files": {
     "browser-audit.json": "1874c1ea2cd083b68453618a32b97a8c7fbea0ce532e2f418db963d69f9c5b4d",
     "cards-1366.jpg": "676a50fc826c6acb8d7162a7f647085d5507f888af8a97d9aeca0d3a308756e0",
     "cards-1536.jpg": "a60859093bb32295ffaef876be8e2d12ef40de4460fd80482ac30ae306d8d892",
     "cards-1920.jpg": "2026fbbe05ff32a9a7cf5fd14349d5cd22294561dc3d6df5a498b3d15b49a4eb",
+    "ci.json": "3611ccb6cb0fcbebee0083130502f3e4f6e3156e91f441a2ea351147c68ee20c",
     "console.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "demo-1366-international.jpg": "ba48f0d2a230c83480c8ddf742891634e8f873c21a0b9ef2c8aa166acc3f92d7",
     "demo-1366-taiwan.jpg": "1c63aaa884363a3628a1743d6d69b64f60479e274bc920e1f6a9db29c80e31af",
@@ -13,14 +15,14 @@
     "demo-1920-international.jpg": "1cce5205734c0d0931087724074f277144ec08bd800be325266055f3e1159e26",
     "demo-1920-taiwan.jpg": "12c27eaee73087e87d17cc9cc1044cab1654851bab019092a692e5c814e046c0",
     "icons.json": "10b687a0789b2dbb3e67b4b00473da8e321ca74244bc37b775ce56c6defd317b",
-    "pixel-comparison.json": "7a85f3b4f125949122ef349e0f7813e85310dd5484e51325e94731ffbdac1045",
-    "README.md": "c10efab7a0084c4cf38522378673196fb99c8cbb7c0f0d51deef1ddf185063fb",
+    "pixel-comparison.json": "afdf28d72c49d75609a869343052e48e90abf2e61b38a189e4dd02ee7cb9af5d",
+    "README.md": "5815ea717c453a2780d2471b655e72f200b5275395b612746c662e09f50ba2f9",
     "real-1366-international.jpg": "a6e804a4a54f174b9b72dda68535769cf3786383655460f238364db6f4b31bf8",
     "real-1366-taiwan.jpg": "37cd111852128b7671b10ccadd85bafcd62a01cddf0a6c33c412d7874759e749",
     "real-1536-international.jpg": "dd3385326e2a4b32252daf50e3bfe68dbc299617c7f353104f20df3c499ba6c0",
     "real-1536-taiwan.jpg": "c5be1a9be221015a0533dbda629e87cd98599e8c95abbb5bab764492d717569d",
     "real-1920-international.jpg": "7d0c49746d328d83caa294a8a812332ebb51ffa75e8d87ed2007e7f0e4ebb4ed",
     "real-1920-taiwan.jpg": "8355d50ea67a603f8718de24d55505c5cf1e38e361b7ffbb8b6ed148f2ddb1bb",
-    "UI_CAPABILITY_FRESHNESS_AUDIT.md": "154509b2eabdbc36db77f6dea52c94f5ed660b3dbf242ac434e4f2056b01cebb"
+    "UI_CAPABILITY_FRESHNESS_AUDIT.md": "25c2cca3211c3a2f170548af5dbb6be4c1c73d6e0dbd7b44da252450b7f7de35"
   }
 }
