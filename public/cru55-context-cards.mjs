@@ -6,11 +6,11 @@ const names=['現貨 / 指數結構','市場參與度','期貨 / 法人背景','
 const routes=['/workspace?space=spot','/workspace?space=spot&section=breadth','/workspace?space=futures','/workspace?space=options','/workspace?space=global',null];
 export function contextModels(data){
  const mo=data?.marketOverview,br=data?.marketBreadth,fi=data?.futuresInstitutional,op=data?.options;
- const m=mo?.ok?mo.data:{},b=br?.ok?br.data?.listed:{},f=fi?.ok?fi.data:{},o=op?.ok?op.data:{};
+ const m=mo?.ok?mo.data:{},b=br?.ok?br.data?.listed:{},otc=br?.ok?br.data?.otc:{},f=fi?.ok?fi.data:{},o=op?.ok?op.data:{};
  const date=x=>x?.dataDate||'日期不可用';
  return [
   {date:date(mo),values:[['加權指數',fmt(m?.twii?.price)],['櫃買指數',fmt(m?.otc?.price)],['主要正貢獻','不可用'],['主要負貢獻','不可用']],summary:'指數快照；貢獻排名需合法權值來源。',type:'contribution'},
-  {date:date(br),values:[['上市 漲 / 跌 / 平',[b?.advance,b?.decline,b?.unchanged].map(fmt).join(' / ')],['上櫃 漲 / 跌 / 平',[br?.data?.otc?.advance,br?.data?.otc?.decline,br?.data?.otc?.unchanged].map(fmt).join(' / ')]],summary:'上市與上櫃各自統計；不與本盤合成判讀。',type:'breadth',counts:[b?.advance,b?.decline,b?.unchanged]},
+  {date:date(br),values:[['上市 漲 / 跌 / 平',[b?.advance,b?.decline,b?.unchanged].map(fmt).join(' / ')],['上櫃 漲 / 跌 / 平',[otc?.advance,otc?.decline,otc?.unchanged].map(fmt).join(' / ')]],summary:'上市與上櫃各自統計；不與本盤合成判讀。',type:'breadth',counts:[b?.advance,b?.decline,b?.unchanged]},
   {date:date(fi),values:[['外資淨未平倉 · 口',fmt(f?.foreignNet)],['單日變化 · 口',f?.deltaAvailable?fmt(f?.foreignNetDelta):'不可用'],['投信淨未平倉 · 口',fmt(f?.trustNet)],['自營淨未平倉 · 口',fmt(f?.dealerNet)]],summary:'盤後法人部位背景，非主動成交方向。',type:'futures',long:f?.foreignLong,short:f?.foreignShort,series:data?.futuresSeries},
   {date:date(op),values:[['契約',o?.contract||'不可用'],['Call / Put OI',`${fmt(o?.totalCallOi)} / ${fmt(o?.totalPutOi)}`],['OI P/C',fmt(o?.oiPcRatio)]],summary:`到期 ${o?.expiryDate||'未知'}；公開 OI 非莊家真實部位。`,type:'options',walls:[o?.putWall?.strike,o?.maxPain,o?.callWall?.strike]},
   {date:'依各市場資料日',values:(data?.globalContext?.latest||[]).map(x=>[`${x.symbol==='NDX'?'NDX 代理':x.symbol} ${x.tradeDate}`,fmt(x.close)]).slice(0,3),summary:'EOD / HISTORICAL；NDX 為代理，不能替代真正 NQ。',type:'global',global:data?.globalContext?.latest||[],series:data?.globalSeries},

@@ -619,7 +619,7 @@ server.maxRequestsPerSocket = 100;
 
 server.listen(config.port, config.host, async () => {
   console.log(`台股決策雷達 V3.7.3：http://${config.host}:${config.port}`);
-  console.log(`模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
+  console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
   // Always check upstream sources on startup. The cached snapshot is shown only
   // while this first refresh is in progress or if an official source fails.
   refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));

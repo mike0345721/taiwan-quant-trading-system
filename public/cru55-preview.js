@@ -132,7 +132,7 @@ function details(which){
     case 'options':title='選擇權背景';copy=contextDate+'\n歷史到期契約的 OI / Max Pain 不推論本盤價格，不代表 Dealer inventory 或成本。';value=view==='demo'||!selectionAvailable()?null:lower?.options;break;
     case 'breadth':title='市場參與度';copy=contextDate;value=view==='demo'||!selectionAvailable()?null:lower?.marketBreadth;break;
     case 'global':title='海外背景';copy=contextDate+'\n已有 USD/TWD / VIX 僅作歷史背景；NQ / SOX 同步本盤資料 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{usdTwd:lower?.marketOverview?.data?.usdtwd,vix:lower?.marketOverview?.data?.vix,source:lower?.marketOverview?.source};break;
-    case 'risk':title='風險 / 衝突';copy='背景資料與盤中圖表的日期獨立；不合成風險分數。UNKNOWN 不等於低風險。formalWeight=0。';value={sourceDates:lower?.sourceDates,context:current?.context?.qualityState,handoff:current?.handoff?.state,limitations:lower?.limitations};break;
+    case 'risk':title='風險 / 衝突';copy='背景資料與盤中圖表的日期獨立；不合成風險分數。UNKNOWN 不等於低風險。formalWeight=0。';value={sourceDates:lower?.sourceDates,context:current?.context?.evidence?.quality?.status,handoff:current?.handoff?.handoff?.code,limitations:lower?.limitations};break;
     default:title='Data Trust｜資料品質';copy='STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。';value=c?{freshness:c.chart.freshness,contextScope:c.context.scope,origin:c.context.origin,cutoff:c.chart.cutoff,summary:c.chart.summary,priceReason:c.chart.priceReason,priceExclusions:c.chart.priceTimeLineageViolationCount,segments:c.chart.segments.map(({points,...s})=>s),generation:c.chart.generationHash}:null;
   }text('drawer-title',title);text('drawer-copy',copy);text('drawer-json',value?JSON.stringify(value,null,2):'UNAVAILABLE');$('drawer').showModal();
 }
