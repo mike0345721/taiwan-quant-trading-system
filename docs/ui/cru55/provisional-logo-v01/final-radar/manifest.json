@@ -1,0 +1,147 @@
+{
+  "sourceHead": "669b99e4e221516252b7368829efb3999bc44cef",
+  "evidenceContentCommit": "ef0e6f7e6b4c0a86b3bfda6e793bf3ad543b64bd",
+  "hashBasis": "Committed Git blob bytes; excludes manifest itself",
+  "files": [
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/README.md",
+      "bytes": 5549,
+      "sha256": "f6506569e30bedd290ff496b6b02fb3f12bfe9d8ed10d86a1c61d45664a94c68"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/UI_CAPABILITY_FRESHNESS_AUDIT.md",
+      "bytes": 5586,
+      "sha256": "c3bcb6c3c1ef9a49c9d47db35717fed124d8ac5c0445fb60123f561114171924"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/asset-proof.json",
+      "bytes": 155,
+      "sha256": "57d549a6e1654909fb809ee3d97821170dcd242818ae0c7cd850620f422412ed"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/brand-compact.jpg",
+      "bytes": 2768,
+      "sha256": "cd771cba2efb6e4a25f73c73459a4732dc1eeb940a2d3ac445f7e4bd121ae342"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/brand-icon-only.jpg",
+      "bytes": 959,
+      "sha256": "5207dc797caad62b0a127b08e2ff8aabc1f1c086b6cb1f5be68fdad44e4288c5"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/brand-regular.jpg",
+      "bytes": 4885,
+      "sha256": "befab905f14f802ab57cf7b4d9c865ff3f635c0b09c2c71c96006bc929d81701"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/card-routing.json",
+      "bytes": 644,
+      "sha256": "1060ed4a99b623c49f6c39a5f03a3fd6602f5b8def403c5d6360b082e3c0e2cf"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/ci.json",
+      "bytes": 150,
+      "sha256": "dce6fb3624beea6e3d69d9a4eaeda857af9b0146195e37441d31a947e1b159d5"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/console.json",
+      "bytes": 380,
+      "sha256": "98704348dafc41c19cfc5aa7b3197f8c9edf2c8da41790a42370c72e1a50f06e"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1366-international.jpg",
+      "bytes": 133903,
+      "sha256": "3e830f194ae2d754a724c0479f1875c712998bf04a924c25780c16cf43c254ed"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1366-taiwan.jpg",
+      "bytes": 134186,
+      "sha256": "18ffaa3fb56b50337edfc034aae467be680f48a71401f39561d416ac0d51c3c5"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1536-international.jpg",
+      "bytes": 154843,
+      "sha256": "6dd808365467c7d86b0b11abaf398f131e34000717ced5b4949b808f489a0b72"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1536-taiwan.jpg",
+      "bytes": 155076,
+      "sha256": "c0e3ba06ad2ff2b6d2f6e311065030b20f5b066db55a9017215b877bf2d32904"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1920-international-full.jpg",
+      "bytes": 299421,
+      "sha256": "676237bb36af0373f13a40c880a097aa624a37d56b16a8f6f4de4052f7a72c02"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1920-international.jpg",
+      "bytes": 186189,
+      "sha256": "fe639830a7e7998893e113f3f79756ce49df9a72b2a2f45560a7b6f6919238ed"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1920-taiwan-full.jpg",
+      "bytes": 299480,
+      "sha256": "b51471e6ec5e08774b5471035553b4e225cdeda4e5e40a8e12be83896881f76c"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/demo-1920-taiwan.jpg",
+      "bytes": 186438,
+      "sha256": "a674ce252435eb8d7ea2fb7c8caf5335f30977567eba812b65bf5c3cdfb9af0a"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/freshness-fix.json",
+      "bytes": 246,
+      "sha256": "6c83d54034d71d305fbd6cb4e87b93f99c6307bac837052ab2a569f7866bc37f"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/icon-only-640.jpg",
+      "bytes": 66145,
+      "sha256": "d1f09f158e94c8b7980f5709cd6411a78da9ae5d6e8bfb85fc76df588a1b020d"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/interactions.json",
+      "bytes": 5613,
+      "sha256": "376172f208f5c7dc1227935d5019611e8bce67dd5438c7d0e5568fa75645b40c"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/layout.json",
+      "bytes": 2376,
+      "sha256": "bc211c3d1c984a76811e498a011cf8ba8b0176899b1193b37b41385d3cf9e29c"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/palette-audit.json",
+      "bytes": 35932,
+      "sha256": "876207fbcc233a8a879998c689bc21776f7397997913a1a9d9e6160ec41f2ca8"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/pixel-comparison.json",
+      "bytes": 922,
+      "sha256": "a043d5422ebac532532d2d96162afbb1862ff124f2a12c85e50413813e9565db"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/real-1366.jpg",
+      "bytes": 249321,
+      "sha256": "956f9538cdaa2eaff8dc43af093c472488bbe6879e03729d09e12a683720f003"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/windows.json",
+      "bytes": 7249,
+      "sha256": "3dc8f0534be713ce91df1d9565db31fd4e1e0f2bcd2478944d2fe6d54b5f0478"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/workspace-after-freshness-fix.jpg",
+      "bytes": 217231,
+      "sha256": "0fb627c662effcc51285a556e1a5084d0cac63fb525c8d873a603d62bf5b39a7"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/workspace-before-freshness-fix.txt",
+      "bytes": 14439,
+      "sha256": "e5b65e75812629d88f68aa48234d9f6ff177a7064cc44977a61ac627021cbb48"
+    },
+    {
+      "path": "docs/ui/cru55/provisional-logo-v01/final-radar/workspace-console.json",
+      "bytes": 380,
+      "sha256": "98704348dafc41c19cfc5aa7b3197f8c9edf2c8da41790a42370c72e1a50f06e"
+    }
+  ]
+}
