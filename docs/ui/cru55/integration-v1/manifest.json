@@ -12,9 +12,9 @@
     "data-quality-1366.jpg": "73a7020b291bfcc2568e7992086a699ee6a4eaa0888d2644d6300c6a52c9b502",
     "focused-tests.tap": "ebbb9c1431ac5753652dfe940d695c4c4ea3fe58e3db68ddb5e68e9b57595704",
     "futures-background-1366.jpg": "52b2be504dd98d620a162bd08b1170f9bf12355ed62c46cc19674e1972242a2b",
-    "GPT_REVIEW_PACKET.md": "da1a4d683beedacb412756db214f21492523b7607f080c4ee3879d00e75785f9",
-    "L0_L5_VALIDATION.md": "9859afc69c340c32e074be17d4562e008ef4c7371e44b9d5316607f1712a4f59",
-    "MUST_PRESERVE_AUDIT.md": "c1417b7acbf8d1e93a1f4c0b78ca4438e3bad1b305c31c10412efeed3cfc26f4",
+    "GPT_REVIEW_PACKET.md": "7c35bb0b4a415ce9286ed77839408c98b5e3f6bf6a1c095793e4749b18c155d6",
+    "L0_L5_VALIDATION.md": "389a01a8433318fd9a8159fa63f9932c51184c866462e3d2dee12dfb2d934f8d",
+    "MUST_PRESERVE_AUDIT.md": "01e320782d5d72ceefd4ebae82f46f559d53b33626ddde09d0f9ada672362f84",
     "options-oi-selection.json": "924160143c603464368956c4b82c8e3a4e2550f67e5c77937d1a50f88acaef89",
     "options-research-selection.json": "ab5732d29477576a880975c15b21934200e39dd61605f14066d75469d28af837",
     "options-selection.json": "2bb533a65c2aae95eed051126420f4d7fbd85ee593988dc801fa98c5aea3a628",
@@ -25,14 +25,14 @@
     "overview-real-1366.jpg": "3f94fbe0bc019c6285bce6d7cd187ffa4a678193b400de635c560345c2c01126",
     "overview-real-1536.jpg": "274722609ced10cd28bc57d06492af189bcded5ef76a794f2c961bef7c4fc099",
     "overview-real-1920.jpg": "122599c9ff996389749fef0d1ca01c6e6ef75b27e5b5469d2c73d52ad6c4826a",
-    "OWNER_REVIEW_GUIDE.md": "199450ed6cd87b90d964167c0d52dedb003ab2a57990dfb978b8cd8829a00a1f",
+    "OWNER_REVIEW_GUIDE.md": "762f3cf09a66fabff7b077cc78836b6f80a198ca6e51cafd04832601b4712d9f",
     "producer-readonly-audit.json": "3c755721a7653e1b6f950da050ffd227f2e376b472cb6ff17e37d74f6b29e8d1",
     "replay-interaction.json": "74db6f51b73dc7cf98a63365f8c52c3ca90e17c0a2690b4b66dd47189d5260bb",
     "security-tests.tap": "bb7a1b8474101ef86fa68bff1760d33b637f34ab186e6734e4927130130977ca",
     "selector-truth.json": "8a4565bbeb76497b3f149646be4f71609efe9d269a1881102882360ff0b38f7e",
-    "source-audit.json": "7f9b5ba962e8cc282804645111dca032e1315ff1e24b6b2b5b1e7f9605db436e",
+    "source-audit.json": "61834bb3647f296f0ddeac263cb96bd024b93d9a5d52f847dd6922fa1a02014f",
     "timeframe-browser.json": "d08e1e8ae9d5a964ca01597b305e2c9c1477f7a8b17995fa49ab2a110a1e7017",
-    "UI_CAPABILITY_FRESHNESS_AUDIT.md": "febd02fbf2377e706c7d281d13462890c49efc20094bfd26cc29f2e97e2fda0f",
+    "UI_CAPABILITY_FRESHNESS_AUDIT.md": "8888d7b54c377deda7bdcee727932308807ee183fbb5bac28ee98bfa25c9de73",
     "utilities.json": "71983b51f2c93b0bbec3f79f71af886971cfabc28f70cc24a67dccece8a51826",
     "workspace-console.json": "2c4ec3e8d616a485b7a88da56029199082c07b783ae5c7f7684eb346662fc3ec",
     "workspace-futures-1366.jpg": "fbb914615e6e8c0648eee51c41901f8a915b0d7c31167e89f3ebb1337ca93ab8",
@@ -50,5 +50,6 @@
     "workspace-spot-1366.jpg": "7e96f1bbc61c35c6d7a514ae71171631d8e0c4993ff8c9170ee824497dd38c50",
     "workspace-spot-1536.jpg": "42f0e2602c2a0ad960363d93de47cc10e4d1ef3e5fb6bcb738cfb27c18702a56",
     "workspace-spot-1920.jpg": "5916654b2460c300dbec72073ef2e2403dad603466778c73d805d5cb2277503a"
-  }
+  },
+  "hashBasis": "Git blob bytes (text normalized by repository attributes); no credentials/raw data"
 }
