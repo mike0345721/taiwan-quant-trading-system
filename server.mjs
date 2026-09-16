@@ -67,6 +67,8 @@ import {
 } from './src/http-utils.mjs';
 
 validateConfig();
+// Explicit isolated integration only. Formal startup retains the existing path.
+const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration.mjs').then(m => m.prepareIntegration(config)) : null;
 
 const cache = new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
 await cache.init();
@@ -77,15 +79,16 @@ const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(con
 const loginLimiter = new LoginRateLimiter();
 const v2Research = new V2ResearchService();
 let dailyUpdateProcess = null;
-const intradayPath = path.join(config.dataDir, 'intraday', 'latest-bars.json');
-const replayPath = path.join(config.dataDir, 'intraday', 'replay-bars.json');
-const replayArchiveDir = path.join(config.dataDir, 'intraday', 'archive');
+const readDataRoot = cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir;
+const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
+const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
+const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');
 const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
-const forwardShadowBaseRoot = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow');
-const futuresAuditPath = path.join(config.appRoot, 'data', 'live-events', 'futures-audits', 'latest.json');
-const shioajiContinuityStatusPath = path.join(config.appRoot, 'data', 'runtime', 'shioaji-continuity', 'status.json');
+const forwardShadowBaseRoot = path.join(readDataRoot, 'market-state', 'forward-shadow');
+const futuresAuditPath = path.join(readDataRoot, 'live-events', 'futures-audits', 'latest.json');
+const shioajiContinuityStatusPath = path.join(readDataRoot, 'runtime', 'shioaji-continuity', 'status.json');
 const chartCalendarPath = path.join(config.appRoot, 'config', 'taifex-official-calendar-2026.json');
-const chartCalendarExceptionPath = path.join(config.appRoot, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
+const chartCalendarExceptionPath = path.join(readDataRoot, 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
@@ -231,6 +234,7 @@ function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
 }
 
 async function refreshSnapshot() {
+  if (cru55) return latestSnapshot; // pinned isolated cache, never acquire upstream data
   try {
     const snapshot = await marketData.refresh(latestSnapshot);
     enrichSnapshot(snapshot, await cache.listHistory(400));
@@ -250,7 +254,7 @@ async function refreshSnapshot() {
 
 function getSession(req) {
   const cookies = parseCookies(req.headers.cookie || '');
-  return sessions.get(cookies.twchip_session);
+  return sessions.get(cookies[cru55 ? 'cru55_main_session' : 'twchip_session']);
 }
 
 function requireSession(req, res) {
@@ -281,6 +285,8 @@ const server = http.createServer(async (req, res) => {
   const ip = clientIp(req, config.trustProxy);
 
   try {
+    if (cru55 && !cru55.guard(req, res)) return;
+    if (cru55 && await cru55.handle(req, res, url, () => requireSession(req, res))) return;
     if (req.method === 'GET' && pathname === '/healthz') {
       const readiness = currentCru46RuntimeReadiness();
       sendJson(res, 200, {
@@ -324,7 +330,7 @@ const server = http.createServer(async (req, res) => {
       const sessionTtlMs = remember ? config.rememberedSessionTtlMs : config.sessionTtlMs;
       const session = sessions.create(ip, sessionTtlMs);
       const secure = config.cookieSecure || isHttps;
-      res.setHeader('Set-Cookie', sessionCookie(session.id, { secure, maxAgeSeconds: sessionTtlMs / 1000 }));
+      res.setHeader('Set-Cookie', sessionCookie(session.id, { secure, maxAgeSeconds: sessionTtlMs / 1000 }).replace(/^twchip_session=/, cru55 ? 'cru55_main_session=' : 'twchip_session='));
       sendJson(res, 200, { ok: true, csrfToken: session.csrf, expiresAt: session.expiresAt });
       return;
     }
@@ -341,7 +347,7 @@ const server = http.createServer(async (req, res) => {
       const session = requireSession(req, res);
       if (!session || !requireCsrf(req, res, session)) return;
       sessions.delete(session.id);
-      res.setHeader('Set-Cookie', clearSessionCookie({ secure: config.cookieSecure || isHttps }));
+      res.setHeader('Set-Cookie', clearSessionCookie({ secure: config.cookieSecure || isHttps }).replace(/^twchip_session=/, cru55 ? 'cru55_main_session=' : 'twchip_session='));
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -351,7 +357,7 @@ const server = http.createServer(async (req, res) => {
       if (!session) return;
 
       if (req.method === 'GET' && pathname === '/api/v1/data-operations') {
-        sendJson(res, 200, { ok: true, data: readDataOperations({ dataRoot: config.dataDir,
+        sendJson(res, 200, { ok: true, data: readDataOperations({ dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
           outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT || path.join(config.dataDir, 'quality', 'daily-data-operations'), calendar: chartCalendar }) },
         { 'Cache-Control': 'no-store' });
         return;
@@ -619,7 +625,7 @@ server.listen(config.port, config.host, async () => {
   refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
 });
 
-if (config.refreshIntervalMs > 0) {
+if (!cru55 && config.refreshIntervalMs > 0) {
   const timer = setInterval(() => {
     refreshSnapshot().catch((error) => console.error('[scheduled refresh]', error.message));
     sessions.cleanup();

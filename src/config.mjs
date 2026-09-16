@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
+const cru55Candidate = process.env.CRU55_INTEGRATION_CANDIDATE === '1';
+const candidateData = path.join(appRoot, 'data/cru55-private/integration-runtime');
 
 function intEnv(name, fallback, min, max) {
   const raw = process.env[name];
@@ -22,8 +24,9 @@ function boolEnv(name, fallback = false) {
 export const config = Object.freeze({
   appRoot,
   publicDir: path.join(appRoot, 'public'),
-  dataDir: path.join(appRoot, 'data'),
-  historyDir: path.join(appRoot, 'data', 'history'),
+  cru55Candidate,
+  dataDir: cru55Candidate ? candidateData : path.join(appRoot, 'data'),
+  historyDir: cru55Candidate ? path.join(candidateData, 'history') : path.join(appRoot, 'data', 'history'),
   // Explicit read-only research inputs; never redirected to the caller cwd.
   v2DatabasePath: path.resolve(appRoot, process.env.V2_RESEARCH_DATABASE_PATH || 'v2/data/research-v2.sqlite'),
   v2ReportPath: path.resolve(appRoot, process.env.V2_BACKTEST_REPORT_PATH || 'v2/reports/latest-backtest.json'),

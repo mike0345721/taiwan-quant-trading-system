@@ -8,7 +8,7 @@ import { FRAMES } from './cvd-chart-projection.mjs';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PRIVATE = path.join(ROOT, 'data/cru55-private');
-export const BRANCH = 'codex/cru-55-premerge-ui-v1';
+export const BRANCH = 'codex/cru-55-current-main-integration-v1';
 export const ACCEPTED = '66de7e9a416e9f2386eed1c9e8688afea1b804ab';
 export const MAIN = 'd3702315b46a1a6c23384338ae40904b8bc589c2';
 export const git = (args, cwd = ROOT) => execFileSync('git', args, {cwd, encoding:'utf8', windowsHide:true, timeout:15000}).trim();

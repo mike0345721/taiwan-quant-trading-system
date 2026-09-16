@@ -1,3 +1,4 @@
+import {renderContextCards} from '/context-cards.mjs';
 import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection,observedPricePercent,relationshipExplanation,contextSummary} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const shortTime=t=>t==null?'未知':new Date(t).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
@@ -19,7 +20,8 @@ function fail(message){
   $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').title='UNAVAILABLE';$('handoff-reason').hidden=false;$('path-value').title='不可用';text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
 }
 async function api(route){const r=await fetch(route);if(r.status===401){$('login').hidden=false;throw Error('請以本次 launcher 的本機啟動連結登入。');}if(!r.ok)throw Error(`資料無法載入（${r.status}）`);return r.json();}
-async function authenticate(token){const r=await fetch('/session',{method:'POST',headers:{'Content-Type':'text/plain'},body:token});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
+async function authenticate(token){const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:token})});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
+
 function pressureBar(ratio,state) {
   const {cells,direction}=pressureCells(ratio,state),bar=node('span',null,'pressure-segments');
   bar.dataset.cells=String(cells);bar.dataset.direction=direction;bar.setAttribute('aria-hidden','true');
@@ -113,17 +115,8 @@ function render(data){
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);
   renderLower();
 }
-function renderLower(){
-  const demo=view==='demo',s=demo||!selectionAvailable()?null:lower;
-  text('lower-date',!selectionAvailable()?'UNAVAILABLE · 所選商品／月份無資料':demo?'SYNTHETIC / UI DEMO · 真實背景不混入':s?`STALE · ${s.asOfDate} 歷史快照`:'MISSING · 未載入背景快照');
-  const val=(part,k)=>s?.[part]?.ok?s[part].data?.[k]:null;
-  const pairs=(id,values)=>$(id).replaceChildren(...values.map(([k,v])=>{const row=node('div');row.append(node('span',k),node('strong',v));return row;}));
-  const index=val('marketOverview','twii'),f=val('futuresMarket','txDay'),o=s?.options?.ok?s.options.data:null,b=val('marketBreadth','listed');
-  text('spot-value',index?fmt(index.price):'UNAVAILABLE');pairs('spot-metrics',[['加權漲跌',signed(index?.change)],['櫃買',fmt(val('marketOverview','otc')?.price)]]);
-  text('futures-value',signed(val('futuresInstitutional','foreignNet')));pairs('futures-metrics',[['外資淨 OI','口'],['TX 未平倉',fmt(f?.openInterest)],['契約',f?.contract||'UNAVAILABLE']]);
-  text('options-value',o?.oiPcRatio==null?'UNAVAILABLE':`P/C ${fmt(o.oiPcRatio)}`);pairs('options-metrics',[['Call / Put Wall',o?`${fmt(o.callWall?.strike)} / ${fmt(o.putWall?.strike)}`:'不可用'],['契約',o?.contract||'UNAVAILABLE']]);
-  text('breadth-value',b?`${fmt(b.advance)} / ${fmt(b.decline)}`:'UNAVAILABLE');pairs('breadth-metrics',[['上市上漲 / 下跌','家'],['平盤',fmt(b?.unchanged)]]);
-}
+function renderLower(){renderContextCards($('lower-cards'),view==='demo'||!selectionAvailable()?null:lower,{demo:view==='demo',available:selectionAvailable()});text('lower-date',view==='demo'?'SYNTHETIC / UI DEMO · 不混入真實背景':!selectionAvailable()?'UNAVAILABLE · 所選商品／月份無資料':lower?`HISTORICAL · ${lower.asOfDate} 獨立日期背景`:'UNAVAILABLE · 背景來源未載入');}
+
 async function load(){text('chart-product-name',({TX:'台指期',MTX:'小型臺指期',TMF:'微型臺指期'})[selectedProduct]||'商品');const request=++serial;fail('正在載入隔離投影…');renderLower();if(!selectionAvailable()){document.body.dataset.selectionState='UNAVAILABLE';$('source-notice').classList.remove('synthetic');text('source-notice',`${selectedProduct} / ${selectedMonth} · UNAVAILABLE · 此隔離預覽沒有該商品／月份資料`);text('handoff-reason','所選商品／月份無資料');text('chart-empty','所選商品／月份尚無隔離資料。');$('chart-empty').hidden=false;return;}document.body.dataset.selectionState='AVAILABLE';text('trust','載入中');try{const data=await api(`/api/preview?view=${view}&timeframe=${frame}`);if(request!==serial)return;current=data;render(data);}catch(e){if(request===serial)fail(e.message);}}
 function details(which){
   const c=current;let title='資料品質',copy='',value=null;
@@ -132,13 +125,14 @@ function details(which){
     case 'context':title='Session Context｜本盤背景';copy='觀測累積不是完整盤別。Price Δ 使用合法首末價格；Price Response 保留已接受計算，兩者不互相補值。Path 顯示原始比值，沒有智慧分數。';value=c?.context;break;
     case 'change':title=`${frame}｜最近變化`;copy='Relationship → Change → Rate / Persistence → Level。ΔCVD 是同窗淨主動成交增量；重疊窗口不能加總。PARTIAL 是觀測片段，不能當成完整窗口。';value=c?.relationship.current;break;
     case 'handoff':title='Market Handoff｜市場交接';copy='上一盤 → 觀測片段端點差 → 本盤。DAY / NIGHT CVD 分開；不連線、不相減、不插補休市 Volume / Pressure / Path。';value=c?.handoff;break;
-    case 'scope':title='版本與預覽範圍';copy='CRU-55 隔離 Dashboard 預覽。保留原版導覽、價格配色、K / Volume 主區域、Fast Scan、右側解釋與下方產品模組。\nVWAP 位置保留，CRU-54 接受的價格片段未提供 VWAP；不另推算。正式 runtime 目前未啟動，UI 以 approved main source 為基礎對照。\nAsk GPT 使用「複製快照」供人工討論；不呼叫 GPT API。完整研究頁、資料更新、正式日誌與營運控制未接入本隔離預覽。';value=c?{head:c.head,acceptedHead:c.acceptedHead,approvedMain:c.approvedMain,view:c.view,kind:c.kind,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}:null;break;
+    case 'settings':title='設定';copy='漲跌配色可由頂部選單切換。此隔離候選只讀，資料擷取更新與 GPT 回答尚未啟用。';value={pricePalette:palette,formalWeight:0,executionAuthorized:false};break;
+    case 'scope':title='版本與預覽範圍';copy='CRU-55 隔離 Dashboard 預覽。保留原版導覽、價格配色、K / Volume 主區域、Fast Scan、右側解釋與下方產品模組。\nVWAP 位置保留，CRU-54 接受的價格片段未提供 VWAP；不另推算。此為 current-main 整合候選；正式 runtime 狀態另依 Formal Operations 取證。\nAsk GPT 使用「複製快照」供人工討論；不呼叫 GPT API。既有 Workspace 保留同一認證與 API；資料擷取停用；人工日誌只保存至候選私人位置。';value=c?{head:c.head,acceptedHead:c.acceptedHead,approvedMain:c.approvedMain,view:c.view,kind:c.kind,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}:null;break;
     case 'spot':title='現貨 / 指數貢獻';copy=contextDate+'\n沒有本盤 index leadership 資料，貢獻保留 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{marketOverview:lower?.marketOverview,spotInstitutional:lower?.spotInstitutional};break;
     case 'futures':title='期貨流向';copy=contextDate+'\n法人 OI 不代表主動成交方向。缺失的前日差值保留不可用，不採快照中的佔位 0。';value=view==='demo'||!selectionAvailable()?null:{market:lower?.futuresMarket,institutional:lower?.futuresInstitutional};break;
     case 'options':title='選擇權背景';copy=contextDate+'\n歷史到期契約的 OI / Max Pain 不推論本盤價格，不代表 Dealer inventory 或成本。';value=view==='demo'||!selectionAvailable()?null:lower?.options;break;
     case 'breadth':title='市場參與度';copy=contextDate;value=view==='demo'||!selectionAvailable()?null:lower?.marketBreadth;break;
     case 'global':title='海外背景';copy=contextDate+'\n已有 USD/TWD / VIX 僅作歷史背景；NQ / SOX 同步本盤資料 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{usdTwd:lower?.marketOverview?.data?.usdtwd,vix:lower?.marketOverview?.data?.vix,source:lower?.marketOverview?.source};break;
-    case 'risk':title='風險 / 衝突';copy='本盤風險模型尚無合法輸出。UNAVAILABLE 不等於低風險。formalWeight=0；研究未 Promotion。';break;
+    case 'risk':title='風險 / 衝突';copy='背景資料與盤中圖表的日期獨立；不合成風險分數。UNKNOWN 不等於低風險。formalWeight=0。';value={sourceDates:lower?.sourceDates,context:current?.context?.qualityState,handoff:current?.handoff?.state,limitations:lower?.limitations};break;
     default:title='Data Trust｜資料品質';copy='STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。';value=c?{freshness:c.chart.freshness,contextScope:c.context.scope,origin:c.context.origin,cutoff:c.chart.cutoff,summary:c.chart.summary,priceReason:c.chart.priceReason,priceExclusions:c.chart.priceTimeLineageViolationCount,segments:c.chart.segments.map(({points,...s})=>s),generation:c.chart.generationHash}:null;
   }text('drawer-title',title);text('drawer-copy',copy);text('drawer-json',value?JSON.stringify(value,null,2):'UNAVAILABLE');$('drawer').showModal();
 }
@@ -164,4 +158,4 @@ $('detail-open').addEventListener('click',()=>details('quality'));$('drawer-clos
 $('copy').addEventListener('click',async()=>{if(!current){text('copy-status','資料不可用，未複製');return;}try{await navigator.clipboard.writeText(JSON.stringify({head:current.head,kind:current.kind,context:current.context,selectedWindow:current.relationship.current,...{formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}},null,2));text('copy-status','已複製隔離快照 · 僅供人工討論');}catch{text('copy-status','剪貼簿不可用；請從資料明細選取文字');}});
 $('login').addEventListener('submit',async e=>{e.preventDefault();try{await authenticate($('access').value);$('access').value='';await bootstrap();}catch(e){fail(e.message);}});
 async function bootstrap(){try{lower=await api('/api/lower');}catch{lower=null;}await load();}
-const token=location.hash.slice(1);history.replaceState(null,'',location.pathname);try{if(token)await authenticate(token);await bootstrap();}catch(e){fail(e.message);$('login').hidden=false;}
+const token=location.hash.slice(1);history.replaceState(null,'',location.pathname+location.search);try{if(token)await authenticate(token);await bootstrap();}catch(e){fail(e.message);$('login').hidden=false;}
