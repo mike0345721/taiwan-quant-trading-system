@@ -67,6 +67,7 @@ function draw(data) {
   vwap.setData((data.vwap||[]).filter(p=>Number.isFinite(p.value)).map(p=>({time:typeof p.time==='number'?p.time:Date.parse(p.time)/1000,value:p.value})));
   if(created)chart.timeScale().fitContent();
   $('chart-empty').hidden=bars.length>0;
+  text('chart-empty',bars.length?'':(data.reason||'UNAVAILABLE · 此盤別沒有可用行情'));
   document.body.dataset.priceBars=String(bars.length);
   text('volume-subset',bars.length?fmt(bars.reduce((s,b)=>s+b.volume,0)):'不可用');
   text('vwap','VWAP '+fmt(data.vwap?.at(-1)?.value));
