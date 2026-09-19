@@ -24,6 +24,7 @@ import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
+import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
 import {
@@ -73,6 +74,7 @@ const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration
 const cache = cru55 ? { init: async () => {}, loadLatest: async () => structuredClone(cru55.seed), listHistory: async (limit = 30) => structuredClone(cru55.history.slice(0, limit)) } : new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
 await cache.init();
 let latestSnapshot = await cache.loadLatest();
+const formalEntry = cru55 ? null : prepareFormalEntry(config, () => latestSnapshot);
 const marketData = new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
 const expectedDataMode = config.mockData ? 'mock' : 'live';
 const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
@@ -287,6 +289,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (cru55 && !cru55.guard(req, res)) return;
     if (cru55 && await cru55.handle(req, res, url, () => requireSession(req, res))) return;
+    if (formalEntry && await formalEntry(req, res, url, () => requireSession(req, res))) return;
     if (req.method === 'GET' && pathname === '/healthz') {
       const readiness = currentCru46RuntimeReadiness();
       sendJson(res, 200, {
