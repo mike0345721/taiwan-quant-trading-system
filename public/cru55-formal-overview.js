@@ -1,14 +1,16 @@
 import { renderContextCards } from '/context-cards.mjs';
 import { FRAMES, fmt } from '/presentation.mjs';
+import { chartTrust, taipeiChartTime, sameChartSelection } from '/formal-presentation.mjs';
 const $ = id => document.getElementById(id);
 const text = (id, value) => { $(id).textContent = value; };
 const stamp = value => value ? new Date(value).toLocaleString('zh-TW', {timeZone:'Asia/Taipei',hour12:false}) : '未知';
 let chart, candles, volumes, vwap, evidence = null, requestId = 0, frame = '1m', palette = 'red-up';
 let timer, pending = false, resizeObserver;
+let lastSelection=null, chartIdentity=null;
 const unavailable = 'UNAVAILABLE · 正式動態 CVD 產出鏈尚未接通';
 function clear(message) {
   resizeObserver?.disconnect(); resizeObserver=null;
-  chart?.remove(); chart = candles = volumes = vwap = null; evidence = null;
+  chart?.remove(); chart = candles = volumes = vwap = null; evidence = null;chartIdentity=null;
   document.body.dataset.priceBars = '0';
   document.body.dataset.endpoint = 'null';
   for (const id of ['contract','chart-contract','chart-price','context-price','path-value']) text(id,'不可用');
@@ -38,15 +40,16 @@ function colors() {
 }
 function draw(data) {
   const L=window.LightweightCharts,p=colors();
+  const identity=[data.actualContract,data.tradeDate,data.session,frame].join('|');
+  if(chart&&!sameChartSelection(chartIdentity,identity)){resizeObserver?.disconnect();chart.remove();chart=null;}
+  const created=!chart;
+  if(created){
+  chartIdentity=identity;
   chart=L.createChart($('chart'),{autoSize:true,layout:{background:{color:'#091724'},textColor:'#B8CBDC',fontSize:11},
-    timeScale:{timeVisible:true},rightPriceScale:{minimumWidth:75}});
+    timeScale:{timeVisible:true,tickMarkFormatter:t=>taipeiChartTime(t)},localization:{timeFormatter:t=>stamp(t*1000)},rightPriceScale:{minimumWidth:75}});
   candles=chart.addSeries(L.CandlestickSeries,{upColor:p.up,downColor:p.down,wickUpColor:p.up,wickDownColor:p.down,borderVisible:false},0);
-  const bars=(data.bars||[]).map(b=>({...b,time:typeof b.time==='number'?b.time:Date.parse(b.time)/1000}));
-  candles.setData(bars.map(({time,open,high,low,close})=>({time,open,high,low,close})));
   volumes=chart.addSeries(L.HistogramSeries,{priceFormat:{type:'volume'},priceLineVisible:false},1);
-  volumes.setData(bars.map(b=>({time:b.time,value:b.volume,color:b.close>=b.open?p.upVolume:p.downVolume})));
   vwap=chart.addSeries(L.LineSeries,{color:'#E8C76A',lineWidth:1,priceLineVisible:false},0);
-  vwap.setData((data.vwap||[]).filter(p=>Number.isFinite(p.value)).map(p=>({time:typeof p.time==='number'?p.time:Date.parse(p.time)/1000,value:p.value})));
   // Empty evidence panes preserve the accepted layout without importing a historical CVD bundle.
   chart.addSeries(L.LineSeries,{color:'#46C7F4'},2);
   chart.addSeries(L.HistogramSeries,{},3);
@@ -56,7 +59,13 @@ function draw(data) {
     document.querySelector('.cvd-label').style.top=(height*.67+3)+'px';
     document.querySelector('.delta-label').style.top=(height*.90+4)+'px';};
   resize();resizeObserver=new ResizeObserver(resize);resizeObserver.observe($('chart'));
-  chart.timeScale().fitContent();
+  }
+  candles.applyOptions({upColor:p.up,downColor:p.down,wickUpColor:p.up,wickDownColor:p.down});
+  const bars=(data.bars||[]).map(b=>({...b,time:typeof b.time==='number'?b.time:Date.parse(b.time)/1000}));
+  candles.setData(bars.map(({time,open,high,low,close})=>({time,open,high,low,close})));
+  volumes.setData(bars.map(b=>({time:b.time,value:b.volume,color:b.close>=b.open?p.upVolume:p.downVolume})));
+  vwap.setData((data.vwap||[]).filter(p=>Number.isFinite(p.value)).map(p=>({time:typeof p.time==='number'?p.time:Date.parse(p.time)/1000,value:p.value})));
+  if(created)chart.timeScale().fitContent();
   $('chart-empty').hidden=bars.length>0;
   document.body.dataset.priceBars=String(bars.length);
   text('volume-subset',bars.length?fmt(bars.reduce((s,b)=>s+b.volume,0)):'不可用');
@@ -64,8 +73,10 @@ function draw(data) {
 }
 async function load() {
   const serial=++requestId;
-  clear('正在讀取正式行情 API…');
-  renderContextCards($('lower-cards'),null,{available:false});
+  const selection=[$('product-select').value,$('view').value,frame].join('|');
+  if(!sameChartSelection(lastSelection,selection)){
+    clear('正在讀取正式行情 API…');renderContextCards($('lower-cards'),null,{available:false});lastSelection=selection;
+  }
   if($('product-select').value!=='TX') { pending=false;text('source-notice','UNAVAILABLE · 既有行情 API 僅提供 TX'); return; }
   pending=true;
   try {
@@ -84,15 +95,16 @@ async function load() {
     text('chart-price',fmt(data.lastPrice)); text('context-price',fmt(data.lastPrice));
     text('chart-identity',[data.actualContract,data.tradeDate,data.session].map(v=>v||'UNKNOWN').join(' / '));
     // READY is API eligibility, never a claim of live reception or complete session.
-    text('trust',data.status||'UNAVAILABLE');
-    text('source-notice',(data.reason||'既有 TX 行情 API')+' · CVD / Relationship / Handoff 尚未接通');
+    const trust=chartTrust(data);
+    text('trust',trust.state);
+    text('source-notice',(trust.reasons.join(' / ')||'既有 TX 行情 API')+' · CVD / Relationship / Handoff 尚未接通');
     text('freshness','最後行情 '+stamp(data.availableAt)+' · 畫面讀取 '+stamp(evidence.receivedAt));
-    text('selected-truth',frame+' · CVD 力價關係不可用；原有力道工作區保留');
+    text('selected-truth',frame+' · API '+trust.eligibility+' · CVD 力價關係不可用；原有力道工作區保留');
     text('version','正式入口 · HEAD '+(health.runtimeCommit||'UNKNOWN').slice(0,12));
     $('month-select').replaceChildren(new Option(data.contractMonth||'目前 API 契約',data.contractMonth||'current'));
     renderContextCards($('lower-cards'),background,{available:Boolean(background)});
     text('lower-date',background?'HISTORICAL · '+(background.asOfDate||'日期未知')+' · 獨立日期背景':'UNAVAILABLE');
-  } catch(error) { if(serial===requestId) clear(error.message); }
+  } catch(error) { if(serial===requestId){clear(error.message);renderContextCards($('lower-cards'),null,{available:false});} }
   finally { if(serial===requestId) pending=false; }
 }
 $('month-select').disabled=true; $('month-select').title='沿用既有行情 API 解析的實際契約；不固定歷史月份';

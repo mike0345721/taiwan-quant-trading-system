@@ -5,7 +5,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareFormalEntry } from '../src/cru55-formal-entry.mjs';
+import { chartTrust,taipeiChartTime,sameChartSelection } from '../public/cru55-formal-presentation.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+test('chart eligibility never overrides known degraded quality; Taipei display preserves epoch',()=>{
+  assert.deepEqual(chartTrust({status:'READY',qualityStatus:'QUALITY_INSUFFICIENT',qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']}),
+    {state:'QUALITY_INSUFFICIENT',eligibility:'READY',reasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']});
+  assert.equal(chartTrust({status:'READY'}).state,'UNAVAILABLE');
+  assert.equal(taipeiChartTime(Date.parse('2026-09-18T00:45:00Z')/1000),'08:45:00');
+  assert.equal(sameChartSelection('TX|DAY|1m','TX|DAY|1m'),true);
+  assert.equal(sameChartSelection('TX|DAY|1m','TX|NIGHT|1m'),false);
+});
 test('formal route uses current named aggregates, gates data and preserves the original workspace', async()=>{
   let snapshot={dataMode:'live',asOfDate:'2026-09-18',marketBreadth:{ok:false},secret:'not public'};
   const handle=prepareFormalEntry({publicDir:path.join(root,'public')},()=>snapshot);

@@ -8,6 +8,7 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
     '/formal-overview.js': 'cru55-formal-overview.js',
+    '/formal-presentation.mjs': 'cru55-formal-presentation.mjs',
     '/presentation.mjs': 'cru55-presentation.mjs', '/context-cards.mjs': 'cru55-context-cards.mjs',
     '/terminal.js': 'trader-terminal-shell.js', '/cru55-provisional-logo-v01.jpg': 'cru55-provisional-logo-v01.jpg',
     '/workspace': 'index.html', '/workspace.js': 'cru55-workspace.js', '/workspace.css': 'cru55-workspace.css',
