@@ -1,0 +1,37 @@
+(() => {
+ const params=new URLSearchParams(location.search);
+ const spaces={spot:{label:'台股現貨',items:[['market','市場總覽','market-cards'],['market','現貨法人','spot-trend-panel'],['market','市場廣度','breadth-trend-panel'],['market','融資融券','margin-trend-panel'],['workspace','權值與衝突證據','dw-title']]},futures:{label:'台指期貨',items:[['market','法人與期貨背景','futures-trend-panel'],['workspace','盤中價格 / VWAP / Flow','dw-title'],['intraday','歷史逐根回放','replay-chart'],['research','基差與近遠月','v2-term-summary']]},options:{label:'選擇權',items:[['options','契約與 OI 結構','options-trend-panel'],['options','Dealer Map','dealer-map-panel'],['options','異常雷達','smart-radar-title'],['options','履約價 OI 變化','v2-option-summary']]},global:{label:'海外市場',items:[['research','海外背景 / EOD','v2-global-latest'],['research','歷史研究結果','v2-global-research']]},research:{label:'研究回測',items:[['today','今日研究',null],['research','研究回測',null],['intraday','逐根回放','replay-chart'],['workspace','快照 / 人工日誌','dw-title']]}};
+ const key=Object.hasOwn(spaces,params.get('space'))?params.get('space'):'spot',space=spaces[key];document.body.dataset.workspace=key;
+ const create=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt)n.textContent=txt;if(cls)n.className=cls;return n;};
+ const bar=document.querySelector('#dashboard-view>.topbar'),nav=create('nav',null,'workspace-top-nav');nav.setAttribute('aria-label','主要工作區');
+ [['overview','總覽'],...Object.entries(spaces).map(([k,v])=>[k,v.label])].forEach(([k,label])=>{const a=create('a',label);a.href=k==='overview'?'/':`/workspace?space=${k}`;if(k===key){a.className='active';a.setAttribute('aria-current','page');}nav.append(a);});bar.querySelector('.global-app-identity').after(nav);
+ document.title=`${space.label}｜CRU-55 隔離候選`;
+ const badge=create('p','CRU-55 · ISOLATED INTEGRATION｜背景各有資料日；未啟用資料擷取與 GPT 回答。','candidate-notice');bar.after(badge);
+ const quality=create('button','資料品質','secondary');quality.type='button';quality.addEventListener('click',()=>choose(['quality','資料品質',null]));bar.querySelector('.top-actions').prepend(quality);
+ const side=document.getElementById('side-nav');side.setAttribute('aria-label',`${space.label} 功能`);side.querySelectorAll('[data-dashboard-page]').forEach(n=>n.hidden=true);const title=create('strong',space.label,'workspace-side-title');side.querySelector('#side-nav-toggle').after(title);
+ function choose(item,update=true){const [page,label,target]=item;document.querySelectorAll('.candidate-section-hidden').forEach(n=>n.classList.remove('candidate-section-hidden'));setDashboardPage(page,{scroll:false});
+  if(page==='market'&&(key==='spot'||key==='futures'))for(const section of document.querySelectorAll('#dashboard-page-market > section')){const isFutures=!!section.querySelector('#futures-trend-panel');if(isFutures!==(key==='futures'))section.classList.add('candidate-section-hidden');}
+  // Keep the original DOM/listeners. Global is a focused view of the existing research section.
+  if(key==='global'&&page==='research'){document.querySelector('#dashboard-page-research h2').textContent='海外市場背景';const group=document.getElementById('dashboard-page-research');for(const child of group?.children||[]){if(!child.querySelector('#v2-global-latest'))child.classList.add('candidate-section-hidden');}
+   const root=document.getElementById('v2-global-latest')?.closest('.v2-research');if(root)for(const child of root.children){if(!child.querySelector('#v2-global-latest')&&!child.querySelector('#v2-range-controls')&&!child.classList.contains('section-heading'))child.classList.add('candidate-section-hidden');}}
+  side.querySelectorAll('[data-context-label]').forEach(n=>{n.classList.toggle('is-selected',n.dataset.contextLabel===label);n.setAttribute('aria-pressed',String(n.dataset.contextLabel===label));});
+  if(update){const q=new URLSearchParams({space:key,section:label});history.replaceState(null,'','/workspace?'+q);}
+  if(target&&target!=='dw-title')requestAnimationFrame(()=>document.getElementById(target)?.scrollIntoView({block:'start'}));else window.scrollTo(0,0);
+ }
+ for(const [i,item] of space.items.entries()){const b=create('button',null,'side-nav-button');b.type='button';b.title=item[1];b.dataset.contextLabel=item[1];b.append(create('span',String(i+1).padStart(2,'0'),'side-nav-index'),create('b',item[1]));b.addEventListener('click',()=>choose(item));side.append(b);}
+ const q=create('button',null,'side-nav-button');q.title='資料品質';q.append(create('span','ⓘ','side-nav-index'),create('b','資料品質'));q.addEventListener('click',()=>choose(['quality','資料品質',null]));side.append(q);
+ const initial=params.get('section')==='breadth'?space.items.find(x=>x[1]==='市場廣度'):space.items.find(x=>x[1]===params.get('section'));choose(initial||space.items[0],false);
+ new MutationObserver(()=>{if(!document.getElementById('dashboard-view').classList.contains('hidden'))setDashboardPage(document.querySelector('[data-page].is-active-page')?.dataset.page||space.items[0][0],{scroll:false});}).observe(document.getElementById('dashboard-view'),{attributes:true,attributeFilter:['class']});
+ // Existing write actions stay visible with an explicit disabled reason in this read-only candidate.
+ const updater=document.getElementById('daily-update-button');updater.disabled=true;updater.textContent='資料擷取未啟用';updater.title='隔離候選不啟動 collector / daily update';
+ new MutationObserver(()=>{if(!updater.disabled)updater.disabled=true;}).observe(updater,{attributes:true,attributeFilter:['disabled']});
+ const journal=document.getElementById('dw-journal-submit');journal.title='只保存至本候選私人日誌；不寫入正式帳本';
+ const refresh=document.getElementById('refresh-button');refresh.textContent='重新讀取畫面';refresh.addEventListener('click',async e=>{e.stopImmediatePropagation();refresh.disabled=true;try{await loadDashboard();setDashboardPage(document.querySelector('[data-page].is-active-page')?.dataset.page||space.items[0][0],{scroll:false});}catch(error){reportDashboardLoadError(error,'CANDIDATE_REFRESH');}finally{refresh.disabled=false;}},true);
+
+ // Bring legacy metadata up to the approved floor without reducing primary-value sizes.
+ let fontFrame=null;const enforceFloor=()=>{fontFrame=null;
+  // LIVE is a chart query mode, not proof of fresh market data. Keep freshness in its status field.
+  const chartMode=document.getElementById('dw-chart-mode');if(chartMode?.textContent.startsWith('LIVE ·'))chartMode.textContent=chartMode.textContent.replace(/^LIVE /,'行情檢視 ');
+  if(document.getElementById('v2-backtest-note')?.textContent.includes('V2_BACKTEST_NOT_READY')){for(const id of ['v2-global-research','v2-chip-incremental-conclusion','v2-delay-conclusion','v2-institutional-conclusion','v2-wall-research']){const n=document.getElementById(id);if(n&&/讀取中/.test(n.textContent))n.textContent='UNAVAILABLE｜正式回測報告尚未就緒（V2_BACKTEST_NOT_READY）';}}for(const n of document.querySelectorAll('#dashboard-view *')){if([...n.childNodes].some(c=>c.nodeType===3&&c.textContent.trim())&&Number.parseFloat(getComputedStyle(n).fontSize)<11)n.classList.add('candidate-font-floor');}};
+ new MutationObserver(()=>{if(fontFrame===null)fontFrame=requestAnimationFrame(enforceFloor);}).observe(document.getElementById('dashboard-view'),{childList:true,subtree:true,characterData:true});enforceFloor();window.addEventListener('resize',enforceFloor);
+})();

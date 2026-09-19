@@ -1,0 +1,30 @@
+{
+  "safety": {
+    "orderRoutesEnabled": false,
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false
+  },
+  "allowlist": [
+    "src/cvd-handoff-projection.mjs",
+    "src/cvd-handoff-artifact.mjs",
+    "src/cvd-candidate-server.mjs",
+    "scripts/prepare-cvd-handoff.mjs",
+    "scripts/start-cvd-handoff.mjs",
+    "scripts/audit-cru54-phase-d.mjs",
+    "public/cru54-relationship.html",
+    "public/cru54-relationship.js",
+    "public/cru54-relationship.css",
+    "tests/cvd-handoff-fixture.mjs",
+    "tests/cvd-handoff-projection.test.mjs",
+    "tests/cvd-handoff-artifact.test.mjs",
+    "tests/cvd-handoff-api.test.mjs",
+    "docs/research/CRU54_PHASE_D_CONTRACT.md",
+    "docs/research/CRU54_PHASE_D_SCOPE.json"
+  ],
+  "phaseCBase": "73ae59772d14a7fb5553a8a43702be302044da9c",
+  "candidatePort": 3054,
+  "approvedMain": "d3702315b46a1a6c23384338ae40904b8bc589c2",
+  "branch": "codex/cru-54-cvd-current-main-v1",
+  "schemaVersion": "cru54-phase-d-scope-v1"
+}

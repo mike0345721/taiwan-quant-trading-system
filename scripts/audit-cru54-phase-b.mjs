@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { REPO } from '../src/cvd-observation-isolation.mjs';
+const git = args => execFileSync('git', args, { cwd: REPO, encoding: 'utf8', timeout: 10_000, windowsHide: true }).trim();
+const scope = JSON.parse(fs.readFileSync(path.join(REPO, 'docs/research/CRU54_PHASE_B_SCOPE.json')));
+assert.equal(git(['branch', '--show-current']), scope.branch);
+assert.equal(git(['merge-base', scope.phaseABase, 'HEAD']), scope.phaseABase);
+const changed = [...new Set([...git(['diff', '--name-only', scope.phaseABase]).split('\n'), ...git(['ls-files', '--others', '--exclude-standard']).split('\n')].filter(Boolean))].sort();
+assert.ok(changed.every(file => scope.allowlist.includes(file)), 'PHASE_B_OUTSIDE_ALLOWLIST');
+for (const file of scope.allowlist) assert.ok(fs.existsSync(path.join(REPO, file)), 'ALLOWLIST_FILE_MISSING:' + file);
+const prior = JSON.parse(fs.readFileSync(path.join(REPO, 'docs/research/CRU54_PHASE_A_SCOPE.json')));
+for (const file of [...prior.allowlist, ...prior.mustPreserve]) assert.equal(git(['diff', scope.phaseABase, '--', file]), '', 'ACCEPTED_SOURCE_CHANGED:' + file);
+assert.equal(git(['diff', '--check']), '');
+assert.ok(git(['check-ignore', 'data/cru54-private/chart/probe.json']));
+console.log(JSON.stringify({ state: 'CRU54_PHASE_B_SCOPE_PASS', head: git(['rev-parse','HEAD']), phaseABase: scope.phaseABase, changed, safety: scope.safety }));
