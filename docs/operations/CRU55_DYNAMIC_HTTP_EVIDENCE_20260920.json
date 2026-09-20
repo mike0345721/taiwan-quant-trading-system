@@ -1,0 +1,246 @@
+{
+  "state": "PASS",
+  "checks": "401 unauthenticated; 12 authenticated artifact/API parity pairs; invalid query 400; no-store; no private paths/checkpoints",
+  "results": [
+    {
+      "view": "day",
+      "timeframe": "1m",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "day",
+      "timeframe": "5m",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "day",
+      "timeframe": "15m",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "day",
+      "timeframe": "30m",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "day",
+      "timeframe": "1h",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "day",
+      "timeframe": "4h",
+      "artifactHash": "834b3281b03f2d0591e543e315ce01d3b3af56c2644be6532123701455c369d6",
+      "cutoff": {
+        "ledgerOrdinal": 3800,
+        "prefixSha256": "2d523c452c16c73e44c5ffdec05b6c63ad03f22d74d77fbdaf2a5d1b0a0a460a",
+        "recordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+        "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865"
+      },
+      "cvd": 400,
+      "delta": 400,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSIONS_NOT_GOVERNED_ADJACENT"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "1m",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "5m",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "15m",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "30m",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "1h",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    },
+    {
+      "view": "night",
+      "timeframe": "4h",
+      "artifactHash": "72827a8ca53755f2723d79cef08df7c1d9f21e5ef444307cc8f34ad37f974d43",
+      "cutoff": {
+        "ledgerOrdinal": 1800,
+        "prefixSha256": "e05fb5cc6f3feaab27fd3c48a96e821cda5e9228ed82dd2d82e007ebfddc5d06",
+        "recordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+        "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365"
+      },
+      "cvd": -14,
+      "delta": -14,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "windowState": "PARTIAL",
+      "handoff": {
+        "code": "UNAVAILABLE",
+        "reason": "SESSION_SIDE_MISSING"
+      },
+      "rawReadsPerRequest": 0
+    }
+  ]
+}

@@ -30,6 +30,11 @@ test('formal route uses current named aggregates, gates data and preserves the o
   try{
     assert.equal((await fetch(base+'/api/lower')).status,401);
     const options={headers:{authorization:'test-session'}};
+    assert.equal((await fetch(base+'/api/v1/cvd-overview')).status,401);
+    assert.equal((await fetch(base+'/api/v1/cvd-overview',{...options,method:'POST'})).status,405);
+    assert.equal((await fetch(base+'/api/v1/cvd-overview?rawPath=secret',options)).status,400);
+    assert.equal((await fetch(base+'/api/v1/cvd-overview?view=day&view=night',options)).status,400);
+    assert.equal((await fetch(base+'/api/v1/cvd-overview',options)).status,503);
     let response=await fetch(base+'/api/lower',options);
     assert.equal(response.headers.get('cache-control'),'no-store');
     let lower=await response.json();

@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { sendJson } from './http-utils.mjs';
+import { createDynamicReader } from './cru55-dynamic-reader.mjs';
 
 // A separate production mount. The frozen isolated adapter and its guards stay intact.
 export function prepareFormalEntry({ publicDir }, readSnapshot) {
+  const dynamic = createDynamicReader(process.env.CRU55_DYNAMIC_ROOT);
   const files = {
     '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
@@ -14,6 +16,16 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     '/workspace': 'index.html', '/workspace.js': 'cru55-workspace.js', '/workspace.css': 'cru55-workspace.css',
   };
   return async (req, res, url, requireSession) => {
+    if(url.pathname==='/api/v1/cvd-overview'){
+      if(!requireSession())return true;
+      if(req.method!=='GET'){sendJson(res,405,{reason:'READ_ONLY'});return true;}
+      if([...url.searchParams.keys()].some(k=>!['view','timeframe'].includes(k))||['view','timeframe'].some(k=>url.searchParams.getAll(k).length>1)){
+        sendJson(res,400,{reason:'CRU55_QUERY_INVALID'});return true;
+      }
+      try{sendJson(res,200,{...dynamic(Object.fromEntries(url.searchParams)),head:process.env.DASHBOARD_RUNTIME_COMMIT||'CANDIDATE'}, {'Cache-Control':'no-store'});}
+      catch(error){sendJson(res,error.message==='CRU55_QUERY_INVALID'?400:503,{reason:error.code==='ENOENT'?'CRU55_PROJECTION_NOT_AVAILABLE':/^[A-Z0-9_]+$/.test(error.message)?error.message:'CRU55_PROJECTION_READ_FAILED'},{'Cache-Control':'no-store'});}
+      return true;
+    }
     if (req.method !== 'GET') return false;
     if (url.pathname === '/api/lower') {
       if (!requireSession()) return true;
