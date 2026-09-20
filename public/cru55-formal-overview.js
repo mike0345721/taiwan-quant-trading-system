@@ -10,6 +10,7 @@ function numericClass(el,value){el.classList.remove('positive-text','negative-te
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=markerApi=null;markerData=[];document.body.dataset.markerCount='0';}
 function fail(message){
+  $('month-select').replaceChildren(new Option('來源契約不可用','current'));
   if($('drawer').open)$('drawer').close();text('drawer-json','UNAVAILABLE');for(const key of ['artifact','delta','head'])delete document.body.dataset[key];
   for(const id of ['context-price','context-price-delta','chart-price','chart-price-change'])$(id).className='price-neutral';
   $('chart-empty').hidden=true;text('chart-empty','');
