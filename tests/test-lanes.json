@@ -9,6 +9,7 @@
     "windows": {
       "description": "Tests that encode Windows, PowerShell, or governed D-drive runtime semantics and must be verified on the Owner's Windows environment.",
       "files": [
+        "cru55-dynamic-local.test.mjs",
         "daily-use-bootstrap.test.mjs",
         "cru49-windows-status-lock.test.mjs",
         "market-state-forward-shadow-governance.test.mjs",
