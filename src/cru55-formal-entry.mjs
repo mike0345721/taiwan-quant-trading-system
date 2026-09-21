@@ -2,10 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { sendJson } from './http-utils.mjs';
 import { createDynamicReader } from './cru55-dynamic-reader.mjs';
+import { readRuntimeBinding } from './cru55-runtime-binding.mjs';
 
 // A separate production mount. The frozen isolated adapter and its guards stay intact.
 export function prepareFormalEntry({ publicDir }, readSnapshot) {
-  const dynamic = createDynamicReader(process.env.CRU55_DYNAMIC_ROOT);
+  const binding=process.env.CRU55_RUNTIME_BINDING?readRuntimeBinding(process.env.CRU55_RUNTIME_BINDING,{runtimeRoot:path.dirname(publicDir),activation:true}):null;
+  if(binding&&process.env.CRU55_DYNAMIC_ROOT&&path.resolve(process.env.CRU55_DYNAMIC_ROOT)!==binding.readerRoot)throw Error('CRU55_BINDING_READER_ENV_MISMATCH');
+  const dynamic = createDynamicReader(binding?.readerRoot??process.env.CRU55_DYNAMIC_ROOT);
   const files = {
     '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
@@ -15,7 +18,7 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     '/terminal.js': 'trader-terminal-shell.js', '/cru55-provisional-logo-v01.jpg': 'cru55-provisional-logo-v01.jpg',
     '/workspace': 'index.html', '/workspace.js': 'cru55-workspace.js', '/workspace.css': 'cru55-workspace.css',
   };
-  return async (req, res, url, requireSession) => {
+  const handle = async (req, res, url, requireSession) => {
     if(url.pathname==='/api/v1/cvd-overview'){
       if(!requireSession())return true;
       if(req.method!=='GET'){sendJson(res,405,{reason:'READ_ONLY'});return true;}
@@ -62,4 +65,11 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     res.end(body);
     return true;
   };
+  // Startup identity only, not producer freshness or LIVE acceptance. Hashes
+  // attest the configured paths without exposing local locations over HTTP.
+  return Object.assign(handle,{runtimeBinding:Object.freeze({
+    state:binding?'BOUND':process.env.CRU55_DYNAMIC_ROOT?'CANDIDATE_UNBOUND':'UNCONFIGURED',
+    bindingHash:binding?.bindingHash??null, runtimeCommit:binding?.runtimeCommit??null,
+    fullDayReady:false,
+  })});
 }

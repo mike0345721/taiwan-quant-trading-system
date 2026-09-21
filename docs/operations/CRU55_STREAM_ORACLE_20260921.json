@@ -1,0 +1,79 @@
+{
+  "state": "PASS",
+  "results": [
+    {
+      "run": "day",
+      "sourceLedgerIdentity": "sha256:c1b2b1dd6dc5a614ae0d6506fd569f94fbfe243216dbeec492935ff27c5a1865",
+      "generationHash": "9a6ac456bae0fe6bae1a723c0b7ea71cb050c553c6c3f5217e5ad5667704608c",
+      "cutoffLedgerOrdinal": 3800,
+      "cutoffRecordHash": "9f8111076e5168292e191260625f7d90cc06fe84bc610dbd62bd3e25b1e478e3",
+      "cvd": 400,
+      "pointCount": 205,
+      "segmentCount": 1,
+      "maxCheckpointBytes": 2233,
+      "sixWindowOracleParity": [
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "4h"
+      ],
+      "sessionParity": true,
+      "handoffNullPriorParity": true,
+      "oracleKind": "ACCEPTED_BOUNDED_REAL_HISTORY",
+      "restartBoundary": "JSON_EVERY_RECORD",
+      "fullDayProjectionReady": false,
+      "archiveEvidence": {
+        "processedRecords": 0,
+        "headPageHash": "3b5f1dc16f5a6c63eb080d5370fc9a852ed363917560f3f59c07d490b40953f3",
+        "checkpointHash": "356611ceb6ad8c1f8134d5b66bfaf0de47781bc7c79133fe7ee08d69aca5e3fb",
+        "audit": {
+          "state": "COMPLETE",
+          "headPageHash": "3b5f1dc16f5a6c63eb080d5370fc9a852ed363917560f3f59c07d490b40953f3",
+          "checkedPages": 30,
+          "checkedRecords": 3800,
+          "verification": "ARCHIVE_CHAIN_AT_AUDIT",
+          "originalRawPrefixVerified": false
+        }
+      }
+    },
+    {
+      "run": "night",
+      "sourceLedgerIdentity": "sha256:36143d4d5214c2fc939911749c62a349c09299a199b1b922213425f5e7c30365",
+      "generationHash": "bf01e667baaf1c265f93fa7176e3f681d402cd8f20100e751d76c2397f34eccb",
+      "cutoffLedgerOrdinal": 1800,
+      "cutoffRecordHash": "ef090c555f7d51126d18341d760ed555fdc0803b7613468a861c7283c3495d40",
+      "cvd": -14,
+      "pointCount": 45,
+      "segmentCount": 1,
+      "maxCheckpointBytes": 2168,
+      "sixWindowOracleParity": [
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "4h"
+      ],
+      "sessionParity": true,
+      "handoffNullPriorParity": true,
+      "oracleKind": "ACCEPTED_BOUNDED_REAL_HISTORY",
+      "restartBoundary": "JSON_EVERY_RECORD",
+      "fullDayProjectionReady": false,
+      "archiveEvidence": {
+        "processedRecords": 0,
+        "headPageHash": "c7f62d395c8e8496dc98bc6e4f878d79920d5a035664ede97de5d183acfda9f7",
+        "checkpointHash": "844be95268231e7d464b25009aafeef23215656a9e877ca88296b12e8bdff14c",
+        "audit": {
+          "state": "COMPLETE",
+          "headPageHash": "c7f62d395c8e8496dc98bc6e4f878d79920d5a035664ede97de5d183acfda9f7",
+          "checkedPages": 15,
+          "checkedRecords": 1800,
+          "verification": "ARCHIVE_CHAIN_AT_AUDIT",
+          "originalRawPrefixVerified": false
+        }
+      }
+    }
+  ]
+}

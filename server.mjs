@@ -301,6 +301,7 @@ const server = http.createServer(async (req, res) => {
         runtimeStartedAt: runtimeVersion.runtimeStartedAt,
         syncState: runtimeVersion.syncState,
         versionTruth: runtimeVersion,
+        cru55Binding: formalEntry?.runtimeBinding ?? {state:'UNCONFIGURED',bindingHash:null,fullDayReady:false},
         identityReady: readiness.identityReady,
         runtimePreflightReady: readiness.runtimePreflightReady,
         runtimeReady: readiness.runtimeReady,

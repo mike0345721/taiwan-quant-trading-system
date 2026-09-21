@@ -4,6 +4,8 @@ const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(
 const shortTime=t=>t==null?'未知':new Date(t).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const text=(id,s)=>{$(id).textContent=s;},node=(tag,s,cls)=>{const el=document.createElement(tag);if(s!=null)el.textContent=s;if(cls)el.className=cls;return el;};
 let current=null,lower=null,chart=null,candle=null,volume=null,serial=0,frame='1m',view='day',selectedProduct='TX',selectedMonth='current',palette='red-up',chartObserver=null,markerApi=null,markerData=[];
+const LOWER_TTL_MS=60000;
+let lowerPending=null,lowerAttemptAt=-Infinity,lowerLoading=false,lowerError=null,lowerSerial=0,authEpoch=0;
 const selectionAvailable=()=>selectedProduct==='TX';
 const handoffLabels={CONFIRMED_CONTINUATION:'延續獲確認',CONFIRMED_BUT_WEAKENING:'延續但轉弱',PRIOR_SESSION_REJECTED:'前勢遭拒絕',OPPOSITE_TAKEOVER:'反向已接手',UNCONFIRMED_OR_CONFLICT:'尚未獲確認',UNAVAILABLE:'暫無法判讀'};
 function numericClass(el,value){el.classList.remove('positive-text','negative-text');if(value>0)el.classList.add('positive-text');else if(value<0)el.classList.add('negative-text');}
@@ -21,8 +23,8 @@ function fail(message){
   for(const id of ['context-scope','context-quality','coverage','unknown','origin','timeline-status','cvd-sign','volume-subset','freshness'])text(id,'');
   $('source-light').className='light neutral';$('handoff-strip').dataset.unavailable='true';text('handoff-reason','來源未驗證');$('handoff-reason').title='UNAVAILABLE';$('handoff-reason').hidden=false;$('path-value').title='不可用';text('trust','UNAVAILABLE');text('context-quality','UNAVAILABLE');text('source-notice',message);text('selected-truth','窗口未驗證');text('endpoint','端點未驗證');text('handoff-state','UNAVAILABLE');$('path-fill').style.width='0%';$('coverage-fill').style.width='0%';$('context-light').className='light neutral';text('context-explanation',relationshipExplanation('UNAVAILABLE'));text('context-summary','本盤證據不可用，暫無法彙整。');renderScan({});
 }
-async function api(route){const r=await fetch(route,{signal:AbortSignal.timeout(10000)});if(r.status===401){$('login').hidden=false;throw Error('請使用既有 Dashboard 密碼登入。');}if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(`資料無法載入（${r.status}） · ${e.reason||'讀取失敗'}`)};return r.json();}
-async function authenticate(token){const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:token})});if(!r.ok)throw Error('存取碼無效或已過期');$('login').hidden=true;}
+async function api(route){const epoch=authEpoch,r=await fetch(route,{signal:AbortSignal.timeout(10000)});if(r.status===401){if(epoch===authEpoch)$('login').hidden=false;throw Error('請使用既有 Dashboard 密碼登入。');}if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(`資料無法載入（${r.status}） · ${e.reason||'讀取失敗'}`)};return r.json();}
+async function authenticate(token){const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:token})});if(!r.ok)throw Error('存取碼無效或已過期');authEpoch++;lowerSerial++;lowerPending=null;lowerAttemptAt=-Infinity;$('login').hidden=true;}
 
 function pressureBar(ratio,state) {
   const {cells,direction}=pressureCells(ratio,state),bar=node('span',null,'pressure-segments');
@@ -117,7 +119,31 @@ function render(data){
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);
   renderLower();
 }
-function renderLower(){renderContextCards($('lower-cards'),view==='demo'||!selectionAvailable()?null:lower,{demo:view==='demo',available:selectionAvailable()});text('lower-date',view==='demo'?'SYNTHETIC / UI DEMO · 不混入真實背景':!selectionAvailable()?'UNAVAILABLE · 所選商品／月份無資料':lower?`HISTORICAL · ${lower.asOfDate} 獨立日期背景`:'UNAVAILABLE · 背景來源未載入');}
+function renderLower(){
+  renderContextCards($('lower-cards'),view==='demo'||!selectionAvailable()?null:lower,{demo:view==='demo',available:selectionAvailable()});
+  $('lower-cards').setAttribute('aria-busy',String(lowerLoading));
+  text('lower-date',view==='demo'?'SYNTHETIC / UI DEMO · 不混入真實背景':!selectionAvailable()?'UNAVAILABLE · 所選商品／月份無資料':lower?`HISTORICAL · ${lower.asOfDate||'日期未知'} 獨立日期背景${lowerLoading?' · 更新中':''}`:lowerLoading?'UNAVAILABLE · 背景讀取中':lowerError?'UNAVAILABLE · 背景讀取失敗；可按更新畫面重試':'UNAVAILABLE · 背景來源未載入');
+}
+function refreshLower({force=false}={}){
+  if(lowerPending)return lowerPending;
+  const now=Date.now();
+  if(!force&&now-lowerAttemptAt<LOWER_TTL_MS)return Promise.resolve();
+  const request=++lowerSerial,epoch=authEpoch;
+  lowerAttemptAt=now;lowerLoading=true;lowerError=null;renderLower();
+  lowerPending=(async()=>{
+    try{const data=await api('/api/lower');if(request===lowerSerial&&epoch===authEpoch)lower=data;}
+    catch(error){if(request===lowerSerial&&epoch===authEpoch){lower=null;lowerError=error.message;}}
+    finally{
+      if(request===lowerSerial&&epoch===authEpoch){
+        lowerLoading=false;lowerPending=null;
+        // Background evidence has its own source lifetime, independent of CVD.
+        if($('drawer').open&&$('drawer').dataset.source==='background'){$('drawer').close();text('drawer-json','UNAVAILABLE');}
+        renderLower();
+      }
+    }
+  })();
+  return lowerPending;
+}
 
 let pending=false,lastSelection=null;
 async function load(){
@@ -133,7 +159,7 @@ async function load(){
       if($('drawer').open)$('drawer').close();text('drawer-json','UNAVAILABLE');
       if($('ask-drawer').open)$('ask-drawer').close();
     }
-    render(data);current=data;$('login').hidden=true;
+    render(data);current=data;
     $('month-select').replaceChildren(new Option(data.chart.actualContract||'UNKNOWN','current'));
     document.body.dataset.artifact=data.artifactHash;
     document.body.dataset.delta=String(data.relationship.current?.current?.deltaCvd??'null');
@@ -141,6 +167,7 @@ async function load(){
   finally{if(request===serial)pending=false;}
 }
 function details(which){
+  $('drawer').dataset.source=['spot','futures','options','breadth','global','risk'].includes(which)?'background':'cvd';
   const c=current;let title='資料品質',copy='',value=null;
   const contextDate=lower?`歷史來源日期 ${lower.asOfDate}；不是所選盤別的同步證據。`:'背景未載入。';
   switch(which){
@@ -174,12 +201,12 @@ $('ask-close').addEventListener('click',()=>$('ask-drawer').close());
 $('ask-drawer').addEventListener('close',()=>{$('ask-form').reset();for(const id of ['ask-identity','ask-cutoff','ask-source'])text(id,'');$('ask-open').focus();});
 $('ask-form').addEventListener('submit',e=>e.preventDefault());
 $('product-select').addEventListener('change',()=>{selectedProduct=$('product-select').value;load();});$('month-select').addEventListener('change',()=>{selectedMonth=$('month-select').value;load();});
-$('view').addEventListener('change',()=>{view=$('view').value.toLowerCase();load();});$('refresh').addEventListener('click',load);$('fit').addEventListener('click',()=>chart?.timeScale().fitContent());
+$('view').addEventListener('change',()=>{view=$('view').value.toLowerCase();load();});$('refresh').addEventListener('click',()=>{refreshLower({force:true});load();});$('fit').addEventListener('click',()=>chart?.timeScale().fitContent());
 $('palette').addEventListener('change',()=>{palette=$('palette').value;if(current)renderChart(current.chart,current.relationship);});
 $('detail-open').addEventListener('click',()=>details('quality'));$('drawer-close').addEventListener('click',()=>$('drawer').close());
 $('copy').addEventListener('click',async()=>{if(!current){text('copy-status','資料不可用，未複製');return;}try{await navigator.clipboard.writeText(JSON.stringify({head:current.head,kind:current.kind,context:current.context,selectedWindow:current.relationship.current,...{formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}},null,2));text('copy-status','已複製隔離快照 · 僅供人工討論');}catch{text('copy-status','剪貼簿不可用；請從資料明細選取文字');}});
 $('login').addEventListener('submit',async e=>{e.preventDefault();try{await authenticate($('access').value);$('access').value='';await bootstrap();}catch(e){fail(e.message);}});
-async function bootstrap(){try{lower=await api('/api/lower');}catch{lower=null;}await load();}
+async function bootstrap(){await Promise.allSettled([refreshLower({force:true}),load()]);}
 $('month-select').disabled=true;$('month-select').replaceChildren(new Option('來源契約','current'));
 await bootstrap();
-const timer=setInterval(()=>{if(!document.hidden&&!pending)load();},5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+const timer=setInterval(()=>{if(!document.hidden){refreshLower();if(!pending)load();}},5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
