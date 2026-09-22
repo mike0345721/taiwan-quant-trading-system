@@ -22,9 +22,16 @@ export function readManagedConfig(file,{runtimeRoot,candidate=false}={}){
   if(b.schemaVersion!=='cru55-managed-candidate-v1'||b.runtimeCommit!==head||!head||!/^candidate-[a-z0-9-]{1,50}$/.test(b.runId||'')
     ||Object.entries(SAFETY).some(([k,v])=>b[k]!==v)||b.producer!=='STREAM_PAGED_V2'||b.sourceVerification!=='FULL_PREFIX_BEFORE_PUBLICATION'
     ||b.sourceSelection?.kind!=='DATED_CALENDAR_LEDGER'||!/^\d{4}-\d{2}-\d{2}$/.test(b.sourceSelection?.startDate||''))throw Error('CRU55_MANAGED_CANDIDATE_CONFIG');
-  const sourceRoot=path.join(privateRoot,'fixtures'),outputRoot=path.join(privateRoot,'managed',b.runId);
+  const real=b.sourceKind==='GOVERNED_FRAGMENT';
+  if(b.sourceKind&&!['GOVERNED_FRAGMENT','SYNTHETIC_FIXTURE'].includes(b.sourceKind))throw Error('CRU55_CANDIDATE_SOURCE_KIND');
+  const sourceRoot=real?path.join(privateRoot,'real-inputs',b.runId):path.join(privateRoot,'fixtures'),outputRoot=path.join(privateRoot,'managed',b.runId);
   if(b.sourceAlias?.kind!=='PLAIN'||path.resolve(b.sourceAlias.physicalRoot)!==sourceRoot)throw Error('CRU55_CANDIDATE_FIXTURE_ONLY');
-  const plan={...b,runtimeRoot:root,sourceRoot,outputRoot,readerRoot:outputRoot,bindingHash:digest(stableJson(b)),configPath,sourceKind:'SYNTHETIC_FIXTURE',activationReady:false,fullDayReady:false};
+  if(real){
+    const receipt=readJson(path.join(sourceRoot,'provenance.json'));
+    if(receipt.schemaVersion!=='cru55-isolated-real-prefix-v1'||digest(stableJson(receipt))!==b.provenanceHash
+      ||receipt.evidenceKind!=='GOVERNED_FRAGMENT'||receipt.naturalLiveAcceptance!==false)throw Error('CRU55_CANDIDATE_PROVENANCE');
+  }
+  const plan={...b,runtimeRoot:root,sourceRoot,outputRoot,readerRoot:outputRoot,bindingHash:digest(stableJson(b)),configPath,sourceKind:real?'GOVERNED_FRAGMENT':'SYNTHETIC_FIXTURE',activationReady:false,fullDayReady:false};
   verifyBoundSourceRoot(plan);assertBoundWriteRoot(plan,outputRoot);return checkedPlan(plan);
 }
 export function selectManagedSources(binding,{now=Date.now()}={}){

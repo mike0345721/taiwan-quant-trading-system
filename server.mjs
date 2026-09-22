@@ -125,6 +125,8 @@ const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURF
 const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
 let lastRefreshError = null;
 let browserRuntimeProof = null;
+const isolatedBridge={connected:false,state:'UNAVAILABLE',reason:'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
+const isolatedLeadership={state:'UNAVAILABLE',reason:'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
 
 function currentObservedFlow() {
   return loadFlowRefresh({ runtimeCommit: runtimeIdentity.commit,
@@ -236,7 +238,7 @@ function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
 }
 
 async function refreshSnapshot() {
-  if (cru55) return latestSnapshot; // pinned isolated cache, never acquire upstream data
+  if (cru55 || config.cru55Acceptance) return latestSnapshot; // isolated cache, never acquire upstream data
   try {
     const snapshot = await marketData.refresh(latestSnapshot);
     enrichSnapshot(snapshot, await cache.listHistory(400));
@@ -287,6 +289,9 @@ const server = http.createServer(async (req, res) => {
   const ip = clientIp(req, config.trustProxy);
 
   try {
+    if(config.cru55Acceptance&&!['GET','HEAD'].includes(req.method)&&!['/api/auth/login','/api/auth/logout','/api/v1/cru46-browser-runtime-proof','/api/v1/decision-journal'].includes(pathname)){
+      sendJson(res,403,{error:'CANDIDATE_READ_ONLY'});return;
+    }
     if (cru55 && !cru55.guard(req, res)) return;
     if (cru55 && await cru55.handle(req, res, url, () => requireSession(req, res))) return;
     if (formalEntry && await formalEntry(req, res, url, () => requireSession(req, res))) return;
@@ -296,6 +301,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
+        cru55Acceptance: config.cru55Acceptance?{runId:config.cru55Acceptance.runId,bindingHash:config.cru55Acceptance.bindingHash,sourceKind:config.cru55Acceptance.sourceKind}:null,
         runtimeIdentityStatus: runtimeIdentity.status,
         approvedMainCommit: runtimeVersion.approvedMainCommit,
         runtimeStartedAt: runtimeVersion.runtimeStartedAt,
@@ -376,8 +382,8 @@ const server = http.createServer(async (req, res) => {
         if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
           try { await refreshSnapshot(); } catch { /* status returned below */ }
         }
-        const shioaji = await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
-        const indexLeadership = await inspectIx0001Leadership({ bridge: shioaji });
+        const shioaji = config.cru55Acceptance?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const indexLeadership = config.cru55Acceptance?isolatedLeadership:await inspectIx0001Leadership({ bridge: shioaji });
         const clientHistory = latestSnapshot ? await cache.listHistory(400) : [];
         const clientSnapshot = latestSnapshot ? {
           ...latestSnapshot,
@@ -437,12 +443,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v1/index-leadership') {
-        const bridge = await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
-        const leadership = await inspectIx0001Leadership({ bridge });
+        const bridge = config.cru55Acceptance?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const leadership = config.cru55Acceptance?isolatedLeadership:await inspectIx0001Leadership({ bridge });
         sendJson(res, 200, {
           ok: true,
           data: leadership,
-          cachePolicy: 'BOUNDED_8790_LATEST_MEMORY',
+          cachePolicy: config.cru55Acceptance?'ISOLATED_UNAVAILABLE':'BOUNDED_8790_LATEST_MEMORY',
           recommendedPollMs: 5_000,
           executionAuthorized: false,
           orderRoutesEnabled: false,
@@ -629,7 +635,7 @@ server.listen(config.port, config.host, async () => {
   refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
 });
 
-if (!cru55 && config.refreshIntervalMs > 0) {
+if (!cru55 && !config.cru55Acceptance && config.refreshIntervalMs > 0) {
   const timer = setInterval(() => {
     refreshSnapshot().catch((error) => console.error('[scheduled refresh]', error.message));
     sessions.cleanup();

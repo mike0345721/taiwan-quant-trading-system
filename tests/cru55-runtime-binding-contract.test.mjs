@@ -5,19 +5,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { validateRuntimeBinding,readRuntimeBinding } from '../src/cru55-runtime-binding.mjs';
+import { validateRuntimeBinding,readRuntimeBinding,sourceDirectoryIdentity } from '../src/cru55-runtime-binding.mjs';
 import { readRuntimeIdentity } from '../src/runtime-identity.mjs';
 
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const doc=fs.readFileSync(new URL('../docs/operations/CRU55_RUNTIME_BINDING_CANDIDATE_V1.md',import.meta.url),'utf8');
 const template=JSON.parse(doc.match(/```json\r?\n([\s\S]*?)\r?\n```/)[1]);
 function proposal(runtimeRoot,dataRoot,head){
+  const sourceRoot=path.join(dataRoot,'live-events'),outputRoot=path.join(dataRoot,'cru55-runtime','output',template.outputVersion);
+  fs.mkdirSync(sourceRoot,{recursive:true});
   return {...template,runtimeRoot,runtimeCommit:head,dataRoot,
-    sourceRoot:path.join(dataRoot,'live-events'),outputRoot:path.join(dataRoot,'runtime','cru55-overview'),readerRoot:path.join(dataRoot,'runtime','cru55-overview')};
+    sourceRoot,outputRoot,readerRoot:outputRoot,sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)}};
 }
 
 test('documented proposal is inspectable but cannot activate; exact approved version never implies full-day readiness',()=>{
-  const runtimeRoot=path.resolve('approved-runtime'),dataRoot=path.join(runtimeRoot,'data'),head='a'.repeat(40);
+  const runtimeRoot=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-doc-proposal-')),dataRoot=path.join(runtimeRoot,'data'),head='a'.repeat(40);
   const binding=proposal(runtimeRoot,dataRoot,head),options={runtimeRoot,head,approvedMain:head};
   assert.equal(template.state,'PROPOSED');assert.equal(template.ownerDecisionUrl,undefined);
   assert.equal(validateRuntimeBinding(binding,options).activationReady,false);
@@ -31,7 +33,7 @@ test('documented proposal is inspectable but cannot activate; exact approved ver
     [{sourceRoot:path.join(dataRoot,'another-source')},/READER_WRITER_SOURCE_MISMATCH/],
     [{readerRoot:path.join(dataRoot,'another-output')},/READER_WRITER_SOURCE_MISMATCH/],
     [{outputRoot:path.join(dataRoot,'another-output')},/OUTPUT_ROOT/],
-    [{producer:'UNREVIEWED'},/UNREVIEWED_PRODUCER/],
+    [{producer:'UNREVIEWED'},/OUTPUT_VERSION|UNREVIEWED_PRODUCER/],
     [{executionAuthorized:true},/CONTRACT/],
     [{ownerDecisionUrl:'https://example.com/approval'},/OWNER_MAIN_GATE/],
   ])assert.throws(()=>validateRuntimeBinding({...approved,...patch},{...options,activation:true}),error);
@@ -43,11 +45,11 @@ test('inspection CLI reads a persisted proposal without creating output or chang
   try{
     const head=readRuntimeIdentity(repo).commit;assert.match(head,/^[a-f0-9]{40}$/);
     const dataRoot=path.join(path.resolve(repo),'data'),file=path.join(dir,'proposal.json');
-    const outputRoot=path.join(dataRoot,'runtime','cru55-overview'),outputExisted=fs.existsSync(outputRoot);
+    const outputRoot=path.join(dataRoot,'cru55-runtime','output',template.outputVersion),outputExisted=fs.existsSync(outputRoot);
     const bytes=JSON.stringify(proposal(path.resolve(repo),dataRoot,head));fs.writeFileSync(file,bytes);
     const output=execFileSync(process.execPath,[path.join(repo,'scripts/inspect-cru55-runtime-binding.mjs'),file,'plan'],{encoding:'utf8',windowsHide:true});
     const result=JSON.parse(output);
-    assert.equal(result.runtimeCommit,head);assert.equal(result.readerRoot,path.join(dataRoot,'runtime','cru55-overview'));
+    assert.equal(result.runtimeCommit,head);assert.equal(result.readerRoot,outputRoot);
     assert.equal(result.activationReady,false);assert.equal(result.fullDayReady,false);
     assert.equal(fs.readFileSync(file,'utf8'),bytes);assert.equal(fs.existsSync(outputRoot),outputExisted);
     assert.throws(()=>readRuntimeBinding(file,{runtimeRoot:repo,activation:true}),/OWNER_MAIN_GATE/);

@@ -254,7 +254,10 @@ try {
 
   # Optional, persistent exact-version binding; never creates a config or starts a new collector.
   # Invalid/proposed bindings stop before existing runtime actions. Installation is a separate Owner gate.
-  $cru55BindingFile = Join-Path $ProjectRoot 'data\runtime\cru55-binding.json'
+  $cru55BindingFile = Join-Path $ProjectRoot 'data\cru55-runtime\binding.json'
+  $cru55LegacyBindingFile = Join-Path $ProjectRoot 'data\runtime\cru55-binding.json'
+  if ((Test-Path -LiteralPath $cru55BindingFile) -and (Test-Path -LiteralPath $cru55LegacyBindingFile)) { Stop-WithMessage 'Conflicting CRU55 bindings: preserve both for review; do not select silently.' }
+  if (-not (Test-Path -LiteralPath $cru55BindingFile)) { $cru55BindingFile = $cru55LegacyBindingFile }
   $cru55Plan = $null
   if (Test-Path -LiteralPath $cru55BindingFile) {
     $cru55Binding = & node (Join-Path $ProjectRoot 'scripts\inspect-cru55-runtime-binding.mjs') $cru55BindingFile activation-preflight

@@ -1,16 +1,18 @@
-# CRU55 Runtime Binding Candidate V1
+# CRU-55 Stream runtime binding／受控部署候選
 
-本文件是 PR71 的部署準備與驗收規格，不是 Merge、正式啟動或 Collector 授權。本輪不安裝正式設定、不重啟正式服務、不啟動任何 Collector。Product Owner 批准整個版本並完成 Merge 後，仍須取得正式 Runtime 啟用授權才執行安裝。
+依 PR71 GPT 查收 5776695482 更新。本文件是提案；未授權 Merge、正式部署、對正式 raw 加鎖或停止 collector。activationReady 只代表設定 preflight；fullDayReady=false、executionAuthorized=false 不變。
 
-## 交付範圍與未完成項目
+## 處理器與依賴
 
-Binding 將已批准的完整程式版本、既有來源帳本、衍生輸出及 API reader 綁定到同一份私人持久設定。這不是全交易日 writer 的完成證據：檢查輸出中的 `fullDayReady=false` 必須保留。`activationReady=true` 只表示設定通過本機 preflight，不表示 Producer 正在運作、資料為 LIVE、捕捉完整或排程已驗收。
+使用 STREAM_PAGED_V2／FULL_PREFIX_BEFORE_PUBLICATION。正常 scripts/start-daily-use.ps1 在同一 binding 下啟動或重用 scripts/start-cru55-managed.ps1，不再另啟 watch-cru55-dynamic.mjs。每次 publication 仍驗原始完整前綴；Windows 本機 NTFS 共享 prefix lease 保護捕獲範圍，尾端可追加。其他平台保留保守 stamp 驗證，不沿用 Windows 的驗通結論。
 
-本版本的 Producer 固定為 `BOUNDED_ACCEPTED_V1`，每批仍以 `FULL_PREFIX_EACH_BATCH` 驗證原始前綴。既有批次、資料量與計算上限不因 Binding 而改變；達到限制必須保留 BLOCKED／UNAVAILABLE，不得重設 checkpoint、提高限制或換來源救結果。全盤容量、writer 啟停／重啟、日夜盤與交易日切換、來源檔案選擇及自然排程驗收仍需另行完成。
+完整 checkout 執行 npm ci；鎖定 koffi=3.3.1，須能載入 Windows x64 native binary/kernel32。chart vendor 為 lightweight-charts=5.2.0；本次驗收 Node 24.18.0 x64。只複製 JS 或跳過 native 安裝不構成 runtime 驗收；依賴探測只用隔離檔。
+
+resolver identity 包含 pipeline、prefix guard、相關語意程式、calendar、package-lock。新 resolver 使用新 outputVersion；舊 checkpoint/artifact 不得改標或強制接續。相同 resolver 才能接續原輸出。
 
 ## 私人設定格式
 
-以下路徑及 SHA 全部是佔位值；不得直接當成正式設定。先將提案保存在正常 launcher 不會讀取的私人位置，例如 `<PRIVATE_REVIEW_DIR>\cru55-binding-proposed.json`。不要在審查階段把 `PROPOSED` 檔案放到正式啟動位置，否則正常啟動會 fail closed。
+以下全部為佔位值；提案放私人 review 位置，不放正常啟動位置。
 
 ```json
 {
@@ -20,10 +22,17 @@ Binding 將已批准的完整程式版本、既有來源帳本、衍生輸出及
   "runtimeCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "dataRoot": "D:\\APPROVED_RUNTIME\\data",
   "sourceRoot": "D:\\APPROVED_RUNTIME\\data\\live-events",
-  "outputRoot": "D:\\APPROVED_RUNTIME\\data\\runtime\\cru55-overview",
-  "readerRoot": "D:\\APPROVED_RUNTIME\\data\\runtime\\cru55-overview",
-  "sourceVerification": "FULL_PREFIX_EACH_BATCH",
-  "producer": "BOUNDED_ACCEPTED_V1",
+  "sourceAlias": {
+    "kind": "WINDOWS_JUNCTION",
+    "physicalRoot": "D:\\APPROVED_SOURCE\\live-events",
+    "targetIdentity": { "dev": "0", "ino": "0", "birthtimeNs": "0" }
+  },
+  "sourceSelection": { "kind": "DATED_CALENDAR_LEDGER", "startDate": "2026-09-22" },
+  "outputVersion": "stream-paged-v2-prefix-v1",
+  "outputRoot": "D:\\APPROVED_RUNTIME\\data\\cru55-runtime\\output\\stream-paged-v2-prefix-v1",
+  "readerRoot": "D:\\APPROVED_RUNTIME\\data\\cru55-runtime\\output\\stream-paged-v2-prefix-v1",
+  "sourceVerification": "FULL_PREFIX_BEFORE_PUBLICATION",
+  "producer": "STREAM_PAGED_V2",
   "formalWeight": 0,
   "researchOnly": true,
   "executionAuthorized": false,
@@ -31,69 +40,42 @@ Binding 將已批准的完整程式版本、既有來源帳本、衍生輸出及
 }
 ```
 
-啟用版本須將 `state` 改為 `OWNER_APPROVED`，並新增 `ownerDecisionUrl`，指向 Product Owner 明確批准此次版本及 Runtime 啟用的 GitHub 或 Linear 紀錄。`runtimeCommit` 必須填寫 **Merge 後已批准的完整 40 位小寫 commit SHA**，並同時等於實際 Runtime checkout HEAD 與已核實的 `origin/main`；不得填 feature branch HEAD、只複製單一程式檔或偽造 URL 代表授權。Schema 檢查只驗證 URL 格式，不會替 Owner 核實其內容。
+正式啟用須有 Owner 明確決策 URL、state=OWNER_APPROVED。runtimeCommit 必須是 Merge 後批准的完整 SHA，等於實際 checkout 及已核實 origin/main。工程 APPROVE 或 URL 格式正確不等於 Owner 授權。實際 path、目錄 dev/ino/birthtimeNs、sourceSelection 起始日期須以部署當下唯讀核對值產生，不使用零值。
 
-所有路徑須為絕對路徑。請用同一組已解析的 Windows 路徑字串產生 `sourceRoot`、`outputRoot` 及 `readerRoot`，避免斜線、大小寫或尾端分隔符差異。`dataRoot` **必須等於 `<runtimeRoot>\data`**；既有 Collector、CRU34 與 acceptance 都固定採用這個位置，其他 dataRoot 會被 `CRU55_BINDING_EXISTING_DATA_ROOT` 拒絕。`sourceRoot` 固定為 `<dataRoot>\live-events`；`outputRoot` 固定為 `<dataRoot>\runtime\cru55-overview`；`readerRoot` 必須與 `outputRoot` 相同。另選外部 dataRoot 需要另外審查整條資料鏈，不在此版本啟用範圍。
+## 實際目錄與同一資料鏈
 
-設定檔只保留本機，使用私人資料相同的存取控制；不得提交實際路徑設定、密碼、憑證、SQLite、來源帳本或衍生大型 Artifact。檔案須是單一普通檔案、非 hardlink／symlink，大小不超過 16 KiB。
+現有 approved runtime 的 data/live-events 與 data/runtime 都是指向主工作區的 junction。現行規則只允許 source leaf junction，不能把 runtime junction 當可寫路徑。因此新 binding 使用 **<dataRoot>/cru55-runtime/binding.json**；新 output 使用普通目錄 **<dataRoot>/cru55-runtime/output/<outputVersion>**。既有 junction、collector、frozen plain-path helper 不變。
 
-## 同一條來源與產出鏈
+正常 launcher 新舊 binding 同存時拒絕歧義。只有舊 binding 時保留既有查找；若其 alias 不合法仍 fail closed。dataRoot=<runtimeRoot>/data，sourceRoot=<dataRoot>/live-events，readerRoot=outputRoot。sourceAlias physicalRoot 與目錄身分必須符合批准值；輸入限普通單連結 dated NDJSON，拒絕重導與讀寫重疊。
 
-| 階段 | 綁定位置／限制 |
+| 階段 | 位置／限制 |
 | --- | --- |
-| 既有來源 | `<dataRoot>\live-events\<approved-ledger>.ndjson`；Binding 不新增來源或 Collector |
-| DAY producer run | `runId=day`，輸出 `<outputRoot>\day` |
-| NIGHT producer run | `runId=night`，輸出 `<outputRoot>\night` |
-| API reader | `<readerRoot>\day`／`night`，與相應 writer 目錄完全相同 |
-| 已發布證據 | 各 run 的 `latest.json`、`view-latest.json` 及所指向的 immutable generation／view Artifact |
-| 生命週期 | 相同 run 目錄的 `lifecycle-status.json`；BLOCKED 不得回退成舊 READY |
+| source discovery | 起始日期至當日 YYYY-MM-DD.ndjson；逐檔獨立 genesis，不合併跨檔 CVD |
+| source run | outputRoot/sources/<sourceKey>；physical path、file identity、genesis hash 綁定 |
+| output | ingest、pages、chunks、immutable *.stream-view.json、stream-public.json |
+| routing | stream-selection.json 分別指向 DAY/NIGHT 已發布 cutoff；reader 同一 outputRoot |
+| owner/status | managed-owner.lock/owner.json、managed logs/state/status；核對 PID/start/command/HEAD/binding |
+| restart | 同版本有效 checkpoint 接續；unknown owner 不殺、不刪；BLOCKED 不回退舊 READY |
 
-Reader 使用 `view=day|night` 查找固定子目錄，因此正式綁定不能任意改成其他 runId 後宣稱已接線。DAY／NIGHT、契約與日期仍按接受的投影契約分離。有效相鄰盤別才能提供 Handoff；缺失／不相鄰時保持不可用。
+## 完整隔離候選入口
 
-## 唯讀 preflight 與正常 launcher
+node scripts/start-cru55-acceptance.mjs <private-candidate-config> 3056
 
-以下指令只展示唯讀檢查；先替換佔位路徑並確認執行的是整個目標版本。`plan` 也要求設定中的 root 與 HEAD 對得上該 checkout。
+此入口要求隔離 worktree 與 clean exact HEAD，啟動完整 server.mjs、真正 managed launcher、原 scrypt／twchip_session／CSRF，不使用歷史 preview adapter。候選真實 source 固定在 data/cru55-dynamic/real-inputs/<candidate-runId>；provenance 列各 stage bytes/ordinal/terminalHash/SHA256。啟動驗實際 source 全 hash；受控追加只從已驗 frozen max copy 追加原始 suffix，最後逐 publication 核對 frozen cutoff。這是歷史真實片段，不是自然 LIVE。
 
-```powershell
-node 'D:\APPROVED_RUNTIME\scripts\inspect-cru55-runtime-binding.mjs' '<PRIVATE_REVIEW_DIR>\cru55-binding-proposed.json' plan
-```
+latest/history、研究 DB/reports、CRU34 snapshot/status 使用普通隔離副本與 manifest。私人密碼經原認證後端驗證，不複用正式密碼。候選停用擷取與正式 bridge 查詢，相關值明示 UNAVAILABLE；Session/journal/cache 僅写私人目錄。正式路徑保留原行為。URL 必須等 exact HEAD/binding health 讀回才宣告成功；失敗保存 logs/managed owner，不誤殺既有 worker。
 
-Owner 明確批准、Merge 及既定 Git 同步完成後，安裝位置固定為 `<runtimeRoot>\data\runtime\cru55-binding.json`。以已批准設定執行：
+## 合併與受控部署 gate
 
-```powershell
-node 'D:\APPROVED_RUNTIME\scripts\inspect-cru55-runtime-binding.mjs' 'D:\APPROVED_RUNTIME\data\runtime\cru55-binding.json' activation-preflight
-```
+1. 先核准 Merge exact candidate；讀回 Merge 後批准 main，再另核准 controlled deployment 的 runtime、binding、source 日期範圍與 outputVersion。
+2. 保存旧完整版本、binding/無 binding 狀態及 output。完整 Git 同步及 npm ci；不逐檔複製。普通 cru55-runtime 根不與既有 junction/來源重疊。
+3. scripts/inspect-cru55-runtime-binding.mjs <proposal> plan 為唯讀。Owner 批准、設定實裝後才執行 activation-preflight。檢查本機 NTFS/native/磁碟/source alias/collector 寫入方式。
+4. **先明列正式鎖定範圍**：選定日期檔當次捕獲 [0,N)；若驗 prior publication，另含其原始 prior 檔 [0,P)。不鎖未捕獲尾端或整個目錄。lease 期間拒絕 prefix overwrite、截短、换檔/刪檔。collector 必須是已驗 ordinary Python/CRT append，不能使用 writable mapping、truncate、rotate/replace 或不相容 sharing。writable mapped I/O 不在保證內。
+5. Owner 批准正式來源保護範圍及非干擾條件後，才執行正常 daily-use。核對 owner/status、來源持續寫入、完整前綴驗證、publication backlog、API/UI及舊工作區。不符條件時保留 fail closed，僅停止本次新增且已識別的 writer/reader；不得停止 collector 救結果。
 
-兩種 inspection 模式都不安裝、不啟動、不停止、不部署任何服務。`origin/main` 是本機 remote-tracking ref；inspection 不自行 fetch，須依既定同步流程先核實 GitHub 已批准的 exact SHA，不能把過期 ref 相等誤當最新批准證據。
+## 回退
 
-Activation 額外執行 `git status --porcelain --untracked-files=no`，只要有 tracked 檔案的 staged 或 unstaged 變更，即以 `CRU55_BINDING_TRACKED_CODE_DIRTY` 拒絕。HEAD 相同不代表載入的程式內容相同；不得以未提交修改冒充完整已批准版本。這項檢查刻意不把私人 untracked 資料當成程式修改，並不授權提交或刪除這些資料。
+只針對本次新增且確認身分的 CRU55 writer/Dashboard reader。保存失敗 logs、owner、checkpoint、artifact；恢復上一個批准完整版本及原 binding。原先無 binding 時移出新 cru55-runtime/binding.json 並清除此輪 shell override；不要留下 PROPOSED 或跨版本 binding。新 outputVersion 原封保存，不改標 resolver、不回填 ledger、不改五日計數。既有 source/runtime junction 及 collector 保持原位。
 
-`scripts/start-daily-use.ps1` 正常啟動時讀取上述固定持久檔案，通過 `activation-preflight` 後才設定子程序的 `CRU55_RUNTIME_BINDING` 與 `CRU55_DYNAMIC_ROOT`。沒有持久檔案卻只在 shell 設定這兩個環境變數，正常 launcher 會拒絕；有檔案但為 PROPOSED、版本／路徑不符或授權欄位不足，也會在既有 Runtime 動作前停止。不要用直接啟動 Node 或暫時 shell 變數迴避這個正常啟動契約。
+回退後核對原批准版本、健康與持續寫入。Merge、controlled deployment、自然日夜切換、正向真實相鄰 Handoff、完整自然交易日、五日驗收為不同 gate；本次隔離驗收不替代後幾項。
 
-Dashboard `/healthz` 的 `cru55Binding` 只公開啟動時的 `state`、`bindingHash`、`runtimeCommit` 與 `fullDayReady`，不公開私人路徑。正常 launcher 重用同一 HEAD 的既有程序前，還必須比對持久設定導出的 bindingHash 與此啟動證據；同 HEAD 但 hash／binding state 不一致時，在既有 Producer 動作前停止，不擅自重啟元件。設定不存在時，也不能重用仍宣稱 BOUND 或 CANDIDATE_UNBOUND 的程序。設定檔事後改動不會讓舊程序的啟動 binding 自動更新，須走已批准的完整切換。
-
-檔案不存在且沒有這兩個環境變數時，launcher 保留既有流程；這不代表新總覽來源可用。正常 launcher 的原有功能可能啟動既有行情服務，因此本輪只能檢查其程式與測試，不執行正式 launcher。
-
-## Writer 仍需獨立的受管理啟動
-
-Binding 不會自動啟動 `watch-cru55-dynamic.mjs`，也沒有建立全盤排程。正式 writer 必須在 Owner 已授權的受管理啟動方案中，明確指定：整個 Runtime 版本、相同持久設定路徑、來源 `.ndjson`、`day`／`night` runId、可比的 priorRunId（或不提供）、程序擁有者、啟停與錯誤處理方式。背景啟動須隱藏視窗，並保留可追溯的程序與狀態紀錄。
-
-受管理 writer 與 reader 都須由同一設定導出 root，不以 shell-only 路徑覆蓋。既有 `writer.lock`／`lifecycle.lock` 不得由未知擁有者自動清除。有限批次或有限 cycles 的本機驗證不能替代全交易日排程、自然重啟或完整捕捉驗收；不得因此宣稱 Full Formal Ready。
-
-## Merge 後驗收順序
-
-1. 保存 Owner 決策、已 Merge PR、核實的 approved main SHA、實際 checkout HEAD、原設定與既有程序基線。透過既定 Git 同步整個版本，不手動混搭檔案。
-2. 在私人位置完成 proposal，核對來源與共同 dataRoot；`plan` 應顯示預期 `bindingHash`、root、SHA、`activationReady=false`、`fullDayReady=false`。
-3. 得到正式啟用授權後才安裝批准設定，確認 tracked code 乾淨，執行 activation preflight，保存新的 bindingHash。只因 preflight 通過不能宣稱已部署。
-4. 依已批准程序啟動正常 launcher 及另行管理的 writer。核對 `/healthz` 的啟動 bindingHash／runtimeCommit 與持久設定相符，實際執行版本、writer source/output 與 API readerRoot 一致；檢查來源原始資料、舊 Frozen Artifact 及 Ledger 未被修改。相同 HEAD 的舊程序若持有另一個 binding，必須保留拒絕結果並走批准的切換程序。
-5. 驗證 unauthenticated 401、非法 query 拒絕及 no-store；以有效登入核對 DAY／NIGHT 各窗 API 的 artifactHash／generationHash／cutoff、CVD／delta 與 UI 一致。UNKNOWN、不完整窗口、價格 lineage 排除與缺少 Handoff 均須保留真實不可用狀態。
-6. 核對來源新增後 writer 發布新 Artifact，API/UI 更新；來源／writer 故障須 fail closed，恢復後不得回寫舊 immutable 證據。Fault injection 只在明確批准的隔離測試進行，並標示為注入測試。
-7. 分別記錄「版本同步」「持久 Binding」「受管理 writer」「自然整盤驗收」的實際結果。未完成的項目保持未完成，`fullDayReady=false` 不得被人工改成 true。
-
-## Rollback 準備
-
-啟用前先記錄可回復的已批准完整版本、舊持久設定是否存在、檔案 hash、程序啟動方式與 Reader 原資料路徑。回復方案也須在此次 Owner 授權範圍內。
-
-若新綁定或新 writer 不符驗收，先以已批准的程序僅停止此次新增、身分已確認的 writer／reader，保留失敗狀態、checkpoint、Artifact 與 log。不要停止其他 Collector、改既有 Forward Shadow 或五日計數。隔離新設定並恢復先前已批准設定／完整版本；若原先沒有 Binding，恢復「檔案不存在且無 CRU55 shell override」的基線。不要在正常讀取位置留下 PROPOSED 或與回復版本不符的設定。
-
-回復後重新核對版本、root、安全旗標與既有健康狀態；失敗的新 Artifact 保留供追查，不覆寫、不 backfill、不將上一筆好結果冒充目前結果。以上是回復計畫，不是本輪執行停止、刪除、切版或正式啟動的授權。

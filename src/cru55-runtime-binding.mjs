@@ -60,7 +60,10 @@ export function validateRuntimeBinding(binding,{runtimeRoot,head,approvedMain,ac
   // data roots need a separately reviewed whole-chain binding, not one override.
   if(!eq(data,path.join(root,'data')))throw Error('CRU55_BINDING_EXISTING_DATA_ROOT');
   if(!/^[a-f0-9]{40}$/.test(binding.runtimeCommit||'')||head!==binding.runtimeCommit)throw Error('CRU55_BINDING_HEAD_MISMATCH');
-  if(!eq(output,path.join(data,'runtime','cru55-overview')))throw Error('CRU55_BINDING_OUTPUT_ROOT');
+  const version=binding.outputVersion;
+  if(version!==undefined&&(binding.producer!=='STREAM_PAGED_V2'||!/^stream-[a-z0-9-]{1,64}$/.test(version)))throw Error('CRU55_BINDING_OUTPUT_VERSION');
+  const expectedOutput=version?path.join(data,'cru55-runtime','output',version):path.join(data,'runtime','cru55-overview');
+  if(!eq(output,expectedOutput))throw Error('CRU55_BINDING_OUTPUT_ROOT');
   if(binding.readerRoot!==binding.outputRoot||binding.sourceRoot!==path.join(data,'live-events'))throw Error('CRU55_BINDING_READER_WRITER_SOURCE_MISMATCH');
   const legacy=binding.sourceVerification==='FULL_PREFIX_EACH_BATCH'&&binding.producer==='BOUNDED_ACCEPTED_V1';
   const stream=binding.sourceVerification==='FULL_PREFIX_BEFORE_PUBLICATION'&&binding.producer==='STREAM_PAGED_V2';
@@ -74,7 +77,7 @@ export function validateRuntimeBinding(binding,{runtimeRoot,head,approvedMain,ac
   if(activation&&(binding.state!=='OWNER_APPROVED'||binding.runtimeCommit!==approvedMain
     ||typeof binding.ownerDecisionUrl!=='string'||!/^https:\/\/(github\.com|linear\.app)\//.test(binding.ownerDecisionUrl)))throw Error('CRU55_BINDING_OWNER_MAIN_GATE');
   return {bindingHash:digest(stableJson(binding)),runtimeRoot:root,runtimeCommit:head,dataRoot:data,sourceRoot:binding.sourceRoot,
-    outputRoot:output,readerRoot:output,sourceAlias:binding.sourceAlias??null,sourceSelection:binding.sourceSelection??null,sourceVerification:binding.sourceVerification,
+    outputRoot:output,readerRoot:output,outputVersion:version??null,sourceAlias:binding.sourceAlias??null,sourceSelection:binding.sourceSelection??null,sourceVerification:binding.sourceVerification,
     activationReady:activation,fullDayReady:false,producer:binding.producer,...SAFETY};
 }
 
