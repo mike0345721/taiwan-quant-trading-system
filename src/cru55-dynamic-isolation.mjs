@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
-import { readRuntimeBinding } from './cru55-runtime-binding.mjs';
+import { readRuntimeBinding,resolveBoundSourceFile,assertBoundWriteRoot } from './cru55-runtime-binding.mjs';
 export { assertPlainPath };
 export const REPO=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PRIVATE_ROOT=path.join(REPO,'data','cru55-dynamic');
@@ -22,11 +22,13 @@ export function assertCandidate(){
 export function isolatedRunRoot(runId){
   const {binding}=assertCandidate();
   if(!/^[a-z0-9][a-z0-9-]{0,79}$/.test(runId||''))throw Error('CVD_RUN_ID_INVALID');
-  return assertPlainPath(path.join(binding?.outputRoot??path.join(PRIVATE_ROOT,'output'),runId));
+  const target=path.join(binding?.outputRoot??path.join(PRIVATE_ROOT,'output'),runId);
+  return binding?assertBoundWriteRoot(binding,target):assertPlainPath(target);
 }
 export function assertInputPath(file){
   const {primary,binding}=assertCandidate();
   if(!path.isAbsolute(file||''))throw Error('CVD_ABSOLUTE_SOURCE_REQUIRED');
+  if(binding)return resolveBoundSourceFile(binding,file);
   const actual=assertPlainPath(file),dir=path.dirname(actual).toLowerCase();
   const allowed=binding?[binding.sourceRoot]:[path.join(primary,'data','live-events'),path.join(PRIVATE_ROOT,'fixtures')];
   if(!allowed.some(p=>p.toLowerCase()===dir)||!actual.endsWith('.ndjson'))throw Error('CVD_SOURCE_NOT_ALLOWLISTED');

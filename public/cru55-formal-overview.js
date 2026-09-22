@@ -103,11 +103,16 @@ function renderChart(p,r){
   text('cvd-value',`CVD ${signed(p.currentCvd)}`);text('cvd-sign',p.currentCvd==null?'累積不可用':p.currentCvd>0?'買方主動成交累積較多':p.currentCvd<0?'賣方主動成交累積較多':'已分類買賣累積差為 0');
   text('endpoint',p.currentCvd==null||!p.display.currentPlotAvailable?'目前端點不可用 · 歷史曲線不代表有效現值':`同 cutoff 累積 ${signed(p.currentCvd)} · 已核對端點`);
   $('chart-empty').hidden=bars.length>0;text('chart-empty','此片段尚無可顯示的 K 線與成交量。');
-  text('vwap','VWAP · UNAVAILABLE（片段未提供）');
+  const vwap=(p.vwap||[]).filter(x=>Number.isFinite(x.time)&&Number.isFinite(x.value));
+  if(vwap.length){const line=chart.addSeries(L.LineSeries,{color:'#E6C46C',lineWidth:1,priceLineVisible:false,lastValueVisible:false},0);line.setData(vwap);}
+  text('vwap',vwap.length?`VWAP · ${fmt(vwap.at(-1).value)}（同來源觀測累積）`:'VWAP · UNAVAILABLE（片段未提供）');
+  document.body.dataset.vwapPoints=String(vwap.length);
+  $('endpoint').nextElementSibling.textContent=p.projectionHash?'ΔCVD 為所選滾動窗，僅顯示已驗證時點；重疊柱不可加總':'ΔCVD 為所選滾動窗，重疊柱不可加總';
 }
 function render(data){
   const p=data.chart,r=data.relationship,c=r.current?.current,m=windowPresentation(data.scan[frame]);
-  if(p.generationHash!==r.generationHash||p.semanticHash!==r.semanticHash||p.cutoff.recordHash!==r.sourceCutoff.recordHash||p.cutoff.recordHash!==data.context.sourceCutoff.recordHash)throw Error('cutoff / 來源未通過核對');
+  const matchingProjection=p.projectionHash? p.projectionHash===r.projectionHash&&p.projectionHash===data.context.projectionHash : p.semanticHash===r.semanticHash;
+  if(p.generationHash!==r.generationHash||!matchingProjection||p.cutoff.recordHash!==r.sourceCutoff.recordHash||p.cutoff.recordHash!==data.context.sourceCutoff.recordHash)throw Error('cutoff / 來源未通過核對');
   document.body.dataset.error='false';document.body.dataset.view=data.view;document.body.dataset.timeframe=frame;document.body.dataset.head=data.head;
   text('contract',p.actualContract||'UNKNOWN');text('chart-contract',p.actualContract||'UNKNOWN');text('chart-identity',`${p.actualContract||'UNKNOWN'} / ${p.tradeDate||'UNKNOWN'} / ${p.session||'UNKNOWN'}`);
   text('session-pill',p.session||'UNKNOWN');$('source-light').className=`light ${p.freshness.state==='LIVE'?'positive':['STALE','DELAYED','WARMING'].includes(p.freshness.state)?'warning':'neutral'}`;text('trust',p.freshness.state+' · '+p.quality);text('freshness',`${data.context.sessionStartProven?'盤中累積':'觀測片段'}｜${shortTime(p.lastTradeAvailableAtMs)}`);
@@ -175,7 +180,7 @@ function details(which){
     case 'change':title=`${frame}｜最近變化`;copy='Relationship → Change → Rate / Persistence → Level。ΔCVD 是同窗淨主動成交增量；重疊窗口不能加總。PARTIAL 是觀測片段，不能當成完整窗口。';value=c?.relationship.current;break;
     case 'handoff':title='Market Handoff｜市場交接';copy='上一盤 → 觀測片段端點差 → 本盤。DAY / NIGHT CVD 分開；不連線、不相減、不插補休市 Volume / Pressure / Path。';value=c?.handoff;break;
     case 'settings':title='設定';copy='漲跌配色可由頂部選單切換。此總覽讀取版本化帳本投影；既有操作留在原工作區。GPT 回答未啟用。';value={pricePalette:palette,formalWeight:0,executionAuthorized:false};break;
-    case 'scope':title='版本與資料範圍';copy='CRU-55 總覽接線候選。圖表、力價關係、本盤背景與市場交接來自同一帳本 cutoff 的版本化投影，定期讀取新產出。\n每個 cutoff 保留歷史觀測片段語意，不代表 LIVE 或完整交易日。VWAP 尚未接線；不另推算。正式部署狀態須另行驗收。\nAsk GPT 使用「複製快照」供人工討論；不呼叫 GPT API。既有 Workspace 沿用原認證與 API。';value=c?{head:c.head,artifactHash:c.artifactHash,producerMode:c.producerMode,view:c.view,kind:c.kind,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}:null;break;
+    case 'scope':title='版本與資料範圍';copy='CRU-55 總覽接線候選。圖表、力價關係、本盤背景與市場交接來自同一帳本 cutoff 的版本化投影，定期讀取新產出。\n每個 cutoff 保留歷史觀測片段語意，不代表 LIVE 或完整交易日。VWAP 使用同來源合法成交的觀測累積；缺值保持不可用。正式部署狀態須另行驗收。\nAsk GPT 使用「複製快照」供人工討論；不呼叫 GPT API。既有 Workspace 沿用原認證與 API。';value=c?{head:c.head,artifactHash:c.artifactHash,producerMode:c.producerMode,view:c.view,kind:c.kind,formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}:null;break;
     case 'spot':title='現貨 / 指數貢獻';copy=contextDate+'\n沒有本盤 index leadership 資料，貢獻保留 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{marketOverview:lower?.marketOverview,spotInstitutional:lower?.spotInstitutional};break;
     case 'futures':title='期貨流向';copy=contextDate+'\n法人 OI 不代表主動成交方向。缺失的前日差值保留不可用，不採快照中的佔位 0。';value=view==='demo'||!selectionAvailable()?null:{market:lower?.futuresMarket,institutional:lower?.futuresInstitutional};break;
     case 'options':title='選擇權背景';copy=contextDate+'\n歷史到期契約的 OI / Max Pain 不推論本盤價格，不代表 Dealer inventory 或成本。';value=view==='demo'||!selectionAvailable()?null:lower?.options;break;

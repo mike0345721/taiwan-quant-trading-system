@@ -3,13 +3,16 @@ import path from 'node:path';
 import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { FRAMES,withFreshness } from './cvd-chart-projection.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
+import { createStreamReader } from './cru55-stream-reader.mjs';
 // Cache only a verified public artifact; no raw source path or checkpoint reaches HTTP.
-export function createDynamicReader(root){
+export function createDynamicReader(root,options={}){
   let cachedHash,cached,cachedKey;
+  const stream=root?createStreamReader(root,options):null;
   const json=(file,cap)=>{assertPlainPath(file);const stat=fs.statSync(file);if(!stat.isFile()||stat.nlink!==1||stat.size>cap)throw Error('CRU55_ARTIFACT_BUDGET');return JSON.parse(fs.readFileSync(file,'utf8'));};
   return ({view='day',timeframe='1m'}={})=>{
     if(!root)throw Error('CRU55_DYNAMIC_SOURCE_NOT_CONFIGURED');
     if(!['day','night'].includes(view)||!FRAMES.includes(timeframe))throw Error('CRU55_QUERY_INVALID');
+    if(options.producer==='STREAM_PAGED_V2'||fs.existsSync(path.join(root,'stream-selection.json'))||fs.existsSync(path.join(root,view,'stream-public.json')))return stream({view,timeframe});
     const dir=assertPlainPath(path.join(root,view));
     const statusFile=path.join(dir,'lifecycle-status.json');
     if(fs.existsSync(statusFile)&&json(statusFile,16384).state==='BLOCKED')throw Error('CRU55_PRODUCER_BLOCKED');

@@ -345,6 +345,12 @@ try {
     Write-Status 'No existing batch status is available yet. Dashboard startup can continue.'
   }
 
+  if ($cru55Plan -and $cru55Plan.producer -eq 'STREAM_PAGED_V2') {
+    & (Join-Path $ProjectRoot 'scripts\start-cru55-managed.ps1') -ProjectRoot $ProjectRoot -BindingFile $cru55BindingFile
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage 'CRU55 managed writer did not pass its persistent owner check.' }
+    Write-Status 'CRU55 managed writer configured. Published fragments remain distinct from full-day or LIVE acceptance.'
+  }
+
   Write-Status 'NORMAL ENVIRONMENT READY'
   Write-Status 'Code: CURRENT LOCAL APPROVED VERSION'
   Write-Status "Market Data: $($bridge.State)"

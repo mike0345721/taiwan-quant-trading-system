@@ -8,7 +8,7 @@ import { readRuntimeBinding } from './cru55-runtime-binding.mjs';
 export function prepareFormalEntry({ publicDir }, readSnapshot) {
   const binding=process.env.CRU55_RUNTIME_BINDING?readRuntimeBinding(process.env.CRU55_RUNTIME_BINDING,{runtimeRoot:path.dirname(publicDir),activation:true}):null;
   if(binding&&process.env.CRU55_DYNAMIC_ROOT&&path.resolve(process.env.CRU55_DYNAMIC_ROOT)!==binding.readerRoot)throw Error('CRU55_BINDING_READER_ENV_MISMATCH');
-  const dynamic = createDynamicReader(binding?.readerRoot??process.env.CRU55_DYNAMIC_ROOT);
+  const dynamic = createDynamicReader(binding?.readerRoot??process.env.CRU55_DYNAMIC_ROOT,binding?{bindingHash:binding.bindingHash,producer:binding.producer}:{});
   const files = {
     '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
