@@ -7,7 +7,7 @@ import {sourceDirectoryIdentity} from './cru55-runtime-binding.mjs';
 import {digest,stableJson,SAFETY} from './cvd-observation-core.mjs';
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const requireTrue=(value,code)=>{if(!value)throw Error(code);};
-const command=(exe,args,cwd,options={})=>execFileSync(exe,args,{cwd,encoding:'utf8',windowsHide:true,timeout:60000,...options}).trim();
+const command=(exe,args,cwd,options={})=>(execFileSync(exe,args,{cwd,encoding:'utf8',windowsHide:true,timeout:60000,...options})??'').trim();
 const git=(root,args)=>command('git',args,root);
 const uiHash=(root,files)=>{for(const f of files)requireTrue(sha256(fs.readFileSync(assertPlainPath(path.join(root,f.path))))===f.sha256,'UPDATE_UI_VERSION_CHANGED');};
 const privateFile=(root,file)=>{const p=assertPlainPath(file);requireTrue(inside(root,p),'UPDATE_PRIVATE_PATH_ESCAPE');return p;};
@@ -115,16 +115,19 @@ export function createWindowsUpdateDriver(controllerRoot) {
       requireTrue((await http(r.url,'/api/v1/cvd-overview')).status===401,'UPDATE_AUTH_REQUIRED');
       const auth=await http(r.url,'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:session.password})});
       requireTrue(auth.status===200,'UPDATE_REAL_LOGIN');const cookie=auth.headers.get('set-cookie');requireTrue(cookie?.includes('HttpOnly')&&cookie.includes('SameSite=Strict'),'UPDATE_SESSION_FLAGS');
-      const headers={Cookie:cookie.split(';')[0]};let body;
+      const headers={Cookie:cookie.split(';')[0]};let body,status;
       try {
         const lower=await http(r.url,'/api/lower',{headers}),seed=readJson(path.join(r.root,'data/cru55-dynamic/acceptance',r.runId,'latest.json'));
         requireTrue(lower.status===200&&['asOfDate','generatedAt','marketOverview','futuresMarket','futuresInstitutional','marketBreadth','spotInstitutional','options'].every(k=>stableJson(lower.body[k]??null)===stableJson(seed[k]??null)),'UPDATE_LEGACY_API_PARITY');
         const deadline=Date.now()+p.timeoutSeconds*1000;
-        do {const result=await http(r.url,`/api/v1/cvd-overview?view=${p.expected.view}&timeframe=1m`,{headers});body=result.body;if(result.status===200&&body.chart?.cutoff?.ledgerOrdinal===p.expected.ordinal)break;await pause(1000);}while(Date.now()<deadline);
-        requireTrue(body.head===r.head&&body.chart?.cutoff?.recordHash===p.expected.recordHash&&body.chart?.currentCvd===p.expected.cvd&&body.integrity?.originalRawPrefixVerified===true,'UPDATE_PUBLICATION_NOT_VERIFIED');
-        const frames=[];for(const timeframe of ['1m','5m','15m','30m','1h','4h']){const f=await http(r.url,`/api/v1/cvd-overview?view=${p.expected.view}&timeframe=${timeframe}`,{headers});requireTrue(f.status===200&&f.body.artifactHash===body.artifactHash&&f.body.head===r.head&&f.body.chart?.cutoff?.recordHash===p.expected.recordHash&&f.headers.get('cache-control')==='no-store','UPDATE_SIX_WINDOW_IDENTITY');frames.push(timeframe);}
+        do {const result=await http(r.url,`/api/v1/cvd-overview?view=${p.expected.view}&timeframe=1m`,{headers});body=result.body;status=result.status;if(status===200&&body.chart?.cutoff?.ledgerOrdinal===p.expected.ordinal)break;await pause(1000);}while(Date.now()<deadline);
+        requireTrue(publicationMatches(status,body,r.head,p.expected),'UPDATE_PUBLICATION_NOT_VERIFIED');
+        const frames=[];for(const timeframe of ['1m','5m','15m','30m','1h','4h']){const f=await http(r.url,`/api/v1/cvd-overview?view=${p.expected.view}&timeframe=${timeframe}`,{headers});requireTrue(publicationMatches(f.status,f.body,r.head,p.expected)&&f.body.artifactHash===body.artifactHash&&f.headers.get('cache-control')==='no-store','UPDATE_SIX_WINDOW_IDENTITY');frames.push(timeframe);}
         return {auth:'REAL_SCRYPT_SESSION',dataReception:'ISOLATED_GOVERNED_FRAGMENT',publication:{artifactHash:body.artifactHash,cutoff:body.chart.cutoff,cvd:body.chart.currentCvd,integrity:body.integrity},api:frames,ui:'ACCEPTED_BLOBS_IDENTICAL',naturalLive:'NOT_TESTED',fullDayCapacity:'NOT_PROVEN'};
       } finally {await http(r.url,'/api/auth/logout',{method:'POST',headers:{...headers,'X-CSRF-Token':auth.body.csrfToken}});}
     }
   };return driver;
+}
+export function publicationMatches(status,body,head,expected) {
+  return status===200&&body?.head===head&&body.chart?.cutoff?.ledgerOrdinal===expected.ordinal&&body.chart.cutoff.recordHash===expected.recordHash&&body.chart.currentCvd===expected.cvd&&body.integrity?.originalRawPrefixVerified===true;
 }
