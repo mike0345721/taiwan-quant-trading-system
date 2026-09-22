@@ -54,10 +54,10 @@ test('new chain >1024 snapshots reaches six windows and protected API, then rest
     }finally{await new Promise(r=>server.close(r));}
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
-test('original raw rewrite fails closed even when archive is intact; changed source during verification remains pending',()=>{
+test('legacy stamp mode fails closed on raw rewrite and conservatively restarts on append',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-integrity-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
   try{
-    const previous=append(sourcePath,0,1100),opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2};finish(opts);
+    const previous=append(sourcePath,0,1100),opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,prefixProtection:'STAMP'};finish(opts);
     let r;for(let i=0;i<100;i++){r=runStreamCycle(opts);if(r.phase==='VERIFY')break;}assert.equal(r.phase,'VERIFY');
     append(sourcePath,1100,1,previous);r=runStreamCycle(opts);assert.equal(r.state,'PENDING');assert.ok(r.metrics.verificationRestarts>0);
     const fd=fs.openSync(sourcePath,'r+');try{fs.writeSync(fd,Buffer.from('X'),0,1,10);}finally{fs.closeSync(fd);}

@@ -18,7 +18,7 @@ export function readManagedConfig(file,{runtimeRoot,candidate=false}={}){
   if(!candidate){const b=readRuntimeBinding(configPath,{runtimeRoot,activation:true});if(b.producer!=='STREAM_PAGED_V2')throw Error('CRU55_MANAGED_STREAM_REQUIRED');return checkedPlan({...b,configPath,sourceKind:'GOVERNED_FRAGMENT'});}
   const b=readJson(configPath,16384),root=assertPlainPath(runtimeRoot),privateRoot=path.join(root,'data','cru55-dynamic');
   const head=readRuntimeIdentity(root).commit;
-  if(!fs.lstatSync(path.join(root,'.git')).isFile()||execFileSync('git',['branch','--show-current'],{cwd:root,encoding:'utf8',windowsHide:true,timeout:10000}).trim()!=='codex/cru55-formal-entry-recovery-v1')throw Error('CRU55_CANDIDATE_WORKTREE_REQUIRED');
+  if(!fs.lstatSync(path.join(root,'.git')).isFile()||!['codex/cru55-formal-entry-recovery-v1','codex/cru55-growing-prefix-v1'].includes(execFileSync('git',['branch','--show-current'],{cwd:root,encoding:'utf8',windowsHide:true,timeout:10000}).trim()))throw Error('CRU55_CANDIDATE_WORKTREE_REQUIRED');
   if(b.schemaVersion!=='cru55-managed-candidate-v1'||b.runtimeCommit!==head||!head||!/^candidate-[a-z0-9-]{1,50}$/.test(b.runId||'')
     ||Object.entries(SAFETY).some(([k,v])=>b[k]!==v)||b.producer!=='STREAM_PAGED_V2'||b.sourceVerification!=='FULL_PREFIX_BEFORE_PUBLICATION'
     ||b.sourceSelection?.kind!=='DATED_CALENDAR_LEDGER'||!/^\d{4}-\d{2}-\d{2}$/.test(b.sourceSelection?.startDate||''))throw Error('CRU55_MANAGED_CANDIDATE_CONFIG');

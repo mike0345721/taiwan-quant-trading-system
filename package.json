@@ -63,6 +63,7 @@
     "data:requirements:validate": "node scripts/validate-data-requirements-v1.mjs --check"
   },
   "dependencies": {
+    "koffi": "3.3.1",
     "lightweight-charts": "5.2.0"
   }
 }
