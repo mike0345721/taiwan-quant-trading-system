@@ -145,6 +145,7 @@ function Test-DashboardRuntimeSafetyReady($Health, [string]$ExpectedCommit, [boo
   if (-not (Test-DashboardIdentityAligned $Health $ExpectedCommit) -or -not $ProcessIdentityVerified) {
     return $false
   }
+  if (-not (Test-Cru55BindingAligned $Health)) { return $false }
   $worker = $Health.runtimeEvidence.producer.worker
   return $worker -and ($worker.schemaVersion -eq 'cru34-live-worker-status-v1') -and
     (Test-SamePath $worker.dataRoot $cru34DataRoot) -and
@@ -155,6 +156,16 @@ function Test-DashboardRuntimeSafetyReady($Health, [string]$ExpectedCommit, [boo
     ($worker.researchOnly -eq $true) -and
     ($worker.executionAuthorized -eq $false) -and
     ($worker.orderRoutesEnabled -eq $false)
+}
+
+function Test-Cru55BindingAligned($Health) {
+  if ($cru55Plan) {
+    return ($Health.cru55Binding.state -eq 'BOUND') -and
+      ($Health.cru55Binding.bindingHash -eq $cru55Plan.bindingHash) -and
+      ($Health.cru55Binding.runtimeCommit -eq $cru55Plan.runtimeCommit)
+  }
+  return (-not $Health.cru55Binding) -or
+    (($Health.cru55Binding.state -eq 'UNCONFIGURED') -and (-not $Health.cru55Binding.bindingHash))
 }
 
 function Get-DashboardMarketDataState($Health) {
@@ -241,6 +252,32 @@ try {
   $expectedRuntimeCommit = Get-CurrentProjectCommit
   if (-not $expectedRuntimeCommit) { Stop-WithMessage 'The approved local runtime identity could not be verified.' }
 
+  # Optional, persistent exact-version binding; never creates a config or starts a new collector.
+  # Invalid/proposed bindings stop before existing runtime actions. Installation is a separate Owner gate.
+  $cru55BindingFile = Join-Path $ProjectRoot 'data\cru55-runtime\binding.json'
+  $cru55LegacyBindingFile = Join-Path $ProjectRoot 'data\runtime\cru55-binding.json'
+  if ((Test-Path -LiteralPath $cru55BindingFile) -and (Test-Path -LiteralPath $cru55LegacyBindingFile)) { Stop-WithMessage 'Conflicting CRU55 bindings: preserve both for review; do not select silently.' }
+  if (-not (Test-Path -LiteralPath $cru55BindingFile)) { $cru55BindingFile = $cru55LegacyBindingFile }
+  $cru55Plan = $null
+  if (Test-Path -LiteralPath $cru55BindingFile) {
+    $cru55Binding = & node (Join-Path $ProjectRoot 'scripts\inspect-cru55-runtime-binding.mjs') $cru55BindingFile activation-preflight
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage 'CRU55 persistent binding did not pass exact-version activation preflight.' }
+    $cru55Plan = $cru55Binding | ConvertFrom-Json
+    if (-not (Test-SamePath $cru55Plan.dataRoot $cru34DataRoot)) { Stop-WithMessage 'CRU55 and the existing collector/acceptance data root must agree.' }
+    $env:CRU55_RUNTIME_BINDING = $cru55BindingFile
+    $env:CRU55_DYNAMIC_ROOT = $cru55Plan.readerRoot
+  } elseif ($env:CRU55_RUNTIME_BINDING -or $env:CRU55_DYNAMIC_ROOT) {
+    Stop-WithMessage 'CRU55 requires a persistent binding file; shell-only data routing is not accepted for normal startup.'
+  }
+
+  # Refuse to silently reuse a same-code process with stale/different routing.
+  # This check precedes existing producer/collector start or restart operations.
+  $bindingHealth = Get-DashboardHealth
+  if ($bindingHealth -and (Test-DashboardIdentityAligned $bindingHealth $expectedRuntimeCommit) -and
+    (-not (Test-Cru55BindingAligned $bindingHealth))) {
+    Stop-WithMessage 'The running dashboard binding differs from persistent configuration. Use the approved whole-version cutover; no component was restarted.'
+  }
+
   $env:CRU34_LIVE_DATA_ROOT = $cru34DataRoot
   $env:CRU34_LIVE_SNAPSHOT_PATH = $cru34SnapshotPath
   $env:CRU34_LIVE_STATUS_PATH = $cru34StatusPath
@@ -309,6 +346,12 @@ try {
     } catch { Write-Status 'Last existing batch status could not be read. Dashboard startup can continue.' }
   } else {
     Write-Status 'No existing batch status is available yet. Dashboard startup can continue.'
+  }
+
+  if ($cru55Plan -and $cru55Plan.producer -eq 'STREAM_PAGED_V2') {
+    & (Join-Path $ProjectRoot 'scripts\start-cru55-managed.ps1') -ProjectRoot $ProjectRoot -BindingFile $cru55BindingFile
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage 'CRU55 managed writer did not pass its persistent owner check.' }
+    Write-Status 'CRU55 managed writer configured. Published fragments remain distinct from full-day or LIVE acceptance.'
   }
 
   Write-Status 'NORMAL ENVIRONMENT READY'

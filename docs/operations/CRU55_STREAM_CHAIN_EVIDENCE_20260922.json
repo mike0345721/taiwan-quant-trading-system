@@ -1,0 +1,1321 @@
+{
+  "schemaVersion": "cru55-stream-chain-evidence-20260922-v1",
+  "status": "DEVELOPMENT_EVIDENCE_FINAL_CANDIDATE_PENDING",
+  "baselineHead": "6f7dd7c05ffe6fd36b09cbbe81400c13f48e96a6",
+  "exactValidatedHead": null,
+  "branch": "codex/cru55-formal-entry-recovery-v1",
+  "reviewComment": "https://github.com/mike0345721/taiwan-quant-trading-system/pull/71#issuecomment-5754618020",
+  "provenance": {
+    "stage": "Uncommitted development candidate before final managed-owner and adjacent-source fixes",
+    "includesRawRecords": false,
+    "includesCredentials": false,
+    "includesAbsoluteOwnerPaths": false
+  },
+  "receipts": {
+    "cross1100": {
+      "measurementScope": "RESUMPTION_SEGMENT_ONLY",
+      "subsequentAppendAndBrowserAcceptance": "PENDING",
+      "receipt": {
+        "schemaVersion": "cru55-stream-chain-receipt-v1",
+        "scenario": "cross",
+        "evidenceKind": "SYNTHETIC_FIXTURE",
+        "sourceRecords": 1100,
+        "sourceBytes": 655543,
+        "sourceSpan": {
+          "start": "2026-09-14T07:00:00Z",
+          "end": "2026-09-14T13:06:20Z"
+        },
+        "state": "PUBLISHED",
+        "phase": "VERIFY",
+        "cycles": 2,
+        "elapsedMs": 1592.5728,
+        "cycleP50Ms": 847.5769,
+        "cycleP95Ms": 847.5769,
+        "cycleMaxMs": 847.5769,
+        "peakObservedRssBytes": 164892672,
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "processResume": {
+          "previousState": "PENDING",
+          "previousPhase": "PROJECT",
+          "previousArtifactHash": null
+        },
+        "publication": {
+          "artifactHash": "bb44a0165de7858665827df6f4461bc00f0febfbe1a6de3d51bbdcaf417fb36d",
+          "generationHash": "2fd37674b086422b6ff03f0483bde1c63e59f09f9bec72a68880bff4ee15a3de",
+          "projectionHash": "9ac9f4f758eef6e82cda1b86fa4723ade4801994294bcc8097af1e9b0dcc1410",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d",
+          "cutoff": {
+            "ledgerOrdinal": 1100,
+            "recordHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac",
+            "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+          },
+          "cvd": 1801,
+          "inputPoints": 1100,
+          "displayPoints": 400,
+          "bars": 367,
+          "vwapPoints": 367,
+          "integrity": {
+            "endByteOffset": 655543,
+            "originalRawPrefixVerified": true,
+            "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+            "rawChunkHash": "2302936820e84bbb124347b0a328157f7f4a7cbc1e7d5691d4c22d6696f19002",
+            "stableVerificationRequired": true
+          },
+          "frames": {
+            "1m": {
+              "delta": 6,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "5m": {
+              "delta": 28,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "15m": {
+              "delta": 76,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "30m": {
+              "delta": 150,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "1h": {
+              "delta": 298,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "4h": {
+              "delta": 1182,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            }
+          }
+        },
+        "fullDayOperationalAcceptance": false,
+        "naturalLiveAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      }
+    },
+    "nightCapacity": {
+      "measurementScope": "SUCCESSFUL_EPERM_RESUMPTION_SEGMENT_ONLY",
+      "originalInitialCatchupElapsedMs": null,
+      "concurrentLocalValidation": true,
+      "receipt": {
+        "schemaVersion": "cru55-stream-chain-receipt-v1",
+        "scenario": "night",
+        "evidenceKind": "SYNTHETIC_FIXTURE",
+        "sourceRecords": 30001,
+        "sourceBytes": 96483159,
+        "sourceSpan": {
+          "start": "2026-09-14T07:00:00Z",
+          "end": "2026-09-14T20:59:30Z"
+        },
+        "state": "PUBLISHED",
+        "phase": "VERIFY",
+        "cycles": 195,
+        "elapsedMs": 250410.087,
+        "cycleP50Ms": 839.3619999999937,
+        "cycleP95Ms": 3215.390100000004,
+        "cycleMaxMs": 4067.763699999996,
+        "peakObservedRssBytes": 448299008,
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "processResume": null,
+        "publication": {
+          "artifactHash": "7f44d4ec75a311ed3f1f62c992f9404867a8c299136bb6bc54d50775063caed3",
+          "generationHash": "a8ca2b04c73b357abbf933eff7e30c4f8050e3ba4786cbe4c859ec0b5ec97e35",
+          "projectionHash": "7fcf2331fa84ab8f7d50782aac1a3efb9482230e585c5bb029be0bfa11288f4a",
+          "sourceLedgerIdentity": "sha256:47a28289cf13fc4dd95facc2571c62da436646d3e9b8757d3072045d5e332f28",
+          "cutoff": {
+            "ledgerOrdinal": 30001,
+            "recordHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21",
+            "sourceLedgerIdentity": "sha256:47a28289cf13fc4dd95facc2571c62da436646d3e9b8757d3072045d5e332f28"
+          },
+          "cvd": 49091,
+          "inputPoints": 30001,
+          "displayPoints": 454,
+          "bars": 840,
+          "vwapPoints": 840,
+          "integrity": {
+            "endByteOffset": 96483159,
+            "originalRawPrefixVerified": true,
+            "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+            "rawChunkHash": "1b1d942f2b51d5378c7fde88d7d01075ded39a81f28324e4e03d18e2b808fcd1",
+            "stableVerificationRequired": true
+          },
+          "frames": {
+            "1m": {
+              "delta": 60,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            },
+            "5m": {
+              "delta": 296,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            },
+            "15m": {
+              "delta": 880,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            },
+            "30m": {
+              "delta": 1756,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            },
+            "1h": {
+              "delta": 3510,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            },
+            "4h": {
+              "delta": 14034,
+              "complete": true,
+              "sourceHash": "5a864d67713cbd237b34a799fd16dea92e44ad8b2b6663f414934aa0790e4e21"
+            }
+          }
+        },
+        "fullDayOperationalAcceptance": false,
+        "naturalLiveAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      }
+    },
+    "realPrefix": {
+      "measurementScope": "READBACK_OF_ALREADY_PUBLISHED_HISTORICAL_PREFIX",
+      "routingCorrection": "Isolated test output NIGHT to DAY; original ledger and immutable publication unchanged",
+      "receipt": {
+        "schemaVersion": "cru55-stream-real-chain-receipt-v1",
+        "evidenceKind": "GOVERNED_FRAGMENT",
+        "scope": "BOUNDED_ORIGINAL_RAW_PREFIX_NOT_WHOLE_SESSION",
+        "state": "ALREADY_PUBLISHED_RECEIPT_READ",
+        "sourceIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+        "cutoff": {
+          "ledgerOrdinal": 60000,
+          "recordHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757",
+          "sourceLedgerIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22"
+        },
+        "sourcePrefixBytes": 82021423,
+        "artifactHash": "db32aa4b57301d701b6c50b8ab8d4cc803fc5bf65c1e9d7c7580af2e09a18437",
+        "generationHash": "38ae691280bb325e2073c95551a017dfcfd1e81389c878852034fa3393746dd0",
+        "projectionHash": "c97edafdad25c25c60722d5a2c9d9fa26d88dae6647086c79fa00cc5454e37d1",
+        "cvd": -53,
+        "snapshots": 1432,
+        "displayPoints": 514,
+        "priceBars": 3,
+        "vwap": {
+          "availableAt": "2026-09-18T00:50:03.498Z",
+          "time": 1789692600,
+          "value": 47130.98039215686
+        },
+        "integrity": {
+          "endByteOffset": 82021423,
+          "originalRawPrefixVerified": true,
+          "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+          "rawChunkHash": "1d01e1b7a86bf96f5247a53bfeabff0c6911638c54750f0f76c13a175c860a8d",
+          "stableVerificationRequired": true
+        },
+        "windows": {
+          "1m": {
+            "delta": -7,
+            "complete": true,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "5m": {
+            "delta": 45,
+            "complete": true,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "15m": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "30m": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "1h": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "4h": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          }
+        },
+        "cycles": 0,
+        "elapsedMs": null,
+        "cycleP95Ms": null,
+        "cycleMaxMs": null,
+        "peakObservedRssBytes": null,
+        "naturalLiveAcceptance": false,
+        "fullDayOperationalAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      }
+    }
+  },
+  "retainedFailures": [
+    "STREAM_STORE_ARTIFACT_BUDGET; adaptive batch splitting added without cap increase or record discard",
+    "Loaded-code guard stopped a development run after code changes",
+    "EPERM ingest metadata rename; same-code retry resumed existing output",
+    "Real-prefix read requested NIGHT for a DAY artifact and was rejected; test-only routing corrected and artifact read back"
+  ],
+  "pending": [
+    "Final exact-HEAD tests and independent review",
+    "Final browser/API continued update beyond 1024 snapshots and restart",
+    "Managed launch/reuse/crash recovery and formal alias compatibility",
+    "Representative day complete catchup timing",
+    "Controlled growing-source latency/backlog/verification restart measurement"
+  ],
+  "mergePerformed": false,
+  "formalDeploymentPerformed": false,
+  "fullDayOperationalAcceptance": false,
+  "naturalLiveAcceptance": false,
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false,
+  "finalWorkingCodeAddendum": {
+    "status": "WORKING_CODE_VALIDATED_EXACT_COMMIT_REVIEW_CI_PENDING",
+    "baselineHead": "6f7dd7c05ffe6fd36b09cbbe81400c13f48e96a6",
+    "exactValidatedHead": null,
+    "uncommittedAtMeasurement": true,
+    "supersedesEarlierPendingOnlyForCompletedObservations": true,
+    "dayCapacity": {
+      "schemaVersion": "cru55-stream-chain-receipt-v1",
+      "scenario": "day",
+      "evidenceKind": "SYNTHETIC_FIXTURE",
+      "sourceRecords": 27001,
+      "sourceBytes": 86781157,
+      "sourceSpan": {
+        "start": "2026-09-14T00:45:00.000Z",
+        "end": "2026-09-14T05:44:42.000Z"
+      },
+      "state": "PUBLISHED",
+      "phase": "VERIFY",
+      "cycles": 230,
+      "elapsedMs": 359050.5436,
+      "cycleP50Ms": 943.587200000009,
+      "cycleP95Ms": 3348.8239999999932,
+      "cycleMaxMs": 5617.268100000001,
+      "peakObservedRssBytes": 405024768,
+      "backlogBytes": 0,
+      "publicationBacklogBytes": 0,
+      "verificationRestarts": 0,
+      "processResume": null,
+      "publication": {
+        "artifactHash": "ef2c9f55eb6bc2ebe563479d08efbe773a1bcd6bfca29b3655dee5e30e52ae93",
+        "generationHash": "9b31492d69c3d175feb5740db96bf69b14b1cfdbd9083ae50420f354a7167ff1",
+        "projectionHash": "154f49ecaaf164e47ed2efd88887e837a7f6bf74d0ae910b2ae2ef17a305096c",
+        "sourceLedgerIdentity": "sha256:1fc6f5252e6f6deb910441523775fa15b509621e9551ee2261523ac8f7112291",
+        "cutoff": {
+          "ledgerOrdinal": 27001,
+          "recordHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03",
+          "sourceLedgerIdentity": "sha256:1fc6f5252e6f6deb910441523775fa15b509621e9551ee2261523ac8f7112291"
+        },
+        "cvd": 44183,
+        "inputPoints": 27001,
+        "displayPoints": 454,
+        "bars": 300,
+        "vwapPoints": 300,
+        "integrity": {
+          "adjacentRawPrefixVerified": null,
+          "endByteOffset": 86781157,
+          "originalRawPrefixVerified": true,
+          "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+          "rawChunkHash": "dd8e8b7a0aca6ab32337c16a012ba5acfe994eb3c7b655946b6130c9cc0f6419",
+          "stableVerificationRequired": true
+        },
+        "frames": {
+          "1m": {
+            "delta": 151,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          },
+          "5m": {
+            "delta": 739,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          },
+          "15m": {
+            "delta": 2212,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          },
+          "30m": {
+            "delta": 4422,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          },
+          "1h": {
+            "delta": 8850,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          },
+          "4h": {
+            "delta": 35381,
+            "complete": true,
+            "sourceHash": "b7fa5cc24523b5d883c41d0ab366a376df0fa7bd5dd95510525cf5dd81723b03"
+          }
+        }
+      },
+      "fullDayOperationalAcceptance": false,
+      "naturalLiveAcceptance": false,
+      "formalWeight": 0,
+      "researchOnly": true,
+      "executionAuthorized": false,
+      "orderRoutesEnabled": false
+    },
+    "growingSource": {
+      "schemaVersion": "cru55-moving-source-receipt-v1",
+      "evidenceKind": "SYNTHETIC_FIXTURE",
+      "continuousAppendCycles": [
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 339.6107000000011,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 596,
+          "publicationBacklogBytes": 656139,
+          "verificationRestarts": 1,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        },
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 346.53640000000087,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 1192,
+          "publicationBacklogBytes": 656735,
+          "verificationRestarts": 2,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        },
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 1118.8520999999982,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 1788,
+          "publicationBacklogBytes": 657331,
+          "verificationRestarts": 3,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        },
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 318.26900000000023,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 2384,
+          "publicationBacklogBytes": 657927,
+          "verificationRestarts": 4,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        },
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 526.2114000000001,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 2980,
+          "publicationBacklogBytes": 658523,
+          "verificationRestarts": 5,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        },
+        {
+          "state": "PENDING",
+          "phase": "VERIFY",
+          "cycleMs": 494.2584000000006,
+          "pages": 0,
+          "rawRanges": 8,
+          "bytes": 610247,
+          "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+          "backlogBytes": 3576,
+          "publicationBacklogBytes": 659119,
+          "verificationRestarts": 6,
+          "jobStartedAt": "2026-09-22T05:07:27.379Z"
+        }
+      ],
+      "stablePublication": {
+        "artifactHash": "0b3e55cfdff9c99710bcdac50888d8491a71b0aed1d95a2ef7171e430811232e",
+        "cutoff": {
+          "sourceLedgerIdentity": "sha256:382216e51ee0d9c9a9d6e2be9a767d0d367b3b2b5b369d1e11120ca2c5d390db",
+          "ledgerOrdinal": 1100,
+          "recordHash": "d0d8deb8010886e09b1563af4713011b5a9f3ac1105b42458ac5baad2ec56646"
+        },
+        "stableDrainMs": 612.3288000000011,
+        "stableCycles": 1,
+        "cycleMs": 608.7987999999987,
+        "pages": 0,
+        "rawRanges": 1,
+        "bytes": 45296,
+        "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+        "backlogBytes": 3576,
+        "publicationBacklogBytes": 3576,
+        "verificationRestarts": 6,
+        "jobStartedAt": "2026-09-22T05:07:27.379Z"
+      },
+      "finalPublication": {
+        "artifactHash": "7bf473223f87023074370fbc94025bcb438d41f26dedd45cc0556548b5768522",
+        "cutoff": {
+          "sourceLedgerIdentity": "sha256:382216e51ee0d9c9a9d6e2be9a767d0d367b3b2b5b369d1e11120ca2c5d390db",
+          "ledgerOrdinal": 1106,
+          "recordHash": "7515a2430df8301dc601dbc3442cd2b3d96da53601e17db17786338569d22a88"
+        },
+        "cycleMs": 1162.8235999999997,
+        "pages": 0,
+        "rawRanges": 6,
+        "bytes": 354024,
+        "budgetScope": "bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate",
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "jobStartedAt": "2026-09-22T05:07:42.618Z"
+      },
+      "elapsedMs": 19843.4751,
+      "conclusion": "Continuously changed original prefix stays pending; publication requires a stable full verification interval. This benchmark does not prove LIVE capacity.",
+      "fullDayOperationalAcceptance": false,
+      "naturalLiveAcceptance": false,
+      "formalWeight": 0,
+      "researchOnly": true,
+      "executionAuthorized": false,
+      "orderRoutesEnabled": false
+    },
+    "cross": {
+      "at1100": {
+        "schemaVersion": "cru55-stream-chain-receipt-v1",
+        "scenario": "cross",
+        "evidenceKind": "SYNTHETIC_FIXTURE",
+        "sourceRecords": 1100,
+        "sourceBytes": 655543,
+        "sourceSpan": {
+          "start": "2026-09-14T07:00:00.000Z",
+          "end": "2026-09-14T13:06:20.000Z"
+        },
+        "state": "PUBLISHED",
+        "phase": "VERIFY",
+        "cycles": 2,
+        "elapsedMs": 1021.8254,
+        "cycleP50Ms": 574.4121,
+        "cycleP95Ms": 574.4121,
+        "cycleMaxMs": 574.4121,
+        "peakObservedRssBytes": 164003840,
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "processResume": {
+          "previousState": "PENDING",
+          "previousPhase": "PROJECT",
+          "previousArtifactHash": null
+        },
+        "publication": {
+          "artifactHash": "84fe08cfeef6c728439e0650473cf03d99a6c082e750e1b6b48018f74dade9cb",
+          "generationHash": "5b7a7975bf55d58b8188c6b754ad972e5d2449fa7d947db752b124fa692b854a",
+          "projectionHash": "2f36f26134953510d62d279ef1cfcf829c820173af7a97b871a2ad8666080992",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d",
+          "cutoff": {
+            "ledgerOrdinal": 1100,
+            "recordHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac",
+            "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+          },
+          "cvd": 1801,
+          "inputPoints": 1100,
+          "displayPoints": 400,
+          "bars": 367,
+          "vwapPoints": 367,
+          "integrity": {
+            "adjacentRawPrefixVerified": null,
+            "endByteOffset": 655543,
+            "originalRawPrefixVerified": true,
+            "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+            "rawChunkHash": "26c61066d180376d89cf640e9bafe56bd2f6c4f159a8770eb22380b53c53f63e",
+            "stableVerificationRequired": true
+          },
+          "frames": {
+            "1m": {
+              "delta": 6,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "5m": {
+              "delta": 28,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "15m": {
+              "delta": 76,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "30m": {
+              "delta": 150,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "1h": {
+              "delta": 298,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            },
+            "4h": {
+              "delta": 1182,
+              "complete": true,
+              "sourceHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac"
+            }
+          }
+        },
+        "fullDayOperationalAcceptance": false,
+        "naturalLiveAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      },
+      "at1300": {
+        "schemaVersion": "cru55-stream-chain-receipt-v1",
+        "scenario": "cross",
+        "evidenceKind": "SYNTHETIC_FIXTURE",
+        "sourceRecords": 1300,
+        "sourceBytes": 774743,
+        "sourceSpan": {
+          "start": "2026-09-14T07:00:00.000Z",
+          "end": "2026-09-14T14:13:00.000Z"
+        },
+        "state": "PUBLISHED",
+        "phase": "VERIFY",
+        "cycles": 4,
+        "elapsedMs": 3135.4772,
+        "cycleP50Ms": 761.4014000000002,
+        "cycleP95Ms": 1624.4085,
+        "cycleMaxMs": 1624.4085,
+        "peakObservedRssBytes": 213204992,
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "processResume": {
+          "previousState": "PUBLISHED",
+          "previousPhase": "VERIFY",
+          "previousArtifactHash": "84fe08cfeef6c728439e0650473cf03d99a6c082e750e1b6b48018f74dade9cb"
+        },
+        "publication": {
+          "artifactHash": "60e08dd3c1c83b8fbcf6a1b1410d636ed562afcdfb7eebfae506dc459be5c171",
+          "generationHash": "28f42ad24aab689ff2fb4f18e8ea474076446ce8c042c691401d680c44965108",
+          "projectionHash": "1dbffc5b78d6484998c047a75df585cee1f72941ef40ebfc0401331fbbbf4a6c",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d",
+          "cutoff": {
+            "ledgerOrdinal": 1300,
+            "recordHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8",
+            "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+          },
+          "cvd": 2123,
+          "inputPoints": 1300,
+          "displayPoints": 461,
+          "bars": 434,
+          "vwapPoints": 434,
+          "integrity": {
+            "adjacentRawPrefixVerified": null,
+            "endByteOffset": 774743,
+            "originalRawPrefixVerified": true,
+            "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+            "rawChunkHash": "2c9a9ab9760c413d0198bad2eee3ee8b84eacce9819bba03944e55234737623d",
+            "stableVerificationRequired": true
+          },
+          "frames": {
+            "1m": {
+              "delta": 0,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "5m": {
+              "delta": 22,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "15m": {
+              "delta": 72,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "30m": {
+              "delta": 144,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "1h": {
+              "delta": 292,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "4h": {
+              "delta": 1176,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            }
+          }
+        },
+        "fullDayOperationalAcceptance": false,
+        "naturalLiveAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      },
+      "restartedUnchanged": {
+        "schemaVersion": "cru55-stream-chain-receipt-v1",
+        "scenario": "cross",
+        "evidenceKind": "SYNTHETIC_FIXTURE",
+        "sourceRecords": 1300,
+        "sourceBytes": 774743,
+        "sourceSpan": {
+          "start": "2026-09-14T07:00:00.000Z",
+          "end": "2026-09-14T14:13:00.000Z"
+        },
+        "state": "UNCHANGED",
+        "phase": "VERIFY",
+        "cycles": 3,
+        "elapsedMs": 1709.1548,
+        "cycleP50Ms": 549.1279999999999,
+        "cycleP95Ms": 712.3006,
+        "cycleMaxMs": 712.3006,
+        "peakObservedRssBytes": 215519232,
+        "backlogBytes": 0,
+        "publicationBacklogBytes": 0,
+        "verificationRestarts": 0,
+        "processResume": {
+          "previousState": "PUBLISHED",
+          "previousPhase": "VERIFY",
+          "previousArtifactHash": "60e08dd3c1c83b8fbcf6a1b1410d636ed562afcdfb7eebfae506dc459be5c171"
+        },
+        "publication": {
+          "artifactHash": "60e08dd3c1c83b8fbcf6a1b1410d636ed562afcdfb7eebfae506dc459be5c171",
+          "generationHash": "28f42ad24aab689ff2fb4f18e8ea474076446ce8c042c691401d680c44965108",
+          "projectionHash": "1dbffc5b78d6484998c047a75df585cee1f72941ef40ebfc0401331fbbbf4a6c",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d",
+          "cutoff": {
+            "ledgerOrdinal": 1300,
+            "recordHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8",
+            "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+          },
+          "cvd": 2123,
+          "inputPoints": 1300,
+          "displayPoints": 461,
+          "bars": 434,
+          "vwapPoints": 434,
+          "integrity": {
+            "adjacentRawPrefixVerified": null,
+            "endByteOffset": 774743,
+            "originalRawPrefixVerified": true,
+            "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+            "rawChunkHash": "2c9a9ab9760c413d0198bad2eee3ee8b84eacce9819bba03944e55234737623d",
+            "stableVerificationRequired": true
+          },
+          "frames": {
+            "1m": {
+              "delta": 0,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "5m": {
+              "delta": 22,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "15m": {
+              "delta": 72,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "30m": {
+              "delta": 144,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "1h": {
+              "delta": 292,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            },
+            "4h": {
+              "delta": 1176,
+              "complete": true,
+              "sourceHash": "bd4762a2e29ab38ab83fd9f4fb8cec527c08041b8b7ca561f9c317e6d40525b8"
+            }
+          }
+        },
+        "fullDayOperationalAcceptance": false,
+        "naturalLiveAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      }
+    },
+    "browser": {
+      "evidenceOrigin": "Parent direct browser acceptance observations",
+      "sourceKind": "SYNTHETIC_FIXTURE",
+      "endpointBefore": 1801,
+      "endpointAfter": 2123,
+      "reloadRequired": false,
+      "reloginRequired": false,
+      "updateMode": "AUTOMATIC",
+      "artifactHash": "60e08dd3c1c83b8fbcf6a1b1410d636ed562afcdfb7eebfae506dc459be5c171",
+      "sixFrameEndpoints": [
+        2123,
+        2123,
+        2123,
+        2123,
+        2123,
+        2123
+      ],
+      "panes": 4,
+      "priceBars": 434,
+      "vwapPoints": 434,
+      "consoleErrors": 0,
+      "overflow": false,
+      "formalDeployment": false
+    },
+    "managedRecovery": {
+      "schemaVersion": "cru55-managed-recovery-receipt-v1",
+      "evidenceKind": "SYNTHETIC_FIXTURE",
+      "head": "6f7dd7c05ffe6fd36b09cbbe81400c13f48e96a6",
+      "steps": [
+        {
+          "step": "FRESH_SHELL_LAUNCH",
+          "stdout": "CRU55 managed writer started with verified owner identity and reported cycle status.",
+          "pid": 14108
+        },
+        {
+          "step": "FRESH_SHELL_REUSE",
+          "stdout": "CRU55 managed writer already matches persistent configuration and reported cycle status.",
+          "sameOwner": true
+        },
+        {
+          "step": "INTERRUPT_DURING_NESTED_WRITE",
+          "pipelineLockPreserved": true,
+          "storeLockPreserved": false
+        },
+        {
+          "step": "FRESH_SHELL_RESTART",
+          "stdout": "CRU55 managed writer started with verified owner identity and reported cycle status.",
+          "pid": 1976
+        }
+      ],
+      "formalWeight": 0,
+      "researchOnly": true,
+      "executionAuthorized": false,
+      "orderRoutesEnabled": false,
+      "baseline": {
+        "artifactHash": "84fe08cfeef6c728439e0650473cf03d99a6c082e750e1b6b48018f74dade9cb",
+        "cutoff": {
+          "ledgerOrdinal": 1100,
+          "recordHash": "ca74e52a10299d0f5d7596d5b961c2607aba8896a164124c51539235049e74ac",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+        },
+        "cvd": 1801
+      },
+      "after": {
+        "artifactHash": "caade31c43c9401a0430e438f24c9824f5a78d6f1ad537ae4f100c82a7940e21",
+        "cutoff": {
+          "ledgerOrdinal": 1600,
+          "recordHash": "7c06c3da8786f481810524d911dc36be92a173c92e54f45a66bfc8f24604a901",
+          "sourceLedgerIdentity": "sha256:165784af51bc1c6614a889708e0667c72a6ff73061714d40933c88544d0f8a5d"
+        },
+        "cvd": 2615,
+        "inputPoints": 1600,
+        "integrity": {
+          "adjacentRawPrefixVerified": null,
+          "endByteOffset": 953543,
+          "originalRawPrefixVerified": true,
+          "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+          "rawChunkHash": "1e88ab9ec14cb4edaf9be292a5242fe8594072117ce58e4ae4b2fc18c003bdaf",
+          "stableVerificationRequired": true
+        }
+      },
+      "retiredNestedLocks": [
+        "pipeline.lock"
+      ],
+      "finalState": "PASS"
+    },
+    "managedRecoveryLimits": [
+      "Actual interruption preserved pipeline.lock only; store lock was already released; do not claim actual interrupted store-lock recovery"
+    ],
+    "realPrefixes": [
+      {
+        "schemaVersion": "cru55-stream-real-chain-receipt-v1",
+        "evidenceKind": "GOVERNED_FRAGMENT",
+        "scope": "BOUNDED_ORIGINAL_RAW_PREFIX_NOT_WHOLE_SESSION",
+        "state": "PUBLISHED",
+        "sourceIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+        "cutoff": {
+          "ledgerOrdinal": 60000,
+          "recordHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757",
+          "sourceLedgerIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22"
+        },
+        "sourcePrefixBytes": 82021423,
+        "artifactHash": "a9ce08810f4228a2f4e3f613072635872c5499fa4fffc2d789fead4bf5c8dee6",
+        "generationHash": "8943149f2a71374f2b3f5a9294ac5ca4b8134242cfb915cdd877c5364b04093a",
+        "projectionHash": "c6793fabe1a28d06baf465c8ac76bdf1bc102f9297db8df3b88ef2064a701723",
+        "cvd": -53,
+        "snapshots": 1432,
+        "displayPoints": 514,
+        "priceBars": 3,
+        "vwap": {
+          "availableAt": "2026-09-18T00:50:03.498Z",
+          "time": 1789692600,
+          "value": 47130.98039215686
+        },
+        "integrity": {
+          "adjacentRawPrefixVerified": null,
+          "endByteOffset": 82021423,
+          "originalRawPrefixVerified": true,
+          "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+          "rawChunkHash": "b167cae1727b10ad26459fb7204e5ad367cdc9035317255bae1a1d532889afde",
+          "stableVerificationRequired": true
+        },
+        "windows": {
+          "1m": {
+            "delta": -7,
+            "complete": true,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "5m": {
+            "delta": 45,
+            "complete": true,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "15m": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "30m": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "1h": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          },
+          "4h": {
+            "delta": -53,
+            "complete": false,
+            "cutoffHash": "572467a09329bc4023e3de0f1db9ce87855019d173dc5ada2b05c63d6effb757"
+          }
+        },
+        "cycles": 177,
+        "elapsedMs": 355237.9843,
+        "cycleP95Ms": 5969.791700000002,
+        "cycleMaxMs": 10237.7184,
+        "peakObservedRssBytes": 374444032,
+        "naturalLiveAcceptance": false,
+        "fullDayOperationalAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      },
+      {
+        "schemaVersion": "cru55-stream-real-chain-receipt-v1",
+        "evidenceKind": "GOVERNED_FRAGMENT",
+        "scope": "BOUNDED_ORIGINAL_RAW_PREFIX_NOT_WHOLE_SESSION",
+        "state": "PUBLISHED",
+        "sourceIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+        "cutoff": {
+          "ledgerOrdinal": 61000,
+          "recordHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082",
+          "sourceLedgerIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22"
+        },
+        "sourcePrefixBytes": 83389192,
+        "artifactHash": "ecc3bb04fe2d8fa1b62e83f311c0de64e2797fccf7dc9d95493801f6e99fd72b",
+        "generationHash": "2219dede5d79bca01793b4af5e9abb41332f63931dfcc2fedb406d7c35aac78b",
+        "projectionHash": "bff843405ba30267047334ff821f9cc71b269b49a4998509689d14f9c9a0998a",
+        "cvd": -24,
+        "snapshots": 1453,
+        "displayPoints": 521,
+        "priceBars": 3,
+        "vwap": {
+          "availableAt": "2026-09-18T00:50:03.498Z",
+          "time": 1789692600,
+          "value": 47130.98039215686
+        },
+        "integrity": {
+          "adjacentRawPrefixVerified": null,
+          "endByteOffset": 83389192,
+          "originalRawPrefixVerified": true,
+          "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+          "rawChunkHash": "fd33a0271c2fda8ce6915a9e0d4157c3d10e13bb9eaccfb5ae7443cf70c55ea2",
+          "stableVerificationRequired": true
+        },
+        "windows": {
+          "1m": {
+            "delta": 15,
+            "complete": true,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          },
+          "5m": {
+            "delta": 79,
+            "complete": true,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          },
+          "15m": {
+            "delta": -24,
+            "complete": false,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          },
+          "30m": {
+            "delta": -24,
+            "complete": false,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          },
+          "1h": {
+            "delta": -24,
+            "complete": false,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          },
+          "4h": {
+            "delta": -24,
+            "complete": false,
+            "cutoffHash": "5f14b6ccba6310a20ece4078837ce08edce6281204e68a1ee33c250820c33082"
+          }
+        },
+        "cycles": 121,
+        "elapsedMs": 57281.6505,
+        "cycleP95Ms": 739.6013999999996,
+        "cycleMaxMs": 2960.2897,
+        "peakObservedRssBytes": 364150784,
+        "naturalLiveAcceptance": false,
+        "fullDayOperationalAcceptance": false,
+        "formalWeight": 0,
+        "researchOnly": true,
+        "executionAuthorized": false,
+        "orderRoutesEnabled": false
+      }
+    ],
+    "validation": {
+      "evidenceOrigin": "Parent reported completed candidate test runs",
+      "firstPointerPublicationFault": {
+        "passed": 1,
+        "total": 1
+      },
+      "ownerManagedPipeline": {
+        "owner": 3,
+        "managed": 6,
+        "pipeline": 5,
+        "passed": 14,
+        "total": 14
+      },
+      "projectionStoreFormalRuntime": {
+        "projection": 9,
+        "store": 10,
+        "formal": 2,
+        "runtime": 1,
+        "passed": 22,
+        "total": 22
+      },
+      "priorVerificationCarried": {
+        "passed": 2,
+        "total": 2
+      },
+      "windowsAliasCarried": {
+        "passed": 1,
+        "total": 1
+      },
+      "u1": "CLOSED_CARRIED_NO_REOPEN"
+    },
+    "limitations": [
+      "Continuous append can repeatedly restart original-prefix verification and starve publication; sustained-ingress/full-day operational NOT_READY",
+      "priceViolations diagnostic is prefix-wide, not per displayed price segment; disclosed nonblocking scope limitation",
+      "Real source is a bounded historical prefix, not natural LIVE"
+    ],
+    "pending": [
+      "Exact commit independent review and CI",
+      "62000 real-prefix and real browser evidence",
+      "Final GitHub/Linear/project overview updates and read-back"
+    ],
+    "sustainedIngressReadiness": "NOT_READY",
+    "fullDayOperationalAcceptance": false,
+    "naturalLiveAcceptance": false,
+    "mergePerformed": false,
+    "formalDeploymentPerformed": false
+  },
+  "finalReadback": {
+    "recordedAt": "2026-09-22T06:26:21.772Z",
+    "real62000": {
+      "schemaVersion": "cru55-stream-real-chain-receipt-v1",
+      "evidenceKind": "GOVERNED_FRAGMENT",
+      "scope": "BOUNDED_ORIGINAL_RAW_PREFIX_NOT_WHOLE_SESSION",
+      "state": "PUBLISHED",
+      "sourceIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+      "cutoff": {
+        "ledgerOrdinal": 62000,
+        "recordHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+        "sourceLedgerIdentity": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22"
+      },
+      "sourcePrefixBytes": 84757597,
+      "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+      "generationHash": "295a9650550737b5f3f1ef77614c6e3312139a34e6376412c9de40a54c3596ac",
+      "projectionHash": "c29b336e59c6ab530b2e55200fba91d88570012e3693a1d1e1221aa0e010e60a",
+      "cvd": -44,
+      "snapshots": 1472,
+      "displayPoints": 528,
+      "priceBars": 3,
+      "vwap": {
+        "availableAt": "2026-09-18T00:50:03.498Z",
+        "time": 1789692600,
+        "value": 47130.98039215686
+      },
+      "integrity": {
+        "adjacentRawPrefixVerified": null,
+        "endByteOffset": 84757597,
+        "originalRawPrefixVerified": true,
+        "policy": "FULL_PREFIX_BEFORE_PUBLICATION",
+        "rawChunkHash": "eaa24276b1d2f50f1070d0490ec8bd8ca6c5176eb4180e1a6aa8211f3e74cb5a",
+        "stableVerificationRequired": true
+      },
+      "windows": {
+        "1m": {
+          "delta": 3,
+          "complete": true,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        },
+        "5m": {
+          "delta": -6,
+          "complete": true,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        },
+        "15m": {
+          "delta": -44,
+          "complete": false,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        },
+        "30m": {
+          "delta": -44,
+          "complete": false,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        },
+        "1h": {
+          "delta": -44,
+          "complete": false,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        },
+        "4h": {
+          "delta": -44,
+          "complete": false,
+          "cutoffHash": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb"
+        }
+      },
+      "cycles": 123,
+      "elapsedMs": 50564.7496,
+      "cycleP95Ms": 616.5792000000001,
+      "cycleMaxMs": 2959.2412,
+      "peakObservedRssBytes": 364769280,
+      "naturalLiveAcceptance": false,
+      "fullDayOperationalAcceptance": false,
+      "formalWeight": 0,
+      "researchOnly": true,
+      "executionAuthorized": false,
+      "orderRoutesEnabled": false
+    },
+    "realApi": {
+      "authHarness": "Isolated existing-session callback fixture; production authentication implementation unchanged",
+      "unauthenticatedStatus": 401,
+      "responses": [
+        {
+          "frame": "1m",
+          "status": 200,
+          "ms": 22.98270000000001,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": 3,
+          "rawReadsPerRequest": 0
+        },
+        {
+          "frame": "5m",
+          "status": 200,
+          "ms": 22.1768,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": -6,
+          "rawReadsPerRequest": 0
+        },
+        {
+          "frame": "15m",
+          "status": 200,
+          "ms": 19.316100000000006,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": -44,
+          "rawReadsPerRequest": 0
+        },
+        {
+          "frame": "30m",
+          "status": 200,
+          "ms": 15.400300000000016,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": -44,
+          "rawReadsPerRequest": 0
+        },
+        {
+          "frame": "1h",
+          "status": 200,
+          "ms": 13.448200000000014,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": -44,
+          "rawReadsPerRequest": 0
+        },
+        {
+          "frame": "4h",
+          "status": 200,
+          "ms": 17.57649999999998,
+          "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+          "source": "sha256:313e1df118d92a986c4d7ea6d44d2f295d59bbee568590d5468b0fdefc1bea22",
+          "ordinal": 62000,
+          "cutoff": "d3a235f41c9fa38afe1d839bb76d4dfe2ceecf05fa7701d6f48e68a1b3c428bb",
+          "cvd": -44,
+          "delta": -44,
+          "rawReadsPerRequest": 0
+        }
+      ]
+    },
+    "realBrowser": {
+      "method": "Computer Use DOM and six window interactions",
+      "before": {
+        "ordinal": 61000,
+        "cvd": -24,
+        "artifactHash": "ecc3bb04fe2d8fa1b62e83f311c0de64e2797fccf7dc9d95493801f6e99fd72b"
+      },
+      "after": {
+        "ordinal": 62000,
+        "cvd": -44,
+        "artifactHash": "1efc04593e18d4a161e5c660bc8f442855b4db010ab546defc358834d837477d",
+        "allFrameEndpoints": -44,
+        "deltas": [
+          3,
+          -6,
+          -44,
+          -44,
+          -44,
+          -44
+        ],
+        "priceBarsByFrame": [
+          3,
+          2,
+          1,
+          1,
+          1,
+          1
+        ],
+        "vwapPoints": 3,
+        "panes": 4,
+        "contextScope": "UNAVAILABLE",
+        "consoleErrors": 0
+      },
+      "reloadBetweenPublications": false,
+      "reloginBetweenPublications": false,
+      "truthLabel": "Real historical observed fragment, capture UNPROVEN; incomplete classification; not LIVE"
+    },
+    "extraFailureHistory": [
+      "Windows policy refused initial private fixture script before worker launch; retried with process-scoped script execution option, no persistent policy changed.",
+      "Isolated browser source switch initially retained old process; DAY request correctly returned 503. Exact owned PID termination then restart succeeded."
+    ],
+    "testTotalSeparateGroups": {
+      "managedOwnerPlanPipeline": 14,
+      "firstPointerFault": 1,
+      "projectionStoreFormalRuntime": 22,
+      "priorVerifier": 2,
+      "windowsAlias": 1
+    },
+    "engineeringReview": {
+      "state": "Two independent focused source reviews found no remaining blockers; exact commit confirmation is recorded externally after commit",
+      "suggestions": [
+        "priceTimeLineageViolationCount is prefix-wide, not selected-session-only; no effect on CVD/windows/bars"
+      ]
+    }
+  },
+  "validationGitBlobs": {
+    "public/cru55-formal-overview.js": "14a137211b547bf9a2483f8875bd40d7a5cfab80",
+    "scripts/run-cru55-managed.mjs": "b8efe85d400719b9db0d0a04dbbae544f6834c31",
+    "scripts/start-cru55-managed.ps1": "5fcc5bebf006aab8ddd0bdbdd382d9575966bb9b",
+    "scripts/start-daily-use.ps1": "4d04e52b0a7cb8c168ee77497e356415a476a327",
+    "scripts/verify-cru55-stream-chain.mjs": "21ad959940596929ce0d47a2d3c902de6e30d91d",
+    "scripts/verify-cru55-stream-growing.mjs": "a01d19bbe6418ab92ac1c0cdf287ed0df2d3079d",
+    "scripts/verify-cru55-stream-real-chain.mjs": "7bf199ff0fb1ef3de5051a1366802e9b2718e577",
+    "src/cru55-dynamic-isolation.mjs": "052bda2ac7c468ba02970f99eebbd4c32e3df791",
+    "src/cru55-dynamic-reader.mjs": "5b54324e3ae3080a048938b85d75e9dc932f86ee",
+    "src/cru55-formal-entry.mjs": "40a60ed02f53506005a48d49629e4531044ac531",
+    "src/cru55-managed-owner.mjs": "c13f868ad3e0cb77aeb121dff700a93a436227e8",
+    "src/cru55-managed-plan.mjs": "9afce194adba21240ae38b3b1ce37c8e3469f3c7",
+    "src/cru55-runtime-binding.mjs": "eb4d4b19fdfccedad6e97a05dc9e5e6def4a3456",
+    "src/cru55-stream-pipeline.mjs": "93a5779d04308bbef1ca0bbeb23ddd43ae6e6570",
+    "src/cru55-stream-prior-verifier.mjs": "343428d932ad906bf1b66b0d116392bdfddd8644",
+    "src/cru55-stream-projection.mjs": "78dedcd15fef029f75aaa228c704e5e3499a064f",
+    "src/cru55-stream-reader.mjs": "9c2132ba6185c3f49f1ec8030f274a6de46c6aa9",
+    "src/cru55-stream-store.mjs": "54304f6d245ef9086a52c1e1884f0913c7f634db",
+    "tests/cru55-managed-owner.test.mjs": "75f17d07a074a8874e032bb8e3ee500ba1debd75",
+    "tests/cru55-managed-plan.test.mjs": "69ba82b2cbf4436071e3aeeaaeb4a7f276e5a172",
+    "tests/cru55-source-alias-windows.test.mjs": "a11ac8ab3974e8fa4ab6c93cfd5d6e401fbc2266",
+    "tests/cru55-stream-pipeline.test.mjs": "88d7f8742050a01fd3d04be1df667fbd39dac53f",
+    "tests/cru55-stream-prior-verifier.test.mjs": "244fcc58573ba17da0596b0647eed72a7de64551",
+    "tests/cru55-stream-projection.test.mjs": "e5fd99020d97d33c5ed39f595e92f32fbf2507ae",
+    "tests/test-lanes.json": "2c2e4a9b2fdb454289a42a330edd9293adda54c7"
+  },
+  "formatOnlyAfterValidation": {
+    "reason": "Removed trailing blank lines to satisfy git diff --check; no semantic changes or repeat acceptance",
+    "gitBlobs": {
+      "src/cru55-stream-projection.mjs": "b8b8dc274ef772fef0917473d258a08fe4c156f0",
+      "tests/cru55-stream-pipeline.test.mjs": "888a9d68d48659a644a57abebc4bd61e3180a82e",
+      "tests/cru55-stream-projection.test.mjs": "09d9eac9afe9f6c1f7cd21f2f5a3d38fe426a5a8"
+    }
+  }
+}
