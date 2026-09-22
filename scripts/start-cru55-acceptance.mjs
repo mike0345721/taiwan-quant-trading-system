@@ -35,7 +35,7 @@ Object.assign(env,{CRU55_ACCEPTANCE_CONFIG:file,CRU55_DYNAMIC_ROOT:plan.outputRo
   V2_RESEARCH_DATABASE_PATH:path.join(data,'v2/data/research-v2.sqlite'),V2_BACKTEST_REPORT_PATH:path.join(data,'v2/reports/latest-backtest.json'),DATA_OPERATIONS_OUTPUT_ROOT:path.join(data,'quality/daily-data-operations')});
 const stamp=Date.now(),stdout=fs.openSync(path.join(data,`server-${stamp}.stdout.log`),'wx'),stderr=fs.openSync(path.join(data,`server-${stamp}.stderr.log`),'wx');
 // This invokes the same owner-aware managed launcher as normal daily-use startup.
-execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-File',path.join(root,'scripts/start-cru55-managed.ps1'),'-ProjectRoot',root,'-BindingFile',file,'-Candidate'],{cwd:root,env,encoding:'utf8',windowsHide:true,timeout:60000});
+execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'scripts/start-cru55-managed.ps1'),'-ProjectRoot',root,'-BindingFile',file,'-Candidate'],{cwd:root,env,encoding:'utf8',windowsHide:true,timeout:60000});
 const child=spawn(process.execPath,['server.mjs'],{cwd:root,env,windowsHide:true,stdio:['ignore',stdout,stderr]});
 fs.closeSync(stdout);fs.closeSync(stderr);
 let failed=null;child.once('error',e=>{failed=e;});child.once('exit',code=>{failed=Error('CRU55_ACCEPTANCE_SERVER_EXIT:'+code);});
