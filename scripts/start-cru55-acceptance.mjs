@@ -26,6 +26,8 @@ if(JSON.parse(fs.readFileSync(path.join(data,'latest.json'))).dataMode!=='live')
 // Fresh private credentials use the application's real scrypt/session backend.
 // Only OS essentials are inherited; no .env, broker credentials or formal runtime.
 const env=Object.fromEntries(['SystemRoot','WINDIR','PATH','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+env.PATH=path.dirname(process.execPath)+path.delimiter+(env.PATH||'');
+env.PATHEXT=process.env.PATHEXT||'.COM;.EXE;.BAT;.CMD';
 const password=crypto.randomBytes(32).toString('hex');
 await new Promise((resolve,reject)=>{const probe=net.createServer();probe.once('error',reject);probe.listen(port,'127.0.0.1',()=>probe.close(resolve));});
 Object.assign(env,{CRU55_ACCEPTANCE_CONFIG:file,CRU55_DYNAMIC_ROOT:plan.outputRoot,DASHBOARD_RUNTIME_COMMIT:plan.runtimeCommit,
