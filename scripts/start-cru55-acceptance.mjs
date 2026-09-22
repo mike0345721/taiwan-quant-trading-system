@@ -38,7 +38,7 @@ Object.assign(env,{CRU55_ACCEPTANCE_CONFIG:file,CRU55_DYNAMIC_ROOT:plan.outputRo
 const stamp=Date.now(),stdout=fs.openSync(path.join(data,`server-${stamp}.stdout.log`),'wx'),stderr=fs.openSync(path.join(data,`server-${stamp}.stderr.log`),'wx');
 // This invokes the same owner-aware managed launcher as normal daily-use startup.
 execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'scripts/start-cru55-managed.ps1'),'-ProjectRoot',root,'-BindingFile',file,'-Candidate'],{cwd:root,env,stdio:['ignore',stdout,stderr],windowsHide:true,timeout:60000});
-const child=spawn(process.execPath,['server.mjs'],{cwd:root,env,windowsHide:true,stdio:['ignore',stdout,stderr]});
+const child=spawn(process.execPath,['server.mjs'],{cwd:root,env,windowsHide:true,detached:true,stdio:['ignore',stdout,stderr]});
 fs.closeSync(stdout);fs.closeSync(stderr);
 let failed=null;child.once('error',e=>{failed=e;});child.once('exit',code=>{failed=Error('CRU55_ACCEPTANCE_SERVER_EXIT:'+code);});
 let ready=false;
