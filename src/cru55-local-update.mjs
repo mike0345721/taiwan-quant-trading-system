@@ -31,7 +31,7 @@ export async function runLocalUpdate(plan,{driver,confirm,onStage=()=>{}}) {
   const routeFile=path.join(plan.stateRoot,'active.json'),previous=fs.existsSync(routeFile)?readJson(routeFile):null;
   const originalRoute=fs.existsSync(routeFile)?sha256(fs.readFileSync(routeFile)):null;
   const record={schemaVersion:'cru55-update-receipt-v1',transaction,targetSha:plan.targetSha,mode:plan.mode,decisionUrl:plan.decisionUrl,startedAt:new Date().toISOString(),stages:[],previous,formalDeployment:false,productReady:false};
-  const stage=(name,result,detail={})=>{record.stages.push({name,result,at:new Date().toISOString(),...detail});writeJson(journal,record);try{onStage(record.stages.at(-1));}catch{record.displayWarning=true;}};
+  const stage=(name,result,detail={},recovering=false)=>{record.stages.push({name,result,at:new Date().toISOString(),...detail});try{writeJson(journal,record);}catch(error){if(!recovering)throw error;retainLock=true;(record.journalErrors??=[]).push(error.message);}try{onStage(record.stages.at(-1));}catch{record.displayWarning=true;}};
   let prepared=null,started=null,oldStopped=false,retainLock=false,routeCommitted=false;
   try {
     fs.writeFileSync(path.join(lock,'owner.json'),JSON.stringify({pid:process.pid,transaction,journal}),{flag:'wx'});
@@ -58,15 +58,16 @@ export async function runLocalUpdate(plan,{driver,confirm,onStage=()=>{}}) {
     // A committed, verified live route must not be stopped because receipt output
     // subsequently failed. Retain the lock and require reconciliation of evidence.
     if(routeCommitted){retainLock=true;record.result='UPDATED_RECEIPT_RECOVERY_REQUIRED';record.error=error.message;throw Object.assign(Error(record.result),{receipt:record});}
-    record.error=error.message;stage('更新','失敗',{reason:error.message});
+    record.error=error.message;stage('更新','失敗',{reason:error.message},true);
     try {
       if(prepared)await driver.cleanupAttempt(plan,prepared,started);
-      if(oldStopped){const restored=await driver.start(plan,previous);const proof=await driver.verify({...plan,expected:previous.expected,uiFiles:previous.uiFiles},restored);writeJson(routeFile,restored);stage('回退','舊版真實驗證通過',proof);record.result='ROLLED_BACK_VERIFIED';}
-      else {stage('回退','原版本保留');record.result='FAILED_BEFORE_SWITCH';}
-    }catch(rollback){record.rollbackError=rollback.message;record.result='RECOVERY_REQUIRED';retainLock=true;stage('回退','需要檢查；不停止未知程序',{reason:rollback.message});}
+      if(oldStopped){const restored=await driver.start(plan,previous);const proof=await driver.verify({...plan,expected:previous.expected,uiFiles:previous.uiFiles},restored);writeJson(routeFile,restored);record.result='ROLLED_BACK_VERIFIED';stage('回退','舊版真實驗證通過',proof,true);}
+      else {record.result='FAILED_BEFORE_SWITCH';stage('回退','原版本保留',{},true);}
+    }catch(rollback){record.rollbackError=rollback.message;record.result='RECOVERY_REQUIRED';retainLock=true;stage('回退','需要檢查；不停止未知程序',{reason:rollback.message},true);}
     throw Object.assign(Error(record.result+': '+error.message),{receipt:record});
   } finally {
-    record.finishedAt=new Date().toISOString();writeJson(journal,record);
+    record.finishedAt=new Date().toISOString();
+    try{writeJson(journal,record);}catch(error){retainLock=true;(record.journalErrors??=[]).push(error.message);throw Object.assign(Error('UPDATE_RECEIPT_RECOVERY_REQUIRED'),{receipt:record,cause:error});}
     if(!retainLock){fs.unlinkSync(path.join(lock,'owner.json'));fs.rmdirSync(lock);}
   }
 }

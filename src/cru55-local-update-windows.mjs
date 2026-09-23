@@ -11,6 +11,7 @@ const command=(exe,args,cwd,options={})=>(execFileSync(exe,args,{cwd,encoding:'u
 const git=(root,args)=>command('git',args,root);
 const uiHash=(root,files)=>{for(const f of files)requireTrue(sha256(fs.readFileSync(assertPlainPath(path.join(root,f.path))))===f.sha256,'UPDATE_UI_VERSION_CHANGED');};
 const privateFile=(root,file)=>{const p=assertPlainPath(file);requireTrue(inside(root,p),'UPDATE_PRIVATE_PATH_ESCAPE');return p;};
+export function assertRetainedConfig(r) { requireTrue(/^[a-f0-9]{64}$/.test(r.configHash||'')&&sha256(fs.readFileSync(assertPlainPath(r.configFile)))===r.configHash,'UPDATE_RELEASE_CONFIG_DRIFT'); }
 async function http(url,pathname,options={}) { const response=await fetch(url+pathname,{...options,signal:AbortSignal.timeout(10000)});return {status:response.status,body:await response.json(),headers:response.headers}; }
 function osProcess(pid) {
   requireTrue(Number.isSafeInteger(pid)&&pid>0,'UPDATE_PID_INVALID');
@@ -18,6 +19,19 @@ function osProcess(pid) {
   return JSON.parse(command('powershell.exe',['-NoProfile','-NonInteractive','-Command',code],undefined,{env:{...process.env,CRU55_PROBE_PID:String(pid)}}));
 }
 function sameProcess(expected,actual) { return actual&&actual.pid===expected.pid&&actual.commandLine===expected.commandLine&&Math.abs(Date.parse(actual.startTime)-Date.parse(expected.startTime))<1; }
+function listenerPids(port) {
+  const code='$ErrorActionPreference="Stop"; @([System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()) | Out-Null; $rows=@(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object LocalPort -eq $env:CRU55_PROBE_PORT | Select-Object -ExpandProperty OwningProcess -Unique); ConvertTo-Json -InputObject $rows -Compress';
+  return JSON.parse(command('powershell.exe',['-NoProfile','-NonInteractive','-Command',code],undefined,{env:{...process.env,CRU55_PROBE_PORT:String(port)}}));
+}
+// A matching live PID is identity evidence, never sufficient authority to stop it.
+export function assertOwnedProcesses(r,{proof,session,owner,server,managed,listeners,node=process.execPath,allowAbsent=false}) {
+  requireTrue(['root','head','runId','configFile','configHash','bindingHash','url','sessionFile'].every(k=>proof[k]===r[k])&&sameProcess(r.server,proof.server)&&sameProcess(r.managed,proof.managed),'UPDATE_LAUNCH_RECEIPT_MISMATCH');
+  requireTrue(session.head===r.head&&session.bindingHash===r.bindingHash&&session.serverPid===r.server.pid&&session.url===r.url,'UPDATE_SESSION_OWNERSHIP');
+  requireTrue(r.server.commandLine===`"${node}" server.mjs`&&r.managed.commandLine.includes(`"${path.join(r.root,'scripts/run-cru55-managed.mjs')}"`)&&r.managed.commandLine.includes(`"${r.configFile}"`)&&r.managed.commandLine.trim().endsWith('--candidate'),'UPDATE_PROCESS_NOT_CANDIDATE');
+  requireTrue((server?sameProcess(r.server,server):allowAbsent)&&(managed?sameProcess(r.managed,managed):allowAbsent),'UPDATE_UNKNOWN_PID_REFUSED');
+  if(managed)requireTrue(owner&&sameProcess(r.managed,owner)&&owner.runtimeCommit===r.head&&owner.bindingHash===r.bindingHash&&owner.configPath===r.configFile&&owner.outputRoot===path.join(r.root,'data/cru55-dynamic/managed',r.runId),'UPDATE_MANAGED_OWNERSHIP');
+  requireTrue(server?listeners.length===1&&listeners[0]===r.server.pid:listeners.length===0,'UPDATE_LISTENER_OWNERSHIP');
+}
 function stopExact(expected) {
   const actual=osProcess(expected.pid);if(!actual)return;
   requireTrue(sameProcess(expected,actual),'UPDATE_UNKNOWN_PID_REFUSED');
@@ -46,7 +60,7 @@ export function createWindowsUpdateDriver(controllerRoot) {
       if(previous){
         driver.checkRelease(p,previous);uiHash(previous.root,previous.uiFiles);
         requireTrue(previous.url===`http://127.0.0.1:${p.port}`,'UPDATE_PORT_CHANGED');
-        requireTrue(sameProcess(previous.server,osProcess(previous.server.pid))&&sameProcess(previous.managed,osProcess(previous.managed.pid)),'UPDATE_UNKNOWN_PID_REFUSED');
+        driver.checkOwnership(p,previous);
         const h=await http(previous.url,'/healthz');requireTrue(h.body.runtimeCommit===previous.head&&h.body.cru55Acceptance?.bindingHash===previous.bindingHash,'UPDATE_RUNNING_VERSION_DRIFT');
       }else{
         // A missing route never authorizes stopping any listener.
@@ -58,6 +72,14 @@ export function createWindowsUpdateDriver(controllerRoot) {
       requireTrue(git(r.root,['rev-parse','HEAD'])===r.head&&!git(r.root,['status','--porcelain','--untracked-files=no']),'UPDATE_RELEASE_VERSION_DRIFT');
       requireTrue(/^candidate-update-[a-f0-9]{12}$/.test(r.runId),'UPDATE_RELEASE_RUN_ID');
       requireTrue(r.configFile===path.join(r.root,'data/cru55-dynamic/update-config.json'),'UPDATE_RELEASE_CONFIG');
+      assertRetainedConfig(r);
+    },
+    checkOwnership(p,r,{allowAbsent=false}={}) {
+      requireTrue(r.url===`http://127.0.0.1:${p.port}`,'UPDATE_PORT_CHANGED');
+      const app=path.join(r.root,'data/cru55-dynamic/acceptance',r.runId);
+      requireTrue(path.dirname(r.sessionFile)===app&&/^session-\d+\.json$/.test(path.basename(r.sessionFile)),'UPDATE_SESSION_PATH');
+      const ownerPath=path.join(r.root,'data/cru55-dynamic/managed',r.runId,'managed-owner.lock/owner.json');
+      assertOwnedProcesses(r,{proof:readJson(path.join(r.root,'data/cru55-dynamic/update-processes.json')),session:readJson(r.sessionFile),owner:fs.existsSync(ownerPath)?readJson(ownerPath):null,server:osProcess(r.server.pid),managed:osProcess(r.managed.pid),listeners:listenerPids(p.port),allowAbsent});
     },
     async preserve(p,previous,id) {
       const dir=privateFile(p.stateRoot,path.join(p.stateRoot,'preserved-'+id));fs.mkdirSync(dir);
@@ -79,7 +101,7 @@ export function createWindowsUpdateDriver(controllerRoot) {
       const provenance=readJson(path.join(sourceRoot,'provenance.json'));
       const config={schemaVersion:'cru55-managed-candidate-v1',runtimeCommit:p.targetSha,runId,sourceKind:'GOVERNED_FRAGMENT',producer:'STREAM_PAGED_V2',sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',provenanceHash:digest(stableJson(provenance)),sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:provenance.sources.map(s=>s.name.slice(0,10)).sort()[0]},sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},...SAFETY};
       const configFile=path.join(root,'data/cru55-dynamic/update-config.json');writeJson(configFile,config);
-      return {root,head:p.targetSha,runId,configFile,expected:p.expected,uiFiles:p.uiFiles,planHash:driver.planHash(p),url:`http://127.0.0.1:${p.port}`};
+      return {root,head:p.targetSha,runId,configFile,configHash:sha256(fs.readFileSync(configFile)),bindingHash:digest(stableJson(config)),expected:p.expected,uiFiles:p.uiFiles,planHash:driver.planHash(p),url:`http://127.0.0.1:${p.port}`};
     },
     async start(p,r) {
       driver.checkRelease(p,r);
@@ -89,11 +111,13 @@ export function createWindowsUpdateDriver(controllerRoot) {
       const owner=readJson(path.join(r.root,'data/cru55-dynamic/managed',r.runId,'managed-owner.lock/owner.json'));
       const server=osProcess(credentials.serverPid),managed=osProcess(owner.pid);
       requireTrue(server?.commandLine===`"${process.execPath}" server.mjs`&&sameProcess(owner,managed),'UPDATE_NEW_PROCESS_IDENTITY');
-      const route={...r,server,managed,bindingHash:credentials.bindingHash,sessionFile:summary.receiptPath};
+      requireTrue(credentials.bindingHash===r.bindingHash,'UPDATE_NEW_BINDING_DRIFT');
+      const route={...r,server,managed,sessionFile:summary.receiptPath};
+      assertOwnedProcesses(route,{proof:route,session:credentials,owner,server,managed,listeners:listenerPids(p.port)});
       writeJson(path.join(r.root,'data/cru55-dynamic/update-processes.json'),route);return route;
     },
     async stop(p,r) {
-      driver.checkRelease(p,r);requireTrue(sameProcess(r.server,osProcess(r.server.pid))&&sameProcess(r.managed,osProcess(r.managed.pid)),'UPDATE_UNKNOWN_PID_REFUSED');
+      driver.checkRelease(p,r);driver.checkOwnership(p,r,{allowAbsent:true});
       stopExact(r.server);stopExact(r.managed);
     },
     async cleanupAttempt(p,r,started) {
@@ -101,7 +125,7 @@ export function createWindowsUpdateDriver(controllerRoot) {
       // A launcher failure may leave a manager. Only its exact config/HEAD and
       // known candidate command can establish ownership; never kill by port.
       const ownerPath=path.join(r.root,'data/cru55-dynamic/managed',r.runId,'managed-owner.lock/owner.json');
-      if(fs.existsSync(ownerPath)){const owner=readJson(ownerPath);requireTrue(owner.configPath===r.configFile&&owner.runtimeCommit===r.head&&owner.commandLine.includes(r.root)&&owner.commandLine.includes('run-cru55-managed.mjs'),'UPDATE_UNKNOWN_PARTIAL_OWNER');stopExact(owner);}
+      if(fs.existsSync(ownerPath)){const owner=readJson(ownerPath);requireTrue(owner.configPath===r.configFile&&owner.runtimeCommit===r.head&&owner.bindingHash===r.bindingHash&&owner.outputRoot===path.join(r.root,'data/cru55-dynamic/managed',r.runId)&&owner.commandLine.includes(`"${path.join(r.root,'scripts/run-cru55-managed.mjs')}"`)&&owner.commandLine.includes(`"${r.configFile}"`)&&owner.commandLine.trim().endsWith('--candidate'),'UPDATE_UNKNOWN_PARTIAL_OWNER');stopExact(owner);}
       // A session receipt lacks exact server birth identity. Never infer ownership
       // from a generic command or a nearby timestamp after an incomplete start.
       const app=path.join(r.root,'data/cru55-dynamic/acceptance',r.runId);
@@ -109,7 +133,7 @@ export function createWindowsUpdateDriver(controllerRoot) {
       for(const name of sessions){const s=readJson(path.join(app,name));if(osProcess(s.serverPid))throw Error('UPDATE_PARTIAL_SERVER_REQUIRES_REVIEW');}
     },
     async verify(p,r) {
-      driver.checkRelease(p,r);uiHash(r.root,p.uiFiles);
+      driver.checkRelease(p,r);driver.checkOwnership(p,r);uiHash(r.root,p.uiFiles);
       const session=readJson(privateFile(r.root,r.sessionFile));
       const h=await http(r.url,'/healthz');requireTrue(h.body.runtimeCommit===r.head&&h.body.cru55Acceptance?.bindingHash===r.bindingHash,'UPDATE_HEALTH_IDENTITY');
       requireTrue((await http(r.url,'/api/v1/cvd-overview')).status===401,'UPDATE_AUTH_REQUIRED');
