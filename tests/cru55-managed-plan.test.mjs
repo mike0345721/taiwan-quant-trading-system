@@ -39,6 +39,19 @@ test('replacement retries are bounded and never erase a last readable state', {s
     await assert.rejects(publishManagedJson(f.binding,'stream-managed-status.json',{version:3}),/device-failure/);assert.equal(attempts,1);
   }finally{t.mock.restoreAll();f.dispose();}
 });
+test('routing rechecks source identity after replacement contention before retrying visibility', {skip:process.platform!=='win32'}, async t=>{
+  const f=fixture();try{
+    fs.mkdirSync(f.binding.outputRoot,{recursive:true});await publishManagedJson(f.binding,'stream-selection.json',{version:1});let attempts=0;
+    t.mock.method(fs,'renameSync',()=>{
+      attempts++;f.binding.sourceAlias.targetIdentity.ino='changed';
+      throw Object.assign(Error('transient-reader'),{code:'EPERM'});
+    });
+    await assert.rejects(publishManagedJson(f.binding,'stream-selection.json',{version:2}),/TARGET_IDENTITY/);
+    assert.equal(attempts,1);assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.binding.outputRoot,'stream-selection.json'))),{version:1});
+    t.mock.restoreAll();await publishManagedJson(f.binding,'stream-managed-status.json',{state:'BLOCKED'});
+    assert.equal(JSON.parse(fs.readFileSync(path.join(f.binding.outputRoot,'stream-managed-status.json'))).state,'BLOCKED');
+  }finally{t.mock.restoreAll();f.dispose();}
+});
 test('stream proposal pins plain target identity and refuses source/write escape without changing frozen policy',()=>{
   const f=fixture();try{
     const b=f.binding;f.write('2026-09-18');const plan=validateRuntimeBinding(b,{runtimeRoot:f.root,head:b.runtimeCommit});

@@ -66,6 +66,7 @@ export async function publishManagedJson(binding,name,value){
   const delays=[25,50,100,200,400];
   for(let attempt=0;;attempt++){
     assertBoundWriteRoot(binding,temp);assertBoundWriteRoot(binding,target);
+    if(name==='stream-selection.json')verifyBoundSourceRoot(binding);
     try{fs.renameSync(temp,target);return {attempts:attempt+1};}
     catch(error){
       if(process.platform!=='win32'||!['EPERM','EBUSY','EACCES'].includes(error.code)||attempt===delays.length)throw error;
