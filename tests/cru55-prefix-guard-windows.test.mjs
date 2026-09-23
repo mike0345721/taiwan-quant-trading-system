@@ -39,7 +39,7 @@ test('shared prefix + mapped section permits CPython append; rejects writes, tru
 });
 test('continuous appends publish ordered cutoffs without restarts; lost lease rechecks raw without replaying ingestion',windows,()=>{
   const f=fixture();let previous=append(f.source,0,1100),count=1100;
-  const opts={sourcePath:f.source,runRoot:f.out,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2};
+  const opts={sourcePath:f.source,runRoot:f.out,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2};
   try{
     const publications=[];let lastIngest=0;
     for(let cycle=0;cycle<250&&publications.length<3;cycle++){
@@ -58,7 +58,7 @@ test('continuous appends publish ordered cutoffs without restarts; lost lease re
   }finally{f.cleanup();}
 });
 test('growing adjacent prior verifies its full captured prefix, and lost protection invalidates its persisted cursor',windows,()=>{
-  const f=fixture();let previous=append(f.source,0,1100);const opts={sourcePath:f.source,runRoot:f.out,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2};
+  const f=fixture();let previous=append(f.source,0,1100);const opts={sourcePath:f.source,runRoot:f.out,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2};
   try{
     let publication;for(let i=0;i<100;i++){publication=runStreamCycle(opts);if(publication.state==='PUBLISHED')break;}
     assert.equal(publication.state,'PUBLISHED');

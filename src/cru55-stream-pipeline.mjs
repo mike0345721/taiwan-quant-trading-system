@@ -18,7 +18,7 @@ const CODE_FILES=['cru55-stream-core.mjs','cru55-stream-store.mjs','cru55-stream
   'cvd-observation-core.mjs','dashboard-tx-chart.mjs','tx-intraday-pressure-path-efficiency.mjs','cvd-relationship-projection.mjs',
   'cvd-session-context-projection.mjs','cvd-handoff-projection.mjs','market-state-forward-shadow-calendar.mjs','cru55-stream-prior-verifier.mjs','cru55-managed-owner.mjs','cru55-prefix-guard.mjs'];
 const codeIdentity=()=>digest(stableJson([...CODE_FILES.map(f=>digest(fs.readFileSync(path.join(REPO,'src',f)))),digest(fs.readFileSync(path.join(REPO,'package-lock.json')))]));
-export const PIPELINE_LIMITS = Object.freeze({ pages: 32, bytes: 8 * 1024 * 1024, jobBytes: 16 * 1024 * 1024, artifactBytes: 32 * 1024 * 1024 });
+export const PIPELINE_LIMITS = Object.freeze({ pages: 32, rawRanges: 128, bytes: 8 * 1024 * 1024, jobBytes: 16 * 1024 * 1024, artifactBytes: 32 * 1024 * 1024 });
 const same = (a,b) => stableJson(a) === stableJson(b);
 const fail = code => { throw Error(code); };
 const inside = (parent,child) => { const p=path.relative(parent,child); return !p || (!p.startsWith('..'+path.sep) && p!=='..' && !path.isAbsolute(p)); };
@@ -59,10 +59,11 @@ const loadedCode = codeIdentity();
 // New candidate pipeline. Raw is read-only; every publication requires a full
 // original-byte prefix pass. Windows protects the captured prefix through
 // publication; other platforms retain conservative whole-file stamp validation.
-export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP'}={}){
+export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxVerifyRanges=PIPELINE_LIMITS.rawRanges,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP'}={}){
   const started=performance.now();
   if(!['WINDOWS_PREFIX','STAMP'].includes(prefixProtection))fail('STREAM_PREFIX_MODE_INVALID');
   const protectedMode=prefixProtection==='WINDOWS_PREFIX';
+  if(!Number.isInteger(maxVerifyRanges)||maxVerifyRanges<1||maxVerifyRanges>PIPELINE_LIMITS.rawRanges)fail('STREAM_VERIFY_RANGE_BUDGET');
   if(!Number.isInteger(maxPages)||maxPages<2||maxPages>PIPELINE_LIMITS.pages||!Number.isInteger(maxBytes)||maxBytes<2*STREAM_STORE_LIMITS.pageBytes+2*STREAM_STORE_LIMITS.inputBytes||maxBytes>PIPELINE_LIMITS.bytes)fail('STREAM_PIPELINE_BUDGET');
   if(!['GOVERNED_FRAGMENT','SYNTHETIC_FIXTURE'].includes(sourceKind))fail('STREAM_SOURCE_KIND_INVALID');
   if((stopOrdinal!==null&&(!Number.isSafeInteger(stopOrdinal)||stopOrdinal<1))||typeof publishAtSessionBoundary!=='boolean')fail('STREAM_CUTOFF_OPTION_INVALID');
@@ -105,9 +106,11 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     if(size<job.targetSize)fail('STREAM_RAW_TRUNCATED');
     let pages=0,bytes=0;
     const result=(state,extra={})=>{const sizeNow=Number(fs.fstatSync(fd).size),visible=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536).endByteOffset:0;return {state,phase:job.phase,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:ingest.endByteOffset,
-      metrics:{cycleMs:performance.now()-started,pages:work.pages,rawRanges:work.rawRanges,bytes:work.bytes,budgetScope:'bytes=original raw ranges+archive pages; pages=all archive reads; raw batches<=maxPages; bounded metadata/code reads separate',backlogBytes:Math.max(0,sizeNow-ingest.endByteOffset),publicationBacklogBytes:Math.max(0,sizeNow-visible),verificationRestarts:job.verifyRestarts,jobStartedAt:job.startedAt},...extra};};
+      metrics:{cycleMs:performance.now()-started,pages:work.pages,rawRanges:work.rawRanges,bytes:work.bytes,budgetScope:'bytes=original raw ranges+archive pages; pages=all archive reads; ingest batches<=maxPages; verification ranges<=128; bounded metadata/code reads separate',backlogBytes:Math.max(0,sizeNow-ingest.endByteOffset),publicationBacklogBytes:Math.max(0,sizeNow-visible),verificationRestarts:job.verifyRestarts,jobStartedAt:job.startedAt},...extra};};
     savePending=()=>{atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,...SAFETY});return result('PENDING',{reason:'WORK_BUDGET'});};
-    atomic(jobFile,sealed(job)); // Establish the captured cutoff before any append can commit.
+    let savedJob = stableJson(sealed(job));
+    if(!fs.existsSync(jobFile))atomic(jobFile,sealed(job)); // Establish the captured cutoff before any append can commit.
+    const saveChangedJob=()=>{const next=stableJson(sealed(job));if(next!==savedJob){atomic(jobFile,sealed(job));savedJob=next;}};
     while(job.phase==='INGEST'&&pages<maxPages&&bytes<maxBytes){
       let plan=fs.existsSync(pendingFile)?unseal(pendingFile):null;
       if(!plan){
@@ -135,7 +138,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
         if(!end&&job.targetSize===ingest.endByteOffset)break;
         if(!end){if(b.length>=STREAM_STORE_LIMITS.inputBytes)fail('STREAM_RAW_RECORD_BUDGET');job.targetSize=ingest.endByteOffset;break;}
         plan={index:ingest.index+1,offset:ingest.endByteOffset,length:end,rawHash:digest(b.subarray(0,end)),previousChunkHash:ingest.lastChunkHash,previousPageHash:ingest.headPageHash};
-        atomic(jobFile,sealed(job)); // Boundary/round session must survive an interrupted append.
+        saveChangedJob(); // Persist changed boundary/round session before append; identical bytes need no second flush.
         atomic(pendingFile,sealed(plan));
       }
       // Recover an append committed before ingest pointer; never replay/count twice.
@@ -168,9 +171,32 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       if(!checkpoint.state.lastPoint){if(fs.existsSync(jobFile))fs.unlinkSync(jobFile);return result('WAITING_FOR_ELIGIBLE_TRADE');}
       const generationHash=digest(stableJson({sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity,rawChunkHash:ingest.lastChunkHash,checkpointHash:checkpoint.stateHash}));
       job={...job,phase:'PROJECT',cutoff:{index:ingest.index,endByteOffset:ingest.endByteOffset,lastChunkHash:ingest.lastChunkHash,headPageHash:ingest.headPageHash},generationHash,nextIndex:1,previousChunkHash:null,previousPageHash:null,projection:createProjectionJob({checkpoint,sourceKind,generationHash,calendar:resolved.calendar})};
+      // Reuse only an exactly matching, content-verified published projection.
+      // This skips a redundant derived-history reduction, NEVER the full raw
+      // prefix pass or prior verification required before visibility.
+      const pointerFile=name('stream-public.json');
+      if(fs.existsSync(pointerFile)){
+        const pointer=json(pointerFile,65536);
+        if(pointer.generationHash===generationHash&&/^[a-f0-9]{64}$/.test(pointer.artifactHash??'')){
+          const artifact=json(name(pointer.artifactHash+'.stream-view.json'),PIPELINE_LIMITS.artifactBytes),{artifactHash,...body}=artifact;
+          if(artifactHash!==pointer.artifactHash||digest(stableJson(body))!==artifactHash)fail('STREAM_PRIOR_ARTIFACT_INVALID');
+          const session=checkpoint.state.activeIdentity?.[2],reference=job.priorPublications?job.priorPublications[session==='DAY'?'night':'day']:job.priorPublication;
+          if(artifact.generationHash===generationHash&&(artifact.adjacentArtifactHash??null)===(reference?.artifactHash??null)){
+            job.phase='VERIFY';job.activeSession=session;delete job.projection;job.previousPageHash=ingest.headPageHash;job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));job.reusedArtifactHash=artifactHash;
+          }
+        }
+      }
     }
     while(job.phase==='PROJECT'&&pages<maxPages){
-      if(job.nextIndex>job.cutoff.index){job.phase='VERIFY';job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));break;}
+      if(job.nextIndex>job.cutoff.index){
+        // Projection no longer changes during verification. Persist it once,
+        // content-addressed, instead of serializing/fsyncing its full windows
+        // and chart buffers into every raw-verification cursor checkpoint.
+        job.projectionRef=digest(stableJson(job.projection));
+        immutable(name(job.projectionRef+'.projection.json'),job.projection);
+        job.activeSession=job.projection.checkpoint.state.activeIdentity?.[2];delete job.projection;
+        job.phase='VERIFY';job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));break;
+      }
       const chunk=json(chunkPath(job.nextIndex)),{chunkHash,...body}=chunk;
       if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==job.previousChunkHash||chunk.previousPageHash!==job.previousPageHash||chunk.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||chunk.resolverIdentity!==ingest.resolverIdentity)fail('STREAM_CHUNK_CHAIN_INVALID');
       const page=store.readPage(chunk.pageHash);if(page.previousPageHash!==job.previousPageHash)fail('STREAM_PAGE_CHAIN_INVALID');
@@ -187,7 +213,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       }
       const now=stamp(fs.fstatSync(fd,{bigint:true}));
       if(!protectedMode&&!same(now,job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=now;job.verifyRestarts++;}
-      while(job.verifyIndex<=job.cutoff.index&&pages<maxPages&&bytes<maxBytes){
+      while(job.verifyIndex<=job.cutoff.index&&work.rawRanges<maxVerifyRanges&&bytes<maxBytes){
         const chunk=json(chunkPath(job.verifyIndex)),{chunkHash,...body}=chunk;
         if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==job.verifyPreviousHash||chunk.offset!==job.verifyOffset||chunk.length<1||chunk.length>STREAM_STORE_LIMITS.inputBytes)fail('STREAM_CHUNK_CHAIN_INVALID');
         work.take(chunk.length,false);if(digest(exact(fd,chunk.offset,chunk.length))!==chunk.rawHash)fail('STREAM_RAW_PREFIX_CHANGED');
@@ -205,19 +231,26 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           const {artifactHash,...priorBody}=priorArtifact;if(artifactHash!==oldPointer.artifactHash||digest(stableJson(priorBody))!==artifactHash)fail('STREAM_PRIOR_ARTIFACT_INVALID');
         }
         let adjacent=null;
-        const actualSession=job.projection.checkpoint.state.activeIdentity?.[2];
+        const actualSession=job.activeSession;
         const reference=job.priorPublications?job.priorPublications[actualSession==='DAY'?'night':'day']:job.priorPublication;
         if(reference){
           const artifact=readPriorArtifact(reference);adjacent=artifact.view;
           job.priorVerification??=beginPriorVerification(reference);
           if(job.priorVerification.reference.artifactHash!==reference.artifactHash)fail('STREAM_PRIOR_JOB_REFERENCE_CHANGED');
-          const verification=advancePriorVerification(job.priorVerification,{budget:work,maxRanges:Math.max(0,maxPages-pages),protectionGroup:protectedMode?runRoot:null});
+          const verification=advancePriorVerification(job.priorVerification,{budget:work,maxRanges:Math.max(0,maxVerifyRanges-work.rawRanges),protectionGroup:protectedMode?runRoot:null});
           job.priorVerification=verification.state;pages+=verification.ranges;
           if(!verification.complete){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY_PRIOR',reason:'PRIOR_RAW_PREFIX_PENDING'});}
         }
         const adjacentArtifactHash=reference?.artifactHash??null;
         const reusable=priorArtifact?.generationHash===job.generationHash&&(priorArtifact.adjacentArtifactHash??null)===adjacentArtifactHash;
-        const finished=reusable?priorArtifact.view:finishProjectionJob(job.projection,{prior:adjacent??priorArtifact?.view??null,previousPublication:priorArtifact?.view??null}),view=finished.view??finished;
+        if(job.reusedArtifactHash&&(!reusable||priorArtifact.artifactHash!==job.reusedArtifactHash))fail('STREAM_REUSED_PROJECTION_CHANGED');
+        let projection=null;
+        if(!reusable){
+          if(!/^[a-f0-9]{64}$/.test(job.projectionRef??''))fail('STREAM_PROJECTION_REFERENCE_INVALID');
+          projection=json(name(job.projectionRef+'.projection.json'));
+          if(digest(stableJson(projection))!==job.projectionRef||projection.generationHash!==job.generationHash||projection.checkpoint.state.activeIdentity?.[2]!==actualSession||projection.checkpoint.state.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||projection.checkpoint.state.resolverIdentity!==resolved.resolverIdentity)fail('STREAM_PROJECTION_REFERENCE_CHANGED');
+        }
+        const finished=reusable?priorArtifact.view:finishProjectionJob(projection,{prior:adjacent??priorArtifact?.view??null,previousPublication:priorArtifact?.view??null}),view=finished.view??finished;
         const body={schemaVersion:'cru55-stream-view-v2',generationHash:job.generationHash,sourceLedgerIdentity:ingest.sourceLedgerIdentity,adjacentArtifactHash,
           integrity:{policy:'FULL_PREFIX_BEFORE_PUBLICATION',originalRawPrefixVerified:true,adjacentRawPrefixVerified:reference?true:null,endByteOffset:job.cutoff.endByteOffset,rawChunkHash:job.cutoff.lastChunkHash,stableVerificationRequired:true,protection:protectedMode?'WINDOWS_SHARED_RANGE_READONLY_SECTION':'WHOLE_FILE_STAMP'},view,...SAFETY};
         const artifactHash=digest(stableJson(body)),artifact={...body,artifactHash};

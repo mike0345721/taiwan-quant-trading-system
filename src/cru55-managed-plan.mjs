@@ -6,7 +6,12 @@ import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { readRuntimeBinding,verifyBoundSourceRoot,resolveBoundSourceFile,assertBoundWriteRoot } from './cru55-runtime-binding.mjs';
 import { readRuntimeIdentity } from './runtime-identity.mjs';
-export function managedDelayMs(result){return result.state==='PENDING'&&(result.metrics?.pages>0||result.metrics?.bytes>0)?250:5000;}
+export function managedDelayMs(result){
+  // Yield to the event loop while bounded work is progressing. A quiet source
+  // must not impose a five-second sleep on another source's pending job.
+  if(result.workPending===true)return 0;
+  return result.state==='PENDING'&&(result.metrics?.pages>0||result.metrics?.bytes>0)?0:5000;
+}
 
 const readJson=(file,limit=65536)=>{assertPlainPath(file);const s=fs.statSync(file);if(!s.isFile()||s.nlink!==1||s.size>limit)throw Error('CRU55_MANAGED_FILE_INVALID');return JSON.parse(fs.readFileSync(file,'utf8'));};
 function checkedPlan(plan){
@@ -18,7 +23,7 @@ export function readManagedConfig(file,{runtimeRoot,candidate=false}={}){
   if(!candidate){const b=readRuntimeBinding(configPath,{runtimeRoot,activation:true});if(b.producer!=='STREAM_PAGED_V2')throw Error('CRU55_MANAGED_STREAM_REQUIRED');return checkedPlan({...b,configPath,sourceKind:'GOVERNED_FRAGMENT'});}
   const b=readJson(configPath,16384),root=assertPlainPath(runtimeRoot),privateRoot=path.join(root,'data','cru55-dynamic');
   const head=readRuntimeIdentity(root).commit;
-  if(!fs.lstatSync(path.join(root,'.git')).isFile()||!['codex/cru55-formal-entry-recovery-v1','codex/cru55-growing-prefix-v1'].includes(execFileSync('git',['branch','--show-current'],{cwd:root,encoding:'utf8',windowsHide:true,timeout:10000}).trim()))throw Error('CRU55_CANDIDATE_WORKTREE_REQUIRED');
+  if(!fs.lstatSync(path.join(root,'.git')).isFile()||!['codex/cru55-formal-entry-recovery-v1','codex/cru55-growing-prefix-v1','codex/cru55-cvd-performance-v1'].includes(execFileSync('git',['branch','--show-current'],{cwd:root,encoding:'utf8',windowsHide:true,timeout:10000}).trim()))throw Error('CRU55_CANDIDATE_WORKTREE_REQUIRED');
   if(b.schemaVersion!=='cru55-managed-candidate-v1'||b.runtimeCommit!==head||!head||!/^candidate-[a-z0-9-]{1,50}$/.test(b.runId||'')
     ||Object.entries(SAFETY).some(([k,v])=>b[k]!==v)||b.producer!=='STREAM_PAGED_V2'||b.sourceVerification!=='FULL_PREFIX_BEFORE_PUBLICATION'
     ||b.sourceSelection?.kind!=='DATED_CALENDAR_LEDGER'||!/^\d{4}-\d{2}-\d{2}$/.test(b.sourceSelection?.startDate||''))throw Error('CRU55_MANAGED_CANDIDATE_CONFIG');
@@ -64,7 +69,8 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
   if(state.bindingHash!==binding.bindingHash)throw Error('CRU55_MANAGED_CONFIG_CHANGED');
   const names=selectManagedSources(binding,{now});if(!names.length)return {state:'WAITING_FOR_SOURCE',fullDayReady:false};
   const index=state.cursor%names.length,name=names[index],source=identifyManagedSource(binding,name);
-  if(!source){state.cursor=(index+1)%names.length;publishManagedJson(binding,'stream-managed-state.json',state);return {state:'WAITING_FOR_COMPLETE_RECORD',sourceFiles:names.length,fullDayReady:false};}
+  state.pending??={};for(const old of Object.keys(state.pending))if(!names.includes(old))delete state.pending[old];
+  if(!source){delete state.pending[name];state.cursor=(index+1)%names.length;publishManagedJson(binding,'stream-managed-state.json',state);return {state:'WAITING_FOR_COMPLETE_RECORD',sourceFiles:names.length,workPending:Object.values(state.pending).some(Boolean),fullDayReady:false};}
   if(state.sources[name]&&state.sources[name]!==source.sourceKey)throw Error('CRU55_MANAGED_SOURCE_REPLACED');
   state.sources[name]=source.sourceKey;
   const relativeRunPath='sources/'+source.sourceKey,runRoot=assertBoundWriteRoot(binding,path.join(binding.outputRoot,...relativeRunPath.split('/')));
@@ -86,7 +92,9 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
   }
   // A bounded step alternates files, including the new calendar date after
   // midnight. Separate genesis streams never imply cross-file CVD continuity.
+  state.pending[name]=Boolean((result.state==='PENDING'&&(result.metrics?.pages>0||result.metrics?.bytes>0))
+    ||(result.state==='PUBLISHED'&&result.metrics?.backlogBytes>0));
   state.cursor=(index+1)%names.length;publishManagedJson(binding,'stream-managed-state.json',state);
   const views=fs.existsSync(selectionFile)?readJson(selectionFile).views:{};
-  return {...result,sourceKey:source.sourceKey,relativeRunPath,sourceFiles:names.length,missingViews:['day','night'].filter(v=>!views[v]),sessionSelection:'PUBLISHED_CUTOFFS_ONLY',fullDayReady:false};
+  return {...result,workPending:Object.values(state.pending).some(Boolean),sourceKey:source.sourceKey,relativeRunPath,sourceFiles:names.length,missingViews:['day','night'].filter(v=>!views[v]),sessionSelection:'PUBLISHED_CUTOFFS_ONLY',fullDayReady:false};
 }

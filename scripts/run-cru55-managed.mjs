@@ -25,8 +25,12 @@ else{
     fs.writeFileSync(ownerPath,JSON.stringify({schemaVersion:'cru55-managed-owner-v1',...ownerContext}),{flag:'wx'});owned=true;
     const {runStreamCycle}=await import('../src/cru55-stream-pipeline.mjs');
     for(let cycle=0;!stopped&&cycle<cycles;cycle++){
+      const cycleStart=performance.now(),cpuStart=process.cpuUsage();
       const current=readManagedConfig(configPath,{runtimeRoot,candidate});if(current.bindingHash!==plan.bindingHash)throw Error('CRU55_MANAGED_CONFIG_CHANGED');
-      const result=await runManagedCycle(plan,{runStreamCycle,ownerContext});
+      const configMs=performance.now()-cycleStart;let pipelineMs=0;
+      const result=await runManagedCycle(plan,{runStreamCycle:args=>{const start=performance.now();try{return runStreamCycle(args);}finally{pipelineMs+=performance.now()-start;}},ownerContext});
+      const elapsed=performance.now()-cycleStart;
+      result.timing={configMs,pipelineMs,managerMs:elapsed-configMs-pipelineMs,workMs:elapsed,cpuUs:process.cpuUsage(cpuStart),rssBytes:process.memoryUsage().rss,scheduledDelayMs:managedDelayMs(result)};
       publishManagedJson(plan,'stream-managed-status.json',{...result,at:new Date().toISOString(),bindingHash:plan.bindingHash,runtimeCommit:plan.runtimeCommit,ownerNonce:nonce,ownerPid:process.pid});
       console.log(JSON.stringify(result));
       if(cycle+1<cycles)await new Promise(resolve=>setTimeout(resolve,managedDelayMs(result)));

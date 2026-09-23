@@ -70,10 +70,31 @@ test('managed prior uses only an existing immutable other-view artifact inside o
     fs.unlinkSync(artifactPath);await runManagedCycle(b,{now,runStreamCycle:async args=>{called=args;return {state:'PENDING'};}});assert.deepEqual(called.priorPublications,{day:null,night:null});
   }finally{f.dispose();}
 });
-test('catch-up waits briefly only after measured progress',()=>{
-  assert.equal(managedDelayMs({state:'PENDING',metrics:{pages:1}}),250);
-  assert.equal(managedDelayMs({state:'PENDING',metrics:{bytes:4}}),250);
+test('catch-up yields without sleeping after measured progress, including other pending sources',()=>{
+  assert.equal(managedDelayMs({state:'PENDING',metrics:{pages:1}}),0);
+  assert.equal(managedDelayMs({state:'PENDING',metrics:{bytes:4}}),0);
+  assert.equal(managedDelayMs({state:'UNCHANGED',workPending:true}),0);
+  assert.equal(managedDelayMs({state:'UNCHANGED',metrics:{backlogBytes:20}}),5000);
   for(const result of [{state:'PENDING'},{state:'PENDING',metrics:{bytes:0,pages:0}},{state:'UNCHANGED',metrics:{pages:1}},{state:'WAITING_FOR_COMPLETE_RECORD'}])assert.equal(managedDelayMs(result),5000);
+});
+test('an incomplete tail after publication gets one prompt follow-up, then backs off without a hot loop',async()=>{
+  const f=fixture();try{
+    f.write('2026-09-18');const now=Date.parse('2026-09-18T12:00:00+08:00');
+    const value={state:'PUBLISHED',artifactHash:digest('tail'),session:'DAY',tradeDate:'2026-09-18',availableAt:'2026-09-18T09:00:00+08:00',cutoff:{ledgerOrdinal:1},metrics:{backlogBytes:20}};
+    assert.equal((await runManagedCycle(f.binding,{now,runStreamCycle:async()=>value})).workPending,true);
+    const result=await runManagedCycle(f.binding,{now,runStreamCycle:async()=>({...value,state:'UNCHANGED'})});
+    assert.equal(result.workPending,false);assert.equal(managedDelayMs(result),5000);
+  }finally{f.dispose();}
+});
+test('quiet and incomplete files cannot delay another progressing source, while round-robin remains fair',async()=>{
+  const f=fixture();try{
+    f.write('2026-09-18');f.write('2026-09-19');
+    const now=Date.parse('2026-09-19T12:00:00+08:00');let calls=0;
+    const runner=async()=>++calls===1?{state:'PENDING',metrics:{bytes:100,pages:1}}:{state:'WAITING_FOR_ELIGIBLE_TRADE'};
+    assert.equal((await runManagedCycle(f.binding,{now,runStreamCycle:runner})).workPending,true);
+    const idle=await runManagedCycle(f.binding,{now,runStreamCycle:runner});assert.equal(idle.workPending,true);assert.equal(managedDelayMs(idle),0);
+    const settled=await runManagedCycle(f.binding,{now,runStreamCycle:runner});assert.equal(settled.workPending,false);assert.equal(managedDelayMs(settled),5000);
+  }finally{f.dispose();}
 });
 test('changed source genesis and changed manager configuration cannot silently reset the run',async()=>{
   const f=fixture();try{

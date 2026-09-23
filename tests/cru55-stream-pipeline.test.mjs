@@ -33,7 +33,7 @@ test('interrupted first immutable page resumes only from the exact durable raw p
 });
 test('new chain >1024 snapshots reaches six windows and protected API, then restart/appended source advances without recount',async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-chain-')),sourcePath=path.join(root,'source.ndjson'),output=path.join(root,'out'),runRoot=path.join(output,'night');
-  let previous=append(sourcePath,0,1100);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2};
+  let previous=append(sourcePath,0,1100);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2};
   try{
     const a=finish(opts);assert.equal(a.state,'PUBLISHED');
     let read=createDynamicReader(output),data=read({view:'night'});
@@ -46,7 +46,7 @@ test('new chain >1024 snapshots reaches six windows and protected API, then rest
       assert.equal((await fetch(url+'1m')).status,401);
       for(const frame of ['1m','5m','15m','30m','1h','4h']){const response=await fetch(url+frame,{headers:{authorization:'fixture-session'}});assert.equal(response.status,200);const x=await response.json();assert.equal(x.chart.currentCvd,1100);assert.equal(x.chart.cutoff.recordHash,previous);assert.equal(x.chart.projectionHash,x.relationship.projectionHash);assert.equal(x.rawReadsPerRequest,0);assert.equal(x.chart.timeframe,frame);}
       previous=append(sourcePath,1100,200,previous);
-      const partial=runStreamCycle({...opts,maxPages:2});assert.equal(partial.state,'PENDING');
+      const partial=runStreamCycle({...opts,maxPages:2,maxVerifyRanges:2});assert.equal(partial.state,'PENDING');
       const b=finish(opts);assert.equal(b.state,'PUBLISHED');assert.notEqual(b.artifactHash,a.artifactHash);
       read=createDynamicReader(output);data=read({view:'night',timeframe:'4h'});assert.equal(data.chart.currentCvd,1300);assert.equal(data.chart.cutoff.recordHash,previous);assert.equal(data.chart.display.inputPoints,1300);
       const x=await(await fetch(url+'4h',{headers:{authorization:'fixture-session'}})).json();assert.equal(x.chart.currentCvd,1300);assert.equal(x.chart.cutoff.ledgerOrdinal,1300);
@@ -57,7 +57,7 @@ test('new chain >1024 snapshots reaches six windows and protected API, then rest
 test('legacy stamp mode fails closed on raw rewrite and conservatively restarts on append',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-integrity-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
   try{
-    const previous=append(sourcePath,0,1100),opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,prefixProtection:'STAMP'};finish(opts);
+    const previous=append(sourcePath,0,1100),opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2,prefixProtection:'STAMP'};finish(opts);
     let r;for(let i=0;i<100;i++){r=runStreamCycle(opts);if(r.phase==='VERIFY')break;}assert.equal(r.phase,'VERIFY');
     append(sourcePath,1100,1,previous);r=runStreamCycle(opts);assert.equal(r.state,'PENDING');assert.ok(r.metrics.verificationRestarts>0);
     const fd=fs.openSync(sourcePath,'r+');try{fs.writeSync(fd,Buffer.from('X'),0,1,10);}finally{fs.closeSync(fd);}
@@ -66,10 +66,42 @@ test('legacy stamp mode fails closed on raw rewrite and conservatively restarts 
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
+test('unchanged cutoff reuses projection but still rereads every raw byte and refuses prefix mutation',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-reuse-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
+  const read=fs.readSync,open=fs.openSync,close=fs.closeSync,readFile=fs.readFileSync;const fds=new Set();let rawBytes=0,pageReads=0;
+  try{
+    append(sourcePath,0,300);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP'};
+    const first=finish(opts),before=fs.readFileSync(path.join(runRoot,first.artifactHash+'.stream-view.json'));
+    fs.openSync=(p,...args)=>{const fd=open(p,...args);if(p===sourcePath)fds.add(fd);return fd;};
+    fs.closeSync=fd=>{fds.delete(fd);return close(fd);};
+    fs.readSync=(fd,...args)=>{const n=read(fd,...args);if(fds.has(fd))rawBytes+=n;return n;};
+    fs.readFileSync=(p,...args)=>{if(String(p).endsWith('.page.json'))pageReads++;return readFile(p,...args);};
+    const next=finish(opts);assert.equal(next.state,'UNCHANGED');assert.equal(next.artifactHash,first.artifactHash);
+    assert.equal(rawBytes,fs.statSync(sourcePath).size);assert.equal(pageReads,1);
+    assert.deepEqual(fs.readFileSync(path.join(runRoot,next.artifactHash+'.stream-view.json')),before);
+    const fd=fs.openSync(sourcePath,'r+');fs.writeSync(fd,Buffer.from('X'),0,1,10);fs.closeSync(fd);
+    assert.throws(()=>finish(opts),/STREAM_RAW_PREFIX_CHANGED/);
+  }finally{fs.readSync=read;fs.openSync=open;fs.closeSync=close;fs.readFileSync=readFile;fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('verification cursor is compact, resumes a sealed projection and rejects changed projection bytes',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-projection-ref-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
+  try{
+    append(sourcePath,0,500);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP',maxPages:2,maxVerifyRanges:1};let job;
+    for(let i=0;i<100;i++){runStreamCycle(opts);job=JSON.parse(fs.readFileSync(path.join(runRoot,'job.json'))).value;if(job.phase==='VERIFY')break;}
+    assert.equal(job.phase,'VERIFY');assert.equal(job.projection,undefined);assert.match(job.projectionRef,/^[a-f0-9]{64}$/);
+    assert.ok(fs.statSync(path.join(runRoot,'job.json')).size<10000);
+    const file=path.join(runRoot,job.projectionRef+'.projection.json'),bytes=fs.readFileSync(file);
+    const modified=JSON.parse(bytes);modified.contextInvalid=!modified.contextInvalid;fs.writeFileSync(file,JSON.stringify(modified));
+    assert.throws(()=>finish(opts),/STREAM_PROJECTION_REFERENCE_CHANGED/);
+    assert.equal(fs.existsSync(path.join(runRoot,'stream-public.json')),false);
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('every actual raw range and archive page read shares the cycle byte budget; impossible budgets are rejected',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-budget-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
   append(sourcePath,0,300);
-  const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxBytes:5*1024*1024};
+  const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2,maxBytes:5*1024*1024};
   assert.throws(()=>runStreamCycle({...opts,maxPages:1}),/STREAM_PIPELINE_BUDGET/);
   assert.throws(()=>runStreamCycle({...opts,maxBytes:512*1024}),/STREAM_PIPELINE_BUDGET/);
   const open=fs.openSync,close=fs.closeSync,read=fs.readSync,readFile=fs.readFileSync;const sourceFds=new Set();let rawBytes=0,pageBytes=0,pageReads=0;
