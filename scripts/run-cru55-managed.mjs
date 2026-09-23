@@ -31,12 +31,12 @@ else{
       const result=await runManagedCycle(plan,{runStreamCycle:args=>{const start=performance.now();try{return runStreamCycle(args);}finally{pipelineMs+=performance.now()-start;}},ownerContext});
       const elapsed=performance.now()-cycleStart;
       result.timing={configMs,pipelineMs,managerMs:elapsed-configMs-pipelineMs,workMs:elapsed,cpuUs:process.cpuUsage(cpuStart),rssBytes:process.memoryUsage().rss,scheduledDelayMs:managedDelayMs(result)};
-      publishManagedJson(plan,'stream-managed-status.json',{...result,at:new Date().toISOString(),bindingHash:plan.bindingHash,runtimeCommit:plan.runtimeCommit,ownerNonce:nonce,ownerPid:process.pid});
+      await publishManagedJson(plan,'stream-managed-status.json',{...result,at:new Date().toISOString(),bindingHash:plan.bindingHash,runtimeCommit:plan.runtimeCommit,ownerNonce:nonce,ownerPid:process.pid});
       console.log(JSON.stringify(result));
       if(cycle+1<cycles)await new Promise(resolve=>setTimeout(resolve,managedDelayMs(result)));
     }
   }catch(error){
-    publishManagedJson(plan,'stream-managed-status.json',{state:'BLOCKED',at:new Date().toISOString(),bindingHash:plan.bindingHash,runtimeCommit:plan.runtimeCommit,ownerNonce:nonce,ownerPid:process.pid,reason:error.message,fullDayReady:false});throw error;
+    await publishManagedJson(plan,'stream-managed-status.json',{state:'BLOCKED',at:new Date().toISOString(),bindingHash:plan.bindingHash,runtimeCommit:plan.runtimeCommit,ownerNonce:nonce,ownerPid:process.pid,reason:error.message,fullDayReady:false});throw error;
   }finally{
     if(owned){const owner=JSON.parse(fs.readFileSync(ownerPath,'utf8'));if(owner.nonce===nonce&&owner.pid===process.pid){fs.unlinkSync(ownerPath);fs.rmdirSync(lock);}}
   }

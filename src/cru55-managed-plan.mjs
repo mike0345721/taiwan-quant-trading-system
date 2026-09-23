@@ -56,11 +56,22 @@ export function identifyManagedSource(binding,name){
     return {sourcePath,sourceKey:digest(stableJson(identity)),sourceIdentity:identity};
   }finally{fs.closeSync(fd);}
 }
-export function publishManagedJson(binding,name,value){
+export async function publishManagedJson(binding,name,value){
   if(!/^[a-z0-9-]+\.json$/.test(name))throw Error('CRU55_MANAGED_STATUS_NAME');
   const target=assertBoundWriteRoot(binding,path.join(binding.outputRoot,name)),temp=assertBoundWriteRoot(binding,path.join(binding.outputRoot,crypto.randomUUID()+'.tmp'));
   const fd=fs.openSync(temp,'wx');try{fs.writeFileSync(fd,stableJson(value));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
-  fs.renameSync(temp,target);
+  // Windows readers/antivirus can briefly deny replacement. Keep the durable
+  // temp and old pointer intact; retry only the atomic rename, never unlink the
+  // visible target or downgrade an integrity/configuration failure.
+  const delays=[25,50,100,200,400];
+  for(let attempt=0;;attempt++){
+    assertBoundWriteRoot(binding,temp);assertBoundWriteRoot(binding,target);
+    try{fs.renameSync(temp,target);return {attempts:attempt+1};}
+    catch(error){
+      if(process.platform!=='win32'||!['EPERM','EBUSY','EACCES'].includes(error.code)||attempt===delays.length)throw error;
+      await new Promise(resolve=>setTimeout(resolve,delays[attempt]));
+    }
+  }
 }
 export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,now=Date.now()}={}){
   fs.mkdirSync(assertBoundWriteRoot(binding,binding.outputRoot),{recursive:true});
@@ -70,7 +81,7 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
   const names=selectManagedSources(binding,{now});if(!names.length)return {state:'WAITING_FOR_SOURCE',fullDayReady:false};
   const index=state.cursor%names.length,name=names[index],source=identifyManagedSource(binding,name);
   state.pending??={};for(const old of Object.keys(state.pending))if(!names.includes(old))delete state.pending[old];
-  if(!source){delete state.pending[name];state.cursor=(index+1)%names.length;publishManagedJson(binding,'stream-managed-state.json',state);return {state:'WAITING_FOR_COMPLETE_RECORD',sourceFiles:names.length,workPending:Object.values(state.pending).some(Boolean),fullDayReady:false};}
+  if(!source){delete state.pending[name];state.cursor=(index+1)%names.length;await publishManagedJson(binding,'stream-managed-state.json',state);return {state:'WAITING_FOR_COMPLETE_RECORD',sourceFiles:names.length,workPending:Object.values(state.pending).some(Boolean),fullDayReady:false};}
   if(state.sources[name]&&state.sources[name]!==source.sourceKey)throw Error('CRU55_MANAGED_SOURCE_REPLACED');
   state.sources[name]=source.sourceKey;
   const relativeRunPath='sources/'+source.sourceKey,runRoot=assertBoundWriteRoot(binding,path.join(binding.outputRoot,...relativeRunPath.split('/')));
@@ -88,13 +99,13 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
     const view=result.session?.toLowerCase(),availableAt=Date.parse(result.availableAt);
     if(!['day','night'].includes(view)||!/^[a-f0-9]{64}$/.test(result.artifactHash||'')||!Number.isFinite(availableAt))throw Error('CRU55_MANAGED_PUBLICATION_IDENTITY');
     if(!selection.views[view]||availableAt>=Date.parse(selection.views[view].availableAt))selection.views[view]={relativeRunPath,sourceKey:source.sourceKey,artifactHash:result.artifactHash,session:result.session,tradeDate:result.tradeDate,availableAt:result.availableAt,cutoff:result.cutoff};
-    publishManagedJson(binding,'stream-selection.json',selection);
+    await publishManagedJson(binding,'stream-selection.json',selection);
   }
   // A bounded step alternates files, including the new calendar date after
   // midnight. Separate genesis streams never imply cross-file CVD continuity.
   state.pending[name]=Boolean((result.state==='PENDING'&&(result.metrics?.pages>0||result.metrics?.bytes>0))
     ||(result.state==='PUBLISHED'&&result.metrics?.backlogBytes>0));
-  state.cursor=(index+1)%names.length;publishManagedJson(binding,'stream-managed-state.json',state);
+  state.cursor=(index+1)%names.length;await publishManagedJson(binding,'stream-managed-state.json',state);
   const views=fs.existsSync(selectionFile)?readJson(selectionFile).views:{};
   return {...result,workPending:Object.values(state.pending).some(Boolean),sourceKey:source.sourceKey,relativeRunPath,sourceFiles:names.length,missingViews:['day','night'].filter(v=>!views[v]),sessionSelection:'PUBLISHED_CUTOFFS_ONLY',fullDayReady:false};
 }

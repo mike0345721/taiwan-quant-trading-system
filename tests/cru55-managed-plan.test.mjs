@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { SAFETY,digest } from '../src/cvd-observation-core.mjs';
 import { sourceDirectoryIdentity,validateRuntimeBinding,verifyBoundSourceRoot,resolveBoundSourceFile,assertBoundWriteRoot } from '../src/cru55-runtime-binding.mjs';
-import { runManagedCycle,selectManagedSources,managedDelayMs } from '../src/cru55-managed-plan.mjs';
+import { runManagedCycle,selectManagedSources,managedDelayMs,publishManagedJson } from '../src/cru55-managed-plan.mjs';
 function fixture(){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-managed-test-')),sourceRoot=path.join(root,'data','live-events'),outputRoot=path.join(root,'data','runtime','cru55-overview');fs.mkdirSync(sourceRoot,{recursive:true});
   const binding={schemaVersion:'cru55-runtime-binding-v1',state:'PROPOSED',runtimeRoot:root,runtimeCommit:'a'.repeat(40),dataRoot:path.join(root,'data'),sourceRoot,outputRoot,readerRoot:outputRoot,
@@ -14,6 +14,31 @@ function fixture(){
   const write=(date,value=date)=>fs.writeFileSync(path.join(sourceRoot,date+'.ndjson'),JSON.stringify({previousHash:'GENESIS',recordHash:digest(value),receivedAt:date+'T00:00:00+08:00'})+'\n');
   return {root,binding,write,dispose(){assert.equal(path.dirname(root),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('cru55-managed-test-'));fs.rmSync(root,{recursive:true,force:true});}};
 }
+test('Windows transient replacement contention preserves old state until atomic retry succeeds', {skip:process.platform!=='win32'}, async t=>{
+  const f=fixture();try{
+    fs.mkdirSync(f.binding.outputRoot,{recursive:true});
+    await publishManagedJson(f.binding,'stream-managed-status.json',{version:1});
+    const target=path.join(f.binding.outputRoot,'stream-managed-status.json'),rename=fs.renameSync;let attempts=0;
+    t.mock.method(fs,'renameSync',(from,to)=>{
+      assert.equal(to,target);assert.deepEqual(JSON.parse(fs.readFileSync(target)),{version:1});
+      if(++attempts<3)throw Object.assign(Error('transient-reader'),{code:'EPERM'});
+      return rename(from,to);
+    });
+    assert.deepEqual(await publishManagedJson(f.binding,'stream-managed-status.json',{version:2}),{attempts:3});
+    assert.deepEqual(JSON.parse(fs.readFileSync(target)),{version:2});
+  }finally{t.mock.restoreAll();f.dispose();}
+});
+test('replacement retries are bounded and never erase a last readable state', {skip:process.platform!=='win32'}, async t=>{
+  const f=fixture();try{
+    fs.mkdirSync(f.binding.outputRoot,{recursive:true});await publishManagedJson(f.binding,'stream-managed-status.json',{version:1});
+    const target=path.join(f.binding.outputRoot,'stream-managed-status.json');let attempts=0;
+    t.mock.method(fs,'renameSync',()=>{attempts++;throw Object.assign(Error('locked'),{code:'EACCES'});});
+    await assert.rejects(publishManagedJson(f.binding,'stream-managed-status.json',{version:2}),/locked/);
+    assert.equal(attempts,6);assert.deepEqual(JSON.parse(fs.readFileSync(target)),{version:1});
+    attempts=0;t.mock.restoreAll();t.mock.method(fs,'renameSync',()=>{attempts++;throw Object.assign(Error('device-failure'),{code:'EIO'});});
+    await assert.rejects(publishManagedJson(f.binding,'stream-managed-status.json',{version:3}),/device-failure/);assert.equal(attempts,1);
+  }finally{t.mock.restoreAll();f.dispose();}
+});
 test('stream proposal pins plain target identity and refuses source/write escape without changing frozen policy',()=>{
   const f=fixture();try{
     const b=f.binding;f.write('2026-09-18');const plan=validateRuntimeBinding(b,{runtimeRoot:f.root,head:b.runtimeCommit});

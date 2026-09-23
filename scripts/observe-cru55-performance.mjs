@@ -15,18 +15,29 @@ const request=(route,options={})=>fetch(session.url+route,{...options,signal:Abo
 if((await request('/api/v1/cvd-overview')).status!==401)throw Error('PERF_AUTH_BYPASS');
 const login=await request('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:session.url},body:JSON.stringify({password:session.password})});if(login.status!==200)throw Error('PERF_REAL_LOGIN');
 const headers={Cookie:login.headers.getSetCookie().map(s=>s.split(';')[0]).join('; ')};
-let ordinal=exp.initialOrdinal,warmAt=null,finishedAppend=false,lastCutoff=0,apiErrors=0;const appended=[],seen=[];
+let ordinal=exp.initialOrdinal,warmAt=null,finishedAppend=false,lastCutoff=0,apiErrors=0,stop=false,writerError=null;const appended=[],seen=[];
 const start=Date.now();emit({kind:'start',head:exp.head,mode:exp.mode,experiment:exp,realLogin:true,unauthenticatedStatus:401});
-try{
-  while(Date.now()-start<exp.warmupDeadlineMs+exp.durationMs+exp.drainMs){
-    const now=Date.now(),elapsed=warmAt===null?null:now-warmAt;
-    if(exp.mode==='steady'&&warmAt!==null&&elapsed<=exp.durationMs){
-      const normalSeconds=Math.min(Math.floor(elapsed/1000),exp.durationMs/1000);
-      const burstSeconds=Math.max(0,Math.min(normalSeconds-exp.burstStartMs/1000,exp.burstDurationMs/1000));
-      const wanted=Math.min(offsets.length-1,exp.initialOrdinal+normalSeconds*exp.normalRate+burstSeconds*(exp.burstRate-exp.normalRate));
-      if(wanted>ordinal){const before=performance.now();fs.appendFileSync(exp.sourcePath,full.subarray(offsets[ordinal],offsets[wanted]));const at=Date.now();const item={kind:'append',fromOrdinal:ordinal+1,ordinal:wanted,bytes:offsets[wanted],appendAt:at,writeMs:performance.now()-before,elapsedMs:elapsed};appended.push(item);emit(item);ordinal=wanted;}
+process.on('SIGINT',()=>{stop=true;});process.on('SIGTERM',()=>{stop=true;});
+// Separate arrival timing from network polling. Preserve the exact original
+// bytes/order; fsync completion is the experimental persistence clock.
+const writer=setInterval(()=>{
+  if(exp.mode!=='steady'||warmAt===null||stop||writerError)return;
+  try{
+    const elapsed=Date.now()-warmAt,seconds=Math.min(Math.floor(elapsed/1000),exp.durationMs/1000);
+    const burstSeconds=Math.max(0,Math.min(seconds-exp.burstStartMs/1000,exp.burstDurationMs/1000));
+    const wanted=Math.min(offsets.length-1,exp.initialOrdinal+seconds*exp.normalRate+burstSeconds*(exp.burstRate-exp.normalRate));
+    if(wanted>ordinal){
+      const before=performance.now(),fd=fs.openSync(exp.sourcePath,'a');
+      try{fs.writeFileSync(fd,full.subarray(offsets[ordinal],offsets[wanted]));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+      const at=Date.now(),item={kind:'append',fromOrdinal:ordinal+1,ordinal:wanted,bytes:offsets[wanted],appendAt:at,writeMs:performance.now()-before,elapsedMs:elapsed,plannedAt:warmAt+seconds*1000};
+      appended.push(item);emit(item);ordinal=wanted;
     }
-    if(exp.mode==='steady'&&elapsed>=exp.durationMs&&!finishedAppend){finishedAppend=true;emit({kind:'append-complete',elapsedMs:elapsed,ordinal});}
+    if(elapsed>=exp.durationMs&&!finishedAppend){finishedAppend=true;emit({kind:'append-complete',elapsedMs:elapsed,ordinal});}
+  }catch(error){writerError=error.message;stop=true;emit({kind:'writer-error',error:writerError});}
+},100);
+try{
+  while(!stop&&Date.now()-start<exp.warmupDeadlineMs+exp.durationMs+exp.drainMs){
+    const now=Date.now(),elapsed=warmAt===null?null:now-warmAt;
     for(const view of ['night','day']){
       try{const response=await request('/api/v1/cvd-overview?view='+view+'&timeframe=1m',{headers}),body=await response.json();
         if(response.status!==200){emit({kind:'api-unavailable',view,status:response.status,reason:body.reason});continue;}
@@ -43,8 +54,10 @@ try{
     await new Promise(r=>setTimeout(r,500));
   }
 }finally{
+  clearInterval(writer);
   const samples=appended.map(a=>{const s=seen.find(s=>s.ordinal>=a.ordinal&&s.at>=a.appendAt);return {ordinal:a.ordinal,events:a.ordinal-a.fromOrdinal+1,appendAt:a.appendAt,apiAt:s?.at??null,latencyMs:s?s.at-a.appendAt:null};});
   const lat=samples.filter(s=>s.latencyMs!==null).map(s=>s.latencyMs).sort((a,b)=>a-b),q=p=>lat[Math.ceil(lat.length*p)-1]??null;
-  const summary={head:exp.head,mode:exp.mode,durationMs:Date.now()-start,warmAt,samples:samples.length,appendedEvents:ordinal-exp.initialOrdinal,unpublished:samples.filter(s=>s.apiAt===null).length,over5s:samples.filter(s=>s.latencyMs===null||s.latencyMs>5000).length,over10s:samples.filter(s=>s.latencyMs===null||s.latencyMs>10000).length,successfulOnlyLatency:{p95:q(.95),p99:q(.99),max:lat.at(-1)??null},allSampleQuantilesDefined:samples.every(s=>s.apiAt!==null),apiErrors,latestCutoff:lastCutoff,finalAppendedOrdinal:ordinal,engineeringTargetPass:false,naturalLiveAcceptance:false,fullDayAcceptance:false};
+  const clockFile=path.join(data,'launch-clock.json'),launch=fs.existsSync(clockFile)?read(clockFile):null;
+  const summary={head:exp.head,mode:exp.mode,durationMs:Date.now()-start,warmAt,processLaunchToApiMs:warmAt!==null&&launch?.head===exp.head?warmAt-launch.startedAt:null,stoppedEarly:stop,writerError,samples:samples.length,appendedEvents:ordinal-exp.initialOrdinal,unpublished:samples.filter(s=>s.apiAt===null).length,over5s:samples.filter(s=>s.latencyMs===null||s.latencyMs>5000).length,over10s:samples.filter(s=>s.latencyMs===null||s.latencyMs>10000).length,successfulOnlyLatency:{p95:q(.95),p99:q(.99),max:lat.at(-1)??null},allSampleQuantilesDefined:samples.every(s=>s.apiAt!==null),apiErrors,latestCutoff:lastCutoff,finalAppendedOrdinal:ordinal,engineeringTargetPass:false,naturalLiveAcceptance:false,fullDayAcceptance:false};
   fs.writeFileSync(path.join(data,'latency-samples.json'),JSON.stringify(samples));fs.writeFileSync(path.join(data,'performance-summary.json'),JSON.stringify(summary,null,2));console.log(JSON.stringify(summary));
 }
