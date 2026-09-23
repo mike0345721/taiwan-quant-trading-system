@@ -42,7 +42,7 @@ try{
       try{const response=await request('/api/v1/cvd-overview?view='+view+'&timeframe=1m',{headers}),body=await response.json();
         if(response.status!==200){emit({kind:'api-unavailable',view,status:response.status,reason:body.reason});continue;}
         const cut=body.chart?.cutoff?.ledgerOrdinal??0;
-        if(body.head!==exp.head||body.rawReadsPerRequest!==0||body.integrity?.originalRawPrefixVerified!==true)throw Error('PERF_API_TRUTH');
+        if(body.head!==exp.head||body.view!==view||body.chart?.session?.toLowerCase()!==view||body.chart?.timeframe!=='1m'||body.rawReadsPerRequest!==0||body.integrity?.originalRawPrefixVerified!==true)throw Error('PERF_API_TRUTH');
         const sample={kind:'api',view,ordinal:cut,artifactHash:body.artifactHash,cvd:body.chart.currentCvd,cutoff:body.chart.cutoff,integrity:body.integrity};emit(sample);
         if(cut>lastCutoff){lastCutoff=cut;seen.push({at:Date.now(),ordinal:cut});}
         if(warmAt===null&&cut===exp.initialOrdinal){warmAt=Date.now();emit({kind:'warm',warmAt,initialColdApiMs:warmAt-start,ordinal:cut});}
