@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { digest, stableJson, SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { createStreamStore, STREAM_STORE_LIMITS } from './cru55-stream-store.mjs';
-import { createProjectionJob, consumeProjectionPage, finishProjectionJob } from './cru55-stream-projection.mjs';
+import { createProjectionJob, beginProjectionBatch, finishProjectionJob } from './cru55-stream-projection.mjs';
 import { loadGovernedTradingCalendar } from './market-state-forward-shadow-calendar.mjs';
 import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
 import { materializeTxCanonicalObservations } from './tx-intraday-pressure-path-efficiency.mjs';
@@ -107,7 +107,9 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     let pages=0,bytes=0;
     const result=(state,extra={})=>{const sizeNow=Number(fs.fstatSync(fd).size),visible=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536).endByteOffset:0;return {state,phase:job.phase,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:ingest.endByteOffset,
       metrics:{cycleMs:performance.now()-started,pages:work.pages,rawRanges:work.rawRanges,bytes:work.bytes,budgetScope:'bytes=original raw ranges+archive pages; pages=all archive reads; ingest batches<=maxPages; verification ranges<=128; bounded metadata/code reads separate',backlogBytes:Math.max(0,sizeNow-ingest.endByteOffset),publicationBacklogBytes:Math.max(0,sizeNow-visible),verificationRestarts:job.verifyRestarts,jobStartedAt:job.startedAt},...extra};};
-    savePending=()=>{atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,...SAFETY});return result('PENDING',{reason:'WORK_BUDGET'});};
+    let projectionBatch=null;
+    const flushProjection=()=>{if(projectionBatch){job.projection=projectionBatch.finish();projectionBatch=null;}};
+    savePending=()=>{flushProjection();atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,...SAFETY});return result('PENDING',{reason:'WORK_BUDGET'});};
     let savedJob = stableJson(sealed(job));
     if(!fs.existsSync(jobFile))atomic(jobFile,sealed(job)); // Establish the captured cutoff before any append can commit.
     const saveChangedJob=()=>{const next=stableJson(sealed(job));if(next!==savedJob){atomic(jobFile,sealed(job));savedJob=next;}};
@@ -189,6 +191,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     }
     while(job.phase==='PROJECT'&&pages<maxPages){
       if(job.nextIndex>job.cutoff.index){
+        flushProjection();
         // Projection no longer changes during verification. Persist it once,
         // content-addressed, instead of serializing/fsyncing its full windows
         // and chart buffers into every raw-verification cursor checkpoint.
@@ -200,8 +203,10 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       const chunk=json(chunkPath(job.nextIndex)),{chunkHash,...body}=chunk;
       if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==job.previousChunkHash||chunk.previousPageHash!==job.previousPageHash||chunk.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||chunk.resolverIdentity!==ingest.resolverIdentity)fail('STREAM_CHUNK_CHAIN_INVALID');
       const page=store.readPage(chunk.pageHash);if(page.previousPageHash!==job.previousPageHash)fail('STREAM_PAGE_CHAIN_INVALID');
-      job.projection=consumeProjectionPage(job.projection,page)??job.projection;job.previousChunkHash=chunkHash;job.previousPageHash=chunk.pageHash;job.nextIndex++;pages++;
+      projectionBatch??=beginProjectionBatch(job.projection);
+      projectionBatch.consume(page);job.previousChunkHash=chunkHash;job.previousPageHash=chunk.pageHash;job.nextIndex++;pages++;
     }
+    flushProjection();
     if(job.phase==='VERIFY'){
       if(protectedMode){
         const lease=protectPrefix(runRoot,'current',sourceBinding,job.cutoff.endByteOffset);

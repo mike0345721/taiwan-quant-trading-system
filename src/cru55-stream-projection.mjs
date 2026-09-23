@@ -55,23 +55,36 @@ export function createProjectionJob({checkpoint,sourceKind,generationHash,calend
   const end=Date.parse(s.lastPoint?.eventTime),start=Date.parse(s.activeSegment?.observedStart);
   return seal({schemaVersion:'cru55-stream-projection-job-v1',checkpoint,sourceKind,generationHash,calendar,nextOrdinal:1,terminalHash:'GENESIS',pageHash:null,previousPoint:null,cutoffEvent:null,contextInvalid:false,displayClockInvalid:false,windows:Object.fromEntries(Object.keys(frames).map(f=>[f,[accumulator(),accumulator()]])),context:accumulator(),minutes:{},priceViolations:0,firstPrice:null,lastPrice:null,display:{},pointCount:0,startMs:Number.isFinite(start)?start:null,endMs:Number.isFinite(end)?end:null});
 }
-function contextPriceTick(job,e){
-  const calendar={...job.calendar,tradingDates:new Set(job.calendar.tradingDates),nonTradingDates:new Set(job.calendar.nonTradingDates),exceptions:new Map(job.calendar.exceptions)};
+function contextPriceTick(job,e,calendar){
   const price=positive(e.payload?.price??e.payload?.close),volume=positive(e.payload?.executedVolume??e.payload?.volume);
   if(price!==null&&volume!==null&&e.availableMs>=e.eventMs&&e.identityStatus==='USABLE'&&e.availabilityLineageStatus==='USABLE'){
     let governed;try{governed=classifyTxChartSession(e.eventTime,calendar);}catch{}
     if(governed&&governed.session===e.session&&governed.tradeDate===e.tradeDate){const endpoint={price,eventTime:e.eventTime,eventMs:e.eventMs,lineage:lineage(e)};job.firstPrice??=endpoint;job.lastPrice=endpoint;}
   }
 }
-function priceRecord(job,record){
-  const calendar={...job.calendar,tradingDates:new Set(job.calendar.tradingDates),nonTradingDates:new Set(job.calendar.nonTradingDates),exceptions:new Map(job.calendar.exceptions)},s=job.checkpoint.state;
+function priceRecord(job,record,calendar){
+  const s=job.checkpoint.state;
   const normalized=buildOneMinuteBars([record],{calendar,asOf:s.snapshotAvailableAt??s.cutoffReceivedAt});job.priceViolations+=normalized.timeLineageViolationCount;
   const t=normalized.ticks[0],b=normalized.internalBars[0];if(!t||!b||!equal([t.actualContract,t.sessionTradeDate??t.tradeDate,t.session],s.activeIdentity?.slice(0,3)))return;
   const key=b.time,order=[t.exchangeMs,t.availableMs,t.eventId],cmp=(a,c)=>a[0]-c[0]||a[1]-c[1]||String(a[2]).localeCompare(String(c[2]));
   let bucket=job.minutes[key];if(!bucket){if(Object.keys(job.minutes).length>=PROJECTION_LIMITS.minuteBuckets)fail('STREAM_PRICE_BUCKET_BUDGET');job.minutes[key]={bar:b,first:order,last:order};}else{const x=bucket.bar;x.high=Math.max(x.high,b.high);x.low=Math.min(x.low,b.low);x.volume+=b.volume;x._priceVolume+=b._priceVolume;x.eventCount++;x.sequenceGapCount+=b.sequenceGapCount;if(b.qualityStatus!=='PASS')x.qualityStatus='QUALITY_INSUFFICIENT';if(b.availableAt>x.availableAt)x.availableAt=b.availableAt;if(cmp(order,bucket.first)<0){bucket.first=order;x.open=b.open;x.firstEventTime=b.firstEventTime;}if(cmp(order,bucket.last)>0){bucket.last=order;x.close=b.close;x.lastEventTime=b.lastEventTime;}}
 }
 export function consumeProjectionPage(input,page){
-  const job=validate(input),s=job.checkpoint.state;
+  const batch=beginProjectionBatch(input);batch.consume(page);return batch.finish();
+}
+// One bounded pipeline cycle owns this private mutable reducer. Validate and
+// clone the resumable input once, then seal once at its durable boundary. Every
+// page/record/checkpoint binding is still checked in physical order.
+export function beginProjectionBatch(input){
+  const job=validate(input),calendar={...job.calendar,tradingDates:new Set(job.calendar.tradingDates),nonTradingDates:new Set(job.calendar.nonTradingDates),exceptions:new Map(job.calendar.exceptions)};
+  let closed=false;
+  return {
+    consume(page){if(closed)fail('STREAM_PROJECTION_BATCH_CLOSED');try{consumePage(job,page,calendar);}catch(e){closed=true;throw e;}},
+    finish(){if(closed)fail('STREAM_PROJECTION_BATCH_CLOSED');closed=true;return seal(job);}
+  };
+}
+function consumePage(job,page,calendar){
+  const s=job.checkpoint.state;
   if(!page||page.schemaVersion!=='cru55-stream-page-v1'||!Array.isArray(page.facts)||page.facts.length>PROJECTION_LIMITS.pageFacts||Buffer.byteLength(stableJson(page))>PROJECTION_LIMITS.pageBytes||page.startOrdinal!==job.nextOrdinal||page.endOrdinal>s.ordinal||page.sourceLedgerIdentity!==s.sourceLedgerIdentity||page.resolverIdentity!==s.resolverIdentity||page.previousTerminalHash!==job.terminalHash||page.previousPageHash!==job.pageHash)fail('STREAM_PROJECTION_PAGE_BINDING_INVALID');
   if(page.facts.length!==page.endOrdinal-page.startOrdinal+1||page.records.length!==page.facts.length)fail('STREAM_PROJECTION_PAGE_FACTS_INVALID');
   for(let i=0;i<page.facts.length;i++){
@@ -81,7 +94,7 @@ export function consumeProjectionPage(input,page){
     // Price is the whole physical prefix's matching contract/date/session,
     // independent of semantic CVD continuity segments. Normalize raw records
     // using the accepted clock/duplicate/simtrade rules before bucket merging.
-    priceRecord(job,record);
+    priceRecord(job,record,calendar);
     const e=fact.event,p=fact.point;if(e&&(e.ledgerOrdinal!==fact.ordinal||e.recordHash!==recordHash||e.sourceLedgerIdentity!==s.sourceLedgerIdentity))fail('STREAM_PROJECTION_EVENT_INVALID');
     if(!e||!p||p.segment!==s.segmentCount-1)continue;
     if(!equal(identity(e),s.activeSegment.identity)||p.ledgerOrdinal!==e.ledgerOrdinal||p.recordHash!==e.recordHash||p.eventTime!==e.eventTime||p.availableAt!==e.availableAt)fail('STREAM_PROJECTION_POINT_INVALID');
@@ -94,7 +107,7 @@ export function consumeProjectionPage(input,page){
     if(e.availableMs<=Date.parse(s.lastPoint.availableAt)&&e.ledgerOrdinal<=s.lastPoint.ledgerOrdinal){
       for(const [frame,W]of Object.entries(frames))for(let previous=0;previous<2;previous++){const upper=job.endMs-previous*W;if(e.eventMs>upper-W&&e.eventMs<=upper)accumulate(job.windows[frame][previous],e,p,prior,fact.pressure);}
       if(e.eventMs>=job.startMs&&e.eventMs<=job.endMs)accumulate(job.context,e,p,prior,fact.pressure);
-      contextPriceTick(job,e);
+      contextPriceTick(job,e,calendar);
     }
     const d={time:e.availableMs/1000,value:p.value,ledgerOrdinal:p.ledgerOrdinal,recordHash:p.recordHash,availableAt:p.availableAt,eventTime:p.eventTime,reason:p.reason};
     const span=Math.max(1,s.lastPoint.ledgerOrdinal-s.activeSegment.startOrdinal+1),bin=Math.min(PROJECTION_LIMITS.displayBuckets-1,Math.floor((p.ledgerOrdinal-s.activeSegment.startOrdinal)*PROJECTION_LIMITS.displayBuckets/span));
@@ -103,7 +116,7 @@ export function consumeProjectionPage(input,page){
   if(page.checkpoint?.state?.terminalHash!==job.terminalHash||page.checkpoint?.state?.ordinal!==page.endOrdinal)fail('STREAM_PROJECTION_PAGE_TERMINAL_INVALID');
   validateStreamCheckpoint(page.checkpoint);
   if(page.endOrdinal===s.ordinal&&!equal(page.checkpoint,job.checkpoint))fail('STREAM_PROJECTION_FINAL_CHECKPOINT_MISMATCH');
-  job.pageHash=digest(stableJson(page));return seal(job);
+  job.pageHash=digest(stableJson(page));
 }
 function evidence(job,frame,previous){const W=frames[frame],a=job.windows[frame][previous],e=job.cutoffEvent,s=job.checkpoint.state,pub=publicWindow(a,W),upper=e.eventMs-previous*W,required=W*(previous+1),span=Math.max(0,Math.min(e.eventMs-job.startMs,e.availableMs-Date.parse(s.activeSegment.startAvailableAt))),complete=span>=required;
   const out={status:complete?'OBSERVED_WINDOW':'PARTIAL',complete,reason:complete?pub.unavailableReason:'WINDOW_INCOMPLETE',windowMs:W,lowerExclusiveMs:upper-W,upperInclusiveMs:upper,observedSpanMs:Math.min(span,required),requiredSpanMs:required,originEventMs:job.startMs,originAvailableMs:Date.parse(s.activeSegment.startAvailableAt),baseline:previous?'PREVIOUS_EQUAL_WINDOW_AS_OF_CURRENT_CUTOFF':'CURRENT_WINDOW_AS_OF_CUTOFF',lineage:lineage(e),identity:s.activeIdentity,segment:s.lastPoint.segment,deltaCvd:null,observedVolume:pub.pressure.totalExecutedVolume??null,unknownVolume:pub.pressure.unknownVolume??null,pressure:pub.pressure,response:pub.response,pathEfficiency:pub.pathEfficiency,quality:pub.quality,parity:'UNAVAILABLE',captureCompleteness:'UNPROVEN',sessionStartProven:false};

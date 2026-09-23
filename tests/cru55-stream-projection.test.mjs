@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createStreamCheckpoint,appendStreamRecord} from '../src/cru55-stream-core.mjs';
-import {createProjectionJob,consumeProjectionPage,finishProjectionJob,PROJECTION_LIMITS} from '../src/cru55-stream-projection.mjs';
+import {createProjectionJob,consumeProjectionPage,beginProjectionBatch,finishProjectionJob,PROJECTION_LIMITS} from '../src/cru55-stream-projection.mjs';
 import {digest,stableJson,SAFETY,createCvdCheckpoint,appendCvdRecords,cvdSemanticResult} from '../src/cvd-observation-core.mjs';
 import {evaluateBestQuoteEligibility,materializeTxCanonicalObservations} from '../src/tx-intraday-pressure-path-efficiency.mjs';
 import {buildCvdChartProjection} from '../src/cvd-chart-projection.mjs';
@@ -18,7 +18,17 @@ function pagesFor(rows,source='sha256:'+digest('2026-09-14T09:00:00+08:00')){
     const page={schemaVersion:'cru55-stream-page-v1',sourceLedgerIdentity:source,resolverIdentity:'governed-fixture',previousPageHash:head,previousQuotePageHash:null,previousTerminalHash,startOrdinal:start+1,endOrdinal:start+records.length,quoteCount:0,records,facts,checkpoint,...SAFETY};pages.push(page);head=digest(stableJson(page));
   }return {checkpoint,pages};
 }
-function run(rows,source){const archive=pagesFor(rows,source);let job=createProjectionJob({checkpoint:archive.checkpoint,sourceKind:'SYNTHETIC_FIXTURE',generationHash:digest('generation'),calendar});for(const p of archive.pages)job=consumeProjectionPage(JSON.parse(JSON.stringify(job)),p);return {...archive,job,result:finishProjectionJob(job)};}
+function run(rows,source){
+  const archive=pagesFor(rows,source),initial=createProjectionJob({checkpoint:archive.checkpoint,sourceKind:'SYNTHETIC_FIXTURE',generationHash:digest('generation'),calendar});
+  let job=initial,batched=initial;
+  for(let i=0;i<archive.pages.length;i+=8){
+    const batch=beginProjectionBatch(JSON.parse(JSON.stringify(batched)));
+    for(const p of archive.pages.slice(i,i+8)){job=consumeProjectionPage(JSON.parse(JSON.stringify(job)),p);batch.consume(p);}
+    batched=batch.finish();assert.deepEqual(batched,job,'cycle seal/restart must equal per-page seal including job hash');
+    assert.throws(()=>batch.consume(archive.pages[0]),/BATCH_CLOSED/);
+  }
+  return {...archive,job,result:finishProjectionJob(job)};
+}
 test('six current and previous windows and observed context equal frozen oracle below old limit',()=>{
   for(const tickType of [1,0]){const f=sessionFixture({count:95,tickType}),{result}=run(f.rows);
     for(const frame of Object.keys(result.charts)){assert.deepEqual(result.relationships[frame].current.current,f.relationships[frame].current.current,frame);assert.deepEqual(result.relationships[frame].current.previous,f.relationships[frame].current.previous,frame);assert.deepEqual(result.relationships[frame].current.relationship,f.relationships[frame].current.relationship);}
@@ -60,6 +70,13 @@ test('more than 1024 points use restartable bounded page reducer with price and 
   const rows=Array.from({length:1400},(_,i)=>{const time=new Date(origin+i*1000).toISOString();const row=buildLiveEventRecord({kind:'futures_tick',code:'TXFI6',receivedAt:new Date(origin+i*1000+1).toISOString(),...SAFETY,payload:{productFamily:'TX',_product_family:'TX',_target_code:'TXFI6',actualContract:'TXFI6',tradeDate:'2026-09-14',session:'DAY',eventTime:time,datetime:time,close:100+i%11,volume:1,tick_type:1}},previousHash);previousHash=row.recordHash;return row;});
   const {result,job,pages,checkpoint}=run(rows);assert.equal(result.charts['1m'].currentCvd,1400);assert.equal(result.charts['1m'].display.inputPoints,1400);assert.ok(result.charts['1m'].segments[0].points.length<=1024);assert.equal(result.relationships['1m'].current.current.deltaCvd,60);assert.equal(result.sessionContext.cumulativeCvd,1400);assert.equal(result.sessionContext.evidence.observedVolume,1400);assert.ok(result.charts['1m'].bars.length>0);assert.ok(result.charts['1m'].vwap.every(p=>Number.isFinite(p.value)));assert.ok(Buffer.byteLength(JSON.stringify(job))<PROJECTION_LIMITS.jobBytes);assert.equal(result.semanticHash,undefined);
   const empty=createProjectionJob({checkpoint,sourceKind:'SYNTHETIC_FIXTURE',generationHash:digest('generation'),calendar});assert.throws(()=>finishProjectionJob(empty),/INCOMPLETE/);assert.throws(()=>consumeProjectionPage(empty,pages[1]),/BINDING/);const changed=structuredClone(pages[0]);changed.records[0].payload.close=999;assert.throws(()=>consumeProjectionPage(empty,changed),/RECORD_INVALID/);
+  for(const size of [1,2,8]){
+    let resumed=empty;
+    for(let i=0;i<pages.length;i+=size){const batch=beginProjectionBatch(JSON.parse(JSON.stringify(resumed)));for(const p of pages.slice(i,i+size))batch.consume(p);resumed=batch.finish();}
+    assert.deepEqual(resumed,job);assert.deepEqual(finishProjectionJob(resumed),result);
+  }
+  const broken=beginProjectionBatch(empty);broken.consume(pages[0]);const later=structuredClone(pages[1]);later.records[0].payload.close=999;
+  assert.throws(()=>broken.consume(later),/RECORD_INVALID/);assert.throws(()=>broken.finish(),/BATCH_CLOSED/);
 });
 test('late legal price bars preserve clock-sorted OHLC and exact observed VWAP',()=>{
   const base=sessionFixture({count:19}).rows;

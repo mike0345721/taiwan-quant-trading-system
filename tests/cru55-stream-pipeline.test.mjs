@@ -19,6 +19,23 @@ function append(source,start,count,previous='GENESIS'){
   }}finally{fs.closeSync(fd);}return previous;
 }
 function finish(options){let r;for(let n=0;n<200;n++){r=runStreamCycle(options);if(['PUBLISHED','UNCHANGED','WAITING_FOR_COMPLETE_RECORD'].includes(r.state))return r;}throw Error('TEST_PIPELINE_DID_NOT_SETTLE');}
+test('projection batch seals consumed pages before a later work-budget interruption',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-batch-resume-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out');
+  const readFile=fs.readFileSync;
+  try{
+    append(sourcePath,0,500);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP',maxPages:2};
+    let job;
+    for(let i=0;i<100;i++){runStreamCycle(opts);job=JSON.parse(readFile(path.join(runRoot,'job.json'))).value;if(job.phase==='PROJECT')break;}
+    assert.equal(job.phase,'PROJECT');const before=job.nextIndex;let reads=0;
+    fs.readFileSync=(file,...args)=>{if(String(file).endsWith('.page.json')&&++reads===2)throw Error('STREAM_WORK_BUDGET_PENDING');return readFile(file,...args);};
+    const pending=runStreamCycle({...opts,maxPages:8});assert.equal(pending.reason,'WORK_BUDGET');
+    fs.readFileSync=readFile;
+    const saved=JSON.parse(readFile(path.join(runRoot,'job.json'))).value;
+    assert.equal(saved.nextIndex,before+1);assert.equal(saved.projection.nextOrdinal,job.projection.nextOrdinal+128);
+    const done=finish(opts),artifact=JSON.parse(readFile(path.join(runRoot,done.artifactHash+'.stream-view.json')));
+    assert.equal(artifact.view.charts['1m'].currentCvd,500);assert.equal(artifact.view.charts['1m'].display.inputPoints,500);
+  }finally{fs.readFileSync=readFile;fs.rmSync(root,{recursive:true,force:true});}
+});
 test('interrupted first immutable page resumes only from the exact durable raw pending batch',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-first-')),sourcePath=path.join(root,'source.ndjson'),runRoot=path.join(root,'out/night');
   const rename=fs.renameSync;append(sourcePath,0,20);const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE'};
