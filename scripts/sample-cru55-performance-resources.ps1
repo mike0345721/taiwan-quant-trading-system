@@ -16,7 +16,7 @@ while ([datetime]::UtcNow -lt $deadline) {
   $rows = @(Get-CimInstance Win32_Process -Filter "ProcessId=$($owner.pid) OR ProcessId=$($session.serverPid)")
   foreach ($row in $rows) { if ($expected[[int]$row.ProcessId] -ne $row.CreationDate.ToUniversalTime().Ticks) { throw 'PERF_RESOURCE_PID_REUSED' } }
   $sample = [ordered]@{at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();hostCpuPercent=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average;processes=@($rows | Select-Object ProcessId,CreationDate,KernelModeTime,UserModeTime,WorkingSetSize,ReadTransferCount,WriteTransferCount,ReadOperationCount,WriteOperationCount)}
-  ($sample | ConvertTo-Json -Depth 5 -Compress) | Add-Content -LiteralPath $output -Encoding utf8
+  [System.IO.File]::AppendAllText($output, ($sample | ConvertTo-Json -Depth 5 -Compress) + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
   if ((Test-Path -LiteralPath (Join-Path $Data 'performance-summary.json')) -or $rows.Count -ne 2) { break }
   Start-Sleep -Seconds 5
 }
