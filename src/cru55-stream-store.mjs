@@ -6,6 +6,7 @@ import { digest, stableJson, SAFETY } from './cvd-observation-core.mjs';
 import { evaluateBestQuoteEligibility } from './tx-intraday-pressure-path-efficiency.mjs';
 import { createStreamCheckpoint, appendStreamRecord, validateStreamCheckpoint } from './cru55-stream-core.mjs';
 import { acquireManagedLock } from './cru55-managed-owner.mjs';
+import { replaceDurableFileSync } from './cru55-atomic-replace.mjs';
 
 export const STREAM_STORE_LIMITS = Object.freeze({ records: 128, inputBytes: 512 * 1024,
   pageBytes: 2 * 1024 * 1024, queryPages: 32, queryBytes: 8 * 1024 * 1024, cursorBytes: 128 * 1024 });
@@ -241,7 +242,7 @@ export function createStreamStore({ root, sourceLedgerIdentity, resolverIdentity
       }
       const id = immutable(value, '.page.json', STREAM_STORE_LIMITS.pageBytes);
       const file = temp(stableJson(pointer));
-      try { fs.renameSync(file, pointerFile()); } finally { if (fs.existsSync(file)) fs.unlinkSync(file); }
+      try { replaceDurableFileSync(file, pointerFile()); } finally { if (fs.existsSync(file)) fs.unlinkSync(file); }
       return { state: 'PUBLISHED', headPageHash: id, checkpoint, current: value,
         verification: 'CURRENT_PAGE_ONLY', candidateOnly: true, queryPages, queryBytes };
     });

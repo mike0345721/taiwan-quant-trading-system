@@ -12,9 +12,10 @@ import { materializeTxCanonicalObservations } from './tx-intraday-pressure-path-
 import { readPriorArtifact,beginPriorVerification,advancePriorVerification,priorStillVerified } from './cru55-stream-prior-verifier.mjs';
 import { acquireManagedLock } from './cru55-managed-owner.mjs';
 import { protectPrefix,assertPrefixProtected,releasePrefixGuards } from './cru55-prefix-guard.mjs';
+import { replaceDurableFileSync } from './cru55-atomic-replace.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
-const CODE_FILES=['cru55-stream-core.mjs','cru55-stream-store.mjs','cru55-stream-projection.mjs','cru55-stream-pipeline.mjs',
+const CODE_FILES=['cru55-atomic-replace.mjs','cru55-stream-core.mjs','cru55-stream-store.mjs','cru55-stream-projection.mjs','cru55-stream-pipeline.mjs',
   'cvd-observation-core.mjs','dashboard-tx-chart.mjs','tx-intraday-pressure-path-efficiency.mjs','cvd-relationship-projection.mjs',
   'cvd-session-context-projection.mjs','cvd-handoff-projection.mjs','market-state-forward-shadow-calendar.mjs','cru55-stream-prior-verifier.mjs','cru55-managed-owner.mjs','cru55-prefix-guard.mjs'];
 const codeIdentity=()=>digest(stableJson([...CODE_FILES.map(f=>digest(fs.readFileSync(path.join(REPO,'src',f)))),digest(fs.readFileSync(path.join(REPO,'package-lock.json')))]));
@@ -34,11 +35,11 @@ function json(file,cap=PIPELINE_LIMITS.jobBytes){
   if(!st.isFile()||st.nlink!==1||st.size>cap)fail('STREAM_PIPELINE_FILE_INVALID');
   return JSON.parse(fs.readFileSync(file,'utf8'));
 }
-function atomic(file,value,cap=PIPELINE_LIMITS.jobBytes){
+function atomic(file,value,cap=PIPELINE_LIMITS.jobBytes,beforeReplace){
   assertPlainPath(file);const bytes=stableJson(value);if(Buffer.byteLength(bytes)>cap)fail('STREAM_PIPELINE_STATE_BUDGET');
   const tmp=assertPlainPath(path.join(path.dirname(file),crypto.randomUUID()+'.tmp')),fd=fs.openSync(tmp,'wx');
   try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
-  try{fs.renameSync(tmp,file);}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}
+  try{return replaceDurableFileSync(tmp,file,{beforeReplace});}finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);}
 }
 function immutable(file,value,cap=PIPELINE_LIMITS.jobBytes){
   assertPlainPath(file);const bytes=stableJson(value);if(Buffer.byteLength(bytes)>cap)fail('STREAM_PIPELINE_ARTIFACT_BUDGET');
@@ -260,14 +261,21 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           integrity:{policy:'FULL_PREFIX_BEFORE_PUBLICATION',originalRawPrefixVerified:true,adjacentRawPrefixVerified:reference?true:null,endByteOffset:job.cutoff.endByteOffset,rawChunkHash:job.cutoff.lastChunkHash,stableVerificationRequired:true,protection:protectedMode?'WINDOWS_SHARED_RANGE_READONLY_SECTION':'WHOLE_FILE_STAMP'},view,...SAFETY};
         const artifactHash=digest(stableJson(body)),artifact={...body,artifactHash};
         immutable(name(artifactHash+'.stream-view.json'),artifact,PIPELINE_LIMITS.artifactBytes);
-        // Recheck source identity and stamp after serialization, just before visibility.
-        if(!same(identity(sourcePath,fs.statSync(sourcePath,{bigint:true})),sourceBinding))fail('STREAM_SOURCE_REPLACED');
-        if(reference&&!priorStillVerified(job.priorVerification,{protectionGroup:protectedMode?runRoot:null})){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY_PRIOR',reason:'PRIOR_SOURCE_CHANGED_DURING_VERIFY'});}
-        if(protectedMode)assertPrefixProtected(runRoot,'current',job.verifyLease);
-        if(!protectedMode&&!same(stamp(fs.fstatSync(fd,{bigint:true})),job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyRestarts++;atomic(jobFile,sealed(job));return result('PENDING',{reason:'SOURCE_CHANGED_DURING_VERIFY'});}
+        // Recheck after serialization and every replacement wait. A legitimate
+        // changing stamp/prior returns to verification without exposing a pointer.
+        let changedReason=null;
+        const beforePublish=()=>{
+          assertPlainPath(sourcePath);
+          if(!same(identity(sourcePath,fs.statSync(sourcePath,{bigint:true})),sourceBinding))fail('STREAM_SOURCE_REPLACED');
+          if(reference&&!priorStillVerified(job.priorVerification,{protectionGroup:protectedMode?runRoot:null})){changedReason='PRIOR_SOURCE_CHANGED_DURING_VERIFY';return false;}
+          if(protectedMode)assertPrefixProtected(runRoot,'current',job.verifyLease);
+          if(!protectedMode&&!same(stamp(fs.fstatSync(fd,{bigint:true})),job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyRestarts++;changedReason='SOURCE_CHANGED_DURING_VERIFY';return false;}
+          return true;
+        };
         const c=view.charts['1m'],pointer={schemaVersion:'cru55-stream-public-v2',artifactHash,generationHash:job.generationHash,session:c.session,tradeDate:c.tradeDate,cutoff:c.cutoff,availableAt:c.availableAt,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:job.cutoff.endByteOffset};
         const old=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536):null;
-        atomic(name('stream-public.json'),pointer,65536);if(fs.existsSync(jobFile))fs.unlinkSync(jobFile);
+        if(!atomic(name('stream-public.json'),pointer,65536,beforePublish)){atomic(jobFile,sealed(job));return result('PENDING',{...(changedReason==='PRIOR_SOURCE_CHANGED_DURING_VERIFY'?{phase:'VERIFY_PRIOR'}:{}),reason:changedReason});}
+        if(fs.existsSync(jobFile))fs.unlinkSync(jobFile);
         atomic(name('lifecycle-status.json'),{state:'PUBLISHED',artifactHash,verifiedAt:new Date().toISOString(),...SAFETY});
         releasePrefixGuards(runRoot);
         return result(old?.artifactHash===artifactHash?'UNCHANGED':'PUBLISHED',pointer);

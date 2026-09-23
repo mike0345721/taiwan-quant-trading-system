@@ -19,6 +19,23 @@ function append(source,start,count,previous='GENESIS'){
   }}finally{fs.closeSync(fd);}return previous;
 }
 function finish(options){let r;for(let n=0;n<200;n++){r=runStreamCycle(options);if(['PUBLISHED','UNCHANGED','WAITING_FOR_COMPLETE_RECORD'].includes(r.state))return r;}throw Error('TEST_PIPELINE_DID_NOT_SETTLE');}
+test('Windows lifecycle and page pointer sharing contention recover without recount',{skip:process.platform!=='win32'},t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-retry-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out'),rename=fs.renameSync;
+  const retries=new Map();append(sourcePath,0,20);
+  try{t.mock.method(fs,'renameSync',(from,to)=>{if(['lifecycle-status.json','latest.json'].includes(path.basename(to))&&!retries.has(to)){retries.set(to,1);throw Object.assign(Error('transient-sharing'),{code:'EPERM'});}return rename(from,to);});
+    const done=finish({sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP'});assert.equal(done.cutoff.ledgerOrdinal,20);assert.equal(retries.size,2);assert.equal(JSON.parse(fs.readFileSync(path.join(runRoot,done.artifactHash+'.stream-view.json'))).view.charts['1m'].currentCvd,20);
+  }finally{t.mock.restoreAll();fs.rmSync(root,{recursive:true,force:true});}
+});
+test('publication rechecks a changed raw stamp after a sharing delay before exposing the pointer',{skip:process.platform!=='win32'},t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-retry-stamp-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out'),rename=fs.renameSync;
+  let previous=append(sourcePath,0,20),attempts=0;const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP'};
+  try{const first=finish(opts);previous=append(sourcePath,20,1,previous);
+    t.mock.method(fs,'renameSync',(from,to)=>{if(to===path.join(runRoot,'stream-public.json')&&++attempts===1){previous=append(sourcePath,21,1,previous);throw Object.assign(Error('sharing'),{code:'EPERM'});}return rename(from,to);});
+    let pending;for(let i=0;i<40;i++){pending=runStreamCycle(opts);if(pending.reason==='SOURCE_CHANGED_DURING_VERIFY')break;}
+    assert.equal(pending.reason,'SOURCE_CHANGED_DURING_VERIFY');assert.equal(attempts,1);assert.equal(JSON.parse(fs.readFileSync(path.join(runRoot,'stream-public.json'))).artifactHash,first.artifactHash);
+    t.mock.restoreAll();const next=finish(opts);const final=next.cutoff.ledgerOrdinal===22?next:finish(opts);assert.equal(final.cutoff.ledgerOrdinal,22);assert.equal(JSON.parse(fs.readFileSync(path.join(runRoot,final.artifactHash+'.stream-view.json'))).view.charts['1m'].currentCvd,22);
+  }finally{t.mock.restoreAll();fs.rmSync(root,{recursive:true,force:true});}
+});
 test('projection batch seals consumed pages before a later work-budget interruption',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-batch-resume-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out');
   const readFile=fs.readFileSync;
