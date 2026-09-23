@@ -1,5 +1,7 @@
 # CRU55 本機一鍵更新候選
 
+2026-09-23 收尾、修復、Windows 回退實測及正式切換決策見 [交付包](CRU55_UPDATE_DELIVERY_20260923.md)。本文件保留最小方案，最新 exact PR HEAD 以 PR72 收據為準。
+
 依 Linear CRU55「本機一鍵更新」499e7962-4b7f-47d3-9b98-5d6114c4b39a 與 Owner 本輪隔離施工授權。PR71 已 source-only 合併至 1ad9ec7c1814e401f8352048638f0a398bcf74fe；不得再向已關閉 PR71 推修復。
 
 ## 入口與唯一確認
