@@ -27,17 +27,30 @@ test('performance summary retains failed DOM coverage and excludes post-deadline
   ndjson('browser-observations.ndjson', [
     { at: 50, kind: 'browser-observation', artifact: 'fixture-artifact' },
     { at: 500, kind: 'browser-event', event: 'metadata' },
-    { at: 2500, kind: 'browser-observation', error: 'true', artifact: null },
+    { at: 1500, kind: 'observer-event', event: 'ORIGINAL_TAB_READ_FAILURE', error: 'observer context unavailable' },
+    { at: 1600, kind: 'observer-event', event: 'BACKGROUND_CALLBACK_REJECTED_REVERT_TO_AWAITED_SAMPLING' },
+    { at: 2500, kind: 'browser-observation', error: 'true', artifact: 'fixture-artifact' },
     { at: 4000, kind: 'browser-observation', artifact: 'fixture-artifact' },
   ]);
   const output = path.join(root, 'summary.json');
   execFileSync(process.execPath, [script, root, output], { windowsHide: true });
   const result = JSON.parse(fs.readFileSync(output, 'utf8'));
   assert.equal(result.latency.unpublished, 0);
-  assert.equal(result.browser.observations, 1);
-  assert.equal(result.browser.metadataEvents, 1);
+  assert.equal(result.browser.observations, 2);
+  assert.equal(result.browser.failedObservations, 2);
+  assert.equal(result.browser.metadataEvents, 2);
   assert.equal(result.browser.excludedOutsideMeasurement, 2);
   assert.equal(result.browser.unpublished, 1);
   assert.equal(result.browser.allQuantilesDefined, false);
   assert.equal(result.browser.successfulOnlyMs.p95, null);
+  // Older DOM samplers persist dataset.error as the literal string "false".
+  // Healthy reads must still cover appends, while the earlier failed read with
+  // the same artifact must not become the latency endpoint.
+  fs.appendFileSync(path.join(root, 'browser-observations.ndjson'), JSON.stringify({ at: 2800, kind: 'browser-observation', error: 'false', artifact: 'fixture-artifact' }) + '\n');
+  const legacyOutput = path.join(root, 'legacy-summary.json');
+  execFileSync(process.execPath, [script, root, legacyOutput], { windowsHide: true });
+  const legacy = JSON.parse(fs.readFileSync(legacyOutput, 'utf8'));
+  assert.equal(legacy.browser.failedObservations, 2);
+  assert.equal(legacy.browser.unpublished, 0);
+  assert.equal(legacy.browser.successfulOnlyMs.p95, 1800);
 });

@@ -31,11 +31,11 @@ const sampleStats=s=>({total:s.length,unpublished:s.filter(x=>x.latencyMs===null
 let browser=null;
 const browserFile=path.join(data,'browser-observations.ndjson');
 if(fs.existsSync(browserFile)){
-  const browserLines=lines(browserFile),sampleLines=browserLines.filter(x=>!['browser-event','observer-event'].includes(x.kind));
+  const browserLines=lines(browserFile),failedRead=x=>![undefined,null,false,'false',''].includes(x.error)||x.event==='ORIGINAL_TAB_READ_FAILURE',sampleLines=browserLines.filter(x=>failedRead(x)||!['browser-event','observer-event'].includes(x.kind));
   if(sampleLines.some(x=>!Number.isFinite(x.at)))throw Error('PERF_BROWSER_CLOCK_INVALID');
   const dom=sampleLines.filter(x=>x.at>=observations[0].at&&x.at<=endAt),artifactOrdinal=new Map(api.map(x=>[x.artifactHash,x.ordinal]));
-  const samples=append.map(a=>{const s=dom.find(s=>s.at>=a.appendAt&&(artifactOrdinal.get(s.artifact)??0)>=a.ordinal);return {ordinal:a.ordinal,latencyMs:s?s.at-a.appendAt:null};});
-  browser={firstAt:dom[0]?.at,lastAt:dom.at(-1)?.at,observations:dom.length,metadataEvents:browserLines.length-sampleLines.length,excludedOutsideMeasurement:sampleLines.length-dom.length,maxObservationGapMs:Math.max(0,...dom.slice(1).map((s,i)=>s.at-dom[i].at)),...sampleStats(samples),measurement:'first DOM observation of an API-known artifact covering each append; only explicit metadata events and samples outside the API measurement interval excluded; unavailable/error DOM samples inside the interval retained; gaps are conservative latency upper bounds; missing coverage is NOT a pass'};
+  const samples=append.map(a=>{const s=dom.find(s=>!failedRead(s)&&s.at>=a.appendAt&&(artifactOrdinal.get(s.artifact)??0)>=a.ordinal);return {ordinal:a.ordinal,latencyMs:s?s.at-a.appendAt:null};});
+  browser={firstAt:dom[0]?.at,lastAt:dom.at(-1)?.at,observations:dom.length,failedObservations:dom.filter(failedRead).length,metadataEvents:browserLines.length-sampleLines.length,excludedOutsideMeasurement:sampleLines.length-dom.length,maxObservationGapMs:Math.max(0,...dom.slice(1).map((s,i)=>s.at-dom[i].at)),...sampleStats(samples),measurement:'first DOM observation of an API-known artifact covering each append; only explicit metadata without read errors and samples outside the API measurement interval excluded; unavailable/error DOM samples inside the interval retained, including observer-event read failures; gaps are conservative latency upper bounds; missing coverage is NOT a pass'};
 }
 let resources=null;
 const resourceFile=path.join(data,'resources.ndjson');

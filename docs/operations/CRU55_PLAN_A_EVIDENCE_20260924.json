@@ -1,0 +1,486 @@
+{
+  "runtimeHead": "aae9e527651033e27eb38037fcc5527ccc6db985",
+  "initialRuntimeHead": "8af3c028ba105d30b25c66220e71d9b9b42bf3df",
+  "startingHead": "08f3d24eb68773003f896a4183335376a95fd8e4",
+  "scope": "PRIVATE_LOCAL_EVIDENCE_DIGEST_INDEX_ONLY; binds retained receipts, not independent public verification",
+  "rawDataPublished": false,
+  "credentialsPublished": false,
+  "performanceAcceptance": "FAIL",
+  "naturalLiveAcceptance": false,
+  "files": [
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/experiment.json",
+      "bytes": 1061,
+      "sha256": "cf13c0996c64c6b7d0b24da43f551f885a780a0ab6586388ec76e1d8af7ac8ca"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/input-manifest.json",
+      "bytes": 3279,
+      "sha256": "ee9ecd48c43df2f57e36bfcd6c7ff1163aa6e90446efc7eff5283619b37214a3"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/launch-clock.json",
+      "bytes": 142,
+      "sha256": "824e3fc80faa001a6e4a45e32bdc0f8c6191a2a247cd4ae34fac0a8b2666ecd9"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/measurement-processes.json",
+      "bytes": 1232,
+      "sha256": "ec45e6016f56d6f28e3eece0d2fce692d01968380d18cc1df184c1eb89771562"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/observations.ndjson",
+      "bytes": 510689,
+      "sha256": "ceb0c2eb962fe4029b4e7b16e6735229b5f8cca5dc7f087f3bdb7539ce5f4c73"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/api-diagnostics.ndjson",
+      "bytes": 1575582,
+      "sha256": "4eb859a0f7f5e7b7d7c19923c8c4930cd73ac549be657f11918dcd840107a569"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/resources.ndjson",
+      "bytes": 40219,
+      "sha256": "16f83eff530c903ba5598c55bb60fe4333a0ae61d7b182fb940af160f5d28368"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/performance-summary.json",
+      "bytes": 814,
+      "sha256": "51275537086288b7db82933cf6fd6b00df1fb741cf3431fa23d322693f495546"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/latency-samples.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v1/api-final.json",
+      "bytes": 8322,
+      "sha256": "83978c14bc2792b9abbcb69ffd36214b4d0fcd99bb06b6b3fd6ca99ab659f072"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/experiment.json",
+      "bytes": 1061,
+      "sha256": "50a7e4d08de66937456f9efb42476ee373e6878a024a2f53d6688d8fa30d8dd5"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/input-manifest.json",
+      "bytes": 3279,
+      "sha256": "ee9ecd48c43df2f57e36bfcd6c7ff1163aa6e90446efc7eff5283619b37214a3"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/launch-clock.json",
+      "bytes": 142,
+      "sha256": "5b1fca2d6fe839668c59c1ea8238cf95880c8c6df6cdc315f8b53be289923e33"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/measurement-processes.json",
+      "bytes": 1232,
+      "sha256": "a01034d1e3c2ef26d8dcc281438d7d39debaccdb80f44cf1eaa5d0461f5416aa"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/observations.ndjson",
+      "bytes": 526381,
+      "sha256": "8348cfd79af1ce6a6261782c5a9e1f7257bf6b564c3a43c88e7b8fb25da66af3"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/api-diagnostics.ndjson",
+      "bytes": 1674038,
+      "sha256": "f06e7f7b526e06d4fb41dc3d1658383b0c81bc6070d81275be8a219f878e870a"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/resources.ndjson",
+      "bytes": 42944,
+      "sha256": "fff25e88352d86c49e7fb309fd468898222c46f0e89963e4e37921dc0323325e"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/performance-summary.json",
+      "bytes": 814,
+      "sha256": "b62b6c040ff028fa15f63972132e98b20a110a5e2e37e12b63c087e9123cafbb"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/latency-samples.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/api-final.json",
+      "bytes": 8322,
+      "sha256": "6ded26fdeede96d4d68ac4992e05e72c95aa31c7b9ff34796cbcbf57d5a45235"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-cold-v2/final-cleanup.json",
+      "bytes": 779,
+      "sha256": "b3eb0fe91ec13fdc945f3d7d0e083cbc7328d2715f9b93997a2591d75357b32b"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/experiment.json",
+      "bytes": 1067,
+      "sha256": "4f47b4d4a87c0abca6b9f13d9c4db1c779a6eb2b9d7beb0f3484ce9dae3f3804"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/input-manifest.json",
+      "bytes": 3279,
+      "sha256": "ee9ecd48c43df2f57e36bfcd6c7ff1163aa6e90446efc7eff5283619b37214a3"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/launch-clock.json",
+      "bytes": 142,
+      "sha256": "bc28d5876bbc33f0070497e5c1c5f5adaf3df4ea115b70629d33bb01de076402"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/measurement-processes.json",
+      "bytes": 1237,
+      "sha256": "cdd07477b21453ea29bb763ad0b1e952b1621890921cf4cadad65cd289e7dfc6"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/observations.ndjson",
+      "bytes": 4273992,
+      "sha256": "2225193c629789d44893db2c6cfaaa8a2e5720dee9715da7ce29864417ed0edd"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/api-diagnostics.ndjson",
+      "bytes": 4503655,
+      "sha256": "ba9d3f7ee811363b0d4313e22588f01899bd01f170749327892d05a820637c9a"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/resources.ndjson",
+      "bytes": 186547,
+      "sha256": "929cffdd1a72254fbb22dc2ed9bf6dc9d6669773fcfb5367f884e0762717dede"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/performance-summary.json",
+      "bytes": 835,
+      "sha256": "7d7e520d1a00f634c1249fc7dd9b261b2d5c9092eca112067a584fff29bc535d"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/latency-samples.json",
+      "bytes": 171198,
+      "sha256": "ed022ae50dae55fc16221c54be5520f14b0f635444fbd87fe25d97c405ba4e4c"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/api-final.json",
+      "bytes": 8401,
+      "sha256": "649df228f1767857dba8337226e280378be0d1bc72bc90c264727be0605da386"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/api-after-restart.json",
+      "bytes": 8400,
+      "sha256": "2e74ce3f3df3deac1a041f27a5d40ca032c2702bbce5a4f501235876e4eb5cec"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/browser-observations.ndjson",
+      "bytes": 579175,
+      "sha256": "288240ae368348ba0af43b226f47d568ebfd72271689f2679e1c7c7c78d1b07b"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/browser-console-mid.json",
+      "bytes": 51,
+      "sha256": "a4f7cf743ff83a8c6a0f6e969b20249a889bb34a6bd27bce8e25357f06bd9440"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/browser-console-final.json",
+      "bytes": 147,
+      "sha256": "9ae1b62c6d7f1bf4eb3f1624f790fe828cbca9b323710484a7eb779ea7d71fdc"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/browser-cleanup.json",
+      "bytes": 68,
+      "sha256": "98e19305584d05db8aee3177606b6ce4b83f0ef9bd0a81a9ce162ef82ce47f8e"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/browser-six-frames-after-restart.json",
+      "bytes": 2275,
+      "sha256": "99b7fe0ee3ae47a972cd69c7766e7f86b2c39d5ccabfaadc2e33d322823af3c1"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/original-page-after-restart.png",
+      "bytes": 136360,
+      "sha256": "fc017c4dd14bcd15f05d7b6cee0ee5ada2253ee70450ebb9c2281484b4955f34"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/peak-observations.ndjson",
+      "bytes": 42935,
+      "sha256": "f93fb613cab0a3413bb1229d0c5adf6bb1974caa52ed4303782580377c74e26d"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/peak-summary.json",
+      "bytes": 2574,
+      "sha256": "9326fd7d4835cf84260937c861ac17d99d862f7dd786ed412ff77fc5a1fe6ea7"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-append.json",
+      "bytes": 326,
+      "sha256": "b4ab5a0215546d6b02636be3de52f61bb058a795ce3edd48527ccce20f4a67b5"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-interruption.json",
+      "bytes": 12635,
+      "sha256": "ee7e6f09167d7ad85815aea8181a60eed13e3c54f78ab012730134d7f2bf1289"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-observations.ndjson",
+      "bytes": 188,
+      "sha256": "4bad67d724b4382dba736e1b96cbb14595f09360c6accc23e44a6db796053de0"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-owner.json",
+      "bytes": 974,
+      "sha256": "5a283ee3c5c99123a20ff034dcb7cc12e929cdf02fb22b235fd36555e57ba5d0"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-semantic-comparison.json",
+      "bytes": 831,
+      "sha256": "75143acbd841ae01fc5b8eb5db228d1fb9668e4c1a1fc49b9cbdc165e5208ab2"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/restart-validation.json",
+      "bytes": 562,
+      "sha256": "12cf455071577c5d7f45ef9fd2725228683e45e78779f1aa5ea8673a033e0e9f"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/acceptance/candidate-perf-plana-steady-v1/final-cleanup.json",
+      "bytes": 718,
+      "sha256": "8834b6d8456bf7e4b88a97c7bc4c94f1f61e65cce5b10910fa16140731146336"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-cold-v1-summary.json",
+      "bytes": 3339,
+      "sha256": "61a0ef84db4970076c8ffaa76ecc672c9a6744d9a0acbf8e43aa3eb8fc88d0a5"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-cold-v2-summary.json",
+      "bytes": 3338,
+      "sha256": "1348b2a098f76c7c92ad932a96572aae5d5095dfffeb9a37818e839231548d6d"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-cold-diagnostics.json",
+      "bytes": 1481,
+      "sha256": "61dcef64bc8b81bc7df48f04f55550b4a0b3ed6e9c7fbf7796dbf8db68d30060"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-cold-diagnostics.mjs",
+      "bytes": 1207,
+      "sha256": "8c5a99391a184f1f92a1eb633606c3b8b2a188fb66b9dfcab1111a4b6b52a74a"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-partial12.json",
+      "bytes": 4650,
+      "sha256": "18ed567911b35c3b88f424a815abd317d805a1bafe55dd3d489065e64e0716b8"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-partial12.json.samples.json",
+      "bytes": 103977,
+      "sha256": "c005f8dba7f6342fb1de795d9eee32bf68f4dc176884777bd6f5f487f4c25f63"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final.json",
+      "bytes": 7730,
+      "sha256": "aa9502a5a9a11e27493becf3fcfccbce50fbe91a83703b8236ae1eff995fd40c"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final.json.samples.json",
+      "bytes": 244998,
+      "sha256": "2e51a9a007e6cd40c29ed6dd9ad050ec800794769c4ec55af77d16cbe36daeaa"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final-audited.json",
+      "bytes": 7812,
+      "sha256": "5238c51f18bae2bfd7ce13de4f8ed01ba922de8934ed0f740ce0b1107bd73db0"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final-audited.json.samples.json",
+      "bytes": 244998,
+      "sha256": "2e51a9a007e6cd40c29ed6dd9ad050ec800794769c4ec55af77d16cbe36daeaa"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final-audited-v2.json",
+      "bytes": 7812,
+      "sha256": "5238c51f18bae2bfd7ce13de4f8ed01ba922de8934ed0f740ce0b1107bd73db0"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-final-audited-v2.json.samples.json",
+      "bytes": 244998,
+      "sha256": "2e51a9a007e6cd40c29ed6dd9ad050ec800794769c4ec55af77d16cbe36daeaa"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-final-diagnostics.json",
+      "bytes": 77509,
+      "sha256": "ac1673bc8d1ddc39667a57d698ed78f68d69c4fa167efdde1ee86457248eb8b6"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-steady-phases-before-restart.json",
+      "bytes": 7780,
+      "sha256": "14163daf79abfeda355eeeec81dedd9a384cd69a4ff26c7c44d6451a02453933"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-peak-append.mjs",
+      "bytes": 3768,
+      "sha256": "fe4cea8df4010528c85bc9bc1daec8fbe57d615a8ce01b866d525525e91da247"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/run-managed-measurement.ps1",
+      "bytes": 3035,
+      "sha256": "cabde0a74e122932eded764f1c8732e687ad4cc84d7a2bd4a3e82d9b81b6541d"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/interrupt-final-restart.ps1",
+      "bytes": 3063,
+      "sha256": "0096699d8b79c403095d3c7b50e233cdfdf4c52e04b1dfacee6080df417ab0f5"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/observe-final-restart.mjs",
+      "bytes": 3062,
+      "sha256": "54fbd17af2a2a8be8fa4ca12288e462772fa3f34f6feb13e5281bf43c3d348d5"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/compare-final-restart.mjs",
+      "bytes": 2438,
+      "sha256": "2073e59ed1a5b695cb85766f60ae85a7b01b90de25399719034ddd18924e9aaf"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-cold-v1/managed-logs/5b4d29c0-f152-4bf3-bdb0-b12009df4c3c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-cold-v1/managed-logs/5b4d29c0-f152-4bf3-bdb0-b12009df4c3c.stdout.log",
+      "bytes": 289815,
+      "sha256": "ef1c3989f82fb2a788d1e37be3a73da3e8fdbb0fc2a1a41e2351475ec05e244e"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-cold-v2/managed-logs/924826f9-222a-4334-bfde-f97dce4dba4d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-cold-v2/managed-logs/924826f9-222a-4334-bfde-f97dce4dba4d.stdout.log",
+      "bytes": 289839,
+      "sha256": "38aee2bc130ba48818babbc698e1d95e61733d7b6b5eb3c0feb72f041cc788ad"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-steady-v1/managed-logs/63c253b0-e49c-446b-aa05-39608b69a21f.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-steady-v1/managed-logs/63c253b0-e49c-446b-aa05-39608b69a21f.stdout.log",
+      "bytes": 98593,
+      "sha256": "889703abb825bf1991249edfc5094a67c8120f5ace31a52a69bc827ad84d8f75"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-steady-v1/managed-logs/9996f6cc-ea7d-4502-88e9-33fbf751d513.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/cru55-dynamic/managed/candidate-perf-plana-steady-v1/managed-logs/9996f6cc-ea7d-4502-88e9-33fbf751d513.stdout.log",
+      "bytes": 2592007,
+      "sha256": "a8d217e1e4bc75d2ca57861aba15329ab191f377c825f363d3da87024049c6f2"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/baseline-08f3/data/cru55-dynamic/acceptance/candidate-perf-plana-baseline-cold-v1/experiment.json",
+      "bytes": 1133,
+      "sha256": "2518ad25ed166925bba7af31d7fd0490bc3dd4ef768ccffea9900f0b307cb26d"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/baseline-08f3/data/cru55-dynamic/acceptance/candidate-perf-plana-baseline-cold-v1/input-manifest.json",
+      "bytes": 3279,
+      "sha256": "ee9ecd48c43df2f57e36bfcd6c7ff1163aa6e90446efc7eff5283619b37214a3"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/baseline-08f3/data/cru55-dynamic/acceptance/candidate-perf-plana-baseline-cold-v1/launch-clock.json",
+      "bytes": 142,
+      "sha256": "1ba5a588d437cf24887534a5d72d673054f0f0d3ed70efb25faf179349ecb142"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/review-plana-fullscan-oracle.mjs",
+      "bytes": 7941,
+      "sha256": "dcbf39990475a5f11c39d06a79afc3626f998633819055ea2cbb6002b7668bc8"
+    },
+    {
+      "scope": "candidate-worktree",
+      "path": "data/perf/plana-independent-fullscan-oracle62000.json",
+      "bytes": 1667,
+      "sha256": "62b27a70347bb1e0a16d1ed8313a36175e0cd39588810af2e91c07fc0df5c304"
+    }
+  ]
+}

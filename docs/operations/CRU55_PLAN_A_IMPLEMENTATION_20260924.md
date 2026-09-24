@@ -1,5 +1,7 @@
 # CRU-55 Plan A implementation checkpoint — 2026-09-24
 
+Historical implementation checkpoint; superseded by [final Plan A delivery](CRU55_PLAN_A_DELIVERY_20260924.md). Implementation and acceptance execution are complete; performance acceptance remains FAIL. The pending steps below describe the earlier checkpoint, not the current next action.
+
 Status: CURRENT / acceptance pending. Same Draft PR73 and original worktree; no merge or formal rollout. Owner authorization: https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5792634365 . Starting HEAD `08f3d24eb68773003f896a4183335376a95fd8e4`; remote approved main `1ad9ec7c1814e401f8352048638f0a398bcf74fe`. The previous delivery B/FAIL and private evidence remain historical evidence, not a current wait-for-merge gate.
 
 ## Implemented state and exactness
