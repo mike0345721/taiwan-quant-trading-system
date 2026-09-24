@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {runStreamCycle} from '../src/cru55-stream-pipeline.mjs';
+import {runStreamCycle,PIPELINE_LIMITS} from '../src/cru55-stream-pipeline.mjs';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {SAFETY} from '../src/cvd-observation-core.mjs';
 
@@ -36,9 +36,35 @@ test('multiple new cutoffs produce byte-exact full-scan products while processin
       assert.equal(c.rangeQueries,213);assert.ok(c.aggregateNodes>0);
       assert.equal(c.rawVerificationBytes,fs.statSync(sourcePath).size);
       assert.equal(oracle.metrics.projectionWork.processedRecords,ordinal);
+      assert.equal(oracle.metrics.projectionWork.newRecords,count);
+      assert.equal(oracle.metrics.projectionWork.historicalReplayRecords,ordinal-count);
       t.diagnostic(JSON.stringify({cutoff:ordinal,append:count,indexed:c,oracleRecords:oracle.metrics.projectionWork.processedRecords,artifactExact:true}));
     }
   }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('oversized query and collision pages fail closed before budget or content reads',()=>{
+  for(const phase of ['QUERY','COLLISION']){
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-indexed-invalid-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'indexed');
+    const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',prefixProtection:'STAMP',maxPages:2};
+    let hash='GENESIS';const rows=[];
+    for(let n=0;n<270;n++){const time=new Date(Date.parse('2026-09-14T15:00:00+08:00')+n*1000).toISOString();const row=buildLiveEventRecord({kind:'futures_tick',code:'TXFI6',receivedAt:time,...SAFETY,payload:{_product_family:'TX',_target_code:'TXFI6',timestamp:time,close:20000+n%11,volume:1,tick_type:1}},hash);hash=row.recordHash;rows.push(JSON.stringify(row));}
+    fs.writeFileSync(sourcePath,rows.join('\n')+'\n');
+    const link=fs.linkSync,read=fs.readFileSync;let target=null,contentReads=0;
+    try{
+      if(phase==='COLLISION'){
+        fs.linkSync=(from,to)=>{const result=link(from,to);if(!target&&path.basename(path.dirname(to))==='projection-index'){target=to;throw Error('TEST_ORPHAN_INDEX');}return result;};
+        assert.throws(()=>finish(opts),/TEST_ORPHAN_INDEX/);fs.linkSync=link;
+      }else{
+        for(let i=0;i<100;i++){runStreamCycle(opts);const job=JSON.parse(read(path.join(runRoot,'job.json'))).value;if(job.phase==='QUERY'&&job.indexQuery.cursor?.stack.length){target=path.join(runRoot,'projection-index',job.indexQuery.cursor.stack.at(-1).ref.hash+'.json');break;}}
+      }
+      assert.ok(target);fs.truncateSync(target,PIPELINE_LIMITS.bytes+1);
+      fs.readFileSync=(file,...args)=>{if(file===target)contentReads++;return read(file,...args);};
+      assert.throws(()=>finish(opts),/STREAM_PIPELINE_FILE_INVALID/);assert.equal(contentReads,0);
+      assert.equal(JSON.parse(read(path.join(runRoot,'lifecycle-status.json'))).state,'BLOCKED');
+      assert.equal(fs.existsSync(path.join(runRoot,'stream-public.json')),false);
+    }finally{fs.linkSync=link;fs.readFileSync=read;fs.rmSync(root,{recursive:true,force:true});}
+  }
 });
 
 test('durable index collision after interruption is budgeted and resumes the previous complete page',()=>{

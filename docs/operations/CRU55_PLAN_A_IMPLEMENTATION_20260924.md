@@ -28,3 +28,11 @@ Commit the tested candidate, then run normal managed launcher and real login on 
 The original gates remain: cold DAY latest API <=180s; append/API p95<=5s and p99<=10s; same-page visible p95<=10s; no unexplained >30s gap; burst recovery <=120s. Browser target loss and API503 are separate investigations; a replacement tab cannot repair the original same-page result. Exact independent review, commit/push, CI and GitHub/Linear/Owner readback remain incomplete at this checkpoint.
 
 Formal8787, collector/raw/SQLite/scheduler, PR72, immutable evidence and unrelated changes remain untouched. `formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false`.
+
+## Review repair and first cold measurement
+
+Runtime `8af3c028ba105d30b25c66220e71d9b9b42bf3df`: normal managed launcher to authenticated latest DAY62000 = **458,698ms**, FAIL180s. DAY/NIGHT x six frames API/artifact exact checks12 PASS; no API exceptions; every503 retained. CI181/run35939123351 SUCCESS. This initial run is not the later repaired runtime measurement.
+
+Second independent review found oversized index metadata was checked after taking budget, allowing perpetual PENDING before the size rejection. Fixed by checking path/type/nlink/cap before budget consumption and before content reads, including collision recovery. Sparse oversized QUERY and collision regression both reject BLOCKED without reading content. The three indexed pipeline tests and seven new in-memory state-transition tests PASS. Normal/late/clock-regression/quote-only/continuity/contract/future-availability/schema/source/ordinal paths compare full sealed jobs and all products to the oracle. FULL_SCAN counters now separate newly appended versus previously published records accurately.
+
+An attempted new normal managed paired baseline in a detached08f3 checkout was refused by the existing candidate branch allowlist before launching writer/server (`CRU55_CANDIDATE_WORKTREE_REQUIRED`). The guard was not weakened. Preserve that failed launch and use the exact08f3 checkout for direct-pipeline comparisons; previous0342 normal-managed evidence remains historical and host/cache differences must be disclosed. The main candidate remains on the original branch/worktree.

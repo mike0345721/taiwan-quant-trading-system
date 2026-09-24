@@ -32,9 +32,13 @@ function exact(fd, offset, length) {
   while(n<length){const count=fs.readSync(fd,b,n,length-n,offset+n);if(!count)fail('STREAM_RAW_TRUNCATED');n+=count;}
   return b;
 }
-function json(file,cap=PIPELINE_LIMITS.jobBytes){
+function fileMetadata(file,cap=PIPELINE_LIMITS.jobBytes){
   assertPlainPath(file);const st=fs.statSync(file);
   if(!st.isFile()||st.nlink!==1||st.size>cap)fail('STREAM_PIPELINE_FILE_INVALID');
+  return st;
+}
+function json(file,cap=PIPELINE_LIMITS.jobBytes){
+  fileMetadata(file,cap);
   return JSON.parse(fs.readFileSync(file,'utf8'));
 }
 function atomic(file,value,cap=PIPELINE_LIMITS.jobBytes,beforeReplace){
@@ -45,7 +49,7 @@ function atomic(file,value,cap=PIPELINE_LIMITS.jobBytes,beforeReplace){
 }
 function immutable(file,value,cap=PIPELINE_LIMITS.jobBytes,beforeRead){
   assertPlainPath(file);const bytes=stableJson(value);if(Buffer.byteLength(bytes)>cap)fail('STREAM_PIPELINE_ARTIFACT_BUDGET');
-  const existing=()=>{beforeRead?.(fs.statSync(file).size);return json(file,cap);};
+  const existing=()=>{const st=fileMetadata(file,cap);beforeRead?.(st.size);return json(file,cap);};
   if(fs.existsSync(file)){if(!same(existing(),value))fail('STREAM_PIPELINE_IMMUTABLE_COLLISION');return;}
   const tmp=path.join(path.dirname(file),crypto.randomUUID()+'.tmp');atomic(tmp,value,cap);
   try{try{fs.linkSync(tmp,file);}catch(e){if(e.code!=='EEXIST'||!same(existing(),value))throw e;}}finally{fs.unlinkSync(tmp);}
@@ -179,6 +183,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       const generationHash=digest(stableJson({sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity,rawChunkHash:ingest.lastChunkHash,checkpointHash:checkpoint.stateHash}));
       job={...job,phase:'PROJECT',cutoff:{index:ingest.index,endByteOffset:ingest.endByteOffset,lastChunkHash:ingest.lastChunkHash,headPageHash:ingest.headPageHash},generationHash,nextIndex:1,previousChunkHash:null,previousPageHash:null,projection:createProjectionJob({checkpoint,sourceKind,generationHash,calendar:resolved.calendar})};
       job.projectionWork={mode:projectionMode,rebuildReason:projectionMode==='FULL_SCAN'?'ORACLE_FULL_SCAN':'INITIAL_BUILD',processedRecords:0,newRecords:0,historicalReplayRecords:0,indexedPoints:0,rangeQueries:0,rangeNodes:0,aggregateNodes:0,orderedLeaves:0,rawVerificationBytes:0};
+      job.indexBaseOrdinal=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536).cutoff.ledgerOrdinal:0;
       if(projectionMode==='INDEXED'){
         fs.mkdirSync(name('projection-index'),{recursive:true});
         let previous=null;
@@ -242,7 +247,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     }
     flushProjection();
     if(job.phase==='QUERY'){
-      const readNode=createRangeReader(hash=>{const file=name('projection-index/'+hash+'.json');work.take(fs.statSync(file).size,true);return json(file,PROJECTION_LIMITS.pageBytes);});
+      const readNode=createRangeReader(hash=>{const file=name('projection-index/'+hash+'.json'),st=fileMetadata(file,PROJECTION_LIMITS.pageBytes);work.take(st.size,true);return json(file,PROJECTION_LIMITS.pageBytes);});
       job.projection=advanceIndexedProjectionQueries(job.projection,job.rangeIndex,job.indexQuery,readNode,job.projectionWork);
       job.projectionRef=digest(stableJson(job.projection));immutable(name(job.projectionRef+'.projection.json'),job.projection);
       atomic(name('projection-index.json'),sealed({schemaVersion:'cru55-indexed-projection-v1',binding:jobBinding,cutoff:job.cutoff,projectionRef:job.projectionRef,projection:job.projection,index:job.rangeIndex,evidenceScope:'DERIVED_INDEX_ONLY_NOT_RAW_PREFIX_PROOF'}));
