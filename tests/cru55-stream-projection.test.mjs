@@ -10,6 +10,8 @@ import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {classifyTxChartSession,buildOneMinuteBars,aggregateChartBars} from '../src/dashboard-tx-chart.mjs';
 import {buildSessionContext} from '../src/cvd-session-context-projection.mjs';
 import {sessionFixture,calendar} from './cvd-session-context-fixture.mjs';
+import {beginRangeAppend,createRangeReader} from '../src/cru55-projection-range-index.mjs';
+import {advanceIndexedProjectionQueries} from '../src/cru55-indexed-projection.mjs';
 const resolver=t=>{const s=classifyTxChartSession(t,calendar);return {session:s.session,tradeDate:s.tradeDate};};
 function pagesFor(rows,source='sha256:'+digest('2026-09-14T09:00:00+08:00')){
   let checkpoint=createStreamCheckpoint(source,'governed-fixture'),head=null;const pages=[],quotes=[];
@@ -27,6 +29,10 @@ function run(rows,source){
     batched=batch.finish();assert.deepEqual(batched,job,'cycle seal/restart must equal per-page seal including job hash');
     assert.throws(()=>batch.consume(archive.pages[0]),/BATCH_CLOSED/);
   }
+  const files=new Map();let roots=[],indexed=initial;
+  for(const page of archive.pages){const add=beginRangeAppend(roots,(h,v)=>files.set(h,v));const batch=beginProjectionBatch(indexed,{onPoint:(e,p,prior,pressure)=>add.append(e,p,prior,pressure)});batch.consume(page);indexed=batch.finish();roots=add.finish();}
+  indexed=advanceIndexedProjectionQueries(indexed,{roots},{cursor:null},createRangeReader(h=>files.get(h)),{});
+  assert.deepEqual(indexed,job,'indexed complete projection including hash equals frozen full-scan oracle');
   return {...archive,job,result:finishProjectionJob(job)};
 }
 test('six current and previous windows and observed context equal frozen oracle below old limit',()=>{

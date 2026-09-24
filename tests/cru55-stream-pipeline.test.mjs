@@ -132,7 +132,7 @@ test('verification cursor is compact, resumes a sealed projection and rejects ch
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
-test('every actual raw range and archive page read shares the cycle byte budget; impossible budgets are rejected',()=>{
+test('every actual raw range and archive/index page read shares the cycle byte budget; impossible budgets are rejected',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru55-budget-')),sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(root,'out','night');
   append(sourcePath,0,300);
   const opts={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',maxPages:2,maxVerifyRanges:2,maxBytes:5*1024*1024};
@@ -142,7 +142,7 @@ test('every actual raw range and archive page read shares the cycle byte budget;
   fs.openSync=(file,...args)=>{const fd=open(file,...args);if(file===sourcePath)sourceFds.add(fd);return fd;};
   fs.closeSync=(fd,...args)=>{sourceFds.delete(fd);return close(fd,...args);};
   fs.readSync=(fd,...args)=>{const n=read(fd,...args);if(sourceFds.has(fd))rawBytes+=n;return n;};
-  fs.readFileSync=(file,...args)=>{const value=readFile(file,...args);if(typeof file==='string'&&file.endsWith('.page.json')){pageReads++;pageBytes+=Buffer.byteLength(value);}return value;};
+  fs.readFileSync=(file,...args)=>{const value=readFile(file,...args);if(typeof file==='string'&&(file.endsWith('.page.json')||path.basename(path.dirname(file))==='projection-index')){pageReads++;pageBytes+=Buffer.byteLength(value);}return value;};
   try{
     let result;for(let i=0;i<100;i++){
       rawBytes=pageBytes=pageReads=0;result=runStreamCycle(opts);

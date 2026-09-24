@@ -49,6 +49,9 @@ function publicWindow(a,windowMs){
 }
 function seal(job){delete job.jobHash;const text=stableJson(job);if(Buffer.byteLength(text)>PROJECTION_LIMITS.jobBytes)fail('STREAM_PROJECTION_JOB_BUDGET');return {...job,jobHash:digest(text)};}
 function validate(job){const {jobHash,...body}=job;if(jobHash!==digest(stableJson(body))||job.schemaVersion!=='cru55-stream-projection-job-v1')fail('STREAM_PROJECTION_JOB_INVALID');if(Buffer.byteLength(stableJson(job))>PROJECTION_LIMITS.jobBytes)fail('STREAM_PROJECTION_JOB_BUDGET');return structuredClone(body);}
+// Shared primitives for the exact indexed candidate. The full-scan entry points
+// below remain the semantic oracle; no aggregate arithmetic is substituted here.
+export const projectionPrimitives = Object.freeze({ accumulator, accumulate, seal, validate });
 export function createProjectionJob({checkpoint,sourceKind,generationHash,calendar}){
   const s=validateStreamCheckpoint(checkpoint);if(!calendar||!['SYNTHETIC_FIXTURE','GOVERNED_FRAGMENT'].includes(sourceKind)||!/^[a-f0-9]{64}$/.test(generationHash||''))fail('STREAM_PROJECTION_INPUT_INVALID');
   calendar={...calendar,tradingDates:[...calendar.tradingDates],nonTradingDates:[...calendar.nonTradingDates],exceptions:[...calendar.exceptions]};
@@ -62,9 +65,10 @@ function contextPriceTick(job,e,calendar){
     if(governed&&governed.session===e.session&&governed.tradeDate===e.tradeDate){const endpoint={price,eventTime:e.eventTime,eventMs:e.eventMs,lineage:lineage(e)};job.firstPrice??=endpoint;job.lastPrice=endpoint;}
   }
 }
-function priceRecord(job,record,calendar){
+function priceRecord(job,record,calendar,onPrice){
   const s=job.checkpoint.state;
   const normalized=buildOneMinuteBars([record],{calendar,asOf:s.snapshotAvailableAt??s.cutoffReceivedAt});job.priceViolations+=normalized.timeLineageViolationCount;
+  onPrice?.(normalized);
   const t=normalized.ticks[0],b=normalized.internalBars[0];if(!t||!b||!equal([t.actualContract,t.sessionTradeDate??t.tradeDate,t.session],s.activeIdentity?.slice(0,3)))return;
   const key=b.time,order=[t.exchangeMs,t.availableMs,t.eventId],cmp=(a,c)=>a[0]-c[0]||a[1]-c[1]||String(a[2]).localeCompare(String(c[2]));
   let bucket=job.minutes[key];if(!bucket){if(Object.keys(job.minutes).length>=PROJECTION_LIMITS.minuteBuckets)fail('STREAM_PRICE_BUCKET_BUDGET');job.minutes[key]={bar:b,first:order,last:order};}else{const x=bucket.bar;x.high=Math.max(x.high,b.high);x.low=Math.min(x.low,b.low);x.volume+=b.volume;x._priceVolume+=b._priceVolume;x.eventCount++;x.sequenceGapCount+=b.sequenceGapCount;if(b.qualityStatus!=='PASS')x.qualityStatus='QUALITY_INSUFFICIENT';if(b.availableAt>x.availableAt)x.availableAt=b.availableAt;if(cmp(order,bucket.first)<0){bucket.first=order;x.open=b.open;x.firstEventTime=b.firstEventTime;}if(cmp(order,bucket.last)>0){bucket.last=order;x.close=b.close;x.lastEventTime=b.lastEventTime;}}
@@ -75,15 +79,15 @@ export function consumeProjectionPage(input,page){
 // One bounded pipeline cycle owns this private mutable reducer. Validate and
 // clone the resumable input once, then seal once at its durable boundary. Every
 // page/record/checkpoint binding is still checked in physical order.
-export function beginProjectionBatch(input){
+export function beginProjectionBatch(input,{onPoint,onPrice}={}){
   const job=validate(input),calendar={...job.calendar,tradingDates:new Set(job.calendar.tradingDates),nonTradingDates:new Set(job.calendar.nonTradingDates),exceptions:new Map(job.calendar.exceptions)};
   let closed=false;
   return {
-    consume(page){if(closed)fail('STREAM_PROJECTION_BATCH_CLOSED');try{consumePage(job,page,calendar);}catch(e){closed=true;throw e;}},
+    consume(page){if(closed)fail('STREAM_PROJECTION_BATCH_CLOSED');try{consumePage(job,page,calendar,{onPoint,onPrice});}catch(e){closed=true;throw e;}},
     finish(){if(closed)fail('STREAM_PROJECTION_BATCH_CLOSED');closed=true;return seal(job);}
   };
 }
-function consumePage(job,page,calendar){
+function consumePage(job,page,calendar,{onPoint,onPrice}={}){
   const s=job.checkpoint.state;
   if(!page||page.schemaVersion!=='cru55-stream-page-v1'||!Array.isArray(page.facts)||page.facts.length>PROJECTION_LIMITS.pageFacts||Buffer.byteLength(stableJson(page))>PROJECTION_LIMITS.pageBytes||page.startOrdinal!==job.nextOrdinal||page.endOrdinal>s.ordinal||page.sourceLedgerIdentity!==s.sourceLedgerIdentity||page.resolverIdentity!==s.resolverIdentity||page.previousTerminalHash!==job.terminalHash||page.previousPageHash!==job.pageHash)fail('STREAM_PROJECTION_PAGE_BINDING_INVALID');
   if(page.facts.length!==page.endOrdinal-page.startOrdinal+1||page.records.length!==page.facts.length)fail('STREAM_PROJECTION_PAGE_FACTS_INVALID');
@@ -94,21 +98,25 @@ function consumePage(job,page,calendar){
     // Price is the whole physical prefix's matching contract/date/session,
     // independent of semantic CVD continuity segments. Normalize raw records
     // using the accepted clock/duplicate/simtrade rules before bucket merging.
-    priceRecord(job,record,calendar);
+    priceRecord(job,record,calendar,onPrice);
     const e=fact.event,p=fact.point;if(e&&(e.ledgerOrdinal!==fact.ordinal||e.recordHash!==recordHash||e.sourceLedgerIdentity!==s.sourceLedgerIdentity))fail('STREAM_PROJECTION_EVENT_INVALID');
     if(!e||!p||p.segment!==s.segmentCount-1)continue;
     if(!equal(identity(e),s.activeSegment.identity)||p.ledgerOrdinal!==e.ledgerOrdinal||p.recordHash!==e.recordHash||p.eventTime!==e.eventTime||p.availableAt!==e.availableAt)fail('STREAM_PROJECTION_POINT_INVALID');
     const prior=job.previousPoint;job.previousPoint=p;job.pointCount++;
+    onPoint?.(e,p,prior,fact.pressure);
     // Chart clock is AVAILABLE_AT only. A late event can invalidate context/path
     // while retaining a lawful monotonically available CVD display.
     if(!Number.isFinite(e.availableMs)||(prior&&e.availableMs<Date.parse(prior.availableAt)))job.displayClockInvalid=true;
     if(e.ledgerOrdinal===s.lastPoint.ledgerOrdinal)job.cutoffEvent=e;
     if(e.identityStatus!=='USABLE'||e.availabilityLineageStatus!=='USABLE'||!Number.isFinite(e.eventMs)||!Number.isFinite(e.availableMs)||e.availableMs>Date.parse(s.lastPoint.availableAt)||(prior&&e.eventMs<Date.parse(prior.eventTime))||(p.value===null&&p.reason!=='NO_CLASSIFIED_VOLUME'))job.contextInvalid=true;
     if(e.availableMs<=Date.parse(s.lastPoint.availableAt)&&e.ledgerOrdinal<=s.lastPoint.ledgerOrdinal){
-      for(const [frame,W]of Object.entries(frames))for(let previous=0;previous<2;previous++){const upper=job.endMs-previous*W;if(e.eventMs>upper-W&&e.eventMs<=upper)accumulate(job.windows[frame][previous],e,p,prior,fact.pressure);}
-      if(e.eventMs>=job.startMs&&e.eventMs<=job.endMs)accumulate(job.context,e,p,prior,fact.pressure);
+      if(!onPoint){
+        for(const [frame,W]of Object.entries(frames))for(let previous=0;previous<2;previous++){const upper=job.endMs-previous*W;if(e.eventMs>upper-W&&e.eventMs<=upper)accumulate(job.windows[frame][previous],e,p,prior,fact.pressure);}
+        if(e.eventMs>=job.startMs&&e.eventMs<=job.endMs)accumulate(job.context,e,p,prior,fact.pressure);
+      }
       contextPriceTick(job,e,calendar);
     }
+    if(onPoint)continue;
     const d={time:e.availableMs/1000,value:p.value,ledgerOrdinal:p.ledgerOrdinal,recordHash:p.recordHash,availableAt:p.availableAt,eventTime:p.eventTime,reason:p.reason};
     const span=Math.max(1,s.lastPoint.ledgerOrdinal-s.activeSegment.startOrdinal+1),bin=Math.min(PROJECTION_LIMITS.displayBuckets-1,Math.floor((p.ledgerOrdinal-s.activeSegment.startOrdinal)*PROJECTION_LIMITS.displayBuckets/span));
     const b=job.display[bin];if(!b)job.display[bin]={first:d,last:d,min:d,max:d,gap:p.value===null?d:null};else{b.last=d;if(p.value===null)b.gap??=d;if(p.value!==null&&(b.min.value===null||p.value<b.min.value))b.min=d;if(p.value!==null&&(b.max.value===null||p.value>b.max.value))b.max=d;}
