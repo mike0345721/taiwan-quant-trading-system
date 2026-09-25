@@ -1,0 +1,851 @@
+{
+  "schema": "cru55-growing-early-result-v1",
+  "analysisScope": "SINGLE_CAMPAIGN_DERIVED_NO_RERUN",
+  "head": "6e0c6d913ea22854f5c8d6d74e357e7e229b110d",
+  "result": "PREPARATION_OR_MEASUREMENT_INCONCLUSIVE",
+  "reason": "MEASUREMENT_DISTORTION",
+  "rawResultReason": "APPENDER_EXIT_INCOMPLETE",
+  "normalCompleted": false,
+  "recoveryCompleted": false,
+  "boundedDrainAttempted": false,
+  "reasonNote": "Raw result reason was overwritten by appender exit callback after primary stop; original evidence retained. This campaign stopped during NORMAL.",
+  "startedAt": "2026-09-25T14:11:07.501Z",
+  "endedAt": "2026-09-25T14:20:34.668Z",
+  "elapsedMs": 567162.6577000022,
+  "preparationMs": 49364.2534,
+  "initial": {
+    "records": 31322,
+    "bytes": 42903318,
+    "firstPublicationMs": 267227.0094999969,
+    "firstApiMs": 267293.68000000715,
+    "flowStartMs": 277686.2714999914
+  },
+  "window": {
+    "normal": {
+      "seconds": 1800,
+      "records": 108341,
+      "bytes": 148442620,
+      "recordsPerSecond": 60.18944444444445,
+      "oneSecondRecords": {
+        "p50": 50,
+        "p95": 123,
+        "p99": 219,
+        "max": 749
+      },
+      "oneSecondBytes": {
+        "p50": 68497,
+        "p95": 168217,
+        "p99": 299939,
+        "max": 1020840
+      },
+      "sixtySecondRecords": {
+        "p50": 3073,
+        "p95": 6499,
+        "p99": 7788,
+        "max": 7788
+      },
+      "sixtySecondBytes": {
+        "p50": 4217798,
+        "p95": 8903125,
+        "p99": 10671978,
+        "max": 10671978
+      },
+      "activeSeconds": 1798
+    },
+    "recovery": {
+      "seconds": 300,
+      "records": 14070,
+      "bytes": 19324651,
+      "recordsPerSecond": 46.9,
+      "oneSecondRecords": {
+        "p50": 40,
+        "p95": 92,
+        "p99": 138,
+        "max": 192
+      },
+      "oneSecondBytes": {
+        "p50": 55618,
+        "p95": 126037,
+        "p99": 189417,
+        "max": 263517
+      },
+      "sixtySecondRecords": {
+        "p50": 2880,
+        "p95": 3637,
+        "p99": 3637,
+        "max": 3637
+      },
+      "sixtySecondBytes": {
+        "p50": 3955735,
+        "p95": 4989548,
+        "p99": 4989548,
+        "max": 4989548
+      },
+      "activeSeconds": 300
+    },
+    "combined": {
+      "seconds": 2100,
+      "records": 122411,
+      "bytes": 167767271,
+      "recordsPerSecond": 58.29095238095238,
+      "oneSecondRecords": {
+        "p50": 48,
+        "p95": 121,
+        "p99": 212,
+        "max": 749
+      },
+      "oneSecondBytes": {
+        "p50": 66571,
+        "p95": 166588,
+        "p99": 290981,
+        "max": 1020840
+      },
+      "sixtySecondRecords": {
+        "p50": 3018,
+        "p95": 6499,
+        "p99": 7788,
+        "max": 7788
+      },
+      "sixtySecondBytes": {
+        "p50": 4141693,
+        "p95": 8903125,
+        "p99": 10671978,
+        "max": 10671978
+      },
+      "activeSeconds": 2098
+    }
+  },
+  "actualSource": {
+    "records": 49938,
+    "bytes": 68365514,
+    "appendedRecords": 18616,
+    "appendBatches": 2560,
+    "normalActualOneSecondRecords": {
+      "n": 286,
+      "p50": 54,
+      "p95": 120,
+      "p99": 366,
+      "max": 749
+    },
+    "perRecordLatenessMs": {
+      "n": 18616,
+      "p50": 16.290499985218048,
+      "p95": 307.89219999313354,
+      "p99": 547.1092000007629,
+      "max": 1074.1572000086308
+    },
+    "batchFirstLatenessMs": {
+      "n": 2560,
+      "p50": 15.532799988985062,
+      "p95": 98.6928000152111,
+      "p99": 505.52570003271103,
+      "max": 1074.1572000086308
+    },
+    "appendFsyncMs": {
+      "n": 2560,
+      "p50": 48.88060000538826,
+      "p95": 152.1037000119686,
+      "p99": 565.8254999816418,
+      "max": 1085.8958999812603
+    }
+  },
+  "normal": {
+    "batches": 2560,
+    "records": 18616,
+    "publication": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 119464.55050000548,
+        "p95": 160468.3028999865,
+        "p99": 163957.47579997778,
+        "max": 164933.69190001488
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    },
+    "api": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 119528.58110001683,
+        "p95": 160532.33349999785,
+        "p99": 164021.50639998913,
+        "max": 165012.65720000863
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    },
+    "ui": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 130267.09923750162,
+        "p95": 164780.37593749166,
+        "p99": 168252.0750374794,
+        "max": 169275.7515375018
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    }
+  },
+  "recovery": {
+    "batches": 0,
+    "records": 0,
+    "publication": {
+      "successfulOnlyMs": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "unobservedBatches": 0,
+      "unobservedRecords": 0,
+      "notMeasured": true,
+      "allSampleQuantilesDefined": false
+    },
+    "api": {
+      "successfulOnlyMs": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "unobservedBatches": 0,
+      "unobservedRecords": 0,
+      "notMeasured": true,
+      "allSampleQuantilesDefined": false
+    },
+    "ui": {
+      "successfulOnlyMs": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "unobservedBatches": 0,
+      "unobservedRecords": 0,
+      "notMeasured": true,
+      "allSampleQuantilesDefined": false
+    }
+  },
+  "overall": {
+    "batches": 2560,
+    "records": 18616,
+    "publication": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 119464.55050000548,
+        "p95": 160468.3028999865,
+        "p99": 163957.47579997778,
+        "max": 164933.69190001488
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    },
+    "api": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 119528.58110001683,
+        "p95": 160532.33349999785,
+        "p99": 164021.50639998913,
+        "max": 165012.65720000863
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    },
+    "ui": {
+      "successfulOnlyMs": {
+        "n": 1605,
+        "p50": 130267.09923750162,
+        "p95": 164780.37593749166,
+        "p99": 168252.0750374794,
+        "max": 169275.7515375018
+      },
+      "unobservedBatches": 955,
+      "unobservedRecords": 5822,
+      "notMeasured": false,
+      "allSampleQuantilesDefined": false
+    }
+  },
+  "publications": [
+    {
+      "view": "night",
+      "ordinal": 31322,
+      "bytes": 42903318,
+      "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992",
+      "firstObservedMs": 267227.0094999969,
+      "flowSeconds": -10.459261999994517,
+      "cvd": 2,
+      "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+      "quality": "QUALITY_INSUFFICIENT"
+    },
+    {
+      "view": "day",
+      "ordinal": 33409,
+      "bytes": 45749726,
+      "artifactHash": "c509d64ab1b09125936515173004ee749fb900bb989c9acff914e757205eb638",
+      "firstObservedMs": 365409.5654000044,
+      "flowSeconds": 87.72329390001298,
+      "cvd": 147,
+      "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+      "quality": "QUALITY_INSUFFICIENT"
+    },
+    {
+      "view": "day",
+      "ordinal": 39215,
+      "bytes": 53688258,
+      "artifactHash": "13cb0fbf8a0d09c899cdaee5be9a1e42693fef42119bcd07e00c80114390eaaf",
+      "firstObservedMs": 449660.7538999915,
+      "flowSeconds": 171.97448240000008,
+      "cvd": 135,
+      "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+      "quality": "QUALITY_INSUFFICIENT"
+    },
+    {
+      "view": "day",
+      "ordinal": 44116,
+      "bytes": 60396698,
+      "artifactHash": "f9e2766da431f38ec3085b061f2e0cb2856276f2f777da1812a9900cf5492082",
+      "firstObservedMs": 530754.9417000115,
+      "flowSeconds": 253.06867020002008,
+      "cvd": 87,
+      "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+      "quality": "QUALITY_INSUFFICIENT"
+    }
+  ],
+  "maxCompletedPublicationIntervalMs": 98182.55590000749,
+  "finalNoAdvanceCensoredMs": 32666.493499994278,
+  "last": {
+    "elapsedSeconds": 563.4214395999909,
+    "flowSeconds": 285.73516370001437,
+    "phase": "NORMAL",
+    "source": {
+      "bytes": 68365514,
+      "completeBytes": 68365514,
+      "ordinal": 49938
+    },
+    "committed": {
+      "ordinal": 48220,
+      "bytes": 66013891
+    },
+    "views": {
+      "day": {
+        "ordinal": 44116,
+        "bytes": 60396698,
+        "artifactHash": "f9e2766da431f38ec3085b061f2e0cb2856276f2f777da1812a9900cf5492082"
+      },
+      "night": {
+        "ordinal": 31322,
+        "bytes": 42903318,
+        "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+      }
+    },
+    "backlog": {
+      "ingestRecords": 1718,
+      "ingestBytes": 2351623,
+      "publicationRecords": 5822,
+      "publicationBytes": 7968816
+    },
+    "state": "PENDING",
+    "pipelinePhase": "PROJECT"
+  },
+  "resource": {
+    "hostCpu": {
+      "n": 21,
+      "p50": 50,
+      "p95": 71,
+      "p99": 76,
+      "max": 76
+    },
+    "writerRss": {
+      "n": 20,
+      "p50": 274509824,
+      "p95": 324898816,
+      "p99": 366874624,
+      "max": 366874624
+    }
+  },
+  "restart": {
+    "attempted": false,
+    "events": []
+  },
+  "errors": {
+    "api": {
+      "503:CRU55_PROJECTION_NOT_AVAILABLE": 225,
+      "503:CRU55_STREAM_SELECTION_INVALID": 76
+    },
+    "publicationObservationRaces": 0,
+    "failures": [
+      {
+        "reason": "MEASUREMENT_DISTORTION",
+        "elapsedMs": 563384.7028999925
+      }
+    ],
+    "cleanup": [
+      {
+        "kind": "stop-writer",
+        "action": "stop-writer",
+        "elapsedMs": 564823.0307999849,
+        "error": null
+      },
+      {
+        "kind": "stop-server",
+        "action": "stop-server",
+        "elapsedMs": 567162.1575999856,
+        "error": null
+      }
+    ]
+  },
+  "ui": {
+    "samples": 50,
+    "campaignMonotonicSamples": 48,
+    "postStopSamples": 1,
+    "visibleArtifactSamples": 19,
+    "hiddenSamples": 0,
+    "maximumSamplingGapMs": 91677.66470000148,
+    "clockResidualMs": {
+      "n": 48,
+      "p50": 1.514404296875,
+      "p95": 3.14208984375,
+      "p99": 3.544677734375,
+      "max": 3.544677734375
+    },
+    "sameTabCount": 1
+  },
+  "limitsPreserved": true,
+  "naturalLiveAcceptance": false,
+  "dailyReady": false,
+  "limits": [
+    "One fixed early DAY window; no mature 1.5m warm/full DAY/full NIGHT/current-natural-collector acceptance",
+    "Publication/API/UI first-observed upper bounds, not exact commit/render timestamps",
+    "Batch latency denominator uses complete batch cutoff and visible write completion; unfinished preserved as right-censored",
+    "UI performance.now bridged once via local wall/monotonic pair; clock residual and polling gaps disclosed",
+    "Historical age is not processing latency; quality/null rules preserved",
+    "No new SLA, merge, production switch or storage implementation"
+  ],
+  "verification": {
+    "at": "2026-09-25T14:24:29.812Z",
+    "head": "6e0c6d913ea22854f5c8d6d74e357e7e229b110d",
+    "scope": "READ_ONLY_EXISTING_RESULT_NO_REPLAY",
+    "sourceEqualsFrozenByte0Prefix": true,
+    "sourceRecords": 49938,
+    "sourceBytes": 68365514,
+    "sourceSha256": "aac2ad6ab6057d39e4d331916041a1d778504465ed8cd42f660a9bdd2db8c982",
+    "frozenIdentityUnchanged": true,
+    "partialTailBytes": 0,
+    "chainLinkChecks": 49938,
+    "artifactChecks": [
+      {
+        "ordinal": 31322,
+        "bytes": 42903318,
+        "recordHash": "9be25eea2f0365d884437b09783a57a6d2d5033ee1c741970ec4cb1f6fbf1cad",
+        "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+      },
+      {
+        "ordinal": 33409,
+        "bytes": 45749726,
+        "recordHash": "be0586ecf09c50579d20f6315f5375abb290c0e815c6ea27a2484785edfb7e6d",
+        "artifactHash": "c509d64ab1b09125936515173004ee749fb900bb989c9acff914e757205eb638"
+      },
+      {
+        "ordinal": 39215,
+        "bytes": 53688258,
+        "recordHash": "a95f26ce174d41239e6f2fabc33a643d2fb4b8969340ac06fa01e8e411721966",
+        "artifactHash": "13cb0fbf8a0d09c899cdaee5be9a1e42693fef42119bcd07e00c80114390eaaf"
+      },
+      {
+        "ordinal": 44116,
+        "bytes": 60396698,
+        "recordHash": "2ec680fcdcd90072912ec0a7918113b0a33da61b0af48d2e72109bf2642942c5",
+        "artifactHash": "f9e2766da431f38ec3085b061f2e0cb2856276f2f777da1812a9900cf5492082"
+      }
+    ],
+    "committed": {
+      "ordinal": 48220,
+      "bytes": 66013891,
+      "hash": "b2d18e22509d384e87e9b7a7a5cc88681e497d1aab0a68a2bff2d82f02a6c352"
+    },
+    "cleanup": {
+      "allCandidateProcessesAbsent": true,
+      "port3069Absent": true
+    },
+    "resultRootReason": "MEASUREMENT_DISTORTION",
+    "rawResultReason": "APPENDER_EXIT_INCOMPLETE"
+  },
+  "progress": [
+    {
+      "elapsedSeconds": 18.665760899990797,
+      "flowSeconds": -259.0205153000057,
+      "phase": "INITIALIZATION",
+      "source": {
+        "bytes": 42903318,
+        "completeBytes": 42903318,
+        "ordinal": 31322
+      },
+      "committed": {
+        "ordinal": 1792,
+        "bytes": 2460723
+      },
+      "views": {},
+      "backlog": {
+        "ingestRecords": 29530,
+        "ingestBytes": 40442595,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      },
+      "state": "PENDING",
+      "pipelinePhase": "INGEST"
+    },
+    {
+      "elapsedSeconds": 78.9422637000084,
+      "flowSeconds": -198.7440121999979,
+      "phase": "INITIALIZATION",
+      "source": {
+        "bytes": 42903318,
+        "completeBytes": 42903318,
+        "ordinal": 31322
+      },
+      "committed": {
+        "ordinal": 14208,
+        "bytes": 19501822
+      },
+      "views": {},
+      "backlog": {
+        "ingestRecords": 17114,
+        "ingestBytes": 23401496,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      },
+      "state": "PENDING",
+      "pipelinePhase": "INGEST"
+    },
+    {
+      "elapsedSeconds": 139.6856387999952,
+      "flowSeconds": -138.00063909998536,
+      "phase": "INITIALIZATION",
+      "source": {
+        "bytes": 42903318,
+        "completeBytes": 42903318,
+        "ordinal": 31322
+      },
+      "committed": {
+        "ordinal": 20736,
+        "bytes": 28456825
+      },
+      "views": {},
+      "backlog": {
+        "ingestRecords": 10586,
+        "ingestBytes": 14446493,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      },
+      "state": "PENDING",
+      "pipelinePhase": "INGEST"
+    },
+    {
+      "elapsedSeconds": 199.91216670000554,
+      "flowSeconds": -77.77411039999127,
+      "phase": "INITIALIZATION",
+      "source": {
+        "bytes": 42903318,
+        "completeBytes": 42903318,
+        "ordinal": 31322
+      },
+      "committed": {
+        "ordinal": 31322,
+        "bytes": 42903318
+      },
+      "views": {},
+      "backlog": {
+        "ingestRecords": 0,
+        "ingestBytes": 0,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      },
+      "state": "PENDING",
+      "pipelinePhase": "PROJECT"
+    },
+    {
+      "elapsedSeconds": 259.943790199995,
+      "flowSeconds": -17.74248569998145,
+      "phase": "INITIALIZATION",
+      "source": {
+        "bytes": 42903318,
+        "completeBytes": 42903318,
+        "ordinal": 31322
+      },
+      "committed": {
+        "ordinal": 31322,
+        "bytes": 42903318
+      },
+      "views": {},
+      "backlog": {
+        "ingestRecords": 0,
+        "ingestBytes": 0,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      },
+      "state": "PENDING",
+      "pipelinePhase": "QUERY"
+    },
+    {
+      "elapsedSeconds": 320.5045886000097,
+      "flowSeconds": 42.81831310001016,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 49484824,
+        "completeBytes": 49484824,
+        "ordinal": 36142
+      },
+      "committed": {
+        "ordinal": 33409,
+        "bytes": 45749726
+      },
+      "views": {
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 2733,
+        "ingestBytes": 3735098,
+        "publicationRecords": 4820,
+        "publicationBytes": 6581506
+      },
+      "state": "PENDING",
+      "pipelinePhase": "PROJECT"
+    },
+    {
+      "elapsedSeconds": 380.6431850999892,
+      "flowSeconds": 102.95690960001946,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 54940368,
+        "completeBytes": 54940368,
+        "ordinal": 40130
+      },
+      "committed": {
+        "ordinal": 35457,
+        "bytes": 48548107
+      },
+      "views": {
+        "day": {
+          "ordinal": 33409,
+          "bytes": 45749726,
+          "artifactHash": "c509d64ab1b09125936515173004ee749fb900bb989c9acff914e757205eb638"
+        },
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 4673,
+        "ingestBytes": 6392261,
+        "publicationRecords": 6721,
+        "publicationBytes": 9190642
+      },
+      "state": "PENDING",
+      "pipelinePhase": "INGEST"
+    },
+    {
+      "elapsedSeconds": 441.035388500005,
+      "flowSeconds": 163.34911239999533,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 59780674,
+        "completeBytes": 59780674,
+        "ordinal": 43666
+      },
+      "committed": {
+        "ordinal": 39215,
+        "bytes": 53688258
+      },
+      "views": {
+        "day": {
+          "ordinal": 33409,
+          "bytes": 45749726,
+          "artifactHash": "c509d64ab1b09125936515173004ee749fb900bb989c9acff914e757205eb638"
+        },
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 4451,
+        "ingestBytes": 6092416,
+        "publicationRecords": 10257,
+        "publicationBytes": 14030948
+      },
+      "state": "PENDING",
+      "pipelinePhase": "VERIFY"
+    },
+    {
+      "elapsedSeconds": 501.21509000000356,
+      "flowSeconds": 223.52881450000405,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 64553445,
+        "completeBytes": 64553445,
+        "ordinal": 47153
+      },
+      "committed": {
+        "ordinal": 44116,
+        "bytes": 60396698
+      },
+      "views": {
+        "day": {
+          "ordinal": 39215,
+          "bytes": 53688258,
+          "artifactHash": "13cb0fbf8a0d09c899cdaee5be9a1e42693fef42119bcd07e00c80114390eaaf"
+        },
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 3037,
+        "ingestBytes": 4156747,
+        "publicationRecords": 7938,
+        "publicationBytes": 10865187
+      },
+      "state": "PENDING",
+      "pipelinePhase": "QUERY"
+    },
+    {
+      "elapsedSeconds": 561.2541046000123,
+      "flowSeconds": 283.56782980000975,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 68221586,
+        "completeBytes": 68221586,
+        "ordinal": 49833
+      },
+      "committed": {
+        "ordinal": 48220,
+        "bytes": 66013891
+      },
+      "views": {
+        "day": {
+          "ordinal": 44116,
+          "bytes": 60396698,
+          "artifactHash": "f9e2766da431f38ec3085b061f2e0cb2856276f2f777da1812a9900cf5492082"
+        },
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 1613,
+        "ingestBytes": 2207695,
+        "publicationRecords": 5717,
+        "publicationBytes": 7824888
+      },
+      "state": "PENDING",
+      "pipelinePhase": "PROJECT"
+    },
+    {
+      "elapsedSeconds": 563.4214395999909,
+      "flowSeconds": 285.73516370001437,
+      "phase": "NORMAL",
+      "source": {
+        "bytes": 68365514,
+        "completeBytes": 68365514,
+        "ordinal": 49938
+      },
+      "committed": {
+        "ordinal": 48220,
+        "bytes": 66013891
+      },
+      "views": {
+        "day": {
+          "ordinal": 44116,
+          "bytes": 60396698,
+          "artifactHash": "f9e2766da431f38ec3085b061f2e0cb2856276f2f777da1812a9900cf5492082"
+        },
+        "night": {
+          "ordinal": 31322,
+          "bytes": 42903318,
+          "artifactHash": "501581608f7748ad94399a49c49ba782dd788ba4af78fc3875ef91559810f992"
+        }
+      },
+      "backlog": {
+        "ingestRecords": 1718,
+        "ingestBytes": 2351623,
+        "publicationRecords": 5822,
+        "publicationBytes": 7968816
+      },
+      "state": "PENDING",
+      "pipelinePhase": "PROJECT"
+    }
+  ],
+  "hashes": {
+    "helpers": {
+      "prepare-growing.mjs": "8048586acb1182fc182f3007a48bada9349b4a2df493a558a57dfd5d735bf643",
+      "append-growing.mjs": "22b235d4847e31582a7013eb1b781e095782e2f0974a237de037c0d75612ea26",
+      "measure-growing.mjs": "4846f69c34174b75eb4248e3a862e6cf2e596e8d5790b59791814d092a165522",
+      "growing-control.ps1": "f51bf20e4d3d0376937edcf9fddde1baa3368e37bcaf3c9f36d2de04990af683",
+      "summarize-growing.mjs": "c5eca4bc5229870b1221f9cc9aafc4b3d85c0ac3737ecbbe57d3c451c6e8295a",
+      "verify-growing.mjs": "e09b41bec0623df57d9491f53f697e67bc19bc7e74e121b478ba93a4ddbd32bb"
+    },
+    "evidence": {
+      "plan.json": "d64942ada400faaf977504e1c6b30a3ce781afb5cf170c3f0f819e0f5c35a984",
+      "events.json": "9bee232df29b446c3085ca3da9c146ad813c9498227d51f1911a597fa3917c8b",
+      "bins.json": "89882d530422890ceee9ba81c427b8d1bfcdf92207ae43df50b1daed152ce9a0",
+      "campaign-start.json": "41401520aecd8c3580ce1479354dc246d6ab4220ae6596809e8803797afe296b",
+      "measurement.ndjson": "2060124069324239639842a403c065dfd1bfc550f8014fe9367ff823bf5b0fb2",
+      "append.ndjson": "63264b074c5b10dc8d3579bec7800a40782ecc63a7da73cb903776ec60585917",
+      "append-result.json": "b4067ed74e607398d9f228639b8e219246de70ae132be4367360560c21796b55",
+      "result.json": "c95b6b53f5abe7c63751e257de10b23da5c428b26132a4b370456d24721bf723",
+      "ui.ndjson": "128ded8f55140c88ae02260e7667d049b0b20086114900affba780f5dff1970c",
+      "ui-clock.json": "da49693384299f6b919ef0150d2cfff9a2ebb7f9bfdf31e2a144389fd9dbca5f",
+      "cleanup-verified.json": "5a5f7f5eda588096b6bcaaad3e5791a4ca0fff2813fd24b0c37dec1890ca8922",
+      "summary.json": "efbb575a686b6b48d7e7e87941901a4981707fd36d6207d68fe9e36cadd12f0f",
+      "progress.json": "3585da96bd5389ec967394fddf44f0d7d025f041bfb4ee33a916742d30e22d1e",
+      "latency-samples.json": "1da88288cbca899819e4c94ce18fddf4b39e3fd3208f001db67da9889c730da5",
+      "verification.json": "3949b5c59ecf845616bfa4367800bd0848eeaf0632c027915603db22c2036628"
+    }
+  },
+  "safety": {
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  },
+  "review": {
+    "privateReplayHelper": "LEVEL2_APPROVE_BLOCKING_0",
+    "resultReview": "INDEPENDENT_LEVEL2_APPROVE_BLOCKING_0_RECALCULATED_FROM_LOGS",
+    "quantileRecalculation": "2560 batches; 1605 observed; 955 censored; exact values matched"
+  },
+  "unchangedProductRuntime": "e321c8748a742f5ebcd27d24e0a2299c6c46acff",
+  "measurementHead": "6e0c6d913ea22854f5c8d6d74e357e7e229b110d",
+  "fullFrozenSha256": "907e0722abde0214c2f5c1f4e370175f245f2f4f2b304d32c61980c0dd6db3f7",
+  "toolStopPolicy": {
+    "basis": "PRIVATE_HELPER_CONSERVATIVE_MEASUREMENT_TOLERANCE_NOT_OWNER_PRODUCT_SLA",
+    "batchTargetMs": 20,
+    "maxAppendLatenessStopMs": 1000,
+    "restartBatchP99LatenessLimitMs": 100,
+    "restartGateReached": false
+  },
+  "decision": "DO_NOT_ACCEPT_DAILY_USE_OR_INVEST_7_TO_11_PERSON_DAYS_FROM_THIS_INCONCLUSIVE_CAMPAIGN"
+}
