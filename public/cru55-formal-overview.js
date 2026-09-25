@@ -1,3 +1,4 @@
+import {renderObservation} from '/observation.mjs';
 import {renderContextCards} from '/context-cards.mjs';
 import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection,observedPricePercent,relationshipExplanation,contextSummary} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
@@ -12,6 +13,7 @@ function numericClass(el,value){el.classList.remove('positive-text','negative-te
 function metric(label,value){const el=node('div',null,'metric');el.append(node('span',label),node('b',value));return el;}
 function clearChart(){chartObserver?.disconnect();chartObserver=null;if(chart)chart.remove();chart=candle=volume=markerApi=null;markerData=[];document.body.dataset.markerCount='0';}
 function fail(message){
+  renderObservation($('cvd-observation'),null,frame);
   $('month-select').replaceChildren(new Option('來源契約不可用','current'));
   if($('drawer').open)$('drawer').close();text('drawer-json','UNAVAILABLE');for(const key of ['artifact','delta','head'])delete document.body.dataset[key];
   for(const id of ['context-price','context-price-delta','chart-price','chart-price-change'])$(id).className='price-neutral';
@@ -109,17 +111,23 @@ function renderChart(p,r){
   document.body.dataset.vwapPoints=String(vwap.length);
   $('endpoint').nextElementSibling.textContent=p.projectionHash?'ΔCVD 為所選滾動窗，僅顯示已驗證時點；重疊柱不可加總':'ΔCVD 為所選滾動窗，重疊柱不可加總';
 }
+function renderObservationTruth(data){
+  const m=renderObservation($('cvd-observation'),data,frame);
+  $('source-light').className='light '+(m.state==='LIVE'?'positive':['STALE','DELAYED','DEGRADED'].includes(m.state)?'warning':'neutral');
+  text('trust',m.state+' · '+m.quality);text('freshness','Observation V1 · '+(m.latencyMs===null?'延遲 UNKNOWN':fmt(m.latencyMs/1000)+'s'));
+  text('context-summary',contextSummary({...data.context,freshness:{state:m.state}}));
+}
 function render(data){
   const p=data.chart,r=data.relationship,c=r.current?.current,m=windowPresentation(data.scan[frame]);
   const matchingProjection=p.projectionHash? p.projectionHash===r.projectionHash&&p.projectionHash===data.context.projectionHash : p.semanticHash===r.semanticHash;
   if(p.generationHash!==r.generationHash||!matchingProjection||p.cutoff.recordHash!==r.sourceCutoff.recordHash||p.cutoff.recordHash!==data.context.sourceCutoff.recordHash)throw Error('cutoff / 來源未通過核對');
   document.body.dataset.error='false';document.body.dataset.view=data.view;document.body.dataset.timeframe=frame;document.body.dataset.head=data.head;
   text('contract',p.actualContract||'UNKNOWN');text('chart-contract',p.actualContract||'UNKNOWN');text('chart-identity',`${p.actualContract||'UNKNOWN'} / ${p.tradeDate||'UNKNOWN'} / ${p.session||'UNKNOWN'}`);
-  text('session-pill',p.session||'UNKNOWN');$('source-light').className=`light ${p.freshness.state==='LIVE'?'positive':['STALE','DELAYED','WARMING'].includes(p.freshness.state)?'warning':'neutral'}`;text('trust',p.freshness.state+' · '+p.quality);text('freshness',`${data.context.sessionStartProven?'盤中累積':'觀測片段'}｜${shortTime(p.lastTradeAvailableAtMs)}`);
+  text('session-pill',p.session||'UNKNOWN');
   text('source-notice',data.kind==='SYNTHETIC_FIXTURE'?'合成資料｜僅檢查 UI 互動，不代表真實行情':`真實歷史觀測片段 · ${p.tradeDate} ${p.session} · ${data.context.sessionStartProven?'盘別起點已證明':'完整盤別未證明'} · 捕捉完整性 UNPROVEN · ${p.reason}`);$('source-notice').classList.toggle('synthetic',data.kind==='SYNTHETIC_FIXTURE');
   text('selected-truth',`${frame}${m.state==='AVAILABLE'?'':` ${m.state}`} · 觀測 ${m.span==null?'未知':Math.floor(m.span/1000)+'s'} / ${r.windowMs/1000}s`);
 
-  renderScan(data.scan);renderContext(data.context);renderHandoff(data.handoff);renderChart(p,r);
+  renderScan(data.scan);renderContext(data.context);renderObservationTruth(data);renderHandoff(data.handoff);renderChart(p,r);
   const events=r.timeline.slice(-8);text('timeline-status',events.length?`${events.length} 個可見轉換`:'無合法狀態轉換 · 不補造事件');$('timeline').replaceChildren(...events.map(e=>node('li',`${time(timelineTime(e))} · ${LABELS[e.from]||e.from} → ${LABELS[e.to]||e.to}`)));
   text('version',`CRU-55 · HEAD ${data.head.slice(0,12)} · ${data.kind==='SYNTHETIC_FIXTURE'?'SYNTHETIC':'REAL FRAGMENT'}`);
   renderLower();
@@ -214,4 +222,5 @@ $('login').addEventListener('submit',async e=>{e.preventDefault();try{await auth
 async function bootstrap(){await Promise.allSettled([refreshLower({force:true}),load()]);}
 $('month-select').disabled=true;$('month-select').replaceChildren(new Option('來源契約','current'));
 await bootstrap();
-const timer=setInterval(()=>{if(!document.hidden){refreshLower();if(!pending)load();}},5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current)renderObservationTruth(current);});
+const timer=setInterval(()=>{if(!document.hidden){if(current)renderObservationTruth(current);refreshLower();if(!pending)load();}},5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});

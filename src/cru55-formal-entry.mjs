@@ -13,8 +13,9 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
     '/formal-overview.js': 'cru55-formal-overview.js',
+    '/observation.mjs': 'cru55-observation.mjs', '/observation.css': 'cru55-observation.css',
     '/formal-presentation.mjs': 'cru55-formal-presentation.mjs',
-    '/presentation.mjs': 'cru55-presentation.mjs', '/context-cards.mjs': 'cru55-context-cards.mjs',
+    '/cru55-presentation.mjs': 'cru55-presentation.mjs', '/presentation.mjs': 'cru55-presentation.mjs', '/context-cards.mjs': 'cru55-context-cards.mjs',
     '/terminal.js': 'trader-terminal-shell.js', '/cru55-provisional-logo-v01.jpg': 'cru55-provisional-logo-v01.jpg',
     '/workspace': 'index.html', '/workspace.js': 'cru55-workspace.js', '/workspace.css': 'cru55-workspace.css',
   };
@@ -46,6 +47,8 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
     if (url.pathname === '/' || url.pathname === '/index.html') {
       body = Buffer.from(body.toString().replace('<body>', '<body data-formal-entry="true">')
         .replace('src="/preview.js"', 'src="/formal-overview.js"')
+        .replace('</head>', '<link rel="stylesheet" href="/observation.css"></head>')
+        .replace('<section class="session panel">', '<section class="observation panel" aria-label="CVD Observation V1"><h2>CVD Observation V1 <small>Pressure Evidence</small></h2><dl id="cvd-observation" data-state="UNAVAILABLE"><dt>來源</dt><dd>UNAVAILABLE</dd></dl><small>Missing ≠ 0 · Unknown ≠ Neutral · &gt;30s DELAYED / STALE；歷史片段不代表 LIVE。</small></section><section class="session panel">')
         .replace('src="/vendor.js"', 'src="/vendor/lightweight-charts.js"')
         .replace('台股決策雷達｜CRU-55 隔離預覽', '台股決策雷達｜總覽')
         .replace('CRU-55 · ISOLATED PREVIEW', '正式資料入口')

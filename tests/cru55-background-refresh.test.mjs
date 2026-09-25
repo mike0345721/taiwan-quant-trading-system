@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { FRAMES,relationshipExplanation } from '../public/cru55-presentation.mjs';
 
+import {observationV1} from '../public/cru55-observation.mjs';
 const source=fs.readFileSync(new URL('../public/cru55-formal-overview.js',import.meta.url),'utf8');
 const tick=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
@@ -21,7 +22,7 @@ async function harness(){
       addEventListener(name,fn){this.listeners[name]=fn;},close(){this.open=false;this.listeners.close?.();},focus(){},reset(){}});
     return nodes.get(id);
   };
-  const document={hidden:false,body:{dataset:{}},getElementById:node,querySelector:node,createElement:()=>node(Symbol()),addEventListener(){}};
+  const document={listeners:{},hidden:false,body:{dataset:{}},getElementById:node,querySelector:node,createElement:()=>node(Symbol()),addEventListener(name,fn){this.listeners[name]=fn;}};
   node('login').hidden=true;
   const fetch=async(route,{signal}={})=>{
     requests.push(route);const value=route==='/api/auth/login'?{}:route==='/api/lower'?lowerValue:cvdValue;
@@ -32,6 +33,7 @@ async function harness(){
   };
   const context={document,fetch,FRAMES,relationshipExplanation,window:{addEventListener(){}},Option:function(text,value){return {text,value};},
     Date:{now:()=>now},AbortSignal:{timeout(ms){const controller=new AbortController();signals.push({ms,controller});return controller.signal;}},
+    renderObservation(host,data,frame){const m=observationV1(data,frame,now);host.dataset.state=m.state;return m;},contextSummary:()=>'',
     renderContextCards(host,data){host.data=data;},setInterval(fn){interval=fn;return 1;},clearInterval(){},Promise,
     windowPresentation:()=>({state:'UNAVAILABLE',label:'不可用',tone:'neutral'}),pressureCells:()=>({cells:0,direction:'neutral'}),
     evidenceDirection:()=>({symbol:'—',direction:'neutral'}),signed:()=>'',fmt:()=>''};
@@ -107,4 +109,16 @@ test('successful reauthentication discards pre-login background success or 401 w
     assert.equal(h.node('lower-cards').data.asOfDate,'B');assert.equal(h.node('login').hidden,true);
     assert.equal(h.api.state().lowerLoading,false);assert.equal(h.node('access').value,'');
   }
+});
+
+test('display clock ages while CVD request is pending and on returning to the tab',async()=>{
+  const h=await harness(),stamp=new Date(0).toISOString();
+  const d={...cvd(),kind:'SYNTHETIC_FIXTURE',chart:{actualContract:'TXFI6',lastTradeAvailableAt:stamp,sourceMode:'PINNED_STREAM_CANDIDATE_GENERATION',freshness:{state:'HISTORICAL'}},
+    context:{scope:'OBSERVED_SEGMENT_TO_NOW',cumulativeCvd:7},relationship:{current:{anchorEventTime:stamp,current:{deltaCvd:7}}}};
+  h.setCvd(d);await h.api.load();const wait=deferred();h.setCvd(()=>wait.promise);const pending=h.api.load();
+  h.advance(10001);await tick();assert.equal(h.node('cvd-observation').dataset.state,'DEGRADED');
+  h.advance(20000);await tick();assert.equal(h.node('cvd-observation').dataset.state,'DELAYED');
+  h.document.hidden=true;h.advance(70000);h.document.hidden=false;h.document.listeners.visibilitychange();
+  assert.equal(h.node('cvd-observation').dataset.state,'STALE');
+  wait.resolve(d);await pending;
 });
