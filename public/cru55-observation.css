@@ -1,1 +1,4 @@
 .observation{padding:12px;min-width:0}.observation h2{font-size:15px;margin:0 0 8px}.observation small{font-size:11px;color:var(--text-secondary);line-height:1.5}.observation dl{margin:0;display:grid;gap:6px;font-size:12px}.observation dl>div{display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,1.4fr);gap:8px}.observation dt{color:var(--text-secondary)}.observation dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.observation dl>div:first-child dd{font-weight:700;color:var(--state-warning)}.observation dl[data-state="LIVE"]>div:first-child dd{color:var(--accent-primary)}
+
+/* The expanded observation rail must not stretch the existing four chart panes. */
+.cockpit-grid{align-items:start}
