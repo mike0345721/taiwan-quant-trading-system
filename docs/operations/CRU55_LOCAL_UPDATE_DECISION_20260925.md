@@ -70,7 +70,7 @@ Safety：formalWeight=0 / researchOnly=true / executionAuthorized=false / orderR
 
 ## 11. 有限設計審查與集中收尾包（2026-09-25；尚未實作）
 
-**決策：RECOMMEND_IMPLEMENTATION。** 建議批准下述「有界提交群組」一套候選及固定驗證預算；不是批准正式更新，也不是宣稱日常承載已解決。它有可逐項計數的 metadata flush 減量，仍保留 page/chunk 各自持久化、原始重讀、分類與完整 current/prior 驗證，因此有值得施工的具體路徑。**只做管理快取不足以支持交付；本案承認會新增儲存提交／恢復版本，須由 Owner 批准這個明確差異。** 若下列安全或收益停點未過，結案為本範圍不足，不再自動串接小修、packing、SSD 或放寬正式上限。
+**2026-09-25 R1/R2 補正決策：NO_DEFENSIBLE_PATH_WITHIN_SCOPE（目前不建議投入7–11人日整包；不代表批次提交技術不可能）。** 原RECOMMEND_IMPLEMENTATION由§11.7差異摘要修正；設計已收件，§11.1–11.3技術內容保留，尚未批准施工或正式更新。它有可逐項計數的 metadata flush 減量，仍保留 page/chunk 各自持久化、原始重讀、分類與完整 current/prior 驗證，但施工前負載核對已顯示原challenge代表性不足，尚無足以支持整包投入的端到端收益證據。**只做管理快取不足以支持交付；本案承認會新增儲存提交／恢復版本，須由 Owner 批准這個明確差異。** 若下列安全或收益停點未過，結案為本範圍不足，不再自動串接小修、packing、SSD 或放寬正式上限。
 
 授權：[PR73 comment 5831416202](https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5831416202) 與 CRU-55 頂部 2026-09-25 有限設計批准。唯讀核對基線為 PR73 `fabdcf4ebe43895f5fe7007ec2607128ad1dec6f`、main `1ad9ec7c1814e401f8352048638f0a398bcf74fe`，Draft/unmerged。以下優先於本文件較早的「下一步待設計」及固定歷史提案；先前證據不改。M4/M2/M3、native/CRU34盤點、私人更新包§10沿用；daily V1 NOT_READY、原5/10秒FAIL、全天NOT_ESTABLISHED、CRU55 In Progress保持。正式最後回存為e81c5259…／無binding，本輪未重新盤點或操作8787。
 
@@ -152,15 +152,16 @@ INGEST資料／進度檔合計：**5k → 2k+3，省3k−3次fsync**；k=1省0�
 
 ### 11.4 固定驗證計畫與待批准的觀測版預算
 
-**本輪只做設計，不執行以下工作。** 後續批准時一次包含所有隔離實作、必要修復、相稱測試、審查及下列固定campaign；未通過就保存結果停止。不得測到PASS為止。不重跑既有M4／盤點／舊版長測。
+**R1施工前唯讀負載核對已完成，結果見§11.7；以下runtime驗證仍未批准、未執行。** 本次不啟動實作或任何campaign。只有Owner另批明確施工範圍與預算後，才可連續完成範圍內工程；未通過就保存結果停止。不得測到PASS為止。不重跑既有M4／盤點／舊版長測。
 
 | 工作 | 輸入、方法、硬預算與交付 |
 | --- | --- |
+| R1 施工前需求／代表性（已完成） | 先沿既有receipt/log，僅不足部分對已驗私人靜態副本一次有界串流統計；不依賴新checkpoint準備。§11.7列records/bytes的1秒/60秒分布、active/idle分母、timestamp品質、盤別及27/54對照。本輪結論不支持整包投入；若來源範圍／代表性或保守收益仍不支持，停於決策，不啟動下列工程。 |
 | 靜態與正確性 | 同cutoff INDEXED/FULL_SCAN、原raw重算分類/quote/checkpoint parity；0/unknown/clock/盤界與受影響M4 null fixture。每項故障表至少有對應case，驗committed/public/reader三層；包含新root first-commit、k=1/8、quote PENDING、8MiB budget、舊版拒新root及完整重啟。用小fixture做真Windows kill/路徑置換，不假稱單元exception=斷電。 |
 | cold一次 | 同既存9/24 byte0私人1,500,000筆／2,059,524,347B，SHA256 `7b4b69fd190daf62341a91f360cb444fe107f5c3b553707543ab3f3e15d612b6`。單一正常managed、原32768/8頁/8MiB。最多1,800秒含收尾，1,795秒停入；和已留fabdcf4e證據比，不重跑baseline。準備另計、cache/負載與baseline五epoch差異照列。未完成保留censored末輪；30分鐘不是開機SLA。 |
 | warm checkpoint獨立準備 | 不以cold成功作前提；由同候選exact／正常pipeline在獨立私人output自byte0合法產生並驗至1,500,000完整publication，核對root/page/chunk、完整current/prior及API。最多4小時低優先序準備，先驗disk预算；時間/CPU/I/O/bytes/峰值/所有重啟另記，費時不能隱藏為已暖機。可接續同exact合格cold輸出，但省下的是準備工，不改cold未完成結論。到限未有合法checkpoint即PREPARATION_FAILED並停止，不能手造、借舊resolver或換62k冒充。 |
 | warm獨立一次 | 由上述150萬publication開始，另有15分鐘固定預算；原完整1510562筆中的最後10,562筆只依原順序追加。具體有界挑戰：270秒×27/s＋60秒×54/s=10,530筆；其後最多300秒drain；受控restart及剩餘32筆驗恢復用其餘270秒。兩段時鐘與樣本分開，restart不混入steady百分位；未發布樣本保留、不得删掉算p95。這是約5.5分鐘流入挑戰，不冒称30分鐘自然穩態或全天證據。 |
-| 實際需求／代表性 | 既有9/18文件只給active-second p95=72/max=1009與27/s試驗；不能移植成9/24／自然全日λ。未有同口徑9/24到達率，當前列UNKNOWN。後續在**已批准checkpoint準備讀取**時計數既有來源receivedAt的1秒/60秒窗口、idle占比、缺失/逆序、ledger records/bytes與TX trades分開，來源日和交易日分開；不另盤點/啟collector。需對照warm實际發布μ及λ：若27/54不足代表需求，warm只能記challenge結果，不能放行日常；不循環／改時戳補滿樣本。 |
+
 | 長度／來源不足 | 10,562筆不能支持150萬checkpoint後再做27/s連續30分鐘，明列限制。若Owner需該時長或更高λ，必須另有合法既存連續suffix及一次明確追加批准；本包不假設資料存在、不自動加跑。這是產品驗收缺口，不以降低負載抹掉。 |
 
 所有新量測共用原資源停損：單一below-normal writer，不並跑重型A/B；free RAM≥6GiB、RSS≤2GiB、free disk≥100GiB、host CPU連兩次30秒sample>85%停止；collector有可歸因新增share/append/queue問題立即停候選。準備前以既有bytes/page/chunk規格估計空間，兩份raw約4.12GB另加派生檔、temp與失敗保留；派生大小未知不得只報raw容量。沿既有監督器保存末輪、停止身分與資源；不改全域優先序或健康collector。
@@ -182,7 +183,7 @@ INGEST資料／進度檔合計：**5k → 2k+3，省3k−3次fsync**；k=1省0�
 
 | 順序 | 一次收尾工作與gate |
 | --- | --- |
-| 1 設計決策 | Owner一次批准11.1提交版本＋11.3支援故障模型＋11.4固定測量/準備及候選預算；或退回本方案。此次設計批准不含這項施工授權。不可只批准「再研究」而繼續盲修。 |
+| 1 施工前投資決策 | R1先完成，再由GPT提出工程／產品審查建議，**Owner**決定是否批准新提交/恢復契約及預算。目前§11.7明確不建議7–11人日整包；原工時是人工作量估计，不是Codex／日曆承諾，無token/費用報價依據。不以GPT查收、文件CI或設計RECOMMEND當施工批准。 |
 | 2 連續隔離工程 | 同PR73工作包，核對exact/base，不改main；新opt-in/output，實作→相稱unit/Windows kill/path/同cutoff oracle→範圍內修復。單元與範圍驗證優先攔安全失敗，再進固定cold/warm；兩種試驗獨立。無關M4畫面/三尺寸/native盤點不重跑。 |
 | 3 連續審查／封包 | 恢復／manifest／路徑實作按治理Level3：current＋兩個獨立review，保留findings並覆核修正exact；定向安全掃描、commit/push、CI及遠端讀回。沒有安全/收益證據就不標APPROVE/READY；不發起第二輪無授權campaign。 |
 | 4 候選單次查收 | 一次交GPT/Owner：exact HEAD/tree、measurement與未解限制、L0→L5矩陣、binding proposal、依賴/CRU34恢复/来源保护/正常重開/回退及實際merge計畫。新程式使runtime identity改變，不能借旧M4 SHA冒充本版runtime測試；僅補受影響鏈。 |
@@ -190,16 +191,60 @@ INGEST資料／進度檔合計：**5k → 2k+3，省3k−3次fsync**；k=1省0�
 | 6 一次正式操作gate | 把實際merge SHA、新outputVersion/schema/schedule、D日byte0 current及必要prior清單、physical aliases、binding/writer、prefix保護、依賴/CRU34必要恢復、值守時段、退出與回退一起交批准。不逐個元件再加可預見gate；亦不能把第1步批准當正式批准。 |
 | 7 本機整版更新 | 保全舊整版e81c5259…（若屆時另有已批准正式版，以保全的actual previous SHA為準）、鎖檔/依賴/設定及原無binding；原raw/SQLite/credentials僅本機。受控Git同步actual approved main **整版**，npm ci及既有Node/native/vendor核對；不手抄單一JS、不套PR72隔離更新器到8787。data/live-events、data/runtime junction保留；新output必須普通目錄。 |
 | 8 安裝與正常入口 | binding proposal先plan檢查，再附Owner URL與actual runtimeCommit、新outputVersion及opt-in做activation-preflight；新舊binding衝突即停。用正常daily-use入口恢復必要CRU34、reader、CRU55；對所有本次受控停止/啟動程序核PID/start/command/HEAD/binding。健康collector不重啟；bridge/來源不符合前提即取消，不補啟collector救場。 |
-| 9 自然當日驗證 | D取既有日曆EXPECTED且有人值守的合格日，仍09:00–09:45、15分鐘初次ready／之後30分鐘觀察。正式原62k／84,757,597B限制保持：超過即退出，不能用新150萬隔離測試自行提高。prefix lease下用自然append驗相容性，不注入raw；完整性/Auth/owner錯誤或collector受阻立即回退，停更/積壓沿原5分鐘硬退及Owner另批准更嚴預算。 |
-| 10 恢復／交付 | 正常重開仍單一writer，fresh自然cutoff→全prefix→真認證API→同面板。原K/Volume/VWAP、Flow/Pulse/CRU34、Fast Scan、CVD/Δ、Session/Handoff、Data Quality/workspace/Auth都按既有契約核對，不改UI。有限試用到時回退，不能暗留全天。Owner若要常駐日常版，必須在同份操作決策中明確批准經證據支持的容量/時段；缺此批准仍不能稱日常整版完成。 |
+| 9 有限試用（非交付終點） | D取既有日曆EXPECTED且有人值守的合格日，仍09:00–09:45、15分鐘初次ready／之後30分鐘觀察。正式原62k／84,757,597B限制保持：超過即退出，不能用新150萬隔離測試自行提高。prefix lease下用自然append驗相容性，不注入raw；完整性/Auth/owner錯誤或collector受阻立即回退，停更/積壓沿原5分鐘硬退及Owner另批准更嚴預算。 |
+| 10a 提出常駐方案的證據條件 | 必須有同exact候選在**申請最大records/bytes及current+prior組合**的完整冷追趕或明確產品恢復预算結果；穩態持續發布涵蓋R1所示均量、1秒/60秒尖峰與足夠連續流入，逐窗口μ/λ、publication backlog無未解持續增长且突發可排空；原始時戳未改、sample/censored/失敗完整。330秒10,530筆challenge只能作有界負載檢查，不能滿足日常代表性。未取得即NOT_READY，不先把62k改大。 |
+| 10b 常駐批准的品質／營運條件 | 對擬常駐DAY/NIGHT與跨來源/盤界列明證據覆蓋：每次current/prior全驗、cutoff/API/原頁一致、UNKNOWN/clock/quality及中斷清值誠實；同exact正常重開單writer、真中斷後可恢復並續增、不跨缺口補值；正式prefix保護下collector自然append、queue/錯誤率及既有CRU34/Flow/Pulse/Auth/workspace無新增干擾。沿用未受影響M4/native盤點，只補這些未建立的營運證據；品質不足不升LIVE/READY。 |
+| 10c Owner常駐操作決策 | 上述證據達成才提交**證據覆蓋的新records/bytes容量、current/prior數、DAY/NIGHT運行時段、啟停/重開契約、值守/故障退出、接受的延遲及cold/recovery預算**，連actual merge SHA、新outputVersion/binding/writer/prefix保護、整版安裝與回退一次決策。具體新上限不得大於已證覆蓋，也不在本次填假數值。若先需擴量自然驗證，Owner須明確批准受控範圍；可在同份proposal列受控驗證與達標後常駐的條件式批准，未明確授予常駐權限就仍需Owner批准，不因試用PASS自動常駐。 |
+| 10d 日常整版交付終點 | 按Owner核准整版與持久binding由正常入口重開，當日/當前盤別CVD在批准容量/時段内持續發布並可恢復，L0–L5及上述營運證據成立，才記日常版交付；不是09:45退出或62k試用結束。任何一項缺失維持NOT_READY並停止晉升；只獲有限試用批准時仍按原時限回退，原raw/collector/SQLite/排程/五日計數不改。 |
 | 11 回退 | 保留新output/commit/owner/失敗log；只停本次身份可驗reader/writer並釋放lease，whole-version恢復保全SHA及匹配依賴、原設定/無binding，按原正常入口核health、真登入、原面板及collector追加。舊writer不得開新root；不改舊checkpoint、raw、SQLite、排程/五天計數。失敗寫ROLLBACK_NOT_VERIFIED，不宣已恢復。 |
 
-L0→L5沿私人更新包既有定義：L0授權/契約；L1來源/lineage；L2依賴/native；L3producer/CRU34及單writer恢復；L4真認證API同cutoff；L5原瀏覽器與正常重開。M4文件另有分層名稱，引用時標明來源，不混用編號。**自然當日操作、正式切換、全天／五日成功另列**，任何L級PASS不得代替。既有盤點只作基線，cutover前僅核會變動的exact/identity/source必要前提，不重新全面盤點。
+L0–L5統一沿Doctrine：**L0 Scope、L1 Source Integration、L2 Build/Dependency、L3 Pipeline、L4 Real API、L5 Real Browser**。lineage歸對應資料鏈，不另造L1定義；原M4成果沿其實際內容引用。自然當日操作、正式切換、全天／五日成功另列，任何L級PASS不得代替。cutover前僅核會變動的必要前提，不重新全面盤點。
 
 ### 11.6 本輪審查收據及停止條件
 
 本轮屬文件設計，依治理Level1由current agent逐項核對程式、既有量測、提交依賴、失敗矩陣及範圍；**不是獨立工程實作APPROVE**。設計review已處理的關鍵問題：補回managed nested lock fsync；所有資料檔先durable再root；quote PENDING/split及first-commit恢復不得少計；保留path/config安全呼叫所以不虛報全部管理收益；大規模warm準備有獨立成本/硬上限；10,562筆不足30分鐘不偽稱；正式62k有限試用仍不能等於每日整版可用。未執行新測試/量測，施工後Level3與真Windows fault驗證仍是明列工作，不冒充已做。
 
-**供Owner/GPT一次決策：建議施工上述有界commit候選，接受7–11人日估計及一次固定驗證；不是建議再做不定期研究。** 成功才進exact及正式整版gate；安全契約無法保持、warm準備到限、無端到端改善、代表λ不足或觀測延遲不被接受，均一次回報本範圍不足，交Owner選擇較大修復／延期／改順序。本輪不自動啟動任何一項替代，不把固定歷史當交付。
+**R1/R2重新決策：目前不建議投入7–11人日整包，撤回可藉此快速收尾的期待；理由與證據見§11.7。** GPT提出工程／產品審查建議；新提交／恢復契約、工程/延遲預算只能由Owner批准。本輪補正後停止，不自動開發、不以固定歷史替代，也不串接另一輪盲修。
 
 安全維持 formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false；collector/raw/SQLite/排程/五天計數不動，無Merge、無8787切換。
+
+### 11.7 R1/R2 差異摘要（GPT 5831729911；2026-09-25）
+
+**重新判斷：NO_DEFENSIBLE_PATH_WITHIN_SCOPE／目前不建議投入7–11工程人日整包。** 設計成果已收件，§11.1–11.3不重寫；撤回原「建議整包施工即可集中快速收尾」期待。原因是施工前核對已證明原27/54 challenge低估此來源日盤負載，而同量級warm有效發布μ、全前綴增長後成本與可接受觀測延遲仍未建立。這不等於證明批次提交無效或永遠不能做；目前證據不足以支持整包投資，也不自動改開下一輪小修。
+
+**R1已前移並完成。** 先沿既有sustainability/Plan A收據；其9/18 active-second峰值不足代表9/24，所以只對前輪已保存的私人 `frozen-2026-09-24.ndjson` 做一次唯讀串流統計，2026-09-25T11:44:26.160Z–11:45:25.587Z，約59.426秒。硬界180秒／1,510,562筆／2,074,014,548 bytes；未啟writer、未重播、未產生checkpoint或新效能測試。完整檔hash與150萬prefix hash均匹配舊收據，前後dev/ino/birthtime/size/mtime/ctime及nlink不變、chain link錯誤0、無partial tail。這是來源需求統計，不以讀檔秒數推pipeline吞吐。
+
+統計口徑：以原 `receivedAt`（保留微秒）按UTC整秒／整分鐘分桶；台北分鐘邊界相同。bytes是原UTF-8完整紀錄含換行，不是成交量；不改事件时间、不去重全部ledger。1秒all分母是首末有效timestamp包住的整秒；active是該population非零桶，idle只代表此副本無紀錄，**不代表collector健康或市場無交易**。60秒是對齊分鐘，另列每秒位移的完整rolling60最高值；分位數nearest-rank。各盤別按收到時間＋既有governed calendar分類；TX事件盤別另算，不把來源日等同交易日。
+
+| 範圍／population | records／bytes | 活躍秒／idle秒（分母） | 1秒all p95／p99／max（records） | 對齊60秒all p95／p99／max（records） |
+| --- | --- | --- | --- | --- |
+| 9/24完整calendar檔：全部ledger | 1,510,562／2,074,014,548 | 52,253／34,147（86,400）；60秒1,440桶 | 50／87／1,023 | 2,785／4,032／7,788 |
+| 收到DAY／tradeDate9/24，08:45–13:44:59 | 645,960／888,447,681 | 17,995／5（18,000）；300分鐘 | 78／131／749 | 3,954／5,530／7,788 |
+| 收到NIGHT／tradeDate9/24，僅00:00–00:29:17 | 29,520／40,496,760 | 1,423／335（1,758）；30桶末桶部分 | 35／46／89 | 1,748／1,803／1,803 |
+| 收到NIGHT／tradeDate9/29，15:00–23:59:59 | 831,663／1,140,485,386 | 32,390／10（32,400）；540分鐘 | 48／76／1,023 | 2,510／3,451／5,125 |
+| 9/24完整檔：TX futures_tick原始紀錄 | 39,640／53,924,792 | 16,313／70,087（86,400）；1,440分鐘 | 3／7／56 | 108／199／584 |
+| 同檔TX tick排除duplicate/simtrade | 39,348／53,539,425 | 16,021／70,379（86,400）；1,440分鐘 | 3／7／56 | 108／199／584 |
+
+其餘arrival不在governed session內3,419筆／4,584,721B，保留為OUTSIDE而非丟棄；這些紀錄445個活躍秒，首末08:06:07–14:59:59所包24,833秒內有24,388個此population空桶（與DAY envelope重疊，**各分母不可相加**）。此組1秒max550、60秒max649，不升格成有效交易。TX raw39,640中duplicate0、simtrade292；排除後仍不等於全数通过CVD品質gate。按原event时间分盤為NIGHT9/24=382、DAY9/24=24,456、NIGHT9/29=14,510、UNKNOWN=292；與arrival分盤差異保留，不改映射。9/29是既有calendar解析結果，本檔未涵蓋完整兩個夜盤，不能稱完整交易日/全市場。
+
+| bytes／時間口徑 | 1秒all p95／p99／max（B） | 60秒all p95／p99／max（B） |
+| --- | --- | --- |
+| 全部ledger，全calendar envelope | 69,367／120,164／1,402,986 | 3,823,237／5,531,430／10,671,978 |
+| DAY ledger | 106,906／179,264／1,020,840 | 5,426,322／7,576,498／10,671,978 |
+| TX raw tick，全calendar envelope | 4,077／9,514／76,154 | 147,301／270,449／796,549 |
+
+全ledger若只看active秒，records p95/p99=60/104、bytes p95/p99=82,256/142,676；不可與上表86,400秒分母混用。全檔及DAY最高rolling60=8,238筆／11,286,390B，即137.3 records/s；TX raw最高rolling60=624筆／851,102B。receivedAt missing/invalid/無時區/逆序均0（全ledger及TX子集）；TX event timestamp missing/invalid/逆序亦0，但28,017/39,640筆event晚於receivedAt，維持原clock限制，不能拿event→received當處理延遲。全來源觀測0紀錄的34147秒不能補為已證健康idle；特別早夜盤僅觀察至00:29:17，故無全天完整性宣稱。
+
+**需求與收益對照：** 全calendar平均17.48 records/s被idle稀釋；DAY平均35.89 records/s／49,358.20B/s。DAY 60秒p95=65.9 records/s、p99=92.17，300分鐘中199（66.33%）高於27/s對應的1,620筆，28（9.33%）高於54/s對應的3,240筆。原330秒challenge的平均僅10,530/330=31.91 records/s，低於本來源DAY均量；54/s短突發亦未覆蓋DAY的p95分鐘負載。全部ledger還包含MTX/TMF/bidask等現有必讀工作，不能用TX tick平均0.46/s取代需求、也不授權改raw篩選。
+
+既有冷平均90.46 records/s雖高於DAY均量，仍只是小段cold發布平均，不能當warm μ；同30分鐘仍有1,337,604筆未發布。53→32是理想k=8呼叫數，約19%只是小INGEST樣本的假設估算，收益下界0；不能把90.46乘加速假設，便宣称能覆蓋92.17/137.3峰值或长期full-prefix增長。當前沒有可辯護的μ>λ／長時段恢復證據，因此**不支持現在批准整包投入**；7–11人日僅工作量估計，非Codex工期、token或費用報價。
+
+最後10,562筆suffix的原receivedAt跨度463.367588秒、14,490,201B；原330秒challenge是重排「追加間距」的明示負載挑戰，不是自然到達重現（原紀錄時間不得改）。三者分開：①相同順序/cutoff可驗數值；②10,530筆約330秒可做有限challenge，剩32筆驗恢復；③它不足代表日常持續負載，不能拿來驗全天或將27/s×30分鐘湊滿。本輪三者均未重播。
+
+**R2已補到原§11.5同一張收尾表（10a–10d）。** 有限試用仍受62k／84,757,597B、09:45及原退出條件約束，但只是前置證據，不能當結案。只有申請容量/current+prior的代表量、持續發布與尖峰drain、同exact正常重開/中斷恢復、品質/完整性及collector非干擾證據成立，才向Owner提議有證據覆蓋的新容量、運行時段、延遲與恢復預算及常駐啟停契約。需要受控擴量驗證時先取得明確範圍批准；常駐不能由試用PASS自動轉正。證據或批准不足就NOT_READY並停止晉升，不自行提高舊上限。
+
+API p95≤120s/p99≤180s、原頁p95≤150s、來源增長180s停更／300s恢復全部仍是**未批准提案**；原5/10秒FAIL保持。冷發布間隔不是即時處理延遲，30分鐘診斷不是cold產品SLA。GPT提供工程／產品審查建議，Owner批准新契約/預算及exact Merge／正式切換。L0–L5已統一Doctrine名稱；未新增M4／盤點或驗收gate。
+
+收據：私人統計JSON SHA256 `b5f9a8463d895f17f06acfe343caa5916499749e9f7564d5e890b35d86bc4f0e`；私人唯讀helper SHA256 `112032261eba4c0309205eeb002fe7200d5aba03d08e8911527ce5f96e7034ee`；full raw SHA256 `907e0722abde0214c2f5c1f4e370175f245f2f4f2b304d32c61980c0dd6db3f7`、150萬prefix `7b4b69fd190daf62341a91f360cb444fe107f5c3b553707543ab3f3e15d612b6`。只回存去敏aggregate，原始內容、私人實體路徑/配置不上傳。設計文件差異核對、統計總數/bytes/分組對帳與去敏檢查完成；不冒稱新runtime/Windows恢復測試。
+
+**交付停點：R1_R2_DESIGN_CORRECTIONS_DELIVERED。** 新儲存實作、觀測延遲預算、Merge及正式切換均未批准／未執行。CRU55 In Progress、daily V1 NOT_READY、全天NOT_ESTABLISHED與CRU21順序不變；同一整版更新目標保留，不以固定歷史替代。
