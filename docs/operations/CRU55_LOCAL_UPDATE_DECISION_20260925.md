@@ -1,16 +1,16 @@
-# CRU-55 M2｜本機整版更新與回退決策包
+# CRU-55 M4｜本機整版更新與回退決策包
 
-狀態：待 M2 工程交付、GPT review、Owner 真實畫面驗收及 exact-version 決策；本文件不是 Merge 或正式切換授權。
+狀態：Owner 已批准並實作當前連續觀測段主卡；候選真資料驗收見 M4 報告。待 GPT／Owner 畫面查收及 exact-version Merge／正式啟用決策；本文件不是正式切換授權。
 
 M3補件：M2工程已認列；同版真資料正向案例已補齊，見 `CRU55_OBSERVATION_M3_20260925.md`。以下為具體推薦，取代「將source起點／時段／門檻交Owner自行設計」；exact Merge及正式啟用仍分開決策。
 
-## M3 具體推薦（待批准，尚未執行）
+## M4 具體推薦（正式操作待批准，尚未執行）
 
-**目前推薦：先一次查收M3，再決定exact code Merge；正式8787暫維持原版無binding。** 正向小案例已成立，但DATED_CALENDAR_LEDGER跨段後主卡仍會按既有契約不可用；不是Merge就能使日常日盤context常態有數值。若Owner不能接受該限制，先決定另版active-segment呈現語意，不以正式切换來解決產品範圍問題。
+**目前推薦：一次查收 M4 新段主卡候選及畫面，再決定 exact code Merge；正式8787維持原版無binding。** PR73 comment 5826936270 已批准 active-segment 呈現，新欄位只讀同一已驗 publication，跨段後合法新成交可恢復主卡；舊 sessionContext 仍按 single-segment envelope 保持 null。主卡語意不再等待批准；正式 binding／source保護與全天容量仍是獨立 gate。
 
 來源起點推薦分為兩個不同用途：
 
-- **可重現產品查收**：`sourceSelection={kind:DATED_CALENDAR_LEDGER,startDate:2026-09-18}`，使用已凍結私人副本及完整[0,16930)→[0,17042)→[0,17183)前綴。累積源自ordinal29，不是把16930當新起點；只作歷史觀測證據，不能掛正式當LIVE。M3已完成，無須再做。
+- **可重現產品查收**：`sourceSelection={kind:DATED_CALENDAR_LEDGER,startDate:2026-09-18}`，使用已凍結私人副本及完整[0,16930)→[0,17042)→[0,17183)前綴。累積源自ordinal29，不是把16930當新起點；只作歷史觀測證據，不能掛正式當LIVE。M3 已認列；M4 僅重驗受影響主卡，另包含 pending21806、第二段42987與60000→61000→62000。不得以中段截取避開原連續性。
 - **若Owner另准正式受控啟用**：選既有營運日曆判為collector EXPECTED、且有人值守的下一個日期D，`startDate=D`（本地日曆原始檔日期），從該檔原始byte0／ordinal1驗證至當次完整尾端N；不從2026-09-18一路追到現在，也不任選「看起來乾淨」的中段重置。若需要prior，按既有resolver實際解析並逐一列出原始檔[0,P)，只使用相鄰來源；缺少則handoff保持不可用。D不等於交易日標籤，不手改session mapping。新source／outputVersion與完整prefix guard proposal須先保存供批准。
 
 建議受控時段為D日 **09:00–09:45 Asia/Taipei**：09:00–09:15為初始暖機上限，首次合格publication後連續觀察30分鐘，最晚09:45結束；未在09:15達到ready就回退，不把觀察往後無限延伸。挑D前唯讀確認既有日曆、collector預期與資料身分，休市／collector非EXPECTED時改選下一合格D，不啟動collector補場景。
@@ -21,7 +21,7 @@ M3補件：M2工程已認列；同版真資料正向案例已補齊，見 `CRU55
 | backlog | 每60秒保存source完整尾端、published ordinal/bytes及publicationBacklogBytes；有新增但連續5分鐘無cutoff推進，或backlog连续5分鐘逐次增加，退出候選writer並回退 | 以本機單調觀察時間衡量，不用有skew的eventTime；短突發可等至5分鐘上限。已有突發恢復40.219秒，正常最大API間隔67.082秒；此提案非新SLA |
 | 停更／讀取失敗 | 首次ready後，source持續增長而API或原頁同一cutoff停5分鐘；或API連續5分鐘無法讀取新合法artifact，回退。identity/hash/prefix/auth隔離錯誤立即回退 | API p95/p99=114.250/126.632秒歷史FAIL保留；不以HTTP200掩蓋停更。source本身沒新資料時不可直接歸咎writer，先按collector EXPECTED與來源證據分類 |
 | collector受阻 | 任一新增share violation／append失敗與本次prefix保護相關，立即停止本次writer釋放lease，保存owner/logs並回退；不等5分鐘、不停止健康collector | ordinary Python/CRT append與共享前綴的正式相容性仍待當場驗證。不得移除guard、刪鎖或改raw救啟用 |
-| 資料資格 | 明示CLOCK_ORDER_INVALID、multi-segment context null、長窗PARTIAL；保持原值。若本次啟用要求正向主卡而無合格來源，停止正式啟用並回存DATA_ELIGIBILITY_BLOCKER | M3只證明重連前有界正向路徑；不保證新D同樣合格，也不能以chart末值代填context |
+| 資料資格 | 明示CLOCK_ORDER_INVALID、multi-segment context null、長窗PARTIAL；保持原值。若本次啟用要求正向主卡而無合格來源，停止正式啟用並回存DATA_ELIGIBILITY_BLOCKER | M4 驗當前段恢復與有界持續更新；不保證新D同樣合格，不將新欄位代填舊context，也不以歷史曲線末點代替current |
 
 暖機／backlog條件為有限操作風險上限，非量測結果或歷史門檻修改。不得改stale/delayed界限；資料年齡仍照真實時鐘顯示。具體日期D、exact已批准main SHA、source/prior清單、formal binding/writer及prefix lease變更列成同一份操作proposal後才執行，不重問「是否希望收尾後更新」這個已確認意圖。
 
@@ -37,10 +37,10 @@ PR72 `051a6ca00f834165584bc723b0c742c369f1bcb5` 的更新器只接受 ISOLATED_C
 
 ## 需要 Owner 決定的最小差異
 
-1. 接受 M2 後批准 PR73 的確切候選 SHA Merge；Merge 完成後另記批准的完整 main SHA。不能以分支名或 future HEAD 代替。
+1. 查收 M4 後批准 PR73 的確切候選 SHA Merge；Merge 完成後另記批准的完整 main SHA。不能以分支名或 future HEAD 代替。
 2. 批准正式 runtime 整版同步該 SHA，並新增正式 binding、普通目錄 outputVersion 及 managed writer。這是目前「無 binding」正式狀態的實質變更。
 3. 批准 sourceSelection 起始日期、當次 current 原始檔 [0,N) 與必要 prior [0,P) 的共享前綴保護；不鎖尾端或整個目錄。須先確認 collector ordinary Python/CRT append 與 sharing 相容；不允許 writable mapping、truncate 或 rotate/replace。
-4. 決定可接受的 backlog／觀測延遲、觀察時段與回退觸發值。既有 API p95/p99 114.250/126.632 秒 FAIL、自然全天 NOT_ESTABLISHED 維持；設定 preflight ready 不是全天容量 PASS。
+4. 批准或調整上列具體推薦（D日09:00–09:45／15分鐘暖機／5分鐘積壓退出），不是要求重新設計方案。既有 API p95/p99 114.250/126.632 秒 FAIL、自然全天 NOT_ESTABLISHED 維持；設定 preflight ready 不是全天容量 PASS。
 
 ## 批准後的整版程序（目前不執行）
 

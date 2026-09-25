@@ -1,0 +1,773 @@
+{
+  "schema": "cru55-m4-active-segment-evidence-v1",
+  "runtimeHead": "a8deb04d15b3a4360f33794b68575901a2e1491d",
+  "runId": "candidate-perf-m4-1790314035691",
+  "source": {
+    "kind": "FROZEN_REAL_PREFIX",
+    "date": "2026-09-18",
+    "rows": 62000,
+    "bytes": 84757597,
+    "sha256": "71a3bfb12e0270963d602c1818764b4a57eb05aa53b06272a34e446f4450a3e2",
+    "unchangedOriginal": true
+  },
+  "stages": [
+    {
+      "cutoff": 16930,
+      "artifactHash": "1f7882c98eb3f6df41d9283c6c2dc781082b84e22db1e81f3bf74fe82c1a2810",
+      "cvd": 51,
+      "delta": -1,
+      "legacy": {
+        "cumulativeCvd": 51,
+        "reason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+        "scope": "OBSERVED_SEGMENT_TO_NOW"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "state": "STALE",
+      "reason": "OBSERVATION_ONLY_NOT_LIVE",
+      "clockDifferenceMs": 36,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": -1,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": 3,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": 33,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "30m",
+          "delta": 51,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": 51,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": 51,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 17042,
+      "artifactHash": "7c25ecc2984570457c3f9141f5440924c9ac6e8169ea7b7c29363e4eb5f2a395",
+      "cvd": 56,
+      "delta": 4,
+      "legacy": {
+        "cumulativeCvd": 56,
+        "reason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+        "scope": "OBSERVED_SEGMENT_TO_NOW"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "state": "STALE",
+      "reason": "OBSERVATION_ONLY_NOT_LIVE",
+      "clockDifferenceMs": 24,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": 4,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": 8,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": 42,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "30m",
+          "delta": 56,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": 56,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": 56,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 17183,
+      "artifactHash": "bedd5b434d9bb45468d3643e30d937ef53421f93dfce1b47e56e19147bd60346",
+      "cvd": 54,
+      "delta": 2,
+      "legacy": {
+        "cumulativeCvd": 54,
+        "reason": "PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE",
+        "scope": "OBSERVED_SEGMENT_TO_NOW"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "state": "STALE",
+      "reason": "OBSERVATION_ONLY_NOT_LIVE",
+      "clockDifferenceMs": 121,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": 2,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": 5,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": 39,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "30m",
+          "delta": 54,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": 54,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": 54,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 21806,
+      "artifactHash": "49ab8e609bfb7854a9bf354b550c53da078ea776bcb98850e2acdad2760d9c72",
+      "cvd": null,
+      "delta": null,
+      "legacy": {
+        "cumulativeCvd": null,
+        "reason": "NO_LAWFUL_PHYSICAL_CUTOFF",
+        "scope": "UNAVAILABLE"
+      },
+      "scope": "UNAVAILABLE",
+      "identity": null,
+      "segment": null,
+      "origin": null,
+      "state": "UNAVAILABLE",
+      "reason": "TRADE_CLOCK_ORDER_INVALID",
+      "clockDifferenceMs": -401,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": null,
+          "state": null,
+          "complete": null
+        },
+        {
+          "frame": "5m",
+          "delta": null,
+          "state": null,
+          "complete": null
+        },
+        {
+          "frame": "15m",
+          "delta": null,
+          "state": null,
+          "complete": null
+        },
+        {
+          "frame": "30m",
+          "delta": null,
+          "state": null,
+          "complete": null
+        },
+        {
+          "frame": "1h",
+          "delta": null,
+          "state": null,
+          "complete": null
+        },
+        {
+          "frame": "4h",
+          "delta": null,
+          "state": null,
+          "complete": null
+        }
+      ]
+    },
+    {
+      "cutoff": 42987,
+      "artifactHash": "ab2e9587f37e97b8bae776f79218a166211de4981f5c7b331e006ab3489da6f1",
+      "cvd": -40,
+      "delta": -38,
+      "legacy": {
+        "cumulativeCvd": null,
+        "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+        "scope": "UNAVAILABLE"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "state": "STALE",
+      "reason": "OBSERVATION_ONLY_NOT_LIVE",
+      "clockDifferenceMs": 495,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": -38,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": -74,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": -40,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "30m",
+          "delta": -40,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": -40,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": -40,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 60000,
+      "artifactHash": "d3549212c571dedf054d5c01be614a8ea79ba9dc6e6fd3d433cc35a05749f59b",
+      "cvd": -53,
+      "delta": -7,
+      "legacy": {
+        "cumulativeCvd": null,
+        "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+        "scope": "UNAVAILABLE"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "state": "UNAVAILABLE",
+      "reason": "TRADE_CLOCK_ORDER_INVALID",
+      "clockDifferenceMs": -303,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": -7,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": 45,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": -53,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "30m",
+          "delta": -53,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": -53,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": -53,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 61000,
+      "artifactHash": "2b1e198eed841d8905dacad4b2a6cc8f2f907e59751f272b4f7ee3d526ef58ec",
+      "cvd": -24,
+      "delta": 15,
+      "legacy": {
+        "cumulativeCvd": null,
+        "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+        "scope": "UNAVAILABLE"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "state": "UNAVAILABLE",
+      "reason": "TRADE_CLOCK_ORDER_INVALID",
+      "clockDifferenceMs": -349,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": 15,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": 79,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": -24,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "30m",
+          "delta": -24,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": -24,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": -24,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    },
+    {
+      "cutoff": 62000,
+      "artifactHash": "169c7001a1363fa666799a628eddbd7b422dda6462cc0f8d32823f0d6067adfd",
+      "cvd": -44,
+      "delta": 3,
+      "legacy": {
+        "cumulativeCvd": null,
+        "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+        "scope": "UNAVAILABLE"
+      },
+      "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "state": "UNAVAILABLE",
+      "reason": "TRADE_CLOCK_ORDER_INVALID",
+      "clockDifferenceMs": -264,
+      "frames": [
+        {
+          "frame": "1m",
+          "delta": 3,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "5m",
+          "delta": -6,
+          "state": "OBSERVED_WINDOW",
+          "complete": true
+        },
+        {
+          "frame": "15m",
+          "delta": -44,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "30m",
+          "delta": -44,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "1h",
+          "delta": -44,
+          "state": "PARTIAL",
+          "complete": false
+        },
+        {
+          "frame": "4h",
+          "delta": -44,
+          "state": "PARTIAL",
+          "complete": false
+        }
+      ]
+    }
+  ],
+  "checks": [
+    "FULL_PREFIX_BEFORE_PUBLICATION",
+    "AUTHENTICATED_API_ALL_SIX_FRAMES_SAME_ARTIFACT",
+    "OLD_CHART_CONTEXT_RELATIONSHIP_EXACT_TO_ARTIFACT",
+    "FIRST_THREE_ARTIFACT_HASHES_IDENTICAL_TO_M3",
+    "SAME_TAB_1096307659_DOM_API_CHART_PARITY",
+    "PENDING_CLEARS_SCALAR_IDENTITY_ORIGIN",
+    "SECOND_SEGMENT_ORIGIN_21810_NO_CROSS_GAP_SUM",
+    "CLOCK_ANOMALIES_REMAIN_VISIBLE_NO_LIVE"
+  ],
+  "privateEvidenceRoot": "data/test-tmp/m4",
+  "files": [
+    {
+      "path": "16930-dom.txt",
+      "bytes": 14342,
+      "sha256": "81bbaafc7343099972cf65792401d2390052ffaf176f4f9961a7198b928e7e38"
+    },
+    {
+      "path": "16930-payload.json",
+      "bytes": 99587,
+      "sha256": "c324d7c373fa5e6de2835cf026bea72cd9cbfbd2a80ef210da140c7ef8d41b11"
+    },
+    {
+      "path": "16930-summary.json",
+      "bytes": 5736,
+      "sha256": "33201969ece7d799f1ef65d3128d763cdd4b9e8e72b1176d082d69664858e633"
+    },
+    {
+      "path": "16930.png",
+      "bytes": 76522,
+      "sha256": "004d9a70b17a469ceb4499378b8ca4b3a96b988050fd169f14142ca6fb847387"
+    },
+    {
+      "path": "17042-dom-data.json",
+      "bytes": 1407,
+      "sha256": "d682b664d75a9c52e28c6698162e2cf6f75ff10f7f8072b7e9486b4743efe5e8"
+    },
+    {
+      "path": "17042-payload.json",
+      "bytes": 105385,
+      "sha256": "5f87a02a065cf468adaba9337ecfc8e2a201f42d1d7e9217cb9da504d2ada20d"
+    },
+    {
+      "path": "17042-summary.json",
+      "bytes": 5724,
+      "sha256": "b7c2d97b7665022ceb6490af9ad52f11cde4cb4b595362660bf7e036dbfeddee"
+    },
+    {
+      "path": "17183-card.png",
+      "bytes": 142396,
+      "sha256": "c2dc5db24676242724868a9b0cb1d31310980cbcc1b62f4f854aa0d952010066"
+    },
+    {
+      "path": "17183-dom-data.json",
+      "bytes": 1408,
+      "sha256": "80b7ecd41c7831f1af2d76f8edd60395891ef771c1d4edaa99081f775ae28443"
+    },
+    {
+      "path": "17183-payload.json",
+      "bytes": 106864,
+      "sha256": "244e5ce18bda631e10e5c135b0256c11385265cbe1fb51ec25c29fb6aa7109b8"
+    },
+    {
+      "path": "17183-summary.json",
+      "bytes": 5733,
+      "sha256": "e9219d3ee47e0ad2e902a7bc678963ed5dc22d6417c3b5de2147718141055363"
+    },
+    {
+      "path": "21806-dom-data.json",
+      "bytes": 1351,
+      "sha256": "cb28e55aa18eebb99e874812025fc4f3004fe4808947490456b68d567e517096"
+    },
+    {
+      "path": "21806-payload.json",
+      "bytes": 80219,
+      "sha256": "649051b6211a308f634d889242dce8e6f6f91bbaae548e1e4fabae9b86ee2c2d"
+    },
+    {
+      "path": "21806-pending.png",
+      "bytes": 161583,
+      "sha256": "7a1c6e060055e3294c4b51f87822233361a179a4b3b431588b9af874ee7db11b"
+    },
+    {
+      "path": "21806-summary.json",
+      "bytes": 2367,
+      "sha256": "4e779bbe38d7e56c7f77f91b83a7ea635d42544a9bfaebd1ff225908d01b6698"
+    },
+    {
+      "path": "42987-4h-dom-data.json",
+      "bytes": 1420,
+      "sha256": "c9ed310d64b7c9019503802a0917977e47fc499568d8961c2ff529019e77c975"
+    },
+    {
+      "path": "42987-data-quality-dom.txt",
+      "bytes": 19918,
+      "sha256": "298eb9be43c646e8f013221bf38ee695dcaeef65d2e0fe20bbf219a93f69e3c4"
+    },
+    {
+      "path": "42987-dom-data.json",
+      "bytes": 1420,
+      "sha256": "47baa942bc32c68a44042b0fb5eb26b01008c70d35bd429144ab81f3f3a599c1"
+    },
+    {
+      "path": "42987-payload.json",
+      "bytes": 176356,
+      "sha256": "6867cf49bbeb21e70235620b3b0fca889cec085769efb54e892f1d9e5fd2d467"
+    },
+    {
+      "path": "42987-restored.png",
+      "bytes": 160865,
+      "sha256": "98a5e2ad64c2b400658b77254e4e6b7c0518e0548d0f97e40c61b8ffec5a5de3"
+    },
+    {
+      "path": "42987-summary.json",
+      "bytes": 5932,
+      "sha256": "73892851bbdf1eb15e0f22aa3b91539b8ab6344b4afbe199c6c49a6e06e9e666"
+    },
+    {
+      "path": "60000-clock.png",
+      "bytes": 158262,
+      "sha256": "95857a3aaa25eb09ca9d8fcfd8715b7ea6c141132227f5c16e99bb73dfcd3940"
+    },
+    {
+      "path": "60000-dom-data.json",
+      "bytes": 1385,
+      "sha256": "5db6c5d3e2c3b46003dec7552dad9c5497ac2864dccdd6872a14bfb2f52c6000"
+    },
+    {
+      "path": "60000-payload.json",
+      "bytes": 191207,
+      "sha256": "16c3d93b52faeffb833c0006d3c1c33310c93dabb615b95fef778826fd0a049e"
+    },
+    {
+      "path": "60000-summary.json",
+      "bytes": 5788,
+      "sha256": "e3245670599b289957402572f9715cb041a381aae82ab44166958cbde7a7ab47"
+    },
+    {
+      "path": "61000-dom-data.json",
+      "bytes": 1386,
+      "sha256": "cf19a11e255708ed26432fc1ee05a0019d342a61d834e86ceebcbf4d43893c5c"
+    },
+    {
+      "path": "61000-payload.json",
+      "bytes": 193637,
+      "sha256": "9fc77e4a42b103080b8d020f0817d4b161b96b11e84032c29a889bdb7a1d817b"
+    },
+    {
+      "path": "61000-summary.json",
+      "bytes": 5784,
+      "sha256": "4a72363ae79c80be82d9d7184f091256126b738f3eeb35b1ae2d5354a8cc99b8"
+    },
+    {
+      "path": "62000-dom-data.json",
+      "bytes": 1404,
+      "sha256": "35d0bcfe999fa5e8e8a89c2e159c6a9ce093b8123c8add204957c664f58d5ab0"
+    },
+    {
+      "path": "62000-dom.txt",
+      "bytes": 14825,
+      "sha256": "4a4853114566ae3ccb2f69776146a8c96881a9e1730c34ebfe83ce4990beb6cf"
+    },
+    {
+      "path": "62000-final.png",
+      "bytes": 159306,
+      "sha256": "2c7e306cb02694acd395444b201ae44038247204f3b306bbd27ed832c7896733"
+    },
+    {
+      "path": "62000-payload.json",
+      "bytes": 196416,
+      "sha256": "4c68bd0bc5a8db9d3b15bb4c600473c97bde0203faed5c0eb8a8eefd1c5b34ec"
+    },
+    {
+      "path": "62000-summary.json",
+      "bytes": 5948,
+      "sha256": "d5e643ba5b50079d51a815907782518156df237478b25fe1f3b03a981027439f"
+    },
+    {
+      "path": "api.mjs",
+      "bytes": 4236,
+      "sha256": "f1aac917841bbbd4834fcb700b9121fb2dd1960db518e8271ce1ce4d9584f9b7"
+    },
+    {
+      "path": "append.mjs",
+      "bytes": 715,
+      "sha256": "c9f29350aab438c1aea0d5b15d712c148f8c5060ad3d1a8d12589e2f73e3a693"
+    },
+    {
+      "path": "browser-logs.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 736,
+      "sha256": "28fc130393e1819dfeba7c77597ddd374458dc7dc2dd6a9192199cdfa2175770"
+    },
+    {
+      "path": "cleanup.ps1",
+      "bytes": 2075,
+      "sha256": "ec5f733c0ec0c27635e8216aca8f692ec235f312db1e1c32a67d15c2774a9843"
+    },
+    {
+      "path": "formal-before.json",
+      "bytes": 130,
+      "sha256": "6351b58a32fafea206d23bfddfbdd44d19ffe4b87cd60c5cf58db587a88dee30"
+    },
+    {
+      "path": "layout.json",
+      "bytes": 2146,
+      "sha256": "b4465ef8d773a2317b4346b2b516c67ec1c4cf24bfab5b040ee79a20bec15d61"
+    },
+    {
+      "path": "prepare.mjs",
+      "bytes": 2015,
+      "sha256": "5c1519af55ceb1aec785776eb0c326bd2e73d689ccb863b0f9ba9f0d3e97294f"
+    },
+    {
+      "path": "report.mjs",
+      "bytes": 3355,
+      "sha256": "c933f955f3ed2205a00bd50ecebfb72fe4674bfcc3fd98d01b22e940a73521c2"
+    },
+    {
+      "path": "seal.mjs",
+      "bytes": 2714,
+      "sha256": "3bd2afec5e3592106bf9b16ef34e5a2ad4b19ad064bb70213b4d2ecce5b7fab5"
+    },
+    {
+      "path": "wait.mjs",
+      "bytes": 653,
+      "sha256": "09bb67e4cfaee348f89e56067e045d8f310fad487bc43ff42d454f3a1edc7c7c"
+    }
+  ]
+}
