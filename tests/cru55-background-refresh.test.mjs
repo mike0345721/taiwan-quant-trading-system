@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { FRAMES,relationshipExplanation } from '../public/cru55-presentation.mjs';
 
-import {observationV1} from '../public/cru55-observation.mjs';
+import {observationV1,observationStateLabel} from '../public/cru55-observation.mjs';
 const source=fs.readFileSync(new URL('../public/cru55-formal-overview.js',import.meta.url),'utf8');
 const tick=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
@@ -31,7 +31,7 @@ async function harness(){
     if(data instanceof Error)throw data;
     return {ok:!data?.httpStatus,status:data?.httpStatus??200,json:async()=>data};
   };
-  const context={document,fetch,FRAMES,relationshipExplanation,window:{addEventListener(){}},Option:function(text,value){return {text,value};},
+  const context={document,fetch,observationStateLabel,FRAMES,relationshipExplanation,window:{addEventListener(){}},Option:function(text,value){return {text,value};},
     Date:{now:()=>now},AbortSignal:{timeout(ms){const controller=new AbortController();signals.push({ms,controller});return controller.signal;}},
     renderObservation(host,data,frame){const m=observationV1(data,frame,now);host.dataset.state=m.state;return m;},contextSummary:()=>'',
     renderContextCards(host,data){host.data=data;},setInterval(fn){interval=fn;return 1;},clearInterval(){},Promise,

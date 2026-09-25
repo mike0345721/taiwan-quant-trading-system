@@ -1,4 +1,4 @@
-import {renderObservation} from '/observation.mjs';
+import {renderObservation,observationStateLabel} from '/observation.mjs';
 import {renderContextCards} from '/context-cards.mjs';
 import {LABELS,FRAMES,FLOW,fmt,signed,windowPresentation,cvdChunks,deltaChunks,timelineTime,scopeLabel,pressureCells,evidenceDirection,observedPricePercent,relationshipExplanation,contextSummary} from '/presentation.mjs';
 const $=id=>document.getElementById(id),time=t=>t==null?'時間未知':new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
@@ -114,7 +114,7 @@ function renderChart(p,r){
 function renderObservationTruth(data){
   const m=renderObservation($('cvd-observation'),data,frame);
   $('source-light').className='light '+(m.state==='LIVE'?'positive':['STALE','DELAYED','DEGRADED'].includes(m.state)?'warning':'neutral');
-  text('trust',m.state+' · '+m.quality);text('freshness','Observation V1 · '+(m.latencyMs===null?'延遲 UNKNOWN':fmt(m.latencyMs/1000)+'s'));
+  text('trust',observationStateLabel(m.state)+' · '+m.quality);$('trust').title=m.state;text('freshness','距最後成交／觀測資料年齡 · '+(m.observationAgeMs===null?'未知':fmt(m.observationAgeMs/1000)+' 秒'));
   text('context-summary',contextSummary({...data.context,freshness:{state:m.state}}));
 }
 function render(data){
@@ -195,7 +195,7 @@ function details(which){
     case 'breadth':title='市場參與度';copy=contextDate;value=view==='demo'||!selectionAvailable()?null:lower?.marketBreadth;break;
     case 'global':title='海外背景';copy=contextDate+'\n已有 USD/TWD / VIX 僅作歷史背景；NQ / SOX 同步本盤資料 UNAVAILABLE。';value=view==='demo'||!selectionAvailable()?null:{usdTwd:lower?.marketOverview?.data?.usdtwd,vix:lower?.marketOverview?.data?.vix,source:lower?.marketOverview?.source};break;
     case 'risk':title='風險 / 衝突';copy='背景資料與盤中圖表的日期獨立；不合成風險分數。UNKNOWN 不等於低風險。formalWeight=0。';value={sourceDates:lower?.sourceDates,context:current?.context?.evidence?.quality?.status,handoff:current?.handoff?.handoff?.code,limitations:lower?.limitations};break;
-    default:title='Data Trust｜資料品質';copy='STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。';value=c?{freshness:c.chart.freshness,contextScope:c.context.scope,origin:c.context.origin,cutoff:c.chart.cutoff,summary:c.chart.summary,priceReason:c.chart.priceReason,priceExclusions:c.chart.priceTimeLineageViolationCount,segments:c.chart.segments.map(({points,...s})=>s),generation:c.chart.generationHash}:null;
+    default:title='Data Trust｜資料品質';copy='STALE != LIVE · Missing != 0 · Unknown != Neutral。分類覆蓋率不等於捕捉完整率。K / Volume 的合法子集可能少於 CVD；缺口保持缺口。';value=c?{observation:renderObservation($('cvd-observation'),c,frame),freshness:c.chart.freshness,contextScope:c.context.scope,origin:c.context.origin,cutoff:c.chart.cutoff,summary:c.chart.summary,priceReason:c.chart.priceReason,priceExclusions:c.chart.priceTimeLineageViolationCount,segments:c.chart.segments.map(({points,...s})=>s),generation:c.chart.generationHash}:null;
   }text('drawer-title',title);text('drawer-copy',copy);text('drawer-json',value?JSON.stringify(value,null,2):'UNAVAILABLE');$('drawer').showModal();
 }
 function updateMarkers(){const shown=$('show-markers').checked&&document.querySelector('.timeline').open;markerApi?.setMarkers(shown?markerData:[]);document.body.dataset.markerCount=String(shown?markerData.length:0);}

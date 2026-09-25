@@ -14,7 +14,7 @@ test('10s/30s boundaries age accepted source time, not retrieval or publication 
     assert.equal(observationV1(d,'1m',source+age).state,state,age);
   d.chart.availableAt=new Date(source+99999).toISOString();
   assert.equal(observationV1(d,'1m',source+100000).state,'STALE');
-  assert.equal(observationV1(d,'1m',source+100000).latencyMs,100000);
+  assert.equal(observationV1(d,'1m',source+100000).observationAgeMs,100000);
 });
 test('pinned, synthetic, quality and upstream states cannot be promoted to LIVE',()=>{
   const d=payload('1m');d.kind='GOVERNED_FRAGMENT';d.chart.freshness.state='LIVE';d.chart.quality='READY';d.context=structuredClone(context);d.context.evidence.quality.status='READY';
@@ -48,6 +48,22 @@ test('real renderer exposes fields, ages the same payload and clears prior value
   const texts=()=>host.children.map(x=>x.children.map(y=>y.textContent).join(':')).join('\n');
   const d=payload('1m');renderObservation(host,d,'1m',source+10000);assert.equal(host.dataset.state,'HISTORICAL');
   renderObservation(host,d,'1m',source+100000);assert.equal(host.dataset.state,'STALE');
-  for(const field of ['1m ΔCVD','actualContract','Accumulation origin','Cutoff','Source time','Coverage','Continuity','Pressure'])assert.ok(texts().includes(field),field);
+  for(const field of ['1m ΔCVD','實際契約','累積起點','發布截止','來源時間','分類覆蓋率','連續性','主動成交壓力','觀測資料年齡','本次處理延遲','狀態說明'])assert.ok(texts().includes(field),field);
   renderObservation(host,null,'4h',source+100000);assert.equal(host.dataset.state,'UNAVAILABLE');assert.match(texts(),/4h ΔCVD:不可用/);assert.doesNotMatch(texts(),/TXFI6/);
+});
+
+test('unavailable reasons distinguish missing, future and reversed trade clocks in Chinese',async()=>{
+  const {observationReasonLabel}=await import('../public/cru55-observation.mjs');
+  for(const [change,code]of [
+    [d=>d.chart.lastTradeAvailableAt=null,'TRADE_CLOCK_MISSING'],
+    [d=>d.relationship.current.anchorEventTime='invalid','TRADE_CLOCK_MISSING'],
+    [d=>d.chart.lastTradeAvailableAt=new Date(source+2000).toISOString(),'TRADE_CLOCK_IN_FUTURE'],
+    [d=>d.chart.lastTradeAvailableAt=new Date(source-1).toISOString(),'TRADE_CLOCK_ORDER_INVALID'],
+    [d=>d.context.cumulativeCvd=null,'CVD_EVIDENCE_UNAVAILABLE']]){
+    const d=structuredClone(payload('1m'));change(d);const m=observationV1(d,'1m',source+1000);
+    assert.equal(m.reason,code);assert.equal(m.state,'UNAVAILABLE');assert.match(observationReasonLabel(code),/[\u4e00-\u9fff]/);
+    const doc={createElement:()=>({children:[],append(...xs){this.children.push(...xs);}})},host={ownerDocument:doc,dataset:{},replaceChildren(...xs){this.children=xs;}};
+    renderObservation(host,d,'1m',source+1000);
+    const row=host.children.find(x=>x.children[0].textContent==='狀態說明');assert.equal(row.children[1].textContent,observationReasonLabel(code));assert.equal(row.children[1].title,code);
+  }
 });
