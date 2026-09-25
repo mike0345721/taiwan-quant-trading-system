@@ -3,6 +3,7 @@ import path from 'node:path';
 import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { FRAMES,withFreshness } from './cvd-chart-projection.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
+import { buildActiveSegmentObservation } from './cru55-active-segment-observation.mjs';
 
 const hash=x=>/^[a-f0-9]{64}$/.test(x??'');
 function read(file,cap){assertPlainPath(file);const st=fs.statSync(file);if(!st.isFile()||st.nlink!==1||st.size>cap)throw Error('CRU55_STREAM_ARTIFACT_BUDGET');return JSON.parse(fs.readFileSync(file,'utf8'));}
@@ -48,6 +49,7 @@ export function createStreamReader(root,{bindingHash=null}={}){
     return {view,kind:p.kind,artifactHash:cached.artifactHash,producerMode:'STREAM_PAGED_V2',rawReadsPerRequest:0,
       integrity:cached.integrity,publication:{state:status.state,phase:status.phase??null,scope:'VERIFIED_HISTORICAL_CUTOFF'},...SAFETY,
       chart,relationship:p.relationships[timeframe],context:{...p.sessionContext,freshness:chart.freshness},handoff:p.handoffs[timeframe],
+      activeSegmentObservation:buildActiveSegmentObservation({artifactHash:cached.artifactHash,chart:c,relationship:p.relationships[timeframe]}),
       scan:Object.fromEntries(FRAMES.map(f=>[f,{timeframe:f,windowMs:p.relationships[f].windowMs,current:p.relationships[f].current}]))};
   };
 }

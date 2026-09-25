@@ -12,7 +12,18 @@ import {buildSessionContext} from '../src/cvd-session-context-projection.mjs';
 import {sessionFixture,calendar} from './cvd-session-context-fixture.mjs';
 import {beginRangeAppend,createRangeReader} from '../src/cru55-projection-range-index.mjs';
 import {advanceIndexedProjectionQueries} from '../src/cru55-indexed-projection.mjs';
+import {buildActiveSegmentObservation} from '../src/cru55-active-segment-observation.mjs';
+import {observationV1,renderObservation} from '../public/cru55-observation.mjs';
 const resolver=t=>{const s=classifyTxChartSession(t,calendar);return {session:s.session,tradeDate:s.tradeDate};};
+function activePayload(result,frame='1m') {
+  const artifactHash=digest(stableJson(result)),chart=result.charts[frame],relationship=result.relationships[frame];
+  const legacy=structuredClone(result.sessionContext);
+  const activeSegmentObservation=buildActiveSegmentObservation({artifactHash,chart,relationship});
+  assert.deepEqual(result.sessionContext,legacy,'adapter cannot mutate legacy context');
+  return {artifactHash,producerMode:'STREAM_PAGED_V2',kind:result.kind,chart,relationship,
+    context:result.sessionContext,activeSegmentObservation,
+    scan:Object.fromEntries(Object.entries(result.relationships).map(([k,r])=>[k,{current:r.current}]))};
+}
 function pagesFor(rows,source='sha256:'+digest('2026-09-14T09:00:00+08:00')){
   let checkpoint=createStreamCheckpoint(source,'governed-fixture'),head=null;const pages=[],quotes=[];
   for(let start=0;start<rows.length;start+=128){const records=rows.slice(start,start+128),previousTerminalHash=checkpoint.state.terminalHash,facts=[];
@@ -119,4 +130,48 @@ test('nine-hour night stream exceeds snapshot limit with all twelve windows comp
   const {result,job}=run(rows,'sha256:'+digest(start));assert.equal(result.sessionContext.cumulativeCvd,1100);
   for(const r of Object.values(result.relationships)){assert.equal(r.current.current.complete,true);assert.equal(r.current.previous.complete,true);assert.equal(r.current.current.parity,'EXACT');assert.equal(r.current.previous.parity,'EXACT');}
   assert.equal(result.relationships['4h'].current.current.deltaCvd,480);assert.equal(result.relationships['4h'].current.previous.deltaCvd,480);assert.equal(result.charts['1m'].bars.length,550);assert.ok(Buffer.byteLength(JSON.stringify(job))<PROJECTION_LIMITS.jobBytes);t.diagnostic(`persisted job bytes=${Buffer.byteLength(JSON.stringify(job))}; point count=1100; minute buckets=550; total scan pages=9`);
+});
+
+test('active segment v1: first -> pending -> same-session or next-session segment without changing legacy context',()=>{
+  const first=sessionFixture({count:8}).rows;
+  const breakRow={...first.at(-1),kind:'quote_type_resubscribe',payload:{product:'TX'}};
+  const one=activePayload(run(first).result);assert.equal(one.activeSegmentObservation.cumulativeCvd,8);
+  const pending=activePayload(run(chain([...first,breakRow])).result);
+  assert.equal(pending.activeSegmentObservation.cumulativeCvd,null);assert.equal(pending.activeSegmentObservation.origin,null);
+  assert.equal(pending.activeSegmentObservation.scope,'UNAVAILABLE');assert.equal(pending.context.reason,'NO_LAWFUL_PHYSICAL_CUTOFF');
+  for(const start of ['2026-09-14T09:02:00+08:00','2026-09-14T15:00:00+08:00']) {
+    const second=sessionFixture({start,count:19,direction:-1}).rows;
+    const {result,job}=run(chain([...first,breakRow,...second]));
+    const data=activePayload(result),a=data.activeSegmentObservation;
+    assert.equal(a.cumulativeCvd,-19);assert.equal(a.segment,1);assert.equal(a.origin.ledgerOrdinal,10);
+    assert.deepEqual(a.identity,result.charts['1m'].identity);assert.deepEqual(a.sourceCutoff,result.charts['1m'].cutoff);
+    assert.equal(data.context.cumulativeCvd,null);assert.equal(data.context.reason,'CONTEXT_SINGLE_SEGMENT_REQUIRED');
+    const m=observationV1(data,'1m',Date.parse(a.lastTrade.availableAt)+100000);
+    assert.equal(m.cumulativeCvd,-19);assert.equal(m.state,'STALE');assert.equal(m.deltaCvd,-6);
+    assert.deepEqual(activePayload(finishProjectionJob(JSON.parse(JSON.stringify(job)))).activeSegmentObservation,a,'same-segment checkpoint resume retains value and origin');
+    assert.equal(observationV1(activePayload(result,'4h'),'4h').window.state,'PARTIAL');
+  }
+});
+
+test('active scalar binding, zero, unknown and bad clocks are independent of history and legacy null',()=>{
+  const fixture=sessionFixture({count:2}),rows=chain([fixture.rows[0],{...fixture.rows[1],payload:{...fixture.rows[1].payload,tick_type:2}}]);
+  const zero=activePayload(run(rows).result);assert.equal(zero.activeSegmentObservation.cumulativeCvd,0);
+  assert.equal(observationV1(zero,'1m').cumulativeCvd,0);
+  const unknown=activePayload(run(sessionFixture({tickType:0,count:3}).rows).result);
+  assert.equal(unknown.activeSegmentObservation.cumulativeCvd,null);assert.equal(observationV1(unknown,'1m').cumulativeCvd,null);
+  const bad=activePayload(run(sessionFixture({badPrice:true}).rows).result);
+  const model=observationV1(bad,'1m');assert.equal(model.cumulativeCvd,19);assert.equal(model.reason,'TRADE_CLOCK_ORDER_INVALID');assert.equal(model.state,'UNAVAILABLE');assert.equal(model.observationAgeMs,null);
+  const original=run(fixture.rows).result;
+  for(const mutate of [x=>x.chart.generationHash=digest('wrong'),x=>x.relationship.sourceCutoff.ledgerOrdinal++,x=>x.relationship.current.identity[0]='TXFJ6',x=>x.chart.origin.ledgerOrdinal++,x=>x.relationship.current.cumulativeCvd=99,x=>x.chart.executionAuthorized=true]){
+    const args={artifactHash:digest('artifact'),chart:JSON.parse(JSON.stringify(original.charts['1m'])),relationship:JSON.parse(JSON.stringify(original.relationships['1m']))};mutate(args);assert.throws(()=>buildActiveSegmentObservation(args),/BINDING_INVALID/);
+  }
+  const noCurrent=structuredClone(original);noCurrent.charts['1m'].currentCvd=null;
+  assert.equal(activePayload(noCurrent).activeSegmentObservation.cumulativeCvd,null,'no history-last-point fallback');
+  for(const mutate of [x=>delete x.activeSegmentObservation,x=>x.activeSegmentObservation.artifactHash=digest('wrong'),x=>x.activeSegmentObservation.sourceCutoff.ledgerOrdinal++,x=>x.activeSegmentObservation.schemaVersion='unknown']){
+    const data=JSON.parse(JSON.stringify(zero));mutate(data);assert.equal(observationV1(data,'1m').cumulativeCvd,null);assert.equal(observationV1(data,'1m').reason,'ACTIVE_SEGMENT_BINDING_INVALID');
+  }
+  const doc={createElement:()=>({children:[],append(...xs){this.children.push(...xs);}})},host={ownerDocument:doc,dataset:{},replaceChildren(...xs){this.children=xs;}};
+  renderObservation(host,bad,'1m');let text=host.children.map(x=>x.children.map(y=>y.textContent).join(':')).join('\n');assert.match(text,/當前連續觀測段 CVD:\+19/);assert.match(text,/時間順序異常/);assert.match(text,/跨段不累加/);
+  const pending=activePayload(run(chain([...fixture.rows,{...fixture.rows[1],kind:'quote_type_resubscribe',payload:{product:'TX'}}])).result);
+  renderObservation(host,pending,'1m');text=host.children.map(x=>x.children.map(y=>y.textContent).join(':')).join('\n');assert.match(text,/當前連續觀測段 CVD:不可用/);assert.match(text,/等待合法新段成交/);
 });

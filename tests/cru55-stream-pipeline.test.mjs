@@ -72,6 +72,10 @@ test('new chain >1024 snapshots reaches six windows and protected API, then rest
     const a=finish(opts);assert.equal(a.state,'PUBLISHED');
     let read=createDynamicReader(output),data=read({view:'night'});
     assert.equal(data.chart.currentCvd,1100);assert.equal(data.chart.display.inputPoints,1100);assert.equal(data.integrity.originalRawPrefixVerified,true);assert.equal(Object.keys(data.scan).length,6);assert.ok(data.chart.bars.length>300);assert.ok(data.chart.vwap.length>300);
+    const origin=data.activeSegmentObservation.origin;
+    assert.equal(data.activeSegmentObservation.cumulativeCvd,1100);
+    assert.equal(data.activeSegmentObservation.artifactHash,a.artifactHash);
+    assert.deepEqual(data.activeSegmentObservation.sourceCutoff,data.chart.cutoff);
     const before=process.env.CRU55_DYNAMIC_ROOT;process.env.CRU55_DYNAMIC_ROOT=output;
     const handler=prepareFormalEntry({publicDir:path.resolve('public')},()=>null);if(before===undefined)delete process.env.CRU55_DYNAMIC_ROOT;else process.env.CRU55_DYNAMIC_ROOT=before;
     const server=http.createServer(async(req,res)=>{if(!await handler(req,res,new URL(req.url,'http://localhost'),()=>{if(req.headers.authorization==='fixture-session')return true;res.writeHead(401);res.end();return false;})){res.writeHead(404);res.end();}});
@@ -84,6 +88,10 @@ test('new chain >1024 snapshots reaches six windows and protected API, then rest
       const b=finish(opts);assert.equal(b.state,'PUBLISHED');assert.notEqual(b.artifactHash,a.artifactHash);
       read=createDynamicReader(output);data=read({view:'night',timeframe:'4h'});assert.equal(data.chart.currentCvd,1300);assert.equal(data.chart.cutoff.recordHash,previous);assert.equal(data.chart.display.inputPoints,1300);
       const x=await(await fetch(url+'4h',{headers:{authorization:'fixture-session'}})).json();assert.equal(x.chart.currentCvd,1300);assert.equal(x.chart.cutoff.ledgerOrdinal,1300);
+      assert.equal(x.activeSegmentObservation.cumulativeCvd,1300);
+      assert.equal(x.activeSegmentObservation.artifactHash,b.artifactHash);
+      assert.deepEqual(x.activeSegmentObservation.origin,origin);
+      assert.deepEqual(createDynamicReader(output)({view:'night'}).activeSegmentObservation,x.activeSegmentObservation);
       assert.equal(finish(opts).state,'UNCHANGED');assert.equal(createDynamicReader(output)({view:'night'}).chart.currentCvd,1300);
     }finally{await new Promise(r=>server.close(r));}
   }finally{fs.rmSync(root,{recursive:true,force:true});}
