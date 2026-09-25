@@ -1,0 +1,766 @@
+{
+  "schemaVersion": "cru55-ingest-prefix-bounded-evidence-v1",
+  "runtimeHead": "e321c8748a742f5ebcd27d24e0a2299c6c46acff",
+  "verdict": "NOT_ESTABLISHED",
+  "publicationSchedule": {
+    "version": "COMPLETE_RECORD_PREFIX_V1",
+    "maxRecords": 32768
+  },
+  "source": {
+    "initialRecords": 1500000,
+    "initialBytes": 2059524347,
+    "prefixSha256": "7b4b69fd190daf62341a91f360cb444fe107f5c3b553707543ab3f3e15d612b6",
+    "sourceDate": "2026-09-24",
+    "scope": "same original byte-zero private frozen prefix; not live/day capacity forecast"
+  },
+  "measurement": {
+    "startedAt": "2026-09-25T09:32:13.062Z",
+    "endedAt": "2026-09-25T10:02:08.212Z",
+    "elapsedMs": 1795150,
+    "reason": "MEASUREMENT_TIME_LIMIT",
+    "epochs": 1,
+    "preparationMs": 126877
+  },
+  "processed": {
+    "records": 195164,
+    "bytes": 267575193
+  },
+  "publications": [
+    {
+      "elapsedMs": 250086,
+      "intervalMs": null,
+      "cutoff": {
+        "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69",
+        "ledgerOrdinal": 31324,
+        "recordHash": "1ff0583404d4bb9be0b7ce613759ad533dacfb9e8bde5892b6dee682d4fc819d"
+      },
+      "coveredPrefixBytes": 42906025,
+      "publicationBacklogBytes": 2016618322,
+      "artifactHash": "f638058cb1e17a52ca9bc07d8209ed1b18a99b65280933ce5dc2aaa3e11f19cf",
+      "session": "NIGHT",
+      "tradeDate": "2026-09-24"
+    },
+    {
+      "elapsedMs": 554167,
+      "intervalMs": 304081,
+      "cutoff": {
+        "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69",
+        "ledgerOrdinal": 64092,
+        "recordHash": "f8769cd717cc8af794268c6a5afa31b144ed73f2167518c547a3651dae57910e"
+      },
+      "coveredPrefixBytes": 87744395,
+      "publicationBacklogBytes": 1971779952,
+      "artifactHash": "4e2f06e1b204bc140ae48fdd8a57ce71de4cb5d1dd676adb5353ff897a492c47",
+      "session": "DAY",
+      "tradeDate": "2026-09-24"
+    },
+    {
+      "elapsedMs": 883335,
+      "intervalMs": 329168,
+      "cutoff": {
+        "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69",
+        "ledgerOrdinal": 96860,
+        "recordHash": "cd5948a0d87fe80ada59514c441d22ee58e05c4bcbe83415b782bcf83125dc27"
+      },
+      "coveredPrefixBytes": 132621582,
+      "publicationBacklogBytes": 1926902765,
+      "artifactHash": "3cb0b7f68f8581c2d9c98f55987ade66de64d8d23f24a9c81ee2f5cba73264e7",
+      "session": "DAY",
+      "tradeDate": "2026-09-24"
+    },
+    {
+      "elapsedMs": 1218638,
+      "intervalMs": 335303,
+      "cutoff": {
+        "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69",
+        "ledgerOrdinal": 129628,
+        "recordHash": "1656571a7a2a7162f0dc628e5c65800f38f9f55d0afb46e15cabb717e2262970"
+      },
+      "coveredPrefixBytes": 177568736,
+      "publicationBacklogBytes": 1881955611,
+      "artifactHash": "f17ad4d38827ca43d0dc9666450a0c62ea3c1e8519162fed1284559d30ccbb4a",
+      "session": "DAY",
+      "tradeDate": "2026-09-24"
+    },
+    {
+      "elapsedMs": 1526430,
+      "intervalMs": 307792,
+      "cutoff": {
+        "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69",
+        "ledgerOrdinal": 162396,
+        "recordHash": "a049fb6e6608e19717127f21400f0116b887cec54617147d2f97e494f8d9096b"
+      },
+      "coveredPrefixBytes": 222565129,
+      "publicationBacklogBytes": 1836959218,
+      "artifactHash": "286246e2dcbee6f139435f71b7c50da870299dd3ecba999d02b55038e6b236dc",
+      "session": "DAY",
+      "tradeDate": "2026-09-24"
+    }
+  ],
+  "publicationTiming": {
+    "firstMs": 250086,
+    "maxCompletedIntervalMs": 335303,
+    "finalUnfinishedIntervalMs": 268720
+  },
+  "finalBacklog": {
+    "ingestRecords": 1304836,
+    "ingestBytes": 1791949154,
+    "publicationRecords": 1337604,
+    "publicationBytes": 1836959218
+  },
+  "comparison": {
+    "baselineHead": "4f9867ade6ff349ad648fad8ab6452cbd95a846e",
+    "baselineProcessed": {
+      "records": 371292,
+      "bytes": 509723045
+    },
+    "baselinePublishedRecords": 31324,
+    "baselinePublications": 1,
+    "baselineFirstPublicationMs": 239770,
+    "baselineMeasurementMs": 1795304,
+    "supervisionDifference": "baseline 100-cycle exits (5 epochs); candidate single continuous process; cache/load uncontrolled"
+  },
+  "phases": {
+    "INGEST": {
+      "cycles": 212,
+      "pipelineMs": 813177.8892000006,
+      "configMs": 66995.50869999928,
+      "managerMs": 27409.869199999725,
+      "workMs": 907583.2670999995,
+      "cpuUs": 328703000,
+      "budgetedBytes": 1605712047,
+      "pages": 1680,
+      "rawRanges": 3056
+    },
+    "PROJECT": {
+      "cycles": 220,
+      "pipelineMs": 273476.3234999997,
+      "configMs": 68563.8395999996,
+      "managerMs": 25998.26950000107,
+      "workMs": 368038.43260000035,
+      "cpuUs": 181898000,
+      "budgetedBytes": 578633701,
+      "pages": 1760,
+      "rawRanges": 34
+    },
+    "QUERY": {
+      "cycles": 386,
+      "pipelineMs": 166378.84190000358,
+      "configMs": 121050.59769999862,
+      "managerMs": 48210.664099996764,
+      "workMs": 335640.10369999893,
+      "cpuUs": 145190000,
+      "budgetedBytes": 108389711,
+      "pages": 3088,
+      "rawRanges": 0
+    },
+    "VERIFY": {
+      "cycles": 83,
+      "pipelineMs": 57535.909799999645,
+      "configMs": 26361.147100000002,
+      "managerMs": 10497.057200000738,
+      "workMs": 94394.11410000038,
+      "cpuUs": 52466000,
+      "budgetedBytes": 662356733,
+      "pages": 23,
+      "rawRanges": 3778
+    },
+    "VERIFY_PRIOR": {
+      "cycles": 21,
+      "pipelineMs": 11964.49040000001,
+      "configMs": 6882.199099999387,
+      "managerMs": 2721.310200000531,
+      "workMs": 21567.999699999928,
+      "cpuUs": 11605000,
+      "budgetedBytes": 173287540,
+      "pages": 0,
+      "rawRanges": 987
+    }
+  },
+  "resources": {
+    "scope": "sampled process counters include caches; not physical disk traffic; process totals are lower bounds at last sample; no collector noninterference proof",
+    "cpuPercentP50": 43,
+    "cpuPercentP95": 82,
+    "cpuPercentMax": 87,
+    "maxWriterRssBytes": 365035520,
+    "minFreeMemoryBytes": 9267105792,
+    "processReadBytes": 3615262456,
+    "processWriteBytes": 684335443,
+    "processCpuSeconds": 736.546875
+  },
+  "warmAppend": {
+    "warmAt": null,
+    "samples": 0,
+    "unpublished": 0,
+    "latencies": [],
+    "state": "NOT_MEASURED"
+  },
+  "reader": {
+    "day": {
+      "artifactHash": "286246e2dcbee6f139435f71b7c50da870299dd3ecba999d02b55038e6b236dc",
+      "publication": {
+        "state": "PENDING",
+        "phase": "QUERY",
+        "scope": "VERIFIED_HISTORICAL_CUTOFF"
+      },
+      "chart": {
+        "cutoff": {
+          "ledgerOrdinal": 162396,
+          "recordHash": "a049fb6e6608e19717127f21400f0116b887cec54617147d2f97e494f8d9096b",
+          "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69"
+        },
+        "tradeDate": "2026-09-24",
+        "session": "DAY",
+        "currentCvd": 863,
+        "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+        "quality": "QUALITY_INSUFFICIENT"
+      },
+      "verifiedPrefixBytes": 222565129,
+      "activeSegment": {
+        "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+        "cumulativeCvd": 863,
+        "origin": {
+          "availableAt": "2026-09-24T08:45:00.081971+08:00",
+          "availableAtMs": 1790210700081,
+          "eventTime": "2026-09-24T08:45:00.059000",
+          "eventTimeMs": 1790210700059,
+          "ledgerOrdinal": 31325
+        },
+        "identity": [
+          "TXFJ6",
+          "2026-09-24",
+          "DAY",
+          "TX:1"
+        ]
+      }
+    },
+    "night": {
+      "artifactHash": "f638058cb1e17a52ca9bc07d8209ed1b18a99b65280933ce5dc2aaa3e11f19cf",
+      "publication": {
+        "state": "PENDING",
+        "phase": "QUERY",
+        "scope": "VERIFIED_HISTORICAL_CUTOFF"
+      },
+      "chart": {
+        "cutoff": {
+          "ledgerOrdinal": 31324,
+          "recordHash": "1ff0583404d4bb9be0b7ce613759ad533dacfb9e8bde5892b6dee682d4fc819d",
+          "sourceLedgerIdentity": "sha256:f320887cd4956ee944ff6597c57b5414feb5fd17aa01439ac2be35fca1bc1c69"
+        },
+        "tradeDate": "2026-09-24",
+        "session": "NIGHT",
+        "currentCvd": 2,
+        "reason": "CLASSIFIED_COVERAGE_INCOMPLETE",
+        "quality": "QUALITY_INSUFFICIENT"
+      },
+      "verifiedPrefixBytes": 42906025,
+      "activeSegment": {
+        "scope": "CURRENT_CONTINUOUS_OBSERVED_SEGMENT",
+        "cumulativeCvd": 2,
+        "origin": {
+          "availableAt": "2026-09-24T00:00:11.443300+08:00",
+          "availableAtMs": 1790179211443,
+          "eventTime": "2026-09-24T00:00:11.525000",
+          "eventTimeMs": 1790179211525,
+          "ledgerOrdinal": 283
+        },
+        "identity": [
+          "TXFJ6",
+          "2026-09-24",
+          "NIGHT",
+          "TX:1"
+        ]
+      }
+    }
+  },
+  "limitations": [
+    "Same frozen initial prefix; cache/load uncontrolled; baseline 100-cycle exits versus candidate continuous process; not causal speedup proof",
+    "30-minute total cap includes cold and conditional warm append; one process, no retry",
+    "Stage groups are phase-at-return, not pure-function profiling",
+    "No new API/browser or natural-live/full-day acceptance",
+    "Historical timestamps preserved; cold and append processing clocks use wall clock, not data age",
+    "Observer snapshot.views.*.publishedEndByteOffset reads the shared per-source current pointer, not the selected per-view artifact; NIGHT snapshot therefore shows DAY byte coverage. Preserve original logs. Per-view authoritative bytes come from immutable artifact integrity (NIGHT42906025; DAY222565129), and publication events drive aggregate backlog."
+  ],
+  "failures": [
+    {
+      "kind": "reader-unavailable",
+      "elapsedMs": 250102,
+      "reason": "CRU55_STREAM_SELECTION_INVALID",
+      "view": "day"
+    },
+    {
+      "kind": "stop",
+      "elapsedMs": 1795084,
+      "reason": "MEASUREMENT_TIME_LIMIT"
+    },
+    {
+      "kind": "process-exit",
+      "elapsedMs": 1795150,
+      "code": null,
+      "signal": "SIGTERM"
+    }
+  ],
+  "profile": {
+    "method": "2ms sampled inclusive stack wall attribution; nested columns overlap and cannot be summed. Synchronous raw JSON parse is not independently resolved; remains pipeline residual. fs call latency is not physical disk time; CPU only measured for whole process. Same 8 cycles/8192 records; private input16,384 records, cache/load uncontrolled.",
+    "all": {
+      "before2": {
+        "head": "4f9867ade6ff349ad648fad8ab6452cbd95a846e",
+        "wallMs": 41735.7734,
+        "cpuUs": {
+          "user": 7156000,
+          "system": 10719000
+        },
+        "processIoOperationCounters": {
+          "reads": 3425,
+          "writes": 436
+        },
+        "fs": {
+          "readFileSync": {
+            "calls": 585,
+            "wallMs": 126.68740000001202
+          },
+          "existsSync": {
+            "calls": 36218,
+            "wallMs": 2381.5296000002463
+          },
+          "lstatSync": {
+            "calls": 34596,
+            "wallMs": 1506.3780999996784
+          },
+          "statSync": {
+            "calls": 432,
+            "wallMs": 31.200599999987844
+          },
+          "mkdirSync": {
+            "calls": 106,
+            "wallMs": 26.203700000020717
+          },
+          "writeFileSync": {
+            "calls": 428,
+            "wallMs": 71.02039999998851
+          },
+          "openSync": {
+            "calls": 443,
+            "wallMs": 410.16029999999046
+          },
+          "readSync": {
+            "calls": 137,
+            "wallMs": 14.170699999986937
+          },
+          "closeSync": {
+            "calls": 443,
+            "wallMs": 63.51090000000977
+          },
+          "fsyncSync": {
+            "calls": 427,
+            "wallMs": 20324.362299999997
+          },
+          "renameSync": {
+            "calls": 291,
+            "wallMs": 178.77339999997184
+          },
+          "linkSync": {
+            "calls": 128,
+            "wallMs": 91.03939999998511
+          },
+          "unlinkSync": {
+            "calls": 265,
+            "wallMs": 64.96559999999499
+          },
+          "rmdirSync": {
+            "calls": 73,
+            "wallMs": 12.050000000005639
+          }
+        },
+        "stackInclusiveWallSampleMs": {
+          "pathChecks": 10244.207999999988,
+          "config": 3162.7320000000004,
+          "codeIdentity": 56.43899999999999,
+          "durableFsync": 20351.92300000005,
+          "canonicalMaterialization": 241.16300000000004,
+          "stableSerialization": 1645.2010000000007,
+          "classifyAndCheckpointIncludingQuote": 1994.4379999999983,
+          "rawExactRead": 32.782,
+          "pageValidationIncludingPathHash": 1341.7950000000005,
+          "quoteLookup": 11.143
+        },
+        "topSelfWallSampleMs": [
+          [
+            "fsync ",
+            20351.92300000005
+          ],
+          [
+            "realpath ",
+            6144.045000000004
+          ],
+          [
+            "spawn ",
+            4803.181999999985
+          ],
+          [
+            "existsSync ",
+            2309.687999999999
+          ],
+          [
+            "sort cvd-observation-core.mjs",
+            1475.801
+          ],
+          [
+            "lstat ",
+            1398.7899999999988
+          ],
+          [
+            "update ",
+            566.2050000000002
+          ],
+          [
+            "stableJson cvd-observation-core.mjs",
+            550.6059999999995
+          ],
+          [
+            "open ",
+            433.9829999999998
+          ],
+          [
+            "appendStreamRecord cru55-stream-core.mjs",
+            333.242
+          ],
+          [
+            "structuredClone js_transferable",
+            323.76700000000017
+          ],
+          [
+            " cvd-observation-core.mjs",
+            248.6
+          ],
+          [
+            "rename ",
+            208.82700000000006
+          ],
+          [
+            "runStreamCycle cru55-stream-pipeline.mjs",
+            183.63299999999998
+          ],
+          [
+            "(garbage collector) ",
+            152.18400000000003
+          ],
+          [
+            "classifyTxChartSession dashboard-tx-chart.mjs",
+            137.81000000000003
+          ],
+          [
+            "readJson cru55-stream-store.mjs",
+            124.568
+          ],
+          [
+            "assertPlainPath cvd-observation-isolation.mjs",
+            124.36299999999996
+          ],
+          [
+            "same cru55-stream-store.mjs",
+            109.05300000000001
+          ],
+          [
+            "link ",
+            87.11399999999999
+          ]
+        ],
+        "cycles": 8,
+        "ingestedBytes": 11239554,
+        "cycleTiming": {
+          "configMs": 2615.9729999999995,
+          "pipelineMs": 35650.501000000004,
+          "managerMs": 912.3186000000005,
+          "workMs": 39178.7926
+        }
+      },
+      "after": {
+        "head": "e321c8748a742f5ebcd27d24e0a2299c6c46acff",
+        "wallMs": 39376.2439,
+        "cpuUs": {
+          "user": 6907000,
+          "system": 10766000
+        },
+        "processIoOperationCounters": {
+          "reads": 3290,
+          "writes": 436
+        },
+        "fs": {
+          "readFileSync": {
+            "calls": 450,
+            "wallMs": 114.19869999999798
+          },
+          "existsSync": {
+            "calls": 36218,
+            "wallMs": 2415.688199999742
+          },
+          "lstatSync": {
+            "calls": 34596,
+            "wallMs": 1511.4426000003452
+          },
+          "statSync": {
+            "calls": 432,
+            "wallMs": 33.81890000009912
+          },
+          "mkdirSync": {
+            "calls": 106,
+            "wallMs": 26.947199999988243
+          },
+          "writeFileSync": {
+            "calls": 428,
+            "wallMs": 103.37709999999993
+          },
+          "openSync": {
+            "calls": 443,
+            "wallMs": 266.88840000003347
+          },
+          "readSync": {
+            "calls": 137,
+            "wallMs": 15.215199999986453
+          },
+          "closeSync": {
+            "calls": 443,
+            "wallMs": 64.17059999998628
+          },
+          "fsyncSync": {
+            "calls": 427,
+            "wallMs": 18493.886800000088
+          },
+          "renameSync": {
+            "calls": 291,
+            "wallMs": 184.50890000000982
+          },
+          "linkSync": {
+            "calls": 128,
+            "wallMs": 101.20790000001352
+          },
+          "unlinkSync": {
+            "calls": 265,
+            "wallMs": 74.78529999995772
+          },
+          "rmdirSync": {
+            "calls": 73,
+            "wallMs": 12.627500000011423
+          }
+        },
+        "stackInclusiveWallSampleMs": {
+          "config": 3295.9150000000027,
+          "pathChecks": 10370.098000000027,
+          "codeIdentity": 37.93900000000001,
+          "durableFsync": 18542.151999999965,
+          "canonicalMaterialization": 279.04499999999996,
+          "stableSerialization": 1133.1319999999994,
+          "classifyAndCheckpointIncludingQuote": 2093.4150000000013,
+          "pageValidationIncludingPathHash": 1383.592999999999,
+          "quoteLookup": 17.029,
+          "rawExactRead": 22.904
+        },
+        "topSelfWallSampleMs": [
+          [
+            "fsync ",
+            18542.151999999965
+          ],
+          [
+            "realpath ",
+            6336.86300000001
+          ],
+          [
+            "spawn ",
+            4650.737000000005
+          ],
+          [
+            "existsSync ",
+            2210.4509999999987
+          ],
+          [
+            "lstat ",
+            1423.5609999999995
+          ],
+          [
+            "sort cvd-observation-core.mjs",
+            1256.6539999999995
+          ],
+          [
+            "appendStreamRecord cru55-stream-core.mjs",
+            556.831
+          ],
+          [
+            "update ",
+            531.2570000000003
+          ],
+          [
+            "stableJson cvd-observation-core.mjs",
+            349.8049999999998
+          ],
+          [
+            "open ",
+            294.2679999999999
+          ],
+          [
+            " cvd-observation-core.mjs",
+            201.40399999999994
+          ],
+          [
+            "structuredClone js_transferable",
+            192.799
+          ],
+          [
+            "rename ",
+            169.78900000000002
+          ],
+          [
+            "runStreamCycle cru55-stream-pipeline.mjs",
+            160.65400000000005
+          ],
+          [
+            "classifyTxChartSession dashboard-tx-chart.mjs",
+            137.08
+          ],
+          [
+            "(garbage collector) ",
+            133.24300000000002
+          ],
+          [
+            "same cru55-stream-store.mjs",
+            127.669
+          ],
+          [
+            "readJson cru55-stream-store.mjs",
+            123.61499999999998
+          ],
+          [
+            "link ",
+            108.81399999999998
+          ],
+          [
+            "validateStreamCheckpoint cru55-stream-core.mjs",
+            95.91499999999998
+          ]
+        ],
+        "cycles": 8,
+        "ingestedBytes": 11239554,
+        "cycleTiming": {
+          "configMs": 2939.4959000000003,
+          "pipelineMs": 33509.105299999996,
+          "managerMs": 936.8888000000079,
+          "workMs": 37385.490000000005
+        }
+      }
+    }
+  },
+  "verification": {
+    "distinctTargetedTests": 43,
+    "firstRun": {
+      "passed": 41,
+      "failed": 0
+    },
+    "finalRun": {
+      "passed": 7,
+      "failed": 0,
+      "newCases": 2
+    },
+    "secretScan": "PASS",
+    "engineeringReview": "APPROVE; B0/S0 after fixes; N test title corrected",
+    "supervisorReview": "APPROVE after callback cleanup and no-restart fixes",
+    "realSameCutoff": "31324: all semantic fields identical; 55 hash-only differences from four version-derived keys",
+    "m4": "REUSED; no UI or real-login rerun",
+    "resultReview": "PASS: NOT_ESTABLISHED supported; ingest decrease and slower first publish disclosed; observer caveat retained"
+  },
+  "gates": {
+    "sameDayAcceptance": "NOT_ESTABLISHED",
+    "localWholeVersionActivation": "NOT_READY",
+    "warmAppend": "NOT_MEASURED",
+    "naturalCollectorAppend": "NOT_MEASURED",
+    "fullDayReady": false,
+    "formalChanges": false,
+    "merged": false,
+    "formalWeight": 0,
+    "researchOnly": true,
+    "executionAuthorized": false,
+    "orderRoutesEnabled": false
+  },
+  "privateReceipts": [
+    {
+      "file": "plan.json",
+      "bytes": 172012,
+      "sha256": "f8733532ffafbcb7c555f7793600c44469f40771e23aad5819250ffaa0575db1"
+    },
+    {
+      "file": "measurement-start.json",
+      "bytes": 402,
+      "sha256": "7e04a9256aadd7d3f5530057df3acfb7f29a99a14f4641ab82641412889cbf4b"
+    },
+    {
+      "file": "measurement.ndjson",
+      "bytes": 1376704,
+      "sha256": "6f4c8de35cd4c923eee2b57f02d5f12854d4655e6009d568d569f0312d3a9c93"
+    },
+    {
+      "file": "writer.stdout.ndjson",
+      "bytes": 1200168,
+      "sha256": "dfcf2d5b213b9972de3cc86ad39dff6429205ffbe7e05bfb3d2d9f56f418fa4b"
+    },
+    {
+      "file": "result.json",
+      "bytes": 2576,
+      "sha256": "b9b2ed3199d4fdc9a88bc73196e940eb9262203b07d6013e57c44ec72a3a06c7"
+    },
+    {
+      "file": "reader-snapshot.json",
+      "bytes": 6524,
+      "sha256": "eee3eedf14a801b10518bf4c641820cda6d10210c2f990270de7d89a687bb772"
+    },
+    {
+      "file": "cleanup.json",
+      "bytes": 224,
+      "sha256": "1e3a165d96260c5b5fee35789ab4756370eadd1315ef95ac5dbd7eb849b93422"
+    },
+    {
+      "file": "../prepare-ingest-comparison.mjs",
+      "bytes": 3173,
+      "sha256": "cc452d757b25fbd4e51237868c4a67a9b369bb033af76b9d37e3d03dc1c36d07"
+    },
+    {
+      "file": "../measure-ingest-comparison.mjs",
+      "bytes": 7253,
+      "sha256": "82231c77474de01249466646834e486fe184fa3380e43acad992a5731b7b1f6c"
+    },
+    {
+      "file": "../summarize-ingest-comparison.mjs",
+      "bytes": 7443,
+      "sha256": "4fe92a1f7c10e066cc00abbcc96f07ac38437b70c7ab8ea9207607afbd217653"
+    },
+    {
+      "file": "../read-ingest-result.mjs",
+      "bytes": 1115,
+      "sha256": "49a46e4f0d77c39824d8a653af853a5bb2e931fa8cf79c7cef7c7a2de0f880bc"
+    },
+    {
+      "file": "../ingest-profile-summary.json",
+      "bytes": 8592,
+      "sha256": "bc951ac2d18249535ff367e8036579af386b358111da180ce02d5959a1548b15"
+    },
+    {
+      "file": "../ingest-targeted-tests-2.txt",
+      "bytes": 6449,
+      "sha256": "52c5dd83d0a9cf0f9720c3fa86a009e17fa8955aca05248d6330c99dc83f9772"
+    },
+    {
+      "file": "../ingest-final-tests.txt",
+      "bytes": 829,
+      "sha256": "873dba27c384a23e742ea7ff722c106c1c9a32bc425161a35c1f3bee6580ad01"
+    },
+    {
+      "file": "summary.json",
+      "sha256": "ed5d052d1dbcfe409161800a5616f7fcc6b029189e71b9402acb9df3f747d6e5"
+    }
+  ],
+  "cleanup": {
+    "checkedAt": "2026-09-25T18:02:38.0628641+08:00",
+    "method": "Read-only Win32_Process query for this private runId/supervisor",
+    "matchingWorkerCount": 0,
+    "noFormalMutation": true,
+    "retainedInterruptedCheckpoint": true
+  }
+}
