@@ -39,10 +39,9 @@ export function createStreamStore({ root, sourceLedgerIdentity, resolverIdentity
     try { fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     return file;
   }
-  function immutable(value, extension, cap) {
-    const bytes = stableJson(value);
+  function immutable(value, extension, cap, bytes = stableJson(value), id = digest(bytes)) {
     if (Buffer.byteLength(bytes) > cap) fail('STREAM_STORE_ARTIFACT_BUDGET');
-    const id = digest(bytes), target = name(id + extension), pending = temp(bytes);
+    const target = name(id + extension), pending = temp(bytes);
     try {
       try { fs.linkSync(pending, target); }
       catch (error) {
@@ -131,12 +130,13 @@ export function createStreamStore({ root, sourceLedgerIdentity, resolverIdentity
   }
   function append(records, { resolveSessionTradeDate = null, quoteCursor = null, pendingFirstBatchHash = null,
     maxQueryPages = STREAM_STORE_LIMITS.queryPages, maxQueryBytes = STREAM_STORE_LIMITS.queryBytes } = {}) {
-    if (!Array.isArray(records) || !bounded(records.length, STREAM_STORE_LIMITS.records)
-      || Buffer.byteLength(stableJson(records)) > STREAM_STORE_LIMITS.inputBytes
+    if (!Array.isArray(records) || !bounded(records.length, STREAM_STORE_LIMITS.records)) fail('STREAM_STORE_BATCH_BUDGET');
+    const recordBytes = stableJson(records);
+    if (Buffer.byteLength(recordBytes) > STREAM_STORE_LIMITS.inputBytes
       || !bounded(maxQueryPages, STREAM_STORE_LIMITS.queryPages) || !bounded(maxQueryBytes, STREAM_STORE_LIMITS.queryBytes)) fail('STREAM_STORE_BATCH_BUDGET');
     return withLock(() => {
       pageCache.clear(); // Revalidate archive bytes on each append, including retries.
-      const batchHash = digest(stableJson(records));
+      const batchHash = digest(recordBytes);
       let current, recoveryFiles=null;
       try{current=read();}catch(error){
         // Only the pipeline's persisted, raw-reverified first pending batch
@@ -234,13 +234,13 @@ export function createStreamStore({ root, sourceLedgerIdentity, resolverIdentity
         previousPageHash: current.headPageHash, previousQuotePageHash: initialQuotePage,
         previousTerminalHash: previous.terminalHash, startOrdinal: previous.ordinal + 1, endOrdinal: checkpoint.state.ordinal,
         quoteCount: localQuotes.length, records, facts, checkpoint, ...SAFETY };
-      const expectedId=digest(stableJson(value));
+      const pageBytes=stableJson(value),expectedId=digest(pageBytes);
       const pointer = { schemaVersion: POINTER, sourceLedgerIdentity, resolverIdentity, pageHash: expectedId };
       for(const orphan of recoveryFiles??[]){
         const old=readJson(orphan,STREAM_STORE_LIMITS.pageBytes);
         if(orphan.endsWith('.page.json')?(path.basename(orphan)!==expectedId+'.page.json'||!same(old,value)):(!same(old,value)&&!same(old,pointer)))fail('STREAM_STORE_INITIAL_RECOVERY_CONFLICT');
       }
-      const id = immutable(value, '.page.json', STREAM_STORE_LIMITS.pageBytes);
+      const id = immutable(value, '.page.json', STREAM_STORE_LIMITS.pageBytes, pageBytes, expectedId);
       const file = temp(stableJson(pointer));
       try { replaceDurableFileSync(file, pointerFile()); } finally { if (fs.existsSync(file)) fs.unlinkSync(file); }
       return { state: 'PUBLISHED', headPageHash: id, checkpoint, current: value,
