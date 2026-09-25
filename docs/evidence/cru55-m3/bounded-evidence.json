@@ -1,0 +1,569 @@
+{
+  "schema": "cru55-m3-bounded-evidence-v1",
+  "runtimeHead": "1d0bc254547dadd35988a73c082ef2eaa92b2de3",
+  "m2RuntimeHead": "ef8f0c16e45df5abfad67749de1dc2dedfb156b8",
+  "runtimeCodeIdentical": true,
+  "verifiedM2Files": 83,
+  "verifiedM2PageHashes": 486,
+  "scope": "EXISTING_M2_62000_PREFIX_ONLY",
+  "m2": [
+    {
+      "sample": "ready60000",
+      "view": "day-1m",
+      "artifactHash": "c93a5ec5d8483908c25bc9f95ea12a44dc92102ae6b5b557c1a48f60981f2628",
+      "cutoff": 60000,
+      "chart": -53,
+      "scope": "UNAVAILABLE",
+      "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "delta": -7,
+      "complete": true,
+      "source": "2026-09-18T08:57:23.231000",
+      "available": "2026-09-18T08:57:22.928470+08:00",
+      "differenceMs": -303
+    },
+    {
+      "sample": "ready60000",
+      "view": "night-1m",
+      "artifactHash": "033ac905ee2d32b939dc0a675919e4d17d6c3e22fe74d6528bc801b68b6e72f7",
+      "cutoff": 21806,
+      "chart": null,
+      "scope": "UNAVAILABLE",
+      "reason": "NO_LAWFUL_PHYSICAL_CUTOFF",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "delta": null,
+      "complete": null,
+      "source": "2026-09-18T00:19:55.330000",
+      "available": "2026-09-18T00:19:54.929866+08:00",
+      "differenceMs": -401
+    },
+    {
+      "sample": "ready61000",
+      "view": "day-1m",
+      "artifactHash": "01c0725fe90f0a8f279fd0704b1a79918140630bb580a40b43887490ab7b8a5a",
+      "cutoff": 61000,
+      "chart": -24,
+      "scope": "UNAVAILABLE",
+      "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "delta": 15,
+      "complete": true,
+      "source": "2026-09-18T08:57:39.533000",
+      "available": "2026-09-18T08:57:39.184635+08:00",
+      "differenceMs": -349
+    },
+    {
+      "sample": "ready61000",
+      "view": "night-1m",
+      "artifactHash": "033ac905ee2d32b939dc0a675919e4d17d6c3e22fe74d6528bc801b68b6e72f7",
+      "cutoff": 21806,
+      "chart": null,
+      "scope": "UNAVAILABLE",
+      "reason": "NO_LAWFUL_PHYSICAL_CUTOFF",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "delta": null,
+      "complete": null,
+      "source": "2026-09-18T00:19:55.330000",
+      "available": "2026-09-18T00:19:54.929866+08:00",
+      "differenceMs": -401
+    },
+    {
+      "sample": "ready62000",
+      "view": "day-1m",
+      "artifactHash": "2d192927f3420cc7be33921e805010952b19a4874d1da97c1f0df0bea227d96a",
+      "cutoff": 62000,
+      "chart": -44,
+      "scope": "UNAVAILABLE",
+      "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "delta": 3,
+      "complete": true,
+      "source": "2026-09-18T08:58:18.821000",
+      "available": "2026-09-18T08:58:18.557242+08:00",
+      "differenceMs": -264
+    },
+    {
+      "sample": "ready62000",
+      "view": "night-1m",
+      "artifactHash": "033ac905ee2d32b939dc0a675919e4d17d6c3e22fe74d6528bc801b68b6e72f7",
+      "cutoff": 21806,
+      "chart": null,
+      "scope": "UNAVAILABLE",
+      "reason": "NO_LAWFUL_PHYSICAL_CUTOFF",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "delta": null,
+      "complete": null,
+      "source": "2026-09-18T00:19:55.330000",
+      "available": "2026-09-18T00:19:54.929866+08:00",
+      "differenceMs": -401
+    },
+    {
+      "sample": "age42987",
+      "view": "day-1m",
+      "artifactHash": "7188dabff1ba8842fca2ae1578077057956ce36615374128b4e44c888b65216f",
+      "cutoff": 42987,
+      "chart": -40,
+      "scope": "UNAVAILABLE",
+      "reason": "CONTEXT_SINGLE_SEGMENT_REQUIRED",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ],
+      "segment": 1,
+      "origin": {
+        "availableAt": "2026-09-18T08:44:59.568800+08:00",
+        "availableAtMs": 1789692299568,
+        "eventTime": "2026-09-18T08:45:00.017000",
+        "eventTimeMs": 1789692300017,
+        "ledgerOrdinal": 21810
+      },
+      "delta": -38,
+      "complete": true,
+      "source": "2026-09-18T08:50:03.003000",
+      "available": "2026-09-18T08:50:03.498540+08:00",
+      "differenceMs": 495
+    },
+    {
+      "sample": "age42987",
+      "view": "night-1m",
+      "artifactHash": "033ac905ee2d32b939dc0a675919e4d17d6c3e22fe74d6528bc801b68b6e72f7",
+      "cutoff": 21806,
+      "chart": null,
+      "scope": "UNAVAILABLE",
+      "reason": "NO_LAWFUL_PHYSICAL_CUTOFF",
+      "context": null,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "segment": 0,
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "delta": null,
+      "complete": null,
+      "source": "2026-09-18T00:19:55.330000",
+      "available": "2026-09-18T00:19:54.929866+08:00",
+      "differenceMs": -401
+    }
+  ],
+  "segments": [
+    {
+      "ordinal": 29,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ]
+    },
+    {
+      "ordinal": 21810,
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "DAY",
+        "TX:2"
+      ]
+    }
+  ],
+  "breakOrdinals": [
+    {
+      "ordinal": 20008,
+      "kind": "provider_event"
+    },
+    {
+      "ordinal": 20009,
+      "kind": "provider_event"
+    },
+    {
+      "ordinal": 20010,
+      "kind": "futures_reconnect_resubscribe_started"
+    },
+    {
+      "ordinal": 20011,
+      "kind": "quote_type_reconnect_resubscribe"
+    },
+    {
+      "ordinal": 20012,
+      "kind": "quote_type_reconnect_resubscribe"
+    },
+    {
+      "ordinal": 20013,
+      "kind": "quote_type_reconnect_resubscribe"
+    },
+    {
+      "ordinal": 20014,
+      "kind": "quote_type_reconnect_resubscribe"
+    },
+    {
+      "ordinal": 20015,
+      "kind": "quote_type_reconnect_resubscribe"
+    },
+    {
+      "ordinal": 20016,
+      "kind": "quote_type_reconnect_resubscribe"
+    }
+  ],
+  "checkpoints": [
+    {
+      "file": "04442f1b6cb7a8270382f0c884836d4f0cac06802b2d022825b04044487a82ea.projection.json",
+      "cutoff": 62000,
+      "segmentCount": 2,
+      "pendingSegment": false,
+      "snapshotInvalid": false,
+      "epochLineageInvalid": false,
+      "breakReason": "quote_type_reconnect_resubscribe",
+      "contextInvalid": false,
+      "displayClockInvalid": false
+    },
+    {
+      "file": "057d0789b40a2c9732d9bf227bd34692639e3e63f8ddeaa48db39a8cb7f5b353.projection.json",
+      "cutoff": 21806,
+      "segmentCount": 1,
+      "pendingSegment": true,
+      "snapshotInvalid": false,
+      "epochLineageInvalid": false,
+      "breakReason": "quote_type_reconnect_resubscribe",
+      "contextInvalid": false,
+      "displayClockInvalid": false
+    },
+    {
+      "file": "10c2919575be722d3cc0ad8e48c4683b1abfd7777e776efdef9185cda839478d.projection.json",
+      "cutoff": 61000,
+      "segmentCount": 2,
+      "pendingSegment": false,
+      "snapshotInvalid": false,
+      "epochLineageInvalid": false,
+      "breakReason": "quote_type_reconnect_resubscribe",
+      "contextInvalid": false,
+      "displayClockInvalid": false
+    },
+    {
+      "file": "a65a2540c98bf720b0668f9993448754e68b8b0c939886f30d1323b6e0c5876a.projection.json",
+      "cutoff": 60000,
+      "segmentCount": 2,
+      "pendingSegment": false,
+      "snapshotInvalid": false,
+      "epochLineageInvalid": false,
+      "breakReason": "quote_type_reconnect_resubscribe",
+      "contextInvalid": false,
+      "displayClockInvalid": false
+    }
+  ],
+  "positive": [
+    {
+      "cutoff": 16930,
+      "head": "1d0bc254547dadd35988a73c082ef2eaa92b2de3",
+      "artifactHash": "1f7882c98eb3f6df41d9283c6c2dc781082b84e22db1e81f3bf74fe82c1a2810",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "chart": 51,
+      "context": 51,
+      "delta": -1,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "state": "STALE",
+      "clockDifferenceMs": 36,
+      "windowStatus": "OBSERVED_WINDOW",
+      "windowComplete": true,
+      "windowQuality": "READY",
+      "windowParity": "EXACT",
+      "windowLowerExclusiveMs": 1789661721275,
+      "windowUpperInclusiveMs": 1789661781275
+    },
+    {
+      "cutoff": 17042,
+      "head": "1d0bc254547dadd35988a73c082ef2eaa92b2de3",
+      "artifactHash": "7c25ecc2984570457c3f9141f5440924c9ac6e8169ea7b7c29363e4eb5f2a395",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "chart": 56,
+      "context": 56,
+      "delta": 4,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "state": "STALE",
+      "clockDifferenceMs": 24,
+      "windowStatus": "OBSERVED_WINDOW",
+      "windowComplete": true,
+      "windowQuality": "READY",
+      "windowParity": "EXACT",
+      "windowLowerExclusiveMs": 1789661728711,
+      "windowUpperInclusiveMs": 1789661788711
+    },
+    {
+      "cutoff": 17183,
+      "head": "1d0bc254547dadd35988a73c082ef2eaa92b2de3",
+      "artifactHash": "bedd5b434d9bb45468d3643e30d937ef53421f93dfce1b47e56e19147bd60346",
+      "identity": [
+        "TXFJ6",
+        "2026-09-18",
+        "NIGHT",
+        "TX:1"
+      ],
+      "origin": {
+        "availableAt": "2026-09-18T00:00:00.823786+08:00",
+        "availableAtMs": 1789660800823,
+        "eventTime": "2026-09-18T00:00:01.154000",
+        "eventTimeMs": 1789660801154,
+        "ledgerOrdinal": 29
+      },
+      "chart": 54,
+      "context": 54,
+      "delta": 2,
+      "scope": "OBSERVED_SEGMENT_TO_NOW",
+      "state": "STALE",
+      "clockDifferenceMs": 121,
+      "windowStatus": "OBSERVED_WINDOW",
+      "windowComplete": true,
+      "windowQuality": "READY",
+      "windowParity": "EXACT",
+      "windowLowerExclusiveMs": 1789661737569,
+      "windowUpperInclusiveMs": 1789661797569
+    }
+  ],
+  "checks": [
+    "API_ARTIFACT_EXACT",
+    "CHART_ENDPOINT_CONTEXT_EQUAL",
+    "DOM_CARD_DELTA_CUTOFF_ARTIFACT_MATCH",
+    "SAME_TAB_1096307653_PROGRESSION",
+    "FULL_ORIGINAL_PREFIX_VERIFIED"
+  ],
+  "privateEvidenceRoot": "data/test-tmp/m3",
+  "files": [
+    {
+      "path": "16930-dom.txt",
+      "bytes": 14100,
+      "sha256": "bb0c8e5c738bcf5838817d4d684b91a09b8f04b59d96f329cdf4169216c1e45b"
+    },
+    {
+      "path": "16930-payload.json",
+      "bytes": 97836,
+      "sha256": "51d86a8340aa96ebbf3ad19360ec73300795984e85f3465f4c8a06334205aff8"
+    },
+    {
+      "path": "16930-summary.json",
+      "bytes": 3159,
+      "sha256": "6c4a5451449c0120e2cca1eee09eb881e84038fba8e9bac9c061dc4a7196ee8c"
+    },
+    {
+      "path": "16930.png",
+      "bytes": 63504,
+      "sha256": "4a01328e27b25120056b2cbe7143b8da78e8044ad2a1ec5e09c4e03d06f912ab"
+    },
+    {
+      "path": "17042-dom-data.json",
+      "bytes": 1330,
+      "sha256": "eb8d8cf3f100752b614036c78b2f664a44dbde734cd7c038fa2ee2bb9352dc26"
+    },
+    {
+      "path": "17042-payload.json",
+      "bytes": 103635,
+      "sha256": "9d3a7522be4b3acb2769ac5b44a43612ab0f22185f6e155127e4371675786d33"
+    },
+    {
+      "path": "17042-summary.json",
+      "bytes": 3148,
+      "sha256": "62636588be482b3e8f186a79094bd028dbe949a262c953e25e86f1f486ee4cd6"
+    },
+    {
+      "path": "17183-dom-data.json",
+      "bytes": 1330,
+      "sha256": "35dda2a573bc2e32113e85fe0e79f22c72ef22453447886c19bf6955690d2faf"
+    },
+    {
+      "path": "17183-dom.txt",
+      "bytes": 14101,
+      "sha256": "b9035a4abe0c474d4ecddbeb41a144746012062b595c159d7b538b2eb312d804"
+    },
+    {
+      "path": "17183-payload.json",
+      "bytes": 105112,
+      "sha256": "fe7e54f0e2e69b2ccbe9b70564e78c2c2841af15caadcde39304b0bda18179a7"
+    },
+    {
+      "path": "17183-summary.json",
+      "bytes": 3157,
+      "sha256": "2e915034681425e44f6e94bb83447deb5b297c87dec6b0cc3de9211503a53d22"
+    },
+    {
+      "path": "api.mjs",
+      "bytes": 2519,
+      "sha256": "6ac16c2d4c6cc3b0af641958d636892bcaee1a69958d98e8bc4f4c3c06fc0eaa"
+    },
+    {
+      "path": "append.mjs",
+      "bytes": 685,
+      "sha256": "9e01e224305b08b76c084df4abc1e172408eebf3fc4ced28008af6b5a6171408"
+    },
+    {
+      "path": "audit.mjs",
+      "bytes": 3622,
+      "sha256": "2f216beb210e0d4797e52039c3edf66d6a2e99b5289a1dc4aac3da606588264a"
+    },
+    {
+      "path": "bottom.png",
+      "bytes": 72705,
+      "sha256": "4fb4b084c070c24dea63798716ab331893bc18666496272eee781ebdc0724c66"
+    },
+    {
+      "path": "card-visible.png",
+      "bytes": 72927,
+      "sha256": "8bdd65309636e2d30ef411682222c30447964881fc228aad69275bc3ebeb3691"
+    },
+    {
+      "path": "chart-visible.png",
+      "bytes": 61731,
+      "sha256": "216d49b48d3e6aeb3dae703d349810e066163c079e4e5bf75223fcb156b6a2e5"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 738,
+      "sha256": "8569618824f49c0d37ab438c9a03b4066d1f99fad26e77a3abe1de14a57b4455"
+    },
+    {
+      "path": "cleanup.ps1",
+      "bytes": 2075,
+      "sha256": "2ac2218f9133a8ffd9f4957445c882810cee5c8164e4c05d0a214626a8533080"
+    },
+    {
+      "path": "diagnostic.json",
+      "bytes": 12825,
+      "sha256": "5d5d41655afc887646324d707c65e6aaa935b3349dd37f172d38fcc484611dd6"
+    },
+    {
+      "path": "prepare.mjs",
+      "bytes": 1985,
+      "sha256": "4d927edac1e1238678b4579c7845844286c951a4fea614bd7a460ce216701f3a"
+    },
+    {
+      "path": "progression-card.png",
+      "bytes": 64165,
+      "sha256": "96a23248aa7392b82a4d8e2f271adecaec1a03d175fcd154f6b2b4009b70b362"
+    },
+    {
+      "path": "progression-lower.png",
+      "bytes": 64084,
+      "sha256": "4f5424dc2d80ee9371771c8510e06412665a24ed6a41896653801ba0bb7a4d92"
+    },
+    {
+      "path": "seal.mjs",
+      "bytes": 1730,
+      "sha256": "50080b82913c99321ad058c03482bed767a80c3392c5f220d9190b0be69a1e39"
+    }
+  ]
+}

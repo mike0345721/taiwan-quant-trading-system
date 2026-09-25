@@ -2,6 +2,31 @@
 
 狀態：待 M2 工程交付、GPT review、Owner 真實畫面驗收及 exact-version 決策；本文件不是 Merge 或正式切換授權。
 
+M3補件：M2工程已認列；同版真資料正向案例已補齊，見 `CRU55_OBSERVATION_M3_20260925.md`。以下為具體推薦，取代「將source起點／時段／門檻交Owner自行設計」；exact Merge及正式啟用仍分開決策。
+
+## M3 具體推薦（待批准，尚未執行）
+
+**目前推薦：先一次查收M3，再決定exact code Merge；正式8787暫維持原版無binding。** 正向小案例已成立，但DATED_CALENDAR_LEDGER跨段後主卡仍會按既有契約不可用；不是Merge就能使日常日盤context常態有數值。若Owner不能接受該限制，先決定另版active-segment呈現語意，不以正式切换來解決產品範圍問題。
+
+來源起點推薦分為兩個不同用途：
+
+- **可重現產品查收**：`sourceSelection={kind:DATED_CALENDAR_LEDGER,startDate:2026-09-18}`，使用已凍結私人副本及完整[0,16930)→[0,17042)→[0,17183)前綴。累積源自ordinal29，不是把16930當新起點；只作歷史觀測證據，不能掛正式當LIVE。M3已完成，無須再做。
+- **若Owner另准正式受控啟用**：選既有營運日曆判為collector EXPECTED、且有人值守的下一個日期D，`startDate=D`（本地日曆原始檔日期），從該檔原始byte0／ordinal1驗證至當次完整尾端N；不從2026-09-18一路追到現在，也不任選「看起來乾淨」的中段重置。若需要prior，按既有resolver實際解析並逐一列出原始檔[0,P)，只使用相鄰來源；缺少則handoff保持不可用。D不等於交易日標籤，不手改session mapping。新source／outputVersion與完整prefix guard proposal須先保存供批准。
+
+建議受控時段為D日 **09:00–09:45 Asia/Taipei**：09:00–09:15為初始暖機上限，首次合格publication後連續觀察30分鐘，最晚09:45結束；未在09:15達到ready就回退，不把觀察往後無限延伸。挑D前唯讀確認既有日曆、collector預期與資料身分，休市／collector非EXPECTED時改選下一合格D，不啟動collector補場景。
+
+| 項目 | 建議觸發／動作 | 依據與未知 |
+| --- | --- | --- |
+| warmup | 15分鐘內完成首次full-prefix驗證、合法artifact、API可讀且head/binding一致；否則保存失敗並回退 | 舊62000筆冷啟動486.336秒；900秒是受控停損上限，原180秒效能FAIL不變。超過62000筆或多來源總量尚無此上限可達證據，preflight應停止並回報量級，不能硬宣ready |
+| backlog | 每60秒保存source完整尾端、published ordinal/bytes及publicationBacklogBytes；有新增但連續5分鐘無cutoff推進，或backlog连续5分鐘逐次增加，退出候選writer並回退 | 以本機單調觀察時間衡量，不用有skew的eventTime；短突發可等至5分鐘上限。已有突發恢復40.219秒，正常最大API間隔67.082秒；此提案非新SLA |
+| 停更／讀取失敗 | 首次ready後，source持續增長而API或原頁同一cutoff停5分鐘；或API連續5分鐘無法讀取新合法artifact，回退。identity/hash/prefix/auth隔離錯誤立即回退 | API p95/p99=114.250/126.632秒歷史FAIL保留；不以HTTP200掩蓋停更。source本身沒新資料時不可直接歸咎writer，先按collector EXPECTED與來源證據分類 |
+| collector受阻 | 任一新增share violation／append失敗與本次prefix保護相關，立即停止本次writer釋放lease，保存owner/logs並回退；不等5分鐘、不停止健康collector | ordinary Python/CRT append與共享前綴的正式相容性仍待當場驗證。不得移除guard、刪鎖或改raw救啟用 |
+| 資料資格 | 明示CLOCK_ORDER_INVALID、multi-segment context null、長窗PARTIAL；保持原值。若本次啟用要求正向主卡而無合格來源，停止正式啟用並回存DATA_ELIGIBILITY_BLOCKER | M3只證明重連前有界正向路徑；不保證新D同樣合格，也不能以chart末值代填context |
+
+暖機／backlog條件為有限操作風險上限，非量測結果或歷史門檻修改。不得改stale/delayed界限；資料年齡仍照真實時鐘顯示。具體日期D、exact已批准main SHA、source/prior清單、formal binding/writer及prefix lease變更列成同一份操作proposal後才執行，不重問「是否希望收尾後更新」這個已確認意圖。
+
+**回退推薦**：保留並回到當前已批准整版 `e81c5259b5e38db6ad573242e9cf1ee4f305207f` 與原依賴／無binding設定（實際切換前若已獲批准更新，以當時核對並保全的上一正式exact版本為準）。只停本次可驗身分reader/writer、移出本次binding，保留新outputVersion與失敗證據，整版恢復後驗原health／認證UI／collector追加。不得把PR72套到8787，也不得用回退名義改collector、SQLite、raw、排程或五天計數。
+
 ## 已核對的起點
 
 2026-09-25 02:22 UTC 唯讀核對：正式 runtime `D:/Taiwan stock/approved-main-runtime` 為 detached `e81c5259b5e38db6ad573242e9cf1ee4f305207f`、tracked clean；8787 health 回報相同 runtime／VERIFIED／SYNCED，cru55Binding=null。共享 origin/main 當時已為 `1ad9ec7c1814e401f8352048638f0a398bcf74fe`。health 的 SYNCED 不能替代對最新批准 main 的獨立核對。
