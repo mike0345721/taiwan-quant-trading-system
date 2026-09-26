@@ -295,3 +295,107 @@ pack確有生效：最後未完成job的44 archive頁形成8組，max7；QUERY�
 工程投入自13:46開始至本次收尾，屬同一已准4–6人日包、未達6人日上限；不能把已花數小時或通過CI當成日常交付。停止依據為資源gate與實際未達標，不是工程預算耗盡。推薦：**本有限路線不足以放行G1；保留候選成果、退回G1-A驗收，不啟G1-B/C、不Merge、不Promotion、不切8787。**
 
 去敏彙總見 [`campaign-1-result.json`](../evidence/cru55-index-pack/campaign-1-result.json)、[`review-corrections.json`](../evidence/cru55-index-pack/review-corrections.json)；逐筆、raw、SQLite、憑證與私人helper留本機。獨立逐筆重算已確認分母／分位數／CPU停點，B0；沒有重啟產品測試。
+
+## 10. 驗證連續性隔離原型交付差異｜2026-09-26
+
+**PROTOTYPE_PROVEN_WITH_LIMITS。** 接續 [5845329009](https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5845329009) 與 CRU-55 最上方原型授權；`9dbddd2` 是已查收並停止的索引打包交付，本節不重交該包。21:35 起核對候選工作樹乾淨、無未回存原型；PR73 Draft/unmerged，遠端 main `1ad9ec7c1814e401f8352048638f0a398bcf74fe`。本次可執行程式 exact **`b35e492b16f4e4762e299ee55137f228ea3e0a71`**。
+
+**推薦 Owner 批准 §10.6 的單一有限產品接入包，但必須明確接受 §10.4 的完整性政策差異。** 若仍要求每次發布都重新讀取全部 raw、或要保證偵測任意 mapped write／靜默損毀，本路線不足，應退回，不自動改另一方案。這次有原型程式與 native 證據，**現行產品程式改動為零，G1-A/B/C 均未完成**。
+
+### 10.1 程式差異與可重現方式
+
+| 檔案 | 實際可執行差異 |
+| --- | --- |
+| `experiments/guarded-prefix-continuity.mjs` | `GuardedPrefixContinuity.verify/assertReady/close`；首次先保護再全讀，後續先取得新 `[0,M)`、核新舊 lease 同時有效、釋舊後只讀 `[N,M)`。完整 chunk metadata/hash 鏈仍每輪核對；來源、owner、ledger、resolver、role/session、cutoff、鏈終點與活 epoch 綁定。失敗作廢 receipt；lease 遺失重新全讀；記憶體 receipt 不可由 JSON 復活。current/prior 同實體混用拒絕。 |
+| `experiments/guarded-prefix-exit-child.mjs` | 僅私人 synthetic 輸入；子程序完整驗證後真 `process.exit(0)`，刻意不顯式釋放 guard，用來驗證 OS 退出及重開全讀。 |
+| `experiments/run-guarded-prefix-check.mjs` | 序列小測入口；所有 run 的開始／結束／失敗保存於私人 ledger，累計 900,000ms 硬上限，單次最多120秒；有未結束 run 就拒絕續跑。 |
+| `tests/guarded-prefix-continuity.test.mjs` | 真 Windows／NTFS 故障、追加、鏈、prior、退出與 mapped 反例；每次 verify 記實際 bytes/ranges/time，另作全量對照。Linux CI 只跑隔離匯入檢查，8項 native 明示 skip，不能算 Windows PASS。 |
+
+重現命令（只供檢查，本次已執行完）：`node experiments/run-guarded-prefix-check.mjs`，在 PR73 worktree 執行。只建立 `data/test-tmp/guarded-continuity/synthetic-*` 可拋棄人工 bytes；沒有 raw、SQLite、市場回放或正式程序。未修改既有 `src/cru55-prefix-guard.mjs`、pipeline、publisher、reader、launcher、package 或凍結證據，未產生現行 reader 能接受的 artifact。
+
+核心 checkpoint [5846735294](https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5846735294) 與 Linear `e4bfb558-714b-4ad7-9fa1-ce4d6381ce77` 已逐字讀回；沒有停下等待查收。
+
+### 10.2 實際讀取、覆蓋與時間
+
+Windows／Node v24.18.0，NTFS 由原生 guard 強制檢查。run-1：9/9，2.410秒；run-2：新增明列 receipt context、子程序路徑限制、每步量測及 OS handle 對照後，9/9，4.195秒。**累計動態 6.605秒／900秒**，零 CVD 長測。兩次正負紀錄都保留於[去敏證據](../evidence/cru55-prefix-continuity/prototype-result.json)；run-2 包含36次成功／失敗 verify 的實讀量和時間，失敗覆蓋為 null，不冒充已驗前綴。後續沒有新程式變更，不再重跑。
+
+以下是 run-2 主要逐步結果，範圍採半開區間，單位 bytes／ms：
+
+| 步驟 | fullRead | suffixRead／實讀範圍 | 已保護且已驗覆蓋 | 原型耗時 | 對照全讀／耗時 | hash |
+| --- | ---: | --- | --- | ---: | --- | --- |
+| 首次完整 | 524,288 | 0；`[0,524288)` 全讀 | `[0,524288)` | 44.083 | 524,288／4.038 | 相同 |
+| 追加一 | 0 | 131,072；`[524288,655360)` | `[0,655360)` | 44.391 | 655,360／4.750 | 相同 |
+| 追加二 | 0 | 262,144；`[655360,917504)` | `[0,917504)` | 51.963 | 917,504／9.063 | 相同 |
+| 真程序退出後恢復 | 131,072 | 0；`[0,131072)` 全讀 | `[0,131072)`，新 epoch | 47.941 | 131,072／1.090 | 相同 |
+
+三步主案例累計 **917,504／2,097,152 bytes，減少56.25%邏輯 raw 讀取**。一般式為同活 epoch 首次 `N0` 加全部新尾段，對照為各次完整 cutoff 加總；prior 固定範圍第二次 rawRead=0，仍核 metadata、身分與活 lease。逐 chunk 範圍與其他步驟原值見 JSON，不以0填未測項。
+
+**不是耗時加速結論。** 此小檔對照全讀實際更短；原型耗時包含 guard／來源路徑檢查、hash鏈、失敗探針、原生載入及程式開銷，oracle 僅是受保護下的全量 byte/hash 對照。run-1 首次217.935ms與run-2首次44.083ms也不可解讀為產品改善。OS快取、實體HDD吞吐、CVD處理、API／UI延遲均未由本次量到。節省的是 raw 重讀工作，原始提交/fsync、INGEST、QUERY、全 metadata 掃描、序列化／checkpoint、API／UI及重啟全量成本仍在。
+
+### 10.3 真 Windows 安全反例與獨立審查
+
+| 反例／情境 | 實測結果及保證邊界 |
+| --- | --- |
+| 舊區域一般寫入 | 真 `fs.writeSync` 在已有 prefix、交接 overlap、新guard生效後均拒絕；覆蓋首尾byte探針。 |
+| 尾端追加 | Node append 及 CPython `O_APPEND|O_BINARY` 在活 guard 下成功，新增 bytes 全讀後與 oracle 相同；未操作正式collector。 |
+| 保護擴展／取得失敗 | 真獨占suffix鎖令新shared guard取得失敗；取得後 overlap／交接後注入失敗均不留receipt。釋舊之前確有新保護，失敗不沿用旧資格。 |
+| 資源有界 | 程式穩態1組、交接最多2組guard。另以 `GetProcessHandleCount` 真量到185→187→185，兩次追加後穩態185／185／185；只證這兩次，未證長持無洩漏。 |
+| 來源／範圍／鏈變動 | 活guard下rename／truncate拒絕；失去guard後真rename+替換實體拒絕，壞suffix、錯鏈、cutoff倒退、owner/resolver/session變更均作廢。 |
+| 保護遺失／零追加 | 遺失後新epoch從byte0重驗；零新增仍檢查來源與live lease。序列化receipt、同檔prior、跨context receipt均拒絕。 |
+| 真程序退出恢復 | 子程序未顯式清理而退出，新程序不能復用舊receipt；全讀相同。退出後普通old-byte改寫可成功，但重新全讀會拒絕壞raw。 |
+| **mapped write** | **真Python mmap舊區寫入成功；zero-suffix重用未偵測，full hash發現不同。這是已觀察到的排除條件，不刪掉、不改PASS為全防護。** |
+
+[Level3獨立審查](../evidence/cru55-prefix-continuity/engineering-review.md)：root自審＋兩個獨立context針對 exact b35e492 重審，均 APPROVE／B0，僅限原型。reviewer沒有另外跑測試。原生cleanup回傳未逐項檢查是沿用guard的限制，後續長持接入前須做可觀測清理／失敗封鎖，不在此暗改既有guard。
+
+### 10.4 接入時必須批准的政策差異（目前尚未實作）
+
+| 項目 | 現行規則 | 推薦的新規則、失敗情境與回退 |
+| --- | --- | --- |
+| raw完整性 | 每次發布 `FULL_PREFIX_BEFORE_PUBLICATION`，重新讀current與必要prior全部原前綴 | 明確新policy `GUARDED_PREFIX_CONTINUITY_V1`：同活程序／owner／來源epoch第一次全讀，持續保護後核新增全部raw及完整metadata鏈。guard-loss／重開必須重新全讀；不把新policy標成舊policy PASS。 |
+| 修改偵測 | 重讀有機會發現兩次發布間的mapped／非普通寫入變更 | 接受連續epoch內未重讀舊raw而失去該次偵測機會。只保證受OS普通檔案I/O保護的byte前綴；不覆蓋mapped/kernel/privileged/靜默損毀。若不接受，拒絕此路線。 |
+| 提交與恢復 | 原raw durable提交／fsync、checkpoint順序 | 全部不變；新receipt只記憶體有效，disk欄位僅audit。重開保留合法原checkpoint做計算恢復，**raw信任必須重建**；新artifact不可在首次完整驗證前發布。 |
+| owner/path／來源／盤別 | 真owner與source/resolver、ordinary output、physical path、合法日期及當前段 | 不放寬。把原型字串接到實際owner nonce/PID/start/command/binding、ledger/resolver與當前合法session。prior獨立source+epoch+範圍；同檔或換盤不得跨角色借proof，必要時回全讀。身分錯誤直接BLOCK，不收另一來源。 |
+| bytes、順序、數值／時間／品質／null | 既有原值與語意 | 不變；不篩TX、不改時間／分類、安全旗標、不補0、不用歷史值填失效current。 |
+| 長持及讀端 | 每次publication後釋guard；reader只接受v2/FULL_PREFIX | 新版producer跨publication保留guard；讀端必須識別新schema/policy與producer存活、失效狀態。先作廢current資格再釋guard；程序已死／狀態未知時清值。舊reader不得把磁碟receipt當live proof。 |
+| 回退 | 舊版整套、既有output | 候選先停止新producer並保留全部新證據；回到已存exact整版與獨立舊output／binding，重驗來源後才供值，不轉標新artifact。舊版效能仍未達，不稱回退後G1-A通過。正式回退仍依既有整版包且另准。 |
+
+官方依據：[LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex) 支持重疊shared lock，明訂mapped view可繞byte lock與程序退出釋放；[CreateFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew) 定義share/delete相容性。上述本機測試才是本次Windows證據。
+
+### 10.5 接入產品的確切程式與營運差異（供一次決策，未施工）
+
+| 位置 | 擬變更的實際處理階段 |
+| --- | --- |
+| 新 `src/cru55-prefix-continuity.mjs`；`src/cru55-prefix-guard.mjs` | 把已證交接和receipt邏輯收斂為產品模組，去除測試hook；補guard清理結果與資源計量。維持舊API/default。長持穩態每來源1組，新舊交接最多2；失敗永不保留發布資格。 |
+| `src/cru55-stream-pipeline.mjs::runStreamCycle` | 新policy分支在QUERY→VERIFY不歸零活receipt；以持久chunk/cutoff對照舊鏈，先擴展guard，再用原分段budget核suffix；發布前assert涵蓋完整cutoff。成功後保留lease，BLOCK／owner改變／退出先失效、再釋放。原FULL_PREFIX分支完整保留。 |
+| `src/cru55-stream-prior-verifier.mjs::beginPriorVerification/advancePriorVerification/priorStillVerified` | 相同prior身分與固定cutoff才重用活receipt；新的prior／換盤／遺失時回全驗。原型目前保守拒絕同實體雙角色；接入必須支援同檔合法prior，以獨立role/session receipt與各自shared guard完整驗prior，禁止直接借current receipt；角色切換先撤銷該角色旧資格。這部分尚未由原型證明，須接入小測過關。 |
+| `src/cru55-managed-plan.mjs::runManagedCycle`；`scripts/run-cru55-managed.mjs` | 將continuity物件生命週期提升到同一managed writer／owner，而非單次cycle；stop/restart/error撤銷狀態並清理current/prior，durable checkpoint不得恢復receipt。不另開runtime。 |
+| `src/cru55-managed-owner.mjs`、`src/cru55-stream-reader.mjs::createStreamReader` | 新policy讀端核v3 artifact/pointer、binding及producer epoch。用綁PID＋建立時間的native process handle作廉價存活檢查；程序死亡／未知拒絕current。producer在釋lease前先原子標失效，reader每request查狀態而非僅cache artifact；這是讀取「當時已驗publication」，不是從disk建立活guard。注入status/guard釋放/退出各順序故障，禁止stale current。不得每API呼叫用CIM重查造成新重成本。 |
+| `src/cru55-runtime-binding.mjs::validateRuntimeBinding`、`src/cru55-managed-plan.mjs::readManagedConfig` | 新 `STREAM_PAGED_V3` producer、`cru55-stream-view-v3`／`cru55-stream-public-v3` schema及policy明確opt-in、新 `stream-continuity-v1` outputVersion；新舊互拒，綁Owner決策URL、exact候選與source/owner身份。舊FULL_PREFIX及正式啟動預設不變。 |
+| 對應pipeline/prior/reader/binding/owner小測及私人campaign計量 | 同cutoff對照原數值／分類／六frame／時間品質null；保留現有API/同一原面板，不重做未受影響M4。記full/suffix、source/committed/published、原始write可見延遲及各程序資源。 |
+
+長持保護相容性尚未證：no-delete sharing可能阻止輪替、刪除、截短與某些備份／收集開檔模式；CPython短append成功不足以代表正式collector完整生命週期。先在私人同型檔保留原collector寫入旗標、開閉／fsync/輪替嘗試、長持資源與故障清理，再由G1-B另批自然collector非干擾。若依賴正式collector改寫/截短同檔或不相容開檔模式，停止本路線，不自行改collector、放鬆guard或停正式服務救測試。
+
+重啟成本：本次僅證131,072B全讀47.941ms；不是完整CVD恢復成本。代表成熟current已知至少2,074,014,548B，加全部必要prior；每次失去epoch都需重新讀上述受驗範圍，metadata/INGEST/QUERY另計。未量得這個容量的恢復時間，不用小檔吞吐線性外推5分鐘。G1-A以原31,322筆起點及65分鐘成長狀態驗重開；成熟帳本無checkpoint冷啟動與全天長持留G1-B門檻，不偷加新長測。
+
+### 10.6 一次Owner批准項、预算與停點
+
+推薦**有限接入施工**，不是立即上線。請Owner一次決定以下整包；本原型授權與已停止索引包的§8.6批准不能自動轉用：
+
+1. 接受§10.4新完整性政策及已實證mapped-write偵測差異；批准§10.5限定接線、schema/producer/output隔離。原raw提交/fsync、FULL_PREFIX預設、owner/path及所有數值語意不改；不重新啟動7–11人日儲存重構。
+2. **新工程估5–6人日，硬上限6**：核心分段驗證/生命週期2；prior/reader/binding/owner接線1–2；數值安全/兩獨立review1；campaign、結果及最多一次有根因修正1。範圍內修復包含在上限內，不是保證6日曆天上線。長持原生cleanup、owner存活接線不能在此額內安全完成就BLOCK，不自動另包微調。
+3. 相稱小測累計≤30分鐘（新接入包預算，**本輪原型仍只有15分鐘**）；須先證同合法cutoff數值exact、失效清值、重開全讀、新舊policy互拒、真OS安全及原始讀取減量。重複raw工作未减少／語意不同／安全假設失敗則不啟campaign。Level3 exact三方無B才續行。
+4. **候選每輪完整97分鐘，最多一次候選＋一次有明確產品根因且已修正後驗證，合計最多194分鐘**。準備10、完整byte0初始化15、原節奏流入60、正常重開續收5、停止送入排空5、清理2；stage與total先到者停。不把舊55分鐘套進60分鐘驗收，不延長、降速、換窗口或自動第三輪。
+5. 固定來源與窗口沿§8.3、§9實際已凍結的2026-09-24來源：初始31,322筆／42,903,318B、新空output；08:45–09:45新增198,016筆，09:45–09:50重開续收12,914筆。不重做R1/M4/盤點，保留所有種類／原bytes／節奏／完整前序。來源準備核既有hash／索引身分，不啟正式writer。
+6. G1-A完成條件沿§8.4：完整逐筆母體API p95≤120s、p99≤180s，同一原頁p95≤150s；重開含stop/start與追到當次source≤5min，drain≤5min且source=committed=published/bytes一致。正常與restart分組再合計，初始另報；unpublished／缺口保留，分位數無法建立即不判PASS。原主機CPU兩個相隔≥30s有效樣本>85%、RAM<6GiB、writer RSS>2GiB、disk<100GiB及無法觀測安全、原始收集干擾均停。候選／appender／observer與主機分開觀測，不推唯一根因。
+
+交易時段等待：G1-A私人固定來源為0；G1-B須等一個另准的合格真實日盤，盤前冷準備額另批。正式操作：G1-C整版更新尚未排程／批准，不能藏在工程人日。首輪若無可修根因或仍受原資源硬停即結案，不能因環境超限自動再跑。
+
+### 10.7 同一份G1-A／B／C接續清單
+
+| 階段 | 本次已完成 | 仍缺及批准狀態 |
+| --- | --- | --- |
+| G1-A | 隔離continuity程式、真Windows對照與反例、Level3 review | **待§10.6批准**後才產品接入；exact數值／安全、60分鐘＋正常重開＋drain、原API/同頁完整母體及資源仍待驗。本次沒有改善過的現行CVD候選。 |
+| G1-B | 沿§6／8.5／9.5既有盤點與負向證據；不重做 | 待批准D日current及全部prior／file date-tradeDate／合法當前段、代表150萬以上容量及全量冷／暖／恢復成本、自然collector與長持guard非干擾、真實完整DAY；quality/data_continuity_audit FAIL保留，不能以有值代品質合格。 |
+| G1-C | 沿既有UPDATE_AND_ROLLBACK包及M4主卡/圖表/清值/合法第二段成果 | 待G1-A/B與Owner接受，exact候選Merge批准、actual merged main整版Git同步、matching Node/native/lockfile、legal binding/path/ordinary output/version、CRU34正常owner入口與真snapshot、START_DAILY_USE/原面板must-preserve、正常捷徑整版重開及實際回退。正式驗收、批准容量/時段、有限試用→日常常駐須Owner明示；62k/09:45或45分鐘回退不是終點。PR72隔離更新器不能作8787更新工具。 |
+
+此次停在 **PROTOTYPE_PROVEN_WITH_LIMITS／產品接入待Owner決策**。正式collector/raw/SQLite/排程／五日計數、8787、正式容量與安全旗標0/true/false/false均未操作；未Merge／Promotion。既有索引包NOT_MET與今日品質FAIL原封保留。本節只新增原型及後續一次決策差異，沒有把報告或CI當產品前進。

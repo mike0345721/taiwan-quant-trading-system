@@ -1,0 +1,1425 @@
+{
+  "schema": "cru55-isolated-continuity-evidence-v1",
+  "status": "PROTOTYPE_PROVEN_WITH_LIMITS",
+  "testedCommit": "b35e492b16f4e4762e299ee55137f228ea3e0a71",
+  "baseline": "9dbddd2294ca4a9ea39f84968e38c2197f620c9c",
+  "fixture": "Disposable deterministic bytes only; no market data",
+  "dynamicCapMs": 900000,
+  "dynamicUsedMs": 6605,
+  "budget": [
+    {
+      "kind": "start",
+      "id": "1",
+      "at": "2026-09-26T13:43:41.279Z",
+      "remainingMs": 900000
+    },
+    {
+      "kind": "end",
+      "id": "1",
+      "at": "2026-09-26T13:43:43.689Z",
+      "elapsedMs": 2410,
+      "status": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "kind": "start",
+      "id": "2",
+      "at": "2026-09-26T13:45:42.351Z",
+      "remainingMs": 897590
+    },
+    {
+      "kind": "end",
+      "id": "2",
+      "at": "2026-09-26T13:45:46.546Z",
+      "elapsedMs": 4195,
+      "status": 0,
+      "signal": null,
+      "error": null
+    }
+  ],
+  "runs": [
+    {
+      "platform": "win32",
+      "node": "v24.18.0",
+      "cases": [
+        {
+          "case": "initial-full",
+          "fullReadBytes": 524288,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ],
+            [
+              131072,
+              262144
+            ],
+            [
+              262144,
+              393216
+            ],
+            [
+              393216,
+              524288
+            ]
+          ],
+          "coveredRange": [
+            0,
+            524288
+          ],
+          "elapsedMs": 217.93499999999997,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 524288,
+          "oracleRange": [
+            0,
+            524288
+          ],
+          "oracleElapsedMs": 4.9798000000000116,
+          "hashEqual": true
+        },
+        {
+          "case": "append-69",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 131072,
+          "readRanges": [
+            [
+              524288,
+              655360
+            ]
+          ],
+          "coveredRange": [
+            0,
+            655360
+          ],
+          "elapsedMs": 53.8648,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 655360,
+          "oracleRange": [
+            0,
+            655360
+          ],
+          "oracleElapsedMs": 4.259200000000021,
+          "hashEqual": true
+        },
+        {
+          "case": "append-70",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 262144,
+          "readRanges": [
+            [
+              655360,
+              917504
+            ]
+          ],
+          "coveredRange": [
+            0,
+            917504
+          ],
+          "elapsedMs": 50.50970000000001,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 917504,
+          "oracleRange": [
+            0,
+            917504
+          ],
+          "oracleElapsedMs": 5.735000000000014,
+          "hashEqual": true
+        },
+        {
+          "case": "overlap-write-probes",
+          "stages": [
+            {
+              "stage": "beforeAcquire",
+              "start": 0,
+              "endByteOffset": 524288
+            },
+            {
+              "stage": "overlap",
+              "start": 0,
+              "endByteOffset": 524288
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 0,
+              "endByteOffset": 524288
+            },
+            {
+              "stage": "beforeAcquire",
+              "start": 524288,
+              "endByteOffset": 655360
+            },
+            {
+              "stage": "overlap",
+              "start": 524288,
+              "endByteOffset": 655360
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 524288,
+              "endByteOffset": 655360
+            },
+            {
+              "stage": "beforeAcquire",
+              "start": 655360,
+              "endByteOffset": 917504
+            },
+            {
+              "stage": "overlap",
+              "start": 655360,
+              "endByteOffset": 917504
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 655360,
+              "endByteOffset": 917504
+            }
+          ],
+          "steadyGuards": 1,
+          "peakGuards": 2
+        },
+        {
+          "case": "rename-and-truncate",
+          "rejected": true
+        },
+        {
+          "case": "CPython-append",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 4096,
+          "readRanges": [
+            [
+              131072,
+              135168
+            ]
+          ],
+          "coveredRange": [
+            0,
+            135168
+          ],
+          "elapsedMs": 49.8768,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 135168,
+          "oracleRange": [
+            0,
+            135168
+          ],
+          "oracleElapsedMs": 1.264599999999973,
+          "hashEqual": true
+        },
+        {
+          "case": "native-conflict",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "overlap",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "afterHandoff",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "lease-loss-full-recovery",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 31.961000000000013,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.0306000000000495,
+          "hashEqual": true
+        },
+        {
+          "case": "disk-owner-same-file-prior",
+          "rejected": true
+        },
+        {
+          "case": "replace",
+          "error": "CONTINUITY_SOURCE_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 3.052800000000161
+          }
+        },
+        {
+          "case": "raw",
+          "error": "CONTINUITY_RAW_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 4096,
+            "readRanges": [
+              [
+                131072,
+                135168
+              ]
+            ],
+            "coveredRange": null,
+            "elapsedMs": 28.68640000000005
+          }
+        },
+        {
+          "case": "chain",
+          "error": "CONTINUITY_CHUNK_CHAIN_INVALID",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 5.961500000000115
+          }
+        },
+        {
+          "case": "regression",
+          "error": "CONTINUITY_CUTOFF_REGRESSION",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 5.289899999999989
+          }
+        },
+        {
+          "case": "resolver",
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 0.13459999999986394
+          }
+        },
+        {
+          "case": "session",
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 0.14480000000003201
+          }
+        },
+        {
+          "case": "prior-initial",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 32.493400000000065,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 0.8805999999999585,
+          "hashEqual": true
+        },
+        {
+          "case": "prior-reuse",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 18.035699999999906,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 0.9484999999999673,
+          "hashEqual": true
+        },
+        {
+          "case": "process-exit-full-recovery",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 37.85299999999984,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.112100000000055,
+          "hashEqual": true
+        },
+        {
+          "case": "post-exit-old-byte-change",
+          "rejectedByFullRead": true
+        },
+        {
+          "case": "mapped-write-excluded-counterexample",
+          "writeSucceeded": true,
+          "reuseDetected": false,
+          "fullReadDetected": true,
+          "limitation": true
+        }
+      ]
+    },
+    {
+      "platform": "win32",
+      "node": "v24.18.0",
+      "measurements": [
+        {
+          "instance": 1,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 524288,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ],
+            [
+              131072,
+              262144
+            ],
+            [
+              262144,
+              393216
+            ],
+            [
+              393216,
+              524288
+            ]
+          ],
+          "coveredRange": [
+            0,
+            524288
+          ],
+          "elapsedMs": 44.0831,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 1,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 131072,
+          "readRanges": [
+            [
+              524288,
+              655360
+            ]
+          ],
+          "coveredRange": [
+            0,
+            655360
+          ],
+          "elapsedMs": 44.39149999999998,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2
+        },
+        {
+          "instance": 1,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 262144,
+          "readRanges": [
+            [
+              655360,
+              917504
+            ]
+          ],
+          "coveredRange": [
+            0,
+            917504
+          ],
+          "elapsedMs": 51.962500000000034,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2
+        },
+        {
+          "instance": 1,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": [
+            0,
+            917504
+          ],
+          "elapsedMs": 29.50060000000002,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2
+        },
+        {
+          "instance": 2,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 39.241400000000056,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 2,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 4096,
+          "readRanges": [
+            [
+              131072,
+              135168
+            ]
+          ],
+          "coveredRange": [
+            0,
+            135168
+          ],
+          "elapsedMs": 349.2613,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2
+        },
+        {
+          "instance": 3,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.71840000000009,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 3,
+          "role": "current",
+          "success": false,
+          "error": "STREAM_PREFIX_LOCK:33",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 14.606899999999996
+        },
+        {
+          "instance": 4,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 42.087099999999964,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 4,
+          "role": "current",
+          "success": false,
+          "error": "TEST_HANDOFF_FAULT",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 24.60850000000005
+        },
+        {
+          "instance": 5,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 45.44859999999994,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 5,
+          "role": "current",
+          "success": false,
+          "error": "TEST_HANDOFF_FAULT",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 33.68430000000012
+        },
+        {
+          "instance": 6,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.903099999999995,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 6,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 45.168699999999944,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 6,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 45.652900000000045,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 6,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 0.19100000000003092
+        },
+        {
+          "instance": 7,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 33.48739999999998,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 7,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_SOURCE_CHANGED",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 3.7984999999998763
+        },
+        {
+          "instance": 8,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 29.308399999999892,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 8,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_RAW_CHANGED",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 4096,
+          "readRanges": [
+            [
+              131072,
+              135168
+            ]
+          ],
+          "coveredRange": null,
+          "elapsedMs": 25.927999999999884
+        },
+        {
+          "instance": 9,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 28.804499999999962,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 9,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_CHUNK_CHAIN_INVALID",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 7.081699999999955
+        },
+        {
+          "instance": 10,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 36.940399999999954,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 10,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_CUTOFF_REGRESSION",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 6.912600000000111
+        },
+        {
+          "instance": 11,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 39.691100000000006,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 11,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 0.15589999999997417
+        },
+        {
+          "instance": 12,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 55.415500000000065,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 12,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": null,
+          "elapsedMs": 0.38790000000017244
+        },
+        {
+          "instance": 13,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 38.668899999999894,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 14,
+          "role": "prior",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.05860000000007,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 14,
+          "role": "prior",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 26.705400000000054,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": "exited-child",
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 368.2019,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 15,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.940799999999854,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 16,
+          "role": "current",
+          "success": false,
+          "error": "CONTINUITY_RAW_CHANGED",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": null,
+          "elapsedMs": 33.503200000000106
+        },
+        {
+          "instance": 17,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 52.83249999999998,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        },
+        {
+          "instance": 17,
+          "role": "current",
+          "success": true,
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 259.1898000000001,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1
+        }
+      ],
+      "cases": [
+        {
+          "case": "initial-full",
+          "fullReadBytes": 524288,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ],
+            [
+              131072,
+              262144
+            ],
+            [
+              262144,
+              393216
+            ],
+            [
+              393216,
+              524288
+            ]
+          ],
+          "coveredRange": [
+            0,
+            524288
+          ],
+          "elapsedMs": 44.0831,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 524288,
+          "oracleRange": [
+            0,
+            524288
+          ],
+          "oracleElapsedMs": 4.038100000000014,
+          "hashEqual": true
+        },
+        {
+          "case": "append-69",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 131072,
+          "readRanges": [
+            [
+              524288,
+              655360
+            ]
+          ],
+          "coveredRange": [
+            0,
+            655360
+          ],
+          "elapsedMs": 44.39149999999998,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 655360,
+          "oracleRange": [
+            0,
+            655360
+          ],
+          "oracleElapsedMs": 4.749699999999962,
+          "hashEqual": true
+        },
+        {
+          "case": "append-70",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 262144,
+          "readRanges": [
+            [
+              655360,
+              917504
+            ]
+          ],
+          "coveredRange": [
+            0,
+            917504
+          ],
+          "elapsedMs": 51.962500000000034,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 917504,
+          "oracleRange": [
+            0,
+            917504
+          ],
+          "oracleElapsedMs": 9.062600000000032,
+          "hashEqual": true
+        },
+        {
+          "case": "overlap-write-probes",
+          "stages": [
+            {
+              "stage": "beforeAcquire",
+              "start": 0,
+              "endByteOffset": 524288,
+              "processHandleCount": 183
+            },
+            {
+              "stage": "overlap",
+              "start": 0,
+              "endByteOffset": 524288,
+              "processHandleCount": 185
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 0,
+              "endByteOffset": 524288,
+              "processHandleCount": 185
+            },
+            {
+              "stage": "beforeAcquire",
+              "start": 524288,
+              "endByteOffset": 655360,
+              "processHandleCount": 185
+            },
+            {
+              "stage": "overlap",
+              "start": 524288,
+              "endByteOffset": 655360,
+              "processHandleCount": 187
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 524288,
+              "endByteOffset": 655360,
+              "processHandleCount": 185
+            },
+            {
+              "stage": "beforeAcquire",
+              "start": 655360,
+              "endByteOffset": 917504,
+              "processHandleCount": 185
+            },
+            {
+              "stage": "overlap",
+              "start": 655360,
+              "endByteOffset": 917504,
+              "processHandleCount": 187
+            },
+            {
+              "stage": "afterHandoff",
+              "start": 655360,
+              "endByteOffset": 917504,
+              "processHandleCount": 185
+            }
+          ],
+          "steadyGuards": 1,
+          "peakGuards": 2,
+          "steadyProcessHandleCounts": [
+            185,
+            185,
+            185
+          ]
+        },
+        {
+          "case": "rename-and-truncate",
+          "rejected": true
+        },
+        {
+          "case": "CPython-append",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 4096,
+          "readRanges": [
+            [
+              131072,
+              135168
+            ]
+          ],
+          "coveredRange": [
+            0,
+            135168
+          ],
+          "elapsedMs": 349.2613,
+          "liveGuardCount": 1,
+          "peakGuardCount": 2,
+          "oracleFullReadBytes": 135168,
+          "oracleRange": [
+            0,
+            135168
+          ],
+          "oracleElapsedMs": 2.6177000000000135,
+          "hashEqual": true
+        },
+        {
+          "case": "native-conflict",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "overlap",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "afterHandoff",
+          "receiptInvalidated": true
+        },
+        {
+          "case": "lease-loss-full-recovery",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 45.168699999999944,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.3432999999999993,
+          "hashEqual": true
+        },
+        {
+          "case": "disk-owner-same-file-prior",
+          "rejected": true
+        },
+        {
+          "case": "replace",
+          "error": "CONTINUITY_SOURCE_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 3.7984999999998763
+          }
+        },
+        {
+          "case": "raw",
+          "error": "CONTINUITY_RAW_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 4096,
+            "readRanges": [
+              [
+                131072,
+                135168
+              ]
+            ],
+            "coveredRange": null,
+            "elapsedMs": 25.927999999999884
+          }
+        },
+        {
+          "case": "chain",
+          "error": "CONTINUITY_CHUNK_CHAIN_INVALID",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 7.081699999999955
+          }
+        },
+        {
+          "case": "regression",
+          "error": "CONTINUITY_CUTOFF_REGRESSION",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 6.912600000000111
+          }
+        },
+        {
+          "case": "resolver",
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 0.15589999999997417
+          }
+        },
+        {
+          "case": "session",
+          "error": "CONTINUITY_CONTEXT_CHANGED",
+          "metrics": {
+            "fullReadBytes": 0,
+            "suffixReadBytes": 0,
+            "readRanges": [],
+            "coveredRange": null,
+            "elapsedMs": 0.38790000000017244
+          }
+        },
+        {
+          "case": "prior-initial",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.05860000000007,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.309400000000096,
+          "hashEqual": true
+        },
+        {
+          "case": "prior-reuse",
+          "fullReadBytes": 0,
+          "suffixReadBytes": 0,
+          "readRanges": [],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 26.705400000000054,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.5130999999998949,
+          "hashEqual": true
+        },
+        {
+          "case": "process-exit-full-recovery",
+          "fullReadBytes": 131072,
+          "suffixReadBytes": 0,
+          "readRanges": [
+            [
+              0,
+              131072
+            ]
+          ],
+          "coveredRange": [
+            0,
+            131072
+          ],
+          "elapsedMs": 47.940799999999854,
+          "liveGuardCount": 1,
+          "peakGuardCount": 1,
+          "oracleFullReadBytes": 131072,
+          "oracleRange": [
+            0,
+            131072
+          ],
+          "oracleElapsedMs": 1.0896999999999935,
+          "hashEqual": true
+        },
+        {
+          "case": "post-exit-old-byte-change",
+          "rejectedByFullRead": true
+        },
+        {
+          "case": "mapped-write-excluded-counterexample",
+          "writeSucceeded": true,
+          "reuseDetected": false,
+          "fullReadDetected": true,
+          "limitation": true
+        }
+      ]
+    }
+  ],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false
+}
