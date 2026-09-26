@@ -102,3 +102,116 @@ NIGHT 保留自身 #31,322／42,903,318B，沒有套用 DAY pointer。共 16 個
 必要 helper 審查在執行前完成；结果另由獨立 reviewer 從既有 logs 重算逐筆分母、雙起算延遲、保真格及首因。原始失敗／未發布／採樣缺口與 hash 索引全保留；公開文件去敏、exact 提交／CI與PR／Linear讀回收據在交付 comment。審查認可只代表本報告忠實呈現有限結果，不是產品放行。
 
 停點：**ONE_DIAGNOSTIC_STOPPED_HOST_RESOURCE_LIMIT_DELIVERED**。CRU55 In Progress；不再自動開工具校驗、小修、重播或儲存重構。安全保持 `formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false`。Draft only. Product Owner approval required before merge.
+
+## 8. G1-A 最小施工差異包｜2026-09-26｜ROUTE_READY_FOR_OWNER
+
+**單一建議：批准 `DERIVED_INDEX_PACK_V1`，只對 PROJECT 產生的稀疏衍生 range-index 頁作有界打包，再用固定 G1-A 驗收決定成敗。** 本節是接續 [5842156588](https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5842156588) 與 CRU55 頂部 G1 的新差異，不改寫 §§1–7 的歷史結果。建議投入這個封頂候選；**不建議投入原 7–11 人日 INGEST 批次提交整包，也不保證此路線足以完成 G1-B／C。** 本次只有程式／既有證據核對與決策文件，產品改動、候選效能及 G1-A/B/C 均尚未完成。
+
+起點重新核實：PR73 exact `e697a56e920817234e311746b1e13ee63b37867d`、main `1ad9ec7c1814e401f8352048638f0a398bcf74fe`，候選 worktree clean、Draft/unmerged。最新遠端尚無本具體路線批准。CURRENT 依 Linear，舊 PR body／CURRENT_STATUS 不覆蓋新 HEAD。已對齊 Project Status、Entry Point、Doctrine、Lessons、Authority；原 M4、R1/R2、盤點與私人更新／回退包沿用。
+
+### 8.1 產品改動位置、已知成本與選擇理由
+
+現版 INDEXED 已把六時窗及圖表共 **213 個 query 合併走訪，圖表 200 桶**；正常 DAY 後續發布已是 suffix projection，不能再以「重複掃 213 遍／重算整段」作施工理由。此次核對修正了初步口頭判斷，沒有為錯誤假設改碼。
+
+| 實際產品位置 | before → 待批准 after |
+| --- | --- |
+| `src/cru55-projection-range-index.mjs`：`beginRangeAppend` | 每個最多 128 facts 的 archive 頁各寫一個衍生 nodes 頁 → 累積一個有界 group 的相同葉節點／內部節點，按原實體順序生成同一 forest，再寫不可變內容定址頁。增加暫存／回退及序列化大小預檢；不改 sums、safe-integer 判定或 fractional leaf fold。 |
+| `src/cru55-stream-pipeline.mjs`：PROJECT loop、jobBinding、projection checkpoint | group 最多 **7 個 archive 頁／896 facts**，只在同一 bounded cycle 內組裝；先完成 immutable 頁 fsync/link／碰撞全文核對，再一起推 projection、roots、previous hashes 與 nextIndex。QUERY 保持原合併遍歷與 cycle-local cache；減少需讀的實體小頁以及因此衍生的 managed round-trip。 |
+| `src/cru55-indexed-projection.mjs`：`startIndexedProjection` | 增加 layout 身分相等檢查；不同 layout 不沿用 projection checkpoint。原段落／時間／來源回退重建條件全部保留。 |
+| `src/cru55-managed-plan.mjs`、`src/cru55-runtime-binding.mjs`：config validation／pipeline option 傳遞 | 顯式 `indexLayout=DERIVED_INDEX_PACK_V1`，legacy 缺省仍走現行 layout；納入 binding/job/checkpoint 身分並拒絕未知值。正式 activation 仍要求 Owner URL、actual approved main 與版本，不自動啟用。只增加選項與驗證，不快取／省略現有 path、owner、code 檢查。 |
+| `tests/cru55-projection-range-index.test.mjs`、`tests/cru55-indexed-projection-state.test.mjs`、`tests/cru55-indexed-pipeline.test.mjs` 及對應 managed/binding 測試 | 驗打包邊界、大小／碰撞預算、exact oracle、checkpoint 身分及 fault recovery。原 API／面板介面不改；相稱測試與原驗收整合沿用。 |
+
+**硬上限不變：** 每個 index 頁 ≤2MiB、整個 cycle 實際讀取 ≤8 頁／8MiB。PROJECT 要預留至多一個 2MiB collision read，archive 讀取最多 7 頁且受剩餘 bytes 限制；不足時以較小 group 完成，不把 7 當保證。若下一 archive 頁會使衍生頁超 2MiB，回到加入該頁前的暫存狀態，先落盤前一 group；同 cycle 可再處理的 group 仍共用原總額度。已讀又放回的頁照實計成本。单一 archive 頁就無法容納時明確失敗，不放大上限。不能在計費／碰撞失敗後留下已前進 cursor。
+
+現有 page JSON 的 `nodes` 與 hash/index reference 格式可容納多個 archive 頁生成的 nodes，**不新增 raw 儲存格式、不重寫既有 index、不做背景 compaction**；layout policy 身分必須明示，不以「schema 字串一樣」混用 checkpoint。新候選用新普通 output/runId，舊目錄保留。`cru55-stream-store.mjs` 的每筆 archive 提交、pending、ingest、latest 及 fsync 不納入修正；publicationSchedule 仍為既有 32768 cutoff 方案。
+
+以下只讀既有失敗 campaign 留存檔，未開 writer、重播、長測或新 profiler：
+
+| 已完成 cycle 回傳 phase | cycle 數 | pipeline 秒 | config＋manager 秒 | work 秒 |
+| --- | ---: | ---: | ---: | ---: |
+| INGEST | 113 | 390.850 | 46.928 | 437.777 |
+| PROJECT | 126 | 156.992 | 52.126 | 209.117 |
+| QUERY | 546 | 262.696 | 244.415 | 507.111 |
+| VERIFY | 181 | 157.242 | 83.678 | 240.920 |
+| VERIFY_PRIOR | 76 | 45.412 | 38.042 | 83.454 |
+
+這是 **1,042 個已完成 cycle 依「回傳 phase」分組的 timing**，不是獨占函式 profile；跨 phase 的 cycle 歸回傳 phase、最後未完成 cycle 未入表，status 寫入亦不含在 workMs。不能把表格每欄當精確根因時間。既有 stdout SHA256 `05cc727878292ec0ac65cc41e06f527ffd024043dc02d884b46940615e0926e1`，只公開彙總與 hash。
+
+同一既有 source output 的保留 index 目錄有 **644 頁、14,658,376B、6,432 nodes**；平均 22,761B，最大 147,064B，均遠小於 2MiB。**此數包含舊 generation／可能不再可達的頁，不是最後一次 QUERY 的 unique read 數。** 支持「稀疏小檔可合併」這一機械成本判斷，不支持把 644 直接除 7 當端到端加速。
+
+選此路線的理由是：它同時指向已見的衍生小檔 I/O 與 QUERY 多次 managed 往返，改動集中於衍生索引；不需要先推翻原始前綴完整性或改 INGEST 提交協議。**局部可減：** 若 k 個 archive 頁的 nodes 可同包，這組衍生 immutable 寫入／相應實體讀取由 k 份變 1 份；k 在 1–7，尚未實測。**仍保留：** 每筆 durable archive、所有 raw/current/prior 完整前綴讀取、chunk 讀取、必要 job/manager fsync、分類及 exact query 運算、API/UI 與送入器成本。讀到較大 packed 頁可能增加 over-read、單次解析與暫存成本。
+
+**端到端收益尚未知。** CPU97%／94%屬主機，不是 CVD 專屬；本路線不聲稱 CPU、HDD 或 fsync 是唯一瓶頸。原局部19%估算不沿用、不換算成304秒下降幅度；吞吐與積壓具非線性，這裡沒有全母體延遲改善成績。早期正常 incremental 已成立的證據也不等於成熟大帳本成功。
+
+### 8.2 凍結契約差異與故障邊界
+
+| 契約 | 原規則 → 本路線 | 替代保證／失敗／回退 |
+| --- | --- | --- |
+| FULL_PREFIX_BEFORE_PUBLICATION | **不變**；每次 publication 前完整 current＋必要 prior 原始 byte 前綴驗證 | 衍生 index 只加速 query，不作 raw proof；guard／來源改變即失效，不能沿用舊 current。 |
+| raw durability／提交 | **不變**；既有 raw page、pending、ingest、latest 持久順序與 fsync | 不新增批次 raw commit、不延遲 raw durability。未發布不等於遺失。 |
+| 衍生 projection 恢復單位 | 每個 archive 頁形成一個 durable reducer step → 至多 7 頁的 bounded group 形成一個 step | 索引先 durable 才讓 roots/cursor 可持久；崩潰最多重算該 group（≤896 facts），不是丟失 raw。RAM group 不算 checkpoint；replay 不重複計入。這是本包需 Owner 明確接受的實作差異。 |
+| owner/path／來源身分 | **不變**；ordinary output、hash、plain-path、owner lock、physical source 與 resolver 綁定 | 不用跨 cycle 未驗證快取取代身分檢查。layout 也入綁定；新舊 output 不重標、不遷移。 |
+| 原始 bytes 與順序 | **不變**；byte0、完整原行、所有種類依 physical ordinal | 打包只變衍生頁分組；同一 forest 邏輯順序／leaf identity 不變，不能篩 TX 或截中段。 |
+| 分類／時間／盤別／品質／缺值 | **不變** | 原算法 exact oracle；fractional／unsafe sum 照原葉順序，future／逆序／跨段／缺 prior 保持原因及 null。中斷清值與合法新段恢復沿 M4，禁止歷史值補失效 current。 |
+
+必測故障：group 暫存中止、index fsync/link 前後中止、index 已落盤但 job 未替換、job 已 durable 後正常重開、相同／異內容 hash collision、超頁／bytes budget、source/output/owner 置換。只允許舊 durable cursor 或完整新 group；孤兒 immutable 頁保留且在重試時全文核對，不能吞碰撞、重複累積、跳 ordinal 或發布半組。packed 上限使碰撞預留可計算；用既有 Windows guard/path 測試驗受影響部分，不重做全專案。
+
+候選回退：先依 owner/PID/start/command/path 停止本次候選並保留全部輸出，取消這個 opt-in／回到已保存 exact 舊候選整版與其獨立 output；新版 checkpoint 不交給舊版讀。不刪孤兒救測試，不切正式8787。舊候選效能仍 FAIL，回退只恢復工程狀態，不能叫 G1-A 通過。
+
+### 8.3 工程投入、固定窗口與完整停止預算
+
+**工程估 4–6 人日，硬停止 6 人日**（非上線日期）：產品打包／cursor 與 binding 2–3；故障／數值／資源小測及必要獨立審查 1–2；候選 campaign、結果核對／回存及最多一次有根因修正共 1。包含範圍內修復，不能用「6 人日到了所以另開微調包」延長；不足即交未完成與具體原因。按涉及 immutable 衍生檔／安全綁定採保守 Level3：實作者＋兩個獨立工程 review context，exact HEAD 的 blocking findings 全清才開昂貴驗證。本次決策文件僅 Level1 自審，**不是實作 Engineering APPROVE**。
+
+代表資料固定為原 **2026-09-24 frozen calendar ledger**，full SHA256 `907e0722abde0214c2f5c1f4e370175f245f2f4f2b304d32c61980c0dd6db3f7`，共1,510,562筆／2,074,014,548B。初始化從 byte0 至 receivedAt<08:45，**31,322筆／42,903,318B**，新空 output、無假 checkpoint；先產出合法 NIGHT，再按既有當前段規則轉 DAY。主流入固定 **[08:45,09:45) 60分鐘**，包含原09:01高峰；唯一正常重開後繼續 **[09:45,09:50) 5分鐘**，送入器不因重開暫停。保持原 receivedAt 間距、原 bytes、種類及順序，不降速、不換較輕窗口。若同一檔內必要前序不足，保留 null／原因，不捏造 prior。
+
+新65分鐘完整 records／bytes、各秒格與終點 ordinal 由批准後單次來源準備依上述唯一窗口計算、凍結再啟動；**目前既有紀錄只給前30分鐘108,341筆及後5分鐘14,070筆，不能冒充已知65分鐘分母**。窗口與來源 hash 事前已固定，計數不是可任意挑樣的參數。已驗 R1 DAY均量35.89/s、分鐘p95 65.9/s及 rolling60 max137.3/s只作代表性參照，不當 pipeline μ。R1紀錄 SHA256 `b5f9a8463d895f17f06acfe343caa5916499749e9f7564d5e890b35d86bc4f0e`，不重跑R1。
+
+| 工序 | 每一輪固定 wall-clock 上限／條件 |
+| --- | --- |
+| 私人來源準備 | ≤10分鐘；只用既有 frozen，不訪問／寫入正式 raw；計數與身分核對超時即不啟動 campaign。 |
+| 完整前綴 cold 初始化 | ≤15分鐘；包括候選啟動、原認證API／同一原頁首次可用。完整31,322筆，不沿用舊 product checkpoint。 |
+| 正常持續流入 | **60分鐘**，API／同頁連續觀測；不因慢處理延長／降速。 |
+| 一次正常重開續收 | **5分鐘**，包含正常 stop/start 的所有等待。保留 output與同頁；來源仍照節奏流入。 |
+| 停止流入後 drain | **5分鐘**，不再加資料，驗 source=committed=published 並核bytes。 |
+| 安全清理 | ≤2分鐘；只處理本次程序，核無候選 writer/listener；清理未完成標阻擋，不算效能測量或延長 drain。 |
+| 總額 | **候選運行＋清理 ≤87分鐘；連準備 ≤97分鐘／輪。** 舊55分鐘上限不用於此新案；這是待批准的新上限。最多兩輪共194分鐘（來源準備亦計），小型相稱回歸另計但受6工程人日總額。 |
+| 交易時段／正式操作 | G1-A 用隔離固定來源，市場等待0；G1-B 要另准一個合格真實日盤及盤前、完整current/prior冷準備預算；G1-C正式切換尚未排程／批准，不把等待或正式操作藏進工程人日。 |
+
+資源／安全沿原硬停：主機有效 CPU 樣本間隔至少30秒、連續兩次>85%；free RAM<6GiB、候選writer RSS>2GiB、disk free<100GiB；一個 below-normal writer。候選各程序CPU時間增量／wall時間、RSS、I/O與主機樣本分列，送入器、server及觀測器分開；採樣缺失明示。原正式收集非干擾、path／來源／hash失配立即停止。資源觀測失敗、無法確認安全時停止送入並保護性結束，不以關閉正式服務騰資源。沿用10分鐘 source成長但publication零進展、到期事件且可信append收據停滯30秒等保護；stage/total超時先到即停。100ms精度舊FAIL保留，只記實際偏差，不開工具校驗專案。
+
+### 8.4 如何通過或退回 G1-A
+
+1. **長測前先證明改動真正在省工作。** 用既有合法小型資料與保留 archive 頁做現行／packed 兩種衍生 layout 的有界函式對照，不啟舊版完整 runtime。對同一 sparse group 的實際 query unique-page reads 要至少減少50%，序列化總bytes不得增加超過10%；同時測一頁、滿頁及跨2MiB等不利情境。這是本路線的機械收益停損，不是效能PASS。若收益不存在、exact結果不等或安全無法成立，直接 `G1-A BLOCKED`，不開昂貴campaign、不順接另一微調方案。
+2. **相稱正確性：** packed／原 INDEXED／FULL_SCAN 在相同 checkpoint/cutoff 比對實際數值、分類、six frames、200 bins、identity、完整性、時間、quality與null（只剝除有意不同的執行layout／timing等證據欄位，不剝語意差異）。含合法第二段、跨盤、逆序／future、fractional／unsafe、quote-only、重開及上述故障。原M4 UI不重做；維持原API與同一原面板must-preserve，受影響binding/reader回歸要過。
+3. **母體與時鐘：** 60分鐘 normal、5分鐘 restart各列並合計全部新增筆；每筆以實際完整原行 write可見收據至第一次可信API cutoff覆蓋計時，API／同頁first-seen為採樣上界。初始化另列，不混入65分鐘的分母。保留完整到達收據、unpublished與採樣缺口；未觀察到的樣本不丟、不補0，完整母體分位數未建立就不判PASS。另列預定與實際送入誤差、每秒／60秒records及bytes、尖峰及欠送；舊100ms標準未過仍記FAIL並限制原市場外推，不代替資料安全判定。
+4. **驗收門檻：** normal與65分鐘合計完整逐筆母體API p95≤120秒／p99≤180秒；同一原頁p95≤150秒，另列restart子群。停止／重開期間原頁不能沿用失效current。正常checkpoint重開從stop請求開始≤5分鐘內合法新publication，且至少一次進度快照追到當次一致捕獲的完整source cutoff（API已覆蓋，記採樣時間差）；不只追到重開前舊值。以合法source/read snapshot捕獲先後界定，不能靠不一致快照湊相等。drain開始後≤5分鐘達最終 source=committed=published、bytes一致，API／原頁最終cutoff均確認。缺任一項即未達成。
+5. **資源及積壓：** 每段記 source/committed/published records與bytes、差額曲線及發布間隔；保留初始503、錯誤、未發布與觀察缺口。另列pack實際group大小、物理index讀頁／bytes與cycle數、candidate CPU/RSS/I/O及主機負擔；不要用hostCPU推唯一根因或拿局部更快代替目標。原認證API rawReadsPerRequest=0、安全旗標及同一面板 CVD/ΔCVD/cutoff/start/contract/session/latency/quality 持續核對。
+6. **昂貴驗證最多一候選＋一次有根因修正後驗證。** 首輪未過只有定位到本路線範圍內具體產品缺陷並已實際修改、相稱小測／重審通過才可第二輪，預算相同；環境資源超限、未修改版本、未知根因或工具精度FAIL均不是再跑理由。第二輪仍失敗即 `G1-A NOT_MET`／具體 `BLOCKED`；不自動第三輪，不提高資源／延遲上限，不接別的儲存重構。若沒有可修根因，首輪即交收尾結果。
+
+大 cold 追趕與正常追加分開：本輪只驗31,322筆初始狀態及65分鐘成長，不能宣稱已有150萬筆起始帳本能力。既有150萬cold未完的負向證據原封保留；全日多cutoff重驗前綴的成本仍隨帳本成長，**這是路線即使通過G1-A仍可能無法支撐G1-B的主要風險**。若實測顯示殘餘INGEST／完整VERIFY／主機負擔已使G1-A不可達，本路線結案為不足以達標，需改變產品／架構決策，不能無限局部微調。
+
+### 8.5 同一條通往本機交付的清單（沿§6，非重做盤點）
+
+| 層級／項目 | 已完成、待驗與待批准 |
+| --- | --- |
+| G1-A 產品候選 | **已完成**：選定本路線、現有程式／成本及凍結差異核對。**待批准**：本節8.6整包。**待做／驗**：實作、exact小測與獨立審查、固定60＋5＋5流程、完整母體、push/CI/遠端讀回。文件完成不是候選改善。 |
+| G1-B D日current/prior與日期 | **已有**：R1來源／calendar規則與§6定位。**待驗**：批准D日的file date/tradeDate、當日current及全部必要prior／physical alias、合法資格；缺prior不補歷史值。 |
+| G1-B 容量與冷／暖／恢復 | **已有**：150萬cold負向、早盤實際負載及未測項。**待驗／批准**：current至少對照1,510,562筆／2,074,014,548B、必要prior逐份加總；完整無checkpoint冷準備預算與盤前起跑時間、正常追加、全日狀態成長。G1-A同版有效重開證據可引用，不能外推成熟大帳本。 |
+| G1-B 自然collector／完整日盤 | **已有**：CPython/native guard及短自然樣本。**待批准／驗**：一個真實合格DAY，盤前正常入口啟動、自然append下prefix guard相容性、tail/queue/error與共享句柄、原API／同頁持續合法值與品質；干擾即停本候選，不停健康collector。 |
+| G1-C CRU34／正常入口 | **已有**：CRU34非runtime READY的定位與M4主卡/清值/合法新段能力。**待驗**：原owner-guard入口、程序身分及真snapshot；START_DAILY_USE全鏈與K線／量／Market Pulse／Observed Flow／Data Quality保留，不捏造coverage。 |
+| G1-C dependencies／binding | **已有**：matching Node/native/koffi/lockfile差異與更新包。**待驗／批准**：合併版整版npm ci、native載入、版本；legal current/prior路徑、新ordinary output／outputVersion／layout、binding plan→activation及原入口接線。不是手複單JS或沿用混版node_modules。 |
+| G1-C 版本／整版同步 | **待批准**：經G1-A/B查收的exact候選Merge與具體正式操作。**待做**：取actual merged main；依既定Git流程整版同步、保護既有本機dirty與資料、核已載版本。PR72隔離更新器不能用於8787。 |
+| G1-C 日常常駐／回退 | **待驗／批准**：批准日盤容量／時段、自然全日結果、正常捷徑重開、觀測與退出規則，Owner明示從有限試用進入日常常駐；62k／09:45及45分鐘退出不是交付終點。切換前保存當時整版＋matching依賴＋設定／binding／入口，失敗按§6整版回退並真API／原頁／collector核實，不碰raw/SQLite/排程／五日計數。 |
+
+順序固定為：路線批准 → 產品修正／正確性安全／獨立review → G1-A固定campaign／恢復排空／原API同頁 → exact push/CI/readback與GPT查收 → 另准G1-B真實日盤及容量／cold／自然收集條件 → 結果接受 → exact Merge批准 → actual merged main＋完整正式操作包批准 → 整版同步／依賴／binding／CRU34／正常入口驗收與可核回退 → Owner常駐批准及G1-C完成。G1-B/C正式環境步驟本輪只列齊，不操作。
+
+### 8.6 一次Owner決策與本輪停點
+
+**建議一次批准以下整包，或整包退回：**
+
+- 單一路線 `DERIVED_INDEX_PACK_V1` 與8.1列定產品改動；只改衍生索引分組／恢復單位及顯式layout綁定，接受8.2最多896 facts重算的替代恢復保證。原始storage/commit/fsync及全部凍結語意不變，舊7–11人日包仍不施工。
+- 工程4–6人日／硬上限6；8.3固定來源與60分鐘主流入＋5分鐘重開續收＋5分鐘drain，每輪準備10、運行清理87、合計97分鐘。最多一候選＋一次已定位且已修正的範圍內驗證，共194分鐘；既有安全上限保持，資源觀測失敗不繼續。
+- 採用8.4完整母體API120/180秒、原頁150秒、恢復／drain各5分鐘作 **G1-A工程驗收目標**；不是正式release SLA、LIVE或延遲資訊可供交易的批准。只做必要helper計量接線與小測，不開精度校驗迴圈。
+- 允許批准後同一工作包連續實作、相稱修復／review／測試、push/CI及去敏PR73／CRU55回存讀回；觸及列定停止條件即交G1-A未達／具體阻擋。**G1-B真實正式日盤、G1-C、Merge、Promotion、正式8787及正式容量／時段／啟動設定仍另行批准。**
+
+本輪 **ROUTE_READY_FOR_OWNER／RECOMMEND_BOUNDED_IMPLEMENTATION**；沒有施工、沒有新campaign、沒有把分析算成產品前進。若Owner退回此有限投入，或批准後在固定停點證明不足，應明確記G1-A受阻並重新決定產品／架構路線，不再用現版重测或工具小修代替。安全保持 `formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false`；CRU55仍In Progress、daily NOT_READY。
