@@ -10,10 +10,15 @@ test('publication scheduling is explicit and requires a new versioned stream bin
   const b={schemaVersion:'cru55-runtime-binding-v1',state:'PROPOSED',runtimeRoot:root,runtimeCommit:head,dataRoot:data,sourceRoot:path.join(data,'live-events'),outputRoot:output,readerRoot:output,outputVersion:'stream-prefix-v1',producer:'STREAM_PAGED_V2',sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',sourceAlias:{kind:'PLAIN',physicalRoot:path.join(data,'live-events'),targetIdentity:{dev:'1',ino:'2',birthtimeNs:'3'}},sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-24'},...SAFETY};
   const opts={runtimeRoot:root,head};
   assert.equal(validateRuntimeBinding(b,opts).publicationSchedule,null);
+  assert.equal(validateRuntimeBinding(b,opts).indexLayout,null);
+  assert.equal(validateRuntimeBinding({...b,indexLayout:'DERIVED_INDEX_PACK_V1'},opts).indexLayout,'DERIVED_INDEX_PACK_V1');
+  assert.throws(()=>validateRuntimeBinding({...b,indexLayout:'unknown'},opts),/INDEX_LAYOUT_INVALID/);
+  assert.throws(()=>validateRuntimeBinding({...b,indexLayout:'DERIVED_INDEX_PACK_V1'},{...opts,activation:true}),/OWNER_MAIN_GATE/);
   assert.deepEqual(validateRuntimeBinding({...b,publicationSchedule:CATCHUP_PUBLICATION_SCHEDULE},opts).publicationSchedule,CATCHUP_PUBLICATION_SCHEDULE);
   assert.throws(()=>validateRuntimeBinding({...b,publicationSchedule:{version:'unknown',maxRecords:32768}},opts),/SCHEDULE_INVALID/);
   const legacy={...b,producer:'BOUNDED_ACCEPTED_V1',sourceVerification:'FULL_PREFIX_EACH_BATCH',outputVersion:undefined,outputRoot:path.join(data,'runtime/cru55-overview'),readerRoot:path.join(data,'runtime/cru55-overview'),publicationSchedule:CATCHUP_PUBLICATION_SCHEDULE};
   assert.throws(()=>validateRuntimeBinding(legacy,opts),/SCHEDULE_REQUIRES_VERSIONED_STREAM/);
+  assert.throws(()=>validateRuntimeBinding({...legacy,publicationSchedule:null,indexLayout:'DERIVED_INDEX_PACK_V1'},opts),/INDEX_LAYOUT_REQUIRES_VERSIONED_STREAM/);
   assert.throws(()=>validateRuntimeBinding({...b,publicationSchedule:CATCHUP_PUBLICATION_SCHEDULE},{...opts,activation:true}),/OWNER_MAIN_GATE/);
 });
 test('persistent binding proposal binds exact whole version, source, producer and reader without activating',()=>{

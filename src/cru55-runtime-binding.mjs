@@ -5,6 +5,7 @@ import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { readRuntimeIdentity } from './runtime-identity.mjs';
 import { validatePublicationSchedule } from './cru55-publication-schedule.mjs';
+import { validateIndexLayout } from './cru55-projection-range-index.mjs';
 
 const samePath=(a,b)=>process.platform==='win32'?path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase():path.resolve(a)===path.resolve(b);
 const within=(root,file)=>{const r=path.relative(root,file);return r===''||(!r.startsWith('..'+path.sep)&&r!=='..'&&!path.isAbsolute(r));};
@@ -70,6 +71,8 @@ export function validateRuntimeBinding(binding,{runtimeRoot,head,approvedMain,ac
   const stream=binding.sourceVerification==='FULL_PREFIX_BEFORE_PUBLICATION'&&binding.producer==='STREAM_PAGED_V2';
   if(!legacy&&!stream)throw Error('CRU55_BINDING_UNREVIEWED_PRODUCER');
   const publicationSchedule=validatePublicationSchedule(binding.publicationSchedule);
+  const indexLayout=validateIndexLayout(binding.indexLayout);
+  if(indexLayout&&(!stream||!version))throw Error('CRU55_BINDING_INDEX_LAYOUT_REQUIRES_VERSIONED_STREAM');
   if(publicationSchedule&&(!stream||!version))throw Error('CRU55_BINDING_SCHEDULE_REQUIRES_VERSIONED_STREAM');
   if(stream||binding.sourceAlias){
     const a=binding.sourceAlias;
@@ -81,7 +84,7 @@ export function validateRuntimeBinding(binding,{runtimeRoot,head,approvedMain,ac
     ||typeof binding.ownerDecisionUrl!=='string'||!/^https:\/\/(github\.com|linear\.app)\//.test(binding.ownerDecisionUrl)))throw Error('CRU55_BINDING_OWNER_MAIN_GATE');
   return {bindingHash:digest(stableJson(binding)),runtimeRoot:root,runtimeCommit:head,dataRoot:data,sourceRoot:binding.sourceRoot,
     outputRoot:output,readerRoot:output,outputVersion:version??null,sourceAlias:binding.sourceAlias??null,sourceSelection:binding.sourceSelection??null,sourceVerification:binding.sourceVerification,
-    publicationSchedule,activationReady:activation,fullDayReady:false,producer:binding.producer,...SAFETY};
+    publicationSchedule,indexLayout,activationReady:activation,fullDayReady:false,producer:binding.producer,...SAFETY};
 }
 
 export function readRuntimeBinding(file,{runtimeRoot,activation=false}={}){

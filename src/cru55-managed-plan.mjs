@@ -6,6 +6,7 @@ import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { readRuntimeBinding,verifyBoundSourceRoot,resolveBoundSourceFile,assertBoundWriteRoot } from './cru55-runtime-binding.mjs';
 import { validatePublicationSchedule } from './cru55-publication-schedule.mjs';
+import { validateIndexLayout } from './cru55-projection-range-index.mjs';
 import { readRuntimeIdentity } from './runtime-identity.mjs';
 export function managedDelayMs(result){
   // Yield to the event loop while bounded work is progressing. A quiet source
@@ -29,6 +30,7 @@ export function readManagedConfig(file,{runtimeRoot,candidate=false}={}){
     ||Object.entries(SAFETY).some(([k,v])=>b[k]!==v)||b.producer!=='STREAM_PAGED_V2'||b.sourceVerification!=='FULL_PREFIX_BEFORE_PUBLICATION'
     ||b.sourceSelection?.kind!=='DATED_CALENDAR_LEDGER'||!/^\d{4}-\d{2}-\d{2}$/.test(b.sourceSelection?.startDate||''))throw Error('CRU55_MANAGED_CANDIDATE_CONFIG');
   validatePublicationSchedule(b.publicationSchedule);
+  validateIndexLayout(b.indexLayout);
   const real=b.sourceKind==='GOVERNED_FRAGMENT';
   if(b.sourceKind&&!['GOVERNED_FRAGMENT','SYNTHETIC_FIXTURE'].includes(b.sourceKind))throw Error('CRU55_CANDIDATE_SOURCE_KIND');
   const sourceRoot=real?path.join(privateRoot,'real-inputs',b.runId):path.join(privateRoot,'fixtures'),outputRoot=path.join(privateRoot,'managed',b.runId);
@@ -96,7 +98,7 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
     const artifactPath=assertBoundWriteRoot(binding,path.join(binding.outputRoot,...prior.relativeRunPath.split('/'),prior.artifactHash+'.stream-view.json'));
     if(fs.existsSync(artifactPath))priorPublications[view]={artifactPath,artifactHash:prior.artifactHash};
   }
-  const result=await runStreamCycle({sourcePath:source.sourcePath,runRoot,sourceKind:binding.sourceKind,priorPublications,ownerContext,publishAtSessionBoundary:true,publicationSchedule:binding.publicationSchedule??null,maxPages:8,maxBytes:8*1024*1024});
+  const result=await runStreamCycle({sourcePath:source.sourcePath,runRoot,sourceKind:binding.sourceKind,priorPublications,ownerContext,publishAtSessionBoundary:true,publicationSchedule:binding.publicationSchedule??null,indexLayout:validateIndexLayout(binding.indexLayout),maxPages:8,maxBytes:8*1024*1024});
   verifyBoundSourceRoot(binding); // no routing publication after the approved alias changes
   if(result.state==='PUBLISHED'||result.state==='UNCHANGED'){
     const view=result.session?.toLowerCase(),availableAt=Date.parse(result.availableAt);

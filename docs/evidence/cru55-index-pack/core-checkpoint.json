@@ -1,0 +1,42 @@
+{
+  "schema": "cru55-derived-index-pack-core-checkpoint-v1",
+  "approvedDesignHead": "08d522d7f7cea56de558cfc9b3095c4e5072e0e7",
+  "route": "DERIVED_INDEX_PACK_V1",
+  "scope": "PRODUCT_CORE_AND_SMALL_TESTS_NOT_G1A_ACCEPTANCE",
+  "productChanges": ["bounded derived index grouping", "durable group cursor", "explicit layout checkpoint and binding"],
+  "limits": {"groupArchivePages": 7, "groupFacts": 896, "indexPageBytes": 2097152, "managedCyclePages": 8, "managedCycleBytes": 8388608},
+  "retainedArchiveComparison": {
+    "source": "previous diagnostic immutable archive, byte0 first seven pages; no new raw replay or writer",
+    "records": 896,
+    "indexedPoints": 18,
+    "legacy": {"indexPages": 5, "queryReads": 5, "serializedBytes": 76557},
+    "packed": {"indexPages": 1, "queryReads": 1, "serializedBytes": 75911},
+    "queryReadReduction": 0.8,
+    "serializedByteRatio": 0.9915618428099324,
+    "fullSealedProjectionAndArtifactsExact": true,
+    "fullScanOracleExact": true,
+    "mechanicalGatePassed": true,
+    "endToEndPerformanceEstablished": false
+  },
+  "syntheticComparison": {
+    "records": 896,
+    "legacy": {"queryReads": 7, "queryBytes": 191136},
+    "packed": {"queryReads": 1, "queryBytes": 189743},
+    "artifactExact": true,
+    "denseBoundary": {"archivePages": 7, "groups": 3, "maxArchivePages": 3, "allIndexPagesWithin2MiB": true, "oracleExact": true}
+  },
+  "verification": {
+    "distinctPassingCases": 48,
+    "method": "33 initially passed; corrected boundary fixture passed; dense boundary, layout transition, managed forwarding, minimal-budget cases passed; 10 owner/path/Windows prefix/binding regression cases passed",
+    "retainedInitialFailures": ["Boundary test data initially did not exceed 2MiB; corrected test input only", "Dense test first invocation hit sandbox EPERM resolving user temp ancestor; same test passed with workspace-local TEMP/TMP"],
+    "faultCases": ["before index link", "after index link", "before job replacement", "after job replacement", "different-content collision refusal"],
+    "independentReview": "PENDING",
+    "expensiveCampaignsStarted": 0,
+    "g1aAchieved": false
+  },
+  "dailyDeliveryGapsRetained": ["2026-09-26 quality FAILED", "2026-09-26 data_continuity_audit FAILED", "G1-B and G1-C remain unapproved"],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false
+}

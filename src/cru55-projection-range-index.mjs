@@ -1,8 +1,8 @@
 import { digest, stableJson } from './cvd-observation-core.mjs';
 import { projectionPrimitives } from './cru55-stream-projection.mjs';
 
-// Immutable ordinal forest. One durable object per archive page contains all
-// new leaves/internal nodes; older roots are addressed by hash, never rewritten.
+// Immutable ordinal forest. A durable object contains one archive page's nodes
+// or one explicitly opted-in bounded group; older roots are never rewritten.
 // Aggregates are used only for exact safe-integer folds. Fractional/unsafe sums
 // descend to leaves and preserve the oracle's physical-order IEEE754 additions.
 const { accumulator, accumulate } = projectionPrimitives;
@@ -11,6 +11,13 @@ const flags = ['nullGap','badIdentity','badAvailability','badPrice','badVolume']
 const schema = 'cru55-projection-range-page-v1';
 const validHash = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
 const fail = code => { throw Error(code); };
+export const DERIVED_INDEX_PACK_V1 = 'DERIVED_INDEX_PACK_V1';
+export const INDEX_PACK_LIMITS = Object.freeze({ archivePages:7, facts:896, pageBytes:2*1024*1024 });
+export function validateIndexLayout(value) {
+  if(value===undefined||value===null)return null;
+  if(value!==DERIVED_INDEX_PACK_V1)fail('STREAM_INDEX_LAYOUT_INVALID');
+  return value;
+}
 
 export function mergeRangeAccumulators(left, right) {
   if (!left.n) return structuredClone(right);
@@ -60,9 +67,14 @@ function combine(a,b) {
 const external = (ref,hash) => typeof ref === 'number' ? {hash,index:ref} : ref;
 
 export function beginRangeAppend(roots,writePage) {
-  const nodes=[],forest=structuredClone(roots??[]);
+  const nodes=[];let forest=structuredClone(roots??[]);
   const addNode=node=>{nodes.push(node);return {ref:nodes.length-1,summary:node.summary};};
   return {
+    // Marks are private to this builder. Existing nodes/summaries are immutable,
+    // so rolling back an uncommitted archive page needs no history-sized clone.
+    mark(){return {length:nodes.length,forest:forest.slice()};},
+    rollback(mark){nodes.length=mark.length;forest=mark.forest.slice();},
+    byteLength(){return nodes.length?Buffer.byteLength(stableJson({schemaVersion:schema,nodes})):0;},
     append(e,p,prior,pressure) {
       let current=addNode({summary:leafSummary(e,p,prior,pressure)});
       while(forest.length && forest.at(-1).summary.count===current.summary.count) {

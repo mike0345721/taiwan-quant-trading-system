@@ -30,6 +30,10 @@ test('multiple new cutoffs produce byte-exact full-scan products while processin
       const actual=JSON.parse(fs.readFileSync(path.join(root,'indexed',indexed.artifactHash+'.stream-view.json')));
       const expected=JSON.parse(fs.readFileSync(path.join(root,'oracle',oracle.artifactHash+'.stream-view.json')));
       assert.deepEqual(actual,expected,'all products and publication history exact at '+ordinal);
+      const packed=finish({...options,maxPages:8,indexLayout:'DERIVED_INDEX_PACK_V1',runRoot:path.join(root,'packed')});
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root,'packed',packed.artifactHash+'.stream-view.json'))),expected,'packed products exact at '+ordinal);
+      assert.equal(packed.metrics.projectionWork.newRecords,count);
+      assert.ok(packed.metrics.projectionWork.packs.maxArchivePages<=7);
       const c=indexed.metrics.projectionWork;
       assert.equal(c.processedRecords,count);assert.equal(c.newRecords,count);assert.equal(c.historicalReplayRecords,0);
       assert.equal(c.rebuildReason,ordinal===300?'INITIAL_BUILD':null);

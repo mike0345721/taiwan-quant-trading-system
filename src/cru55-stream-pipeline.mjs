@@ -6,7 +6,7 @@ import { digest, stableJson, SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { createStreamStore, STREAM_STORE_LIMITS } from './cru55-stream-store.mjs';
 import { createProjectionJob, beginProjectionBatch, finishProjectionJob, projectionPrimitives, PROJECTION_LIMITS } from './cru55-stream-projection.mjs';
-import { beginRangeAppend, createRangeReader } from './cru55-projection-range-index.mjs';
+import { beginRangeAppend, createRangeReader, validateIndexLayout, INDEX_PACK_LIMITS } from './cru55-projection-range-index.mjs';
 import { startIndexedProjection, advanceIndexedProjectionQueries } from './cru55-indexed-projection.mjs';
 import { loadGovernedTradingCalendar } from './market-state-forward-shadow-calendar.mjs';
 import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
@@ -68,9 +68,11 @@ const loadedCode = codeIdentity();
 // New candidate pipeline. Raw is read-only; every publication requires a full
 // original-byte prefix pass. Windows protects the captured prefix through
 // publication; other platforms retain conservative whole-file stamp validation.
-export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxVerifyRanges=PIPELINE_LIMITS.rawRanges,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP',projectionMode='INDEXED',publicationSchedule=null}={}){
+export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxVerifyRanges=PIPELINE_LIMITS.rawRanges,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP',projectionMode='INDEXED',publicationSchedule=null,indexLayout=null}={}){
   const started=performance.now();
   publicationSchedule=validatePublicationSchedule(publicationSchedule);
+  indexLayout=validateIndexLayout(indexLayout);
+  if(indexLayout&&projectionMode!=='INDEXED')fail('STREAM_INDEX_LAYOUT_REQUIRES_INDEXED');
   if(!['INDEXED','FULL_SCAN'].includes(projectionMode))fail('STREAM_PROJECTION_MODE_INVALID');
   if(!['WINDOWS_PREFIX','STAMP'].includes(prefixProtection))fail('STREAM_PREFIX_MODE_INVALID');
   const protectedMode=prefixProtection==='WINDOWS_PREFIX';
@@ -110,7 +112,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     const store=createStreamStore({root:name('pages'),sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity,ioBudget:work,ownerContext});
     fs.mkdirSync(name('chunks'),{recursive:true});
     const chunkPath=i=>name('chunks/'+String(i).padStart(12,'0')+'.json');
-    const jobBinding={sourceBinding,resolverIdentity:resolved.resolverIdentity,sourceKind,stopOrdinal,publishAtSessionBoundary,prefixProtection,projectionMode,...(publicationSchedule?{publicationSchedule}:{})};
+    const jobBinding={sourceBinding,resolverIdentity:resolved.resolverIdentity,sourceKind,stopOrdinal,publishAtSessionBoundary,prefixProtection,projectionMode,...(publicationSchedule?{publicationSchedule}:{}),...(indexLayout?{indexLayout}:{})};
     let job=fs.existsSync(jobFile)?unseal(jobFile):{schemaVersion:'cru55-stream-job-v2',binding:jobBinding,priorPublication,priorPublications,phase:'INGEST',targetSize:size,...(publicationSchedule?{capturedSize:size,startOrdinal:ingest.lastOrdinal}:{}),roundSession:null,startedAt:new Date().toISOString(),verifyRestarts:0};
     if(!same(job.binding,jobBinding))fail('STREAM_JOB_BINDING_CHANGED');
     if(stopOrdinal!==null&&ingest.lastOrdinal>stopOrdinal)fail('STREAM_CUTOFF_REGRESSION');
@@ -197,7 +199,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           previous=unseal(name('projection-index.json'));
           if(!same(previous.binding,jobBinding)||previous.projectionRef!==digest(stableJson(previous.projection))||previous.projection.nextOrdinal!==previous.projection.checkpoint.state.ordinal+1||previous.projection.terminalHash!==previous.projection.checkpoint.state.terminalHash||previous.projection.pageHash!==previous.cutoff.headPageHash)fail('STREAM_INDEX_CHECKPOINT_BINDING');
         }
-        const indexed=startIndexedProjection({checkpoint,sourceKind,generationHash,calendar:resolved.calendar},previous);
+        const indexed=startIndexedProjection({checkpoint,sourceKind,generationHash,calendar:resolved.calendar,indexLayout},previous);
         job.projection=indexed.projection;job.rangeIndex=indexed.index;job.projectionWork.rebuildReason=indexed.reason;
         job.indexBaseOrdinal=previous?.projection.checkpoint.state.ordinal??0;
         if(indexed.resumed){job.nextIndex=previous.cutoff.index+1;job.previousChunkHash=previous.cutoff.lastChunkHash;job.previousPageHash=previous.cutoff.headPageHash;}
@@ -232,6 +234,47 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
         job.activeSession=job.projection.checkpoint.state.activeIdentity?.[2];delete job.projection;
         job.phase='VERIFY';job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));break;
       }
+      if(indexLayout){
+        // One private group per cycle. Reserve one full index-page collision
+        // read BEFORE archive reads; replaying an orphan cannot starve progress.
+        const append=beginRangeAppend(job.rangeIndex.roots,(hash,node)=>immutable(name('projection-index/'+hash+'.json'),node,INDEX_PACK_LIMITS.pageBytes,size=>work.take(size,true)));
+        let projection=job.projection,nextIndex=job.nextIndex,previousChunkHash=job.previousChunkHash,previousPageHash=job.previousPageHash;
+        let groupPages=0,groupRecords=0,historicalRecords=0,indexedPoints=0;
+        let futurePriceExcluded=job.rangeIndex.futurePriceExcluded,maxPointAvailable=job.rangeIndex.maxPointAvailable;
+        while(nextIndex<=job.cutoff.index&&groupPages<INDEX_PACK_LIMITS.archivePages&&pages+groupPages<maxPages){
+          if(work.pages+2>maxPages)break;
+          const chunk=json(chunkPath(nextIndex)),{chunkHash,...body}=chunk;
+          if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==previousChunkHash||chunk.previousPageHash!==previousPageHash||chunk.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||chunk.resolverIdentity!==resolved.resolverIdentity)fail('STREAM_CHUNK_CHAIN_INVALID');
+          if(!/^[a-f0-9]{64}$/.test(chunk.pageHash??''))fail('STREAM_PAGE_HASH_INVALID');
+          const meta=fileMetadata(name('pages/'+chunk.pageHash+'.page.json'),STREAM_STORE_LIMITS.pageBytes);
+          if(work.bytes+meta.size+INDEX_PACK_LIMITS.pageBytes>maxBytes)break;
+          const page=store.readPage(chunk.pageHash);if(page.previousPageHash!==previousPageHash)fail('STREAM_PAGE_CHAIN_INVALID');
+          const mark=append.mark();let addedPoints=0,nextFuture=futurePriceExcluded,nextAvailable=maxPointAvailable;
+          const batch=beginProjectionBatch(projection,{onPrice:p=>{nextFuture ||= p.futureExcluded>0;},onPoint:(e,p,prior,pressure)=>{append.append(e,p,prior,pressure);addedPoints++;nextAvailable=Math.max(nextAvailable??-Infinity,e.availableMs);}});
+          batch.consume(page);const nextProjection=batch.finish();
+          if(append.byteLength()>INDEX_PACK_LIMITS.pageBytes){
+            append.rollback(mark);
+            if(!groupPages)fail('STREAM_INDEX_PACK_SINGLE_PAGE_BUDGET');
+            break; // The already-read rejected page remains charged to work.
+          }
+          projection=nextProjection;futurePriceExcluded=nextFuture;maxPointAvailable=nextAvailable;indexedPoints+=addedPoints;
+          groupPages++;groupRecords+=page.records.length;
+          historicalRecords+=Math.max(0,Math.min(page.endOrdinal,job.indexBaseOrdinal??0)-page.startOrdinal+1);
+          previousChunkHash=chunkHash;previousPageHash=chunk.pageHash;nextIndex++;
+        }
+        if(!groupPages)return savePending();
+        const indexBytes=append.byteLength(),roots=append.finish(); // durable first
+        job.projection=projection;job.rangeIndex={roots,futurePriceExcluded,maxPointAvailable};
+        job.nextIndex=nextIndex;job.previousChunkHash=previousChunkHash;job.previousPageHash=previousPageHash;
+        job.projectionWork.indexedPoints+=indexedPoints;job.projectionWork.processedRecords+=groupRecords;
+        job.projectionWork.historicalReplayRecords+=historicalRecords;
+        job.projectionWork.newRecords=job.projectionWork.processedRecords-job.projectionWork.historicalReplayRecords;
+        const packs=job.projectionWork.packs??={groups:0,archivePages:0,indexPages:0,indexBytes:0,maxArchivePages:0};
+        packs.groups++;packs.archivePages+=groupPages;packs.indexPages+=Number(indexBytes>0);packs.indexBytes+=indexBytes;packs.maxArchivePages=Math.max(packs.maxArchivePages,groupPages);
+        // Persist this sole group before any subsequent cycle. Crashes before
+        // job replacement replay at most this group's <=896 committed facts.
+        return savePending();
+      }
       const chunk=json(chunkPath(job.nextIndex)),{chunkHash,...body}=chunk;
       if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==job.previousChunkHash||chunk.previousPageHash!==job.previousPageHash||chunk.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||chunk.resolverIdentity!==ingest.resolverIdentity)fail('STREAM_CHUNK_CHAIN_INVALID');
       const page=store.readPage(chunk.pageHash);if(page.previousPageHash!==job.previousPageHash)fail('STREAM_PAGE_CHAIN_INVALID');
@@ -256,7 +299,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       const readNode=createRangeReader(hash=>{const file=name('projection-index/'+hash+'.json'),st=fileMetadata(file,PROJECTION_LIMITS.pageBytes);work.take(st.size,true);return json(file,PROJECTION_LIMITS.pageBytes);});
       job.projection=advanceIndexedProjectionQueries(job.projection,job.rangeIndex,job.indexQuery,readNode,job.projectionWork);
       job.projectionRef=digest(stableJson(job.projection));immutable(name(job.projectionRef+'.projection.json'),job.projection);
-      atomic(name('projection-index.json'),sealed({schemaVersion:'cru55-indexed-projection-v1',binding:jobBinding,cutoff:job.cutoff,projectionRef:job.projectionRef,projection:job.projection,index:job.rangeIndex,evidenceScope:'DERIVED_INDEX_ONLY_NOT_RAW_PREFIX_PROOF'}));
+      atomic(name('projection-index.json'),sealed({schemaVersion:'cru55-indexed-projection-v1',...(indexLayout?{indexLayout}:{}),binding:jobBinding,cutoff:job.cutoff,projectionRef:job.projectionRef,projection:job.projection,index:job.rangeIndex,evidenceScope:'DERIVED_INDEX_ONLY_NOT_RAW_PREFIX_PROOF'}));
       job.activeSession=job.projection.checkpoint.state.activeIdentity?.[2];delete job.projection;delete job.rangeIndex;delete job.indexQuery;
       job.phase='VERIFY';job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));
     }

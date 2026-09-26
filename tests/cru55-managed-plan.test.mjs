@@ -14,6 +14,17 @@ function fixture(){
   const write=(date,value=date)=>fs.writeFileSync(path.join(sourceRoot,date+'.ndjson'),JSON.stringify({previousHash:'GENESIS',recordHash:digest(value),receivedAt:date+'T00:00:00+08:00'})+'\n');
   return {root,binding,write,dispose(){assert.equal(path.dirname(root),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('cru55-managed-test-'));fs.rmSync(root,{recursive:true,force:true});}};
 }
+test('managed execution forwards only the validated packed layout without widening work budgets',async()=>{
+  const f=fixture();try{
+    f.write('2026-09-18');f.binding.indexLayout='DERIVED_INDEX_PACK_V1';
+    await runManagedCycle(f.binding,{now:Date.parse('2026-09-18T09:00:00+08:00'),runStreamCycle:async options=>{
+      assert.equal(options.indexLayout,'DERIVED_INDEX_PACK_V1');assert.equal(options.maxPages,8);assert.equal(options.maxBytes,8*1024*1024);
+      return {state:'PENDING',phase:'PROJECT',metrics:{pages:7,bytes:1024}};
+    }});
+    f.binding.indexLayout='unknown';let called=false;
+    await assert.rejects(runManagedCycle(f.binding,{now:Date.parse('2026-09-18T09:00:00+08:00'),runStreamCycle:()=>{called=true;}}),/INDEX_LAYOUT_INVALID/);assert.equal(called,false);
+  }finally{f.dispose();}
+});
 test('Windows transient replacement contention preserves old state until atomic retry succeeds', {skip:process.platform!=='win32'}, async t=>{
   const f=fixture();try{
     fs.mkdirSync(f.binding.outputRoot,{recursive:true});

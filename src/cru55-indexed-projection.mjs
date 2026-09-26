@@ -1,17 +1,19 @@
 import { stableJson } from './cvd-observation-core.mjs';
 import { createProjectionJob, projectionPrimitives, PROJECTION_LIMITS } from './cru55-stream-projection.mjs';
-import { beginRangeQueries, advanceRangeQueries } from './cru55-projection-range-index.mjs';
+import { beginRangeQueries, advanceRangeQueries, validateIndexLayout } from './cru55-projection-range-index.mjs';
 const {validate,seal}=projectionPrimitives;
 const frames={'1m':60000,'5m':300000,'15m':900000,'30m':1800000,'1h':3600000,'4h':14400000};
 const same=(a,b)=>stableJson(a)===stableJson(b);
 const clock=s=>Date.parse(s.snapshotAvailableAt??s.cutoffReceivedAt);
 
 export function startIndexedProjection(options,previous=null) {
+  const indexLayout=validateIndexLayout(options.indexLayout);
   const fresh=createProjectionJob(options),s=fresh.checkpoint.state;
   let reason='INITIAL_BUILD',prior=null;
   if(previous){
     prior=validate(previous.projection);const old=prior.checkpoint.state;
     if(previous.schemaVersion!=='cru55-indexed-projection-v1')reason='INDEX_SCHEMA_CHANGED';
+    else if(validateIndexLayout(previous.indexLayout)!==indexLayout)reason='INDEX_LAYOUT_CHANGED';
     else if(old.sourceLedgerIdentity!==s.sourceLedgerIdentity||old.resolverIdentity!==s.resolverIdentity||prior.sourceKind!==fresh.sourceKind||!same(prior.calendar,fresh.calendar))reason='SOURCE_OR_RESOLVER_CHANGED';
     else if(s.ordinal<old.ordinal)reason='CUTOFF_REGRESSION';
     else if(!same(old.activeIdentity,s.activeIdentity)||old.segmentCount!==s.segmentCount||!same(old.activeSegment?.identity,s.activeSegment?.identity)||old.activeSegment?.startOrdinal!==s.activeSegment?.startOrdinal)reason='ACTIVE_SEGMENT_CHANGED';

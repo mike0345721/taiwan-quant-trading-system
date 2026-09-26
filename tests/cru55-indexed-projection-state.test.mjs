@@ -92,7 +92,7 @@ function compareCutoff(snapshot, previous = null, expectedReason = 'INITIAL_BUIL
   const prior = previous?.product ?? null;
   const product = finishProjectionJob(clone(projection), { prior, previousPublication: prior });
   assert.deepEqual(product, finishProjectionJob(clone(oracle), { prior, previousPublication: prior }), 'every chart/window/VWAP/context/handoff and publication endpoint');
-  return { saved: clone({ schemaVersion: 'cru55-indexed-projection-v1', projection, index }), files, product, recordsProcessed };
+  return { saved: clone({ schemaVersion: 'cru55-indexed-projection-v1', ...(extra.indexLayout?{indexLayout:extra.indexLayout}:{}), projection, index }), files, product, recordsProcessed };
 }
 
 test('successive normal cutoffs expire windows, re-bin displays and resume only appended records', () => {
@@ -103,6 +103,16 @@ test('successive normal cutoffs expire windows, re-bin displays and resume only 
     assert.equal(previous.recordsProcessed, point.checkpoint.state.ordinal - oldOrdinal);
     oldOrdinal = point.checkpoint.state.ordinal;
   }
+});
+
+test('layout changes rebuild; matching packed checkpoints resume; unknown layouts refuse',()=>{
+  const [first,next]=snapshots(sessionFixture({count:12}).rows,[9,12]);
+  const legacy=compareCutoff(first),layout={indexLayout:'DERIVED_INDEX_PACK_V1'};
+  const packed=compareCutoff(first,legacy,'INDEX_LAYOUT_CHANGED',layout);
+  assert.equal(packed.recordsProcessed,9);
+  assert.equal(compareCutoff(next,packed,null,layout).recordsProcessed,3);
+  assert.equal(compareCutoff(first,packed,'INDEX_LAYOUT_CHANGED').recordsProcessed,9);
+  assert.throws(()=>compareCutoff(next,packed,null,{indexLayout:'unknown'}),/INDEX_LAYOUT_INVALID/);
 });
 
 test('a late event inside an advancing suffix retains exact physical predecessor and price ordering', () => {
