@@ -1,0 +1,1075 @@
+{
+  "verdict": "G1_A_NOT_MET",
+  "runtimeHead": "310796e5ecd184ed47c433946de83f343d5b9017",
+  "startedAt": "2026-09-26T06:20:20.747Z",
+  "endedAt": "2026-09-26T07:06:40.191Z",
+  "stopReason": "HOST_CPU_GATE",
+  "secondaryFailures": [
+    "APPENDER_EXIT_INCOMPLETE"
+  ],
+  "preparationMs": 9803.6154,
+  "initialization": {
+    "records": 31322,
+    "bytes": 42903318,
+    "firstPublicationMs": 189966.83540001512,
+    "firstApiMs": 190001.42440000176,
+    "flowStartedMs": 242854.26990002394
+  },
+  "actualFlowMs": 2529551.9623000026,
+  "plannedNormalRecords": 198016,
+  "plannedRecoveryRecords": 12914,
+  "actualAppendedRecords": 146447,
+  "unsentFixedWindowRecords": 64483,
+  "source": {
+    "ordinal": 177769,
+    "bytes": 243683656
+  },
+  "committed": {
+    "ordinal": 175444,
+    "bytes": 240489969
+  },
+  "published": {
+    "ordinal": 169831,
+    "bytes": 232784006
+  },
+  "uncommitted": 2325,
+  "unpublished": 7938,
+  "unpublishedBytes": 10899650,
+  "sourceExactFrozenPrefix": true,
+  "sourceSha256": "7d5a88c6ed5a55501d26286877d0592f566e638fa788d817509007d4e809e97a",
+  "latency": {
+    "publication": {
+      "denominator": 146447,
+      "observed": 138509,
+      "unobserved": 7938,
+      "fullPopulationQuantilesDefined": false,
+      "fullPopulationMs": null,
+      "successfulSubsetMs": {
+        "n": 138509,
+        "p50": 83082.55379998684,
+        "p95": 146052.90509998798,
+        "p99": 190593.47739997506,
+        "max": 215295.7717999816
+      },
+      "successfulSubsetFromPlannedMs": {
+        "n": 138509,
+        "p50": 83116.40969997644,
+        "p95": 146432.55339998007,
+        "p99": 190597.72439998388,
+        "max": 215304.69339999557
+      }
+    },
+    "api": {
+      "denominator": 146447,
+      "observed": 138509,
+      "unobserved": 7938,
+      "fullPopulationQuantilesDefined": false,
+      "fullPopulationMs": null,
+      "successfulSubsetMs": {
+        "n": 138509,
+        "p50": 83130.93170002103,
+        "p95": 146064.671299994,
+        "p99": 190120.85699999332,
+        "max": 214207.59939998388
+      },
+      "successfulSubsetFromPlannedMs": {
+        "n": 138509,
+        "p50": 83140.82319998741,
+        "p95": 146368.7117999792,
+        "p99": 190131.96399998665,
+        "max": 214216.52099999785
+      }
+    },
+    "ui": {
+      "denominator": 146447,
+      "observed": 138509,
+      "unobserved": 7938,
+      "fullPopulationQuantilesDefined": false,
+      "fullPopulationMs": null,
+      "successfulSubsetMs": {
+        "n": 138509,
+        "p50": 91980.46710002422,
+        "p95": 178028.8955000043,
+        "p99": 227515.731000036,
+        "max": 244403.0938000381
+      },
+      "successfulSubsetFromPlannedMs": {
+        "n": 138509,
+        "p50": 91997.3397000134,
+        "p95": 178153.39910000563,
+        "p99": 227519.62430000305,
+        "max": 244410.76730000973
+      }
+    }
+  },
+  "inputFidelity": {
+    "pass": false,
+    "reasons": [
+      "P99_LATENESS",
+      "MAX_LATENESS",
+      "ONE_SECOND_Records",
+      "ONE_SECOND_Bytes"
+    ],
+    "peakBinShift": 0,
+    "durationMs": 2529551.9623000026,
+    "records": 146447,
+    "bytes": 200780338,
+    "lateness": {
+      "n": 146447,
+      "p50": 10.4510999917984,
+      "p95": 20.08059999346733,
+      "p99": 515.0520999729633,
+      "max": 2009.7973000109196
+    },
+    "oneSecond": {
+      "Records": {
+        "planned": 146447,
+        "actual": 146447,
+        "variationFraction": 0.0701550731664015,
+        "plannedPeak": 749,
+        "actualPeak": 749,
+        "peakRatioError": 0,
+        "maxCumulativeLag": 521,
+        "maxCumulativeLagFraction": 0.003557601043380882
+      },
+      "Bytes": {
+        "planned": 200780338,
+        "actual": 200780338,
+        "variationFraction": 0.07044239560947448,
+        "plannedPeak": 1020840,
+        "actualPeak": 1021800,
+        "peakRatioError": 0.000940402021864406,
+        "maxCumulativeLag": 714521,
+        "maxCumulativeLagFraction": 0.003558719977849624
+      }
+    },
+    "sixtySecond": {
+      "Records": {
+        "planned": 146447,
+        "actual": 146447,
+        "variationFraction": 0.00036873408127172287,
+        "plannedPeak": 7788,
+        "actualPeak": 7799,
+        "peakRatioError": 0.0014124293785311437,
+        "maxCumulativeLag": 11,
+        "maxCumulativeLagFraction": 0.00007511249803683243
+      },
+      "Bytes": {
+        "planned": 200780338,
+        "actual": 200780338,
+        "variationFraction": 0.0003843703062199248,
+        "plannedPeak": 10671978,
+        "actualPeak": 10687028,
+        "peakRatioError": 0.0014102352909648452,
+        "maxCumulativeLag": 15050,
+        "maxCumulativeLagFraction": 0.00007495753891997133
+      }
+    }
+  },
+  "inputActualVisibleLatenessMs": {
+    "n": 146447,
+    "p50": 10.4510999917984,
+    "p95": 20.08059999346733,
+    "p99": 515.0520999729633,
+    "max": 2009.7973000109196
+  },
+  "restarted": false,
+  "recoveryProof": null,
+  "drainTested": false,
+  "cleanupVerified": true,
+  "cleanupMs": 7013.19730001688,
+  "cleanupFirstError": "STOP_WRITER_NOT_ABSENT\r",
+  "totalRuntimeMs": 2779442.926600009,
+  "completeWallMs": 2882519,
+  "limitsPreserved": true,
+  "resource": {
+    "logicalCpus": 12,
+    "hostSamples": 89,
+    "hostCpu": {
+      "n": 89,
+      "p50": 17,
+      "p95": 68,
+      "p99": 90,
+      "max": 90
+    },
+    "lastSamples": [
+      {
+        "at": "2026-09-26T07:04:18.6062134Z",
+        "mono": 225919362.3968,
+        "hostCpu": 45,
+        "writerRssBytes": 280850432
+      },
+      {
+        "at": "2026-09-26T07:04:51.9831793Z",
+        "mono": 225952797.1123,
+        "hostCpu": 85,
+        "writerRssBytes": 276975616
+      },
+      {
+        "at": "2026-09-26T07:05:25.0412046Z",
+        "mono": 225985798.7112,
+        "hostCpu": 35,
+        "writerRssBytes": 279474176
+      },
+      {
+        "at": "2026-09-26T07:05:59.0539060Z",
+        "mono": 226019910.1127,
+        "hostCpu": 90,
+        "writerRssBytes": 280825856
+      },
+      {
+        "at": "2026-09-26T07:06:31.9162235Z",
+        "mono": 226052760.8697,
+        "hostCpu": 86,
+        "writerRssBytes": 283369472
+      }
+    ],
+    "processes": {
+      "writer": {
+        "samples": 88,
+        "missingSamples": 1,
+        "maxRssBytes": 304324608,
+        "cpuMs": 1177265.625,
+        "observedWallMs": 2763893.666800022,
+        "oneCorePercent": {
+          "n": 87,
+          "p50": 44.08475586018151,
+          "p95": 49.0967736795433,
+          "p99": 52.08080993919674,
+          "max": 52.08080993919674
+        },
+        "hostCapacityPercent": {
+          "n": 87,
+          "p50": 3.673729655015126,
+          "p95": 4.091397806628608,
+          "p99": 4.340067494933062,
+          "max": 4.340067494933062
+        },
+        "readBytes": 13834260854,
+        "writeBytes": 848861657
+      },
+      "appender": {
+        "samples": 85,
+        "missingSamples": 4,
+        "maxRssBytes": 546086912,
+        "cpuMs": 109625,
+        "observedWallMs": 2727458.7870000005,
+        "oneCorePercent": {
+          "n": 84,
+          "p50": 4.111289308685881,
+          "p95": 5.586850520750195,
+          "p99": 9.351213940510718,
+          "max": 9.351213940510718
+        },
+        "hostCapacityPercent": {
+          "n": 84,
+          "p50": 0.34260744239049007,
+          "p95": 0.4655708767291829,
+          "p99": 0.7792678283758931,
+          "max": 0.7792678283758931
+        },
+        "readBytes": 44,
+        "writeBytes": 210585422
+      },
+      "observer": {
+        "samples": 89,
+        "missingSamples": 0,
+        "maxRssBytes": 173031424,
+        "cpuMs": 18296.875,
+        "observedWallMs": 2769179.7170000076,
+        "oneCorePercent": {
+          "n": 88,
+          "p50": 0.6266620021110633,
+          "p95": 1.2323327842716316,
+          "p99": 5.037422000611951,
+          "max": 5.037422000611951
+        },
+        "hostCapacityPercent": {
+          "n": 88,
+          "p50": 0.05222183350925527,
+          "p95": 0.10269439868930264,
+          "p99": 0.4197851667176626,
+          "max": 0.4197851667176626
+        },
+        "readBytes": 90614510,
+        "writeBytes": 1125980
+      },
+      "server": {
+        "samples": 85,
+        "missingSamples": 4,
+        "maxRssBytes": 189947904,
+        "cpuMs": 40625,
+        "observedWallMs": 2727458.7870000005,
+        "oneCorePercent": {
+          "n": 84,
+          "p50": 1.4616037171219238,
+          "p95": 2.1081901020545146,
+          "p99": 3.062112318018075,
+          "max": 3.062112318018075
+        },
+        "hostCapacityPercent": {
+          "n": 84,
+          "p50": 0.12180030976016032,
+          "p95": 0.1756825085045429,
+          "p99": 0.2551760265015062,
+          "max": 0.2551760265015062
+        },
+        "readBytes": 71480206,
+        "writeBytes": 429
+      }
+    },
+    "limits": "Process CPU intervals are separate from host LoadPercentage snapshots. I/O is Windows process logical transfer counters, not physical HDD throughput. Browser/CUA/PowerShell probe and unrelated host processes not attributed; RAM/free disk checked but complete values not logged."
+  },
+  "ui": {
+    "samples": 444,
+    "validDaySamples": 405,
+    "errorSamples": 11,
+    "tabCount": 2,
+    "continuousSingleTab": false,
+    "allSampleGapMs": 79113.01029998064,
+    "validVisibleDayGapMs": 139087.1854,
+    "interruptionCause": "UNKNOWN_TAB_DISAPPEARANCE",
+    "sameOriginalProductUrlRecovered": true,
+    "clockMethod": "Existing observer Node hrtime/wall pair to CUA performance.now; wall bridge uncertainty retained",
+    "clockPrecisionQualified": false
+  },
+  "api": {
+    "successSamples": 2192,
+    "unavailable": 215,
+    "errors": 0,
+    "maxGapMs": 4108.911300003529
+  },
+  "snapshots": [
+    {
+      "elapsedSeconds": 13.161343800008297,
+      "phase": "INITIALIZATION",
+      "source": 31322,
+      "committed": 1536,
+      "published": 0,
+      "backlog": {
+        "ingestRecords": 29786,
+        "ingestBytes": 40794047,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      }
+    },
+    {
+      "elapsedSeconds": 73.7823872000277,
+      "phase": "INITIALIZATION",
+      "source": 31322,
+      "committed": 17152,
+      "published": 0,
+      "backlog": {
+        "ingestRecords": 14170,
+        "ingestBytes": 19359504,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      }
+    },
+    {
+      "elapsedSeconds": 134.42749530002476,
+      "phase": "INITIALIZATION",
+      "source": 31322,
+      "committed": 28032,
+      "published": 0,
+      "backlog": {
+        "ingestRecords": 3290,
+        "ingestBytes": 4445944,
+        "publicationRecords": 31322,
+        "publicationBytes": 42903318
+      }
+    },
+    {
+      "elapsedSeconds": 195.1666685000062,
+      "phase": "INITIALIZATION",
+      "source": 31322,
+      "committed": 31322,
+      "published": 31322,
+      "backlog": {
+        "ingestRecords": 0,
+        "ingestBytes": 0,
+        "publicationRecords": 0,
+        "publicationBytes": 0
+      }
+    },
+    {
+      "elapsedSeconds": 255.73866960000993,
+      "phase": "NORMAL",
+      "source": 33954,
+      "committed": 33132,
+      "published": 31322,
+      "backlog": {
+        "ingestRecords": 822,
+        "ingestBytes": 1122404,
+        "publicationRecords": 2632,
+        "publicationBytes": 3590645
+      }
+    },
+    {
+      "elapsedSeconds": 316.5719347000122,
+      "phase": "NORMAL",
+      "source": 38198,
+      "committed": 37005,
+      "published": 33132,
+      "backlog": {
+        "ingestRecords": 1193,
+        "ingestBytes": 1632003,
+        "publicationRecords": 5066,
+        "publicationBytes": 6925132
+      }
+    },
+    {
+      "elapsedSeconds": 377.1486115000248,
+      "phase": "NORMAL",
+      "source": 42014,
+      "committed": 40742,
+      "published": 40614,
+      "backlog": {
+        "ingestRecords": 1272,
+        "ingestBytes": 1741895,
+        "publicationRecords": 1400,
+        "publicationBytes": 1917141
+      }
+    },
+    {
+      "elapsedSeconds": 437.3945327000022,
+      "phase": "NORMAL",
+      "source": 45771,
+      "committed": 44418,
+      "published": 43268,
+      "backlog": {
+        "ingestRecords": 1353,
+        "ingestBytes": 1851983,
+        "publicationRecords": 2503,
+        "publicationBytes": 3426540
+      }
+    },
+    {
+      "elapsedSeconds": 500.0265201000273,
+      "phase": "NORMAL",
+      "source": 48419,
+      "committed": 47965,
+      "published": 47102,
+      "backlog": {
+        "ingestRecords": 454,
+        "ingestBytes": 621124,
+        "publicationRecords": 1317,
+        "publicationBytes": 1802384
+      }
+    },
+    {
+      "elapsedSeconds": 558.6696664000153,
+      "phase": "NORMAL",
+      "source": 51466,
+      "committed": 50527,
+      "published": 50143,
+      "backlog": {
+        "ingestRecords": 939,
+        "ingestBytes": 1284996,
+        "publicationRecords": 1323,
+        "publicationBytes": 1810467
+      }
+    },
+    {
+      "elapsedSeconds": 619.4805808000267,
+      "phase": "NORMAL",
+      "source": 54459,
+      "committed": 53839,
+      "published": 52256,
+      "backlog": {
+        "ingestRecords": 620,
+        "ingestBytes": 848829,
+        "publicationRecords": 2203,
+        "publicationBytes": 3014914
+      }
+    },
+    {
+      "elapsedSeconds": 679.752326300025,
+      "phase": "NORMAL",
+      "source": 56960,
+      "committed": 56300,
+      "published": 55187,
+      "backlog": {
+        "ingestRecords": 660,
+        "ingestBytes": 904128,
+        "publicationRecords": 1773,
+        "publicationBytes": 2429269
+      }
+    },
+    {
+      "elapsedSeconds": 739.7597578000128,
+      "phase": "NORMAL",
+      "source": 59514,
+      "committed": 58644,
+      "published": 57413,
+      "backlog": {
+        "ingestRecords": 870,
+        "ingestBytes": 1191147,
+        "publicationRecords": 2101,
+        "publicationBytes": 2876325
+      }
+    },
+    {
+      "elapsedSeconds": 800.351073300004,
+      "phase": "NORMAL",
+      "source": 61530,
+      "committed": 61027,
+      "published": 60643,
+      "backlog": {
+        "ingestRecords": 503,
+        "ingestBytes": 688409,
+        "publicationRecords": 887,
+        "publicationBytes": 1214035
+      }
+    },
+    {
+      "elapsedSeconds": 860.7352506000102,
+      "phase": "NORMAL",
+      "source": 63487,
+      "committed": 63140,
+      "published": 62201,
+      "backlog": {
+        "ingestRecords": 347,
+        "ingestBytes": 474944,
+        "publicationRecords": 1286,
+        "publicationBytes": 1760141
+      }
+    },
+    {
+      "elapsedSeconds": 921.827240200013,
+      "phase": "NORMAL",
+      "source": 66650,
+      "committed": 65724,
+      "published": 64151,
+      "backlog": {
+        "ingestRecords": 926,
+        "ingestBytes": 1267080,
+        "publicationRecords": 2499,
+        "publicationBytes": 3420394
+      }
+    },
+    {
+      "elapsedSeconds": 982.2823833000064,
+      "phase": "NORMAL",
+      "source": 71607,
+      "committed": 70329,
+      "published": 67441,
+      "backlog": {
+        "ingestRecords": 1278,
+        "ingestBytes": 1749120,
+        "publicationRecords": 4166,
+        "publicationBytes": 5701310
+      }
+    },
+    {
+      "elapsedSeconds": 1043.2277736999988,
+      "phase": "NORMAL",
+      "source": 73962,
+      "committed": 73761,
+      "published": 72332,
+      "backlog": {
+        "ingestRecords": 201,
+        "ingestBytes": 275358,
+        "publicationRecords": 1630,
+        "publicationBytes": 2231518
+      }
+    },
+    {
+      "elapsedSeconds": 1103.7671305000185,
+      "phase": "NORMAL",
+      "source": 76105,
+      "committed": 75972,
+      "published": 74948,
+      "backlog": {
+        "ingestRecords": 133,
+        "ingestBytes": 182054,
+        "publicationRecords": 1157,
+        "publicationBytes": 1583651
+      }
+    },
+    {
+      "elapsedSeconds": 1163.9369535000026,
+      "phase": "NORMAL",
+      "source": 79068,
+      "committed": 78252,
+      "published": 76844,
+      "backlog": {
+        "ingestRecords": 816,
+        "ingestBytes": 1118779,
+        "publicationRecords": 2224,
+        "publicationBytes": 3047627
+      }
+    },
+    {
+      "elapsedSeconds": 1224.8955450000167,
+      "phase": "NORMAL",
+      "source": 85405,
+      "committed": 82237,
+      "published": 78657,
+      "backlog": {
+        "ingestRecords": 3168,
+        "ingestBytes": 4342221,
+        "publicationRecords": 6748,
+        "publicationBytes": 9245839
+      }
+    },
+    {
+      "elapsedSeconds": 1285.304691200018,
+      "phase": "NORMAL",
+      "source": 93614,
+      "committed": 88091,
+      "published": 82237,
+      "backlog": {
+        "ingestRecords": 5523,
+        "ingestBytes": 7565871,
+        "publicationRecords": 11377,
+        "publicationBytes": 15588203
+      }
+    },
+    {
+      "elapsedSeconds": 1346.3174552000164,
+      "phase": "NORMAL",
+      "source": 99216,
+      "committed": 95575,
+      "published": 88091,
+      "backlog": {
+        "ingestRecords": 3641,
+        "ingestBytes": 4989343,
+        "publicationRecords": 11125,
+        "publicationBytes": 15241884
+      }
+    },
+    {
+      "elapsedSeconds": 1406.9467419000268,
+      "phase": "NORMAL",
+      "source": 103743,
+      "committed": 101084,
+      "published": 95575,
+      "backlog": {
+        "ingestRecords": 2659,
+        "ingestBytes": 3645847,
+        "publicationRecords": 8168,
+        "publicationBytes": 11197233
+      }
+    },
+    {
+      "elapsedSeconds": 1467.3175748000144,
+      "phase": "NORMAL",
+      "source": 108100,
+      "committed": 105871,
+      "published": 101084,
+      "backlog": {
+        "ingestRecords": 2229,
+        "ingestBytes": 3055474,
+        "publicationRecords": 7016,
+        "publicationBytes": 9620004
+      }
+    },
+    {
+      "elapsedSeconds": 1527.8718536000251,
+      "phase": "NORMAL",
+      "source": 112973,
+      "committed": 110765,
+      "published": 105871,
+      "backlog": {
+        "ingestRecords": 2208,
+        "ingestBytes": 3026605,
+        "publicationRecords": 7102,
+        "publicationBytes": 9736483
+      }
+    },
+    {
+      "elapsedSeconds": 1587.9698160000146,
+      "phase": "NORMAL",
+      "source": 116545,
+      "committed": 114853,
+      "published": 110765,
+      "backlog": {
+        "ingestRecords": 1692,
+        "ingestBytes": 2320595,
+        "publicationRecords": 5780,
+        "publicationBytes": 7926409
+      }
+    },
+    {
+      "elapsedSeconds": 1648.12217840001,
+      "phase": "NORMAL",
+      "source": 119571,
+      "committed": 118273,
+      "published": 114853,
+      "backlog": {
+        "ingestRecords": 1298,
+        "ingestBytes": 1782210,
+        "publicationRecords": 4718,
+        "publicationBytes": 6472669
+      }
+    },
+    {
+      "elapsedSeconds": 1708.6156028000116,
+      "phase": "NORMAL",
+      "source": 122470,
+      "committed": 121075,
+      "published": 118273,
+      "backlog": {
+        "ingestRecords": 1395,
+        "ingestBytes": 1914892,
+        "publicationRecords": 4197,
+        "publicationBytes": 5761602
+      }
+    },
+    {
+      "elapsedSeconds": 1769.479143900007,
+      "phase": "NORMAL",
+      "source": 125752,
+      "committed": 124393,
+      "published": 121075,
+      "backlog": {
+        "ingestRecords": 1359,
+        "ingestBytes": 1864604,
+        "publicationRecords": 4677,
+        "publicationBytes": 6418560
+      }
+    },
+    {
+      "elapsedSeconds": 1830.2813950000107,
+      "phase": "NORMAL",
+      "source": 128936,
+      "committed": 127301,
+      "published": 124393,
+      "backlog": {
+        "ingestRecords": 1635,
+        "ingestBytes": 2243047,
+        "publicationRecords": 4543,
+        "publicationBytes": 6234654
+      }
+    },
+    {
+      "elapsedSeconds": 1891.8592140000164,
+      "phase": "NORMAL",
+      "source": 132183,
+      "committed": 130434,
+      "published": 127301,
+      "backlog": {
+        "ingestRecords": 1749,
+        "ingestBytes": 2399966,
+        "publicationRecords": 4882,
+        "publicationBytes": 6700831
+      }
+    },
+    {
+      "elapsedSeconds": 1952.241452000022,
+      "phase": "NORMAL",
+      "source": 135629,
+      "committed": 134588,
+      "published": 130434,
+      "backlog": {
+        "ingestRecords": 1041,
+        "ingestBytes": 1429044,
+        "publicationRecords": 5195,
+        "publicationBytes": 7129833
+      }
+    },
+    {
+      "elapsedSeconds": 2012.5213886000215,
+      "phase": "NORMAL",
+      "source": 138419,
+      "committed": 137709,
+      "published": 134588,
+      "backlog": {
+        "ingestRecords": 710,
+        "ingestBytes": 974820,
+        "publicationRecords": 3831,
+        "publicationBytes": 5259927
+      }
+    },
+    {
+      "elapsedSeconds": 2072.650192100018,
+      "phase": "NORMAL",
+      "source": 141416,
+      "committed": 138989,
+      "published": 137709,
+      "backlog": {
+        "ingestRecords": 2427,
+        "ingestBytes": 3331426,
+        "publicationRecords": 3707,
+        "publicationBytes": 5089372
+      }
+    },
+    {
+      "elapsedSeconds": 2133.4893066000045,
+      "phase": "NORMAL",
+      "source": 144751,
+      "committed": 141165,
+      "published": 137709,
+      "backlog": {
+        "ingestRecords": 3586,
+        "ingestBytes": 4922504,
+        "publicationRecords": 7042,
+        "publicationBytes": 9667430
+      }
+    },
+    {
+      "elapsedSeconds": 2194.239288100004,
+      "phase": "NORMAL",
+      "source": 148091,
+      "committed": 145342,
+      "published": 141165,
+      "backlog": {
+        "ingestRecords": 2749,
+        "ingestBytes": 3773782,
+        "publicationRecords": 6926,
+        "publicationBytes": 9508773
+      }
+    },
+    {
+      "elapsedSeconds": 2255.2068200000226,
+      "phase": "NORMAL",
+      "source": 150417,
+      "committed": 149240,
+      "published": 145342,
+      "backlog": {
+        "ingestRecords": 1177,
+        "ingestBytes": 1617218,
+        "publicationRecords": 5075,
+        "publicationBytes": 6969727
+      }
+    },
+    {
+      "elapsedSeconds": 2315.560252700001,
+      "phase": "NORMAL",
+      "source": 152527,
+      "committed": 151903,
+      "published": 149240,
+      "backlog": {
+        "ingestRecords": 624,
+        "ingestBytes": 858845,
+        "publicationRecords": 3287,
+        "publicationBytes": 4519469
+      }
+    },
+    {
+      "elapsedSeconds": 2378.3044508000016,
+      "phase": "NORMAL",
+      "source": 155552,
+      "committed": 154397,
+      "published": 151903,
+      "backlog": {
+        "ingestRecords": 1155,
+        "ingestBytes": 1586672,
+        "publicationRecords": 3649,
+        "publicationBytes": 5014242
+      }
+    },
+    {
+      "elapsedSeconds": 2437.045694000006,
+      "phase": "NORMAL",
+      "source": 158767,
+      "committed": 157341,
+      "published": 154397,
+      "backlog": {
+        "ingestRecords": 1426,
+        "ingestBytes": 1957466,
+        "publicationRecords": 4370,
+        "publicationBytes": 5999234
+      }
+    },
+    {
+      "elapsedSeconds": 2497.7632650000155,
+      "phase": "NORMAL",
+      "source": 162848,
+      "committed": 158170,
+      "published": 154397,
+      "backlog": {
+        "ingestRecords": 4678,
+        "ingestBytes": 6423960,
+        "publicationRecords": 8451,
+        "publicationBytes": 11603944
+      }
+    },
+    {
+      "elapsedSeconds": 2558.349890400022,
+      "phase": "NORMAL",
+      "source": 165904,
+      "committed": 163469,
+      "published": 158170,
+      "backlog": {
+        "ingestRecords": 2435,
+        "ingestBytes": 3348796,
+        "publicationRecords": 7734,
+        "publicationBytes": 10626291
+      }
+    },
+    {
+      "elapsedSeconds": 2620.045340900004,
+      "phase": "NORMAL",
+      "source": 169826,
+      "committed": 163469,
+      "published": 163469,
+      "backlog": {
+        "ingestRecords": 6357,
+        "ingestBytes": 8737192,
+        "publicationRecords": 6357,
+        "publicationBytes": 8737192
+      }
+    },
+    {
+      "elapsedSeconds": 2680.8993015000224,
+      "phase": "NORMAL",
+      "source": 173724,
+      "committed": 169831,
+      "published": 163469,
+      "backlog": {
+        "ingestRecords": 3893,
+        "ingestBytes": 5342169,
+        "publicationRecords": 10255,
+        "publicationBytes": 14086212
+      }
+    },
+    {
+      "elapsedSeconds": 2741.6977508000136,
+      "phase": "NORMAL",
+      "source": 176358,
+      "committed": 173927,
+      "published": 169831,
+      "backlog": {
+        "ingestRecords": 2431,
+        "ingestBytes": 3340250,
+        "publicationRecords": 6527,
+        "publicationBytes": 8961398
+      }
+    },
+    {
+      "elapsedSeconds": 2773.2666521000265,
+      "phase": "NORMAL",
+      "source": 177769,
+      "committed": 175444,
+      "published": 169831,
+      "backlog": {
+        "ingestRecords": 2325,
+        "ingestBytes": 3193687,
+        "publicationRecords": 7938,
+        "publicationBytes": 10899650
+      }
+    }
+  ],
+  "packStats": [
+    {
+      "phase": "QUERY",
+      "projectionWork": {
+        "aggregateNodes": 0,
+        "historicalReplayRecords": 0,
+        "indexedPoints": 274,
+        "mode": "INDEXED",
+        "newRecords": 5613,
+        "orderedLeaves": 0,
+        "packs": {
+          "archivePages": 44,
+          "groups": 8,
+          "indexBytes": 1241592,
+          "indexPages": 8,
+          "maxArchivePages": 7
+        },
+        "processedRecords": 5613,
+        "rangeNodes": 0,
+        "rangeQueries": 0,
+        "rawVerificationBytes": 0,
+        "rebuildReason": null
+      },
+      "indexLayout": "DERIVED_INDEX_PACK_V1"
+    }
+  ],
+  "phaseTiming": {
+    "scope": "completed cycles grouped by returned phase; not exclusive function attribution",
+    "phases": {
+      "INGEST": {
+        "cycles": 172,
+        "workMs": 613770.3092000003,
+        "pipelineMs": 561266.8527999993,
+        "configMs": 34795.00400000058,
+        "managerMs": 17708.45240000035,
+        "bytes": 1266189934,
+        "maxPackArchivePages": 0,
+        "chargedArchiveAndIndexPages": 1365
+      },
+      "PROJECT": {
+        "cycles": 297,
+        "workMs": 394285.12069999834,
+        "pipelineMs": 301175.2065000016,
+        "configMs": 60217.71920000095,
+        "managerMs": 32892.19499999576,
+        "bytes": 694099045,
+        "maxPackArchivePages": 7,
+        "chargedArchiveAndIndexPages": 1904
+      },
+      "QUERY": {
+        "cycles": 774,
+        "workMs": 561997.4614000004,
+        "pipelineMs": 319004.20119999954,
+        "configMs": 160198.00999999716,
+        "managerMs": 82795.2502000037,
+        "bytes": 919139276,
+        "maxPackArchivePages": 7,
+        "chargedArchiveAndIndexPages": 6192
+      },
+      "VERIFY": {
+        "cycles": 856,
+        "workMs": 790736.3011000034,
+        "pipelineMs": 521206.88359999657,
+        "configMs": 172280.63059999802,
+        "managerMs": 97248.78690000877,
+        "bytes": 6843517461,
+        "maxPackArchivePages": 7,
+        "chargedArchiveAndIndexPages": 318
+      },
+      "VERIFY_PRIOR": {
+        "cycles": 287,
+        "workMs": 221155.15519999957,
+        "pipelineMs": 131346.8796000001,
+        "configMs": 58226.597999997844,
+        "managerMs": 31581.677600001625,
+        "bytes": 2372417258,
+        "maxPackArchivePages": 7,
+        "chargedArchiveAndIndexPages": 0
+      }
+    }
+  },
+  "allFailuresRetained": true,
+  "formalOperations": false,
+  "observedThresholdMisses": {
+    "apiOver120s": 24773,
+    "apiOver180s": 2394,
+    "uiOver150s": 13206,
+    "denominator": 146447,
+    "apiOver120FractionAtLeast": 0.1691601739878591,
+    "apiOver180FractionAtLeast": 0.016347210936379714,
+    "uiOver150FractionAtLeast": 0.09017596809767356,
+    "meaning": "Observed deadline violations / all actually appended records; censored records never assumed on time; not a full-population quantile"
+  },
+  "independentEvidenceReview": {
+    "reviewer": "g1a_pack_correctness",
+    "B": 0,
+    "recalculatedEveryActualRecord": true,
+    "correction": "Report valid UI gap separately from gap including error samples"
+  },
+  "formalCollection": {
+    "checkedAt": "2026-09-26 收尾唯讀核對，約15:10 +08；非精確採樣時間",
+    "calendar": "NON_TRADING_DAY",
+    "records": 49,
+    "bytes": 41131,
+    "lastReceivedAt": "2026-09-26T15:01:02.671191+08:00",
+    "kinds": {
+      "bridge_started": 1,
+      "subscriptions_ready": 1,
+      "provider_event": 29,
+      "quote_type_resubscribe": 18
+    },
+    "sameFormalNodeAndBridgeStart": "2026-09-26T08:50:18+08:00",
+    "formal8787StillPresent": true,
+    "candidate3071Absent": true,
+    "knownDailyFailures": [
+      "quality FAILED",
+      "data_continuity_audit FAILED"
+    ],
+    "mutationsByThisWork": false
+  }
+}

@@ -215,3 +215,83 @@ NIGHT 保留自身 #31,322／42,903,318B，沒有套用 DAY pointer。共 16 個
 - 允許批准後同一工作包連續實作、相稱修復／review／測試、push/CI及去敏PR73／CRU55回存讀回；觸及列定停止條件即交G1-A未達／具體阻擋。**G1-B真實正式日盤、G1-C、Merge、Promotion、正式8787及正式容量／時段／啟動設定仍另行批准。**
 
 本輪 **ROUTE_READY_FOR_OWNER／RECOMMEND_BOUNDED_IMPLEMENTATION**；沒有施工、沒有新campaign、沒有把分析算成產品前進。若Owner退回此有限投入，或批准後在固定停點證明不足，應明確記G1-A受阻並重新決定產品／架構路線，不再用現版重测或工具小修代替。安全保持 `formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false`；CRU55仍In Progress、daily NOT_READY。
+
+## 9. Owner批准後施工與候選一次驗證差異｜2026-09-26
+
+**G1-A 未達成／已停止。** Owner已明確批准 `08d522d7f7cea56de558cfc9b3095c4e5072e0e7` 的§8.6，本節接續該批准，§8的待批准文字保留為歷史。受測產品 exact **`310796e5ecd184ed47c433946de83f343d5b9017`**，PR73 Draft／未Merge。**建議保留局部改善成果，但不把此路線當成足以交付G1的方案，也不自動開第二轮。** 本次不只遇到主機安全停點；實際送入母體已有足夠已觀測超標樣本證明延遲目標未達。尚無已定位且已修改的範圍內產品根因，環境超限／UI缺口／精度FAIL均不構成再跑理由。
+
+### 9.1 已完成的產品改動與驗證
+
+實際修改 `src/cru55-stream-pipeline.mjs`、`cru55-projection-range-index.mjs`、`cru55-indexed-projection.mjs`、`cru55-managed-plan.mjs`、`cru55-runtime-binding.mjs`：顯式 `DERIVED_INDEX_PACK_V1`，最多7 archive頁／896 facts／2MiB的衍生group；索引durable後才保存roots/cursor；layout納入job/checkpoint/binding。新舊output分離，原始提交、fsync、完整current/prior前綴驗證、分類／時間／品質／缺值數值不變。
+
+獨立審查找到真實after-link crash的雙連結殘留、Windows pending-only唯讀FD fsync失敗；均在packed衍生路徑內修復。只對精確同目錄、同physical identity、全文等於重算值的owned staging恢復；任意hardlink／碰撞仍拒絕。immutable target保留，清除的是已識別暫存連結。Windows真子程序於link前／後退出，均以正常managed owner接管、保留retired鎖並恢復到FULL_SCAN exact結果。
+
+沿用48個不同baseline小測；新增／重跑僅受影響的group暫存、fsync、link、job替換、異內容／foreign link及真process-exit案例。稀疏synthetic query讀頁7→1；**既有896筆archive實讀5→1（減少80%），76,557→75,911B，與原算法exact**。這是局部機械收益，不能換算端到端加速。首次邊界fixture、sandbox TEMP、真exit fixture斷言失敗保留於證據，不刪除救結果。
+
+兩個獨立context `g1a_pack_correctness`／`g1a_pack_safety` 對受測exact **APPROVE，B0/S0**；實作者整合核對同意。CI **200 success**。來源準備／60+5+5接線僅做必要靜態／語法審查，未重開100ms校驗。第一施工checkpoint已回存讀回；合格後未等待Owner查收便連續執行候選1。
+
+### 9.2 一次實際運行與停止
+
+固定來源及窗口沿§8.3，full SHA不變。私人準備 **9.804秒**，完整初始31,322筆／42,903,318B，無舊checkpoint；首次可信NIGHT publication/API約 **189.967／190.001秒**，原頁核對後242.854秒開始流入。冷初始化成本獨立計算，不外推150萬筆成熟帳本。
+
+預定60分鐘新增198,016筆；重開5分鐘另12,914筆。實際流入 **42分9.552秒**，新增 **146,447筆／200,780,338B**，固定65分鐘窗口尚有64,483筆未送入。候選運行及清理 **46分19.443秒**，從來源準備起含中間等待 **48分2.519秒**；沒有延長97分鐘預算。
+
+停止主因：主機CPU有效樣本 **15:05:59為90%、15:06:31為86%（+08），間隔32.851秒**，觸發既定 `HOST_CPU_GATE`。不是30秒平均，也不是CVD專屬CPU。`APPENDER_EXIT_INCOMPLETE` 是保護性停止後的次要紀錄。一次即停，正常重開與有界drain **未測**；沒有另開第二候選。
+
+停止後再次讀durable狀態及來源，確認：
+
+| 進度 | 筆數 | bytes |
+| --- | ---: | ---: |
+| source | 177,769 | 243,683,656 |
+| committed | 175,444 | 240,489,969 |
+| published | 169,831 | 232,784,006 |
+| 未提交差額 | 2,325 | 3,193,687 |
+| 未發布差額 | 7,938 | 10,899,650 |
+
+實際來源與既有frozen的byte0相同長度逐bytes相等、完整行數一致；未發布不是原始資料遺失。積壓未排空。原始日行情／SQLite／排程／五日計數未由本工作修改。
+
+安全清理 **7.013秒**，最終fresh PID/listener核對writer、appender、server及3071均不存在。首次immediate-stop曾回報 `STOP_WRITER_NOT_ABSENT`，後續同一次清理确认已停止；這項負向紀錄保留，不冒稱第一次停止即成功。8787及原bridge仍為08:50:18啟動的同一程序。
+
+### 9.3 延遲、完整分母及量測限制
+
+以每筆實際完整原行write可見時間起算，母體 **146,447**。API/UI各觀測138,509筆，另7,938筆未發布；**完整母體分位數未建立**，以下僅成功子集，絕不作全母體PASS：
+
+| 成功子集／採樣上界 | p95秒 | p99秒 |
+| --- | ---: | ---: |
+| API首次cutoff覆蓋 | 146.065 | 190.121 |
+| 原產品面板首次可見（含中斷後新tab） | 178.029 | 227.516 |
+
+不補0、不排除慢樣本的保守判斷：已觀測API>120秒 **24,773筆／全實際母體16.92%**，API>180秒 **2,394筆／1.63%**；UI>150秒 **13,206筆／9.02%**。即使完全不推測censored值，違約數已超過相應5%／1%尾部額度；不能因母體未全發布而迴避已證目標未達。這不等於建立完整60分鐘的分位數。
+
+送入誤差p95 **20.081ms**、p99 **515.052ms**、max **2,009.797ms**。原精度條件仍FAIL；沒有因此修工具或放慢送入。實際／原定1秒records尖峰均749；60秒格實際7,799／原定7,788。1秒records變異7.016%、60秒0.0369%；對原市場情境外推受限，不能宣稱precise replay。
+
+原tab途中消失，原因未知；11個UI錯誤樣本保留，恢復的是同一原產品URL與既有Session的新tab。**不是同一tab全程連續證明。** 含錯誤採樣的最大間隔79.113秒；有效可見DAY樣本最大空窗 **139.087秒**。UI時鐘沿既有Node hrtime/wall→CUA performance橋接，未取得新精度資格。API記錄215次初始／未發布503、0次api-error；沒有把API成功代替UI連續性。
+
+### 9.4 資源與仍保留的工作
+
+89次主機樣本，p95=68%、max=90%。分程序CPU來自相鄰樣本的CPU時間差；12 logical CPUs下另列占整機理論容量，不能直接與主機瞬時LoadPercentage相減推論未測程序：
+
+| 程序 | 單核心CPU比例p95 | 整機容量比例p95 | 最大RSS bytes |
+| --- | ---: | ---: | ---: |
+| candidate writer | 49.10% | 4.09% | 304,324,608 |
+| appender | 5.59% | 0.47% | 546,086,912 |
+| observer | 1.23% | 0.10% | 173,031,424 |
+| API server | 2.11% | 0.18% | 189,947,904 |
+
+writer已採樣区間ReadTransferCount增量約13.83GB／write約848.86MB；是程序邏輯transfer，**不是HDD實體吞吐**。appender/server各4個啟動前缺樣、writer1個；browser/CUA、PowerShell probe及其他主機負擔未完整歸因。RAM/free-disk硬停檢查仍執行，但未保存完整數列，不能捏造歷史最小值。
+
+pack確有生效：最後未完成job的44 archive頁形成8組，max7；QUERY完成cycle累積讀6,192 index頁／919,139,276B。完整raw VERIFY及VERIFY_PRIOR仍分別計費約6.84GB／2.37GB。phase timings依**回傳phase**分組，跨phase工作與最後中止cycle限制保留，不能當唯一根因profile。局部讀頁減量不能消除原始提交、反覆完整驗證、管理checkpoint與UI/API成本。
+
+### 9.5 距G1-A／B／C、批准與同一交付清單
+
+| 階段 | 本次增量與仍缺項 |
+| --- | --- |
+| G1-A | 真正產品修正、數值／安全小測、讀取減量、Level3 review、push/CI及候選1已完成；**目標未達**，60分鐘／重開／排空未完成、UI連續性缺口。保留成果而停止本包昂貴驗證。若仍要推進G1，需Owner另行決定具體產品／架構或運行資源路線；不把原批准自動延伸，不建議同版再測或串接盲修。 |
+| G1-B | §8.5已有盤點沿用；仍須先有足以驗收的候選及批准D日、current與所有必要prior／交易日與檔案日期／合法資格、代表容量、成熟cold預算、自然collector與prefix guard相容性、完整合格真實DAY。既有150萬cold负向保留；本次不批准正式日盤。 |
+| G1-C | 仍需G1-A/B查收與exact Merge批准，取得actual merged main，按既有包整版Git同步／matching Node與native／lockfile；合法binding與普通output／版本，CRU34正常owner入口與真snapshot，START_DAILY_USE和原面板must-preserve能力、正常捷徑重開、正式驗收／常駐批准與整版回退。本次未更新8787；PR72隔離更新器不能代替正式更新工具。 |
+
+今日既有營運日曆為NON_TRADING_DAY。收尾唯讀見正式檔49筆／41,131B，最後receivedAt **15:01:02.671191+08**：1 bridge_started、1 subscriptions_ready、29 provider_event、18 quote_type_resubscribe，無trade/quote；這不是交易日收集成功證明。原 **quality FAILED／data_continuity_audit FAILED** 及resubscribe紀錄均列為日常交付缺口，沒有自行修正式流程。本機main及其既有dirty檔保留。
+
+工程投入自13:46開始至本次收尾，屬同一已准4–6人日包、未達6人日上限；不能把已花數小時或通過CI當成日常交付。停止依據為資源gate與實際未達標，不是工程預算耗盡。推薦：**本有限路線不足以放行G1；保留候選成果、退回G1-A驗收，不啟G1-B/C、不Merge、不Promotion、不切8787。**
+
+去敏彙總見 [`campaign-1-result.json`](../evidence/cru55-index-pack/campaign-1-result.json)、[`review-corrections.json`](../evidence/cru55-index-pack/review-corrections.json)；逐筆、raw、SQLite、憑證與私人helper留本機。獨立逐筆重算已確認分母／分位數／CPU停點，B0；沒有重啟產品測試。
