@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {probeManagedProcess} from '../src/cru55-managed-owner.mjs';
 import {runStreamCycle} from '../src/cru55-stream-pipeline.mjs';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {SAFETY,stableJson,digest} from '../src/cvd-observation-core.mjs';
@@ -44,16 +46,25 @@ test('packed checkpoint groups are bounded, legacy and full-scan artifacts are e
   }finally{dispose(f.root);}
 });
 
-for(const fault of ['BEFORE_INDEX_LINK','AFTER_INDEX_LINK','BEFORE_JOB_REPLACE','AFTER_JOB_REPLACE','COLLISION_CHANGED']){
+for(const fault of ['MID_GROUP_STAGE','BEFORE_INDEX_FSYNC','AFTER_INDEX_FSYNC','BEFORE_INDEX_LINK','AFTER_INDEX_LINK','AFTER_INDEX_LINK_ORPHAN','ORPHAN_CHANGED','FOREIGN_LINK','BEFORE_JOB_REPLACE','AFTER_JOB_REPLACE','COLLISION_CHANGED']){
   test('packed recovery preserves complete cursor and exact results: '+fault,t=>{
-    const f=fixture();const link=fs.linkSync,rename=fs.renameSync,read=fs.readFileSync;let injected=false,target=null,oldCursor=null;
+    const f=fixture();const link=fs.linkSync,rename=fs.renameSync,read=fs.readFileSync,open=fs.openSync,sync=fs.fsyncSync,unlink=fs.unlinkSync;let injected=false,target=null,oldCursor=null,staging=null,groupReads=0;const indexFds=new Set();
     try{
+      fs.openSync=(file,...args)=>{const fd=open(file,...args);if(typeof file==='string'&&path.basename(path.dirname(file))==='projection-index'&&args[0]==='wx')indexFds.add(fd);return fd;};
+      fs.fsyncSync=fd=>{if(!injected&&indexFds.has(fd)&&['BEFORE_INDEX_FSYNC','AFTER_INDEX_FSYNC'].includes(fault)){oldCursor=JSON.parse(read(path.join(f.opts.runRoot,'job.json'))).value.nextIndex;injected=true;if(fault==='AFTER_INDEX_FSYNC')sync(fd);throw Error('PACK_TEST_FAULT');}return sync(fd);};
+      fs.readFileSync=(file,...args)=>{if(!injected&&fault==='MID_GROUP_STAGE'&&typeof file==='string'&&path.basename(path.dirname(file))==='pages'){
+        const job=JSON.parse(read(path.join(f.opts.runRoot,'job.json'))).value;
+        if(job.phase==='PROJECT'&&++groupReads===2){oldCursor=job.nextIndex;injected=true;throw Error('PACK_TEST_FAULT');}
+      }return read(file,...args);};
+      // Preserve exactly the link pair that process termination would leave;
+      // unrelated pipeline lock cleanup still runs in this focused fault test.
+      fs.unlinkSync=file=>{if(injected&&file===staging&&['AFTER_INDEX_LINK_ORPHAN','ORPHAN_CHANGED','FOREIGN_LINK'].includes(fault))return;return unlink(file);};
       fs.linkSync=(from,to)=>{
         if(!injected&&path.basename(path.dirname(to))==='projection-index'){
-          target=to;oldCursor=JSON.parse(read(path.join(f.opts.runRoot,'job.json'))).value.nextIndex;
+          target=to;staging=from;oldCursor=JSON.parse(read(path.join(f.opts.runRoot,'job.json'))).value.nextIndex;
           if(fault==='BEFORE_INDEX_LINK'){injected=true;throw Error('PACK_TEST_FAULT');}
           const result=link(from,to);
-          if(['AFTER_INDEX_LINK','COLLISION_CHANGED'].includes(fault)){injected=true;throw Error('PACK_TEST_FAULT');}
+          if(['AFTER_INDEX_LINK','AFTER_INDEX_LINK_ORPHAN','ORPHAN_CHANGED','FOREIGN_LINK','COLLISION_CHANGED'].includes(fault)){injected=true;throw Error('PACK_TEST_FAULT');}
           return result;
         }return link(from,to);
       };
@@ -64,18 +75,21 @@ for(const fault of ['BEFORE_INDEX_LINK','AFTER_INDEX_LINK','BEFORE_JOB_REPLACE',
         }return rename(from,to);
       };
       assert.throws(()=>finish(f.opts),/PACK_TEST_FAULT/);assert.ok(injected);
-      fs.linkSync=link;fs.renameSync=rename;
+      fs.linkSync=link;fs.renameSync=rename;fs.openSync=open;fs.fsyncSync=sync;fs.readFileSync=read;fs.unlinkSync=unlink;
       const job=JSON.parse(read(path.join(f.opts.runRoot,'job.json'))).value;
       assert.equal(job.nextIndex,fault==='AFTER_JOB_REPLACE'?oldCursor+7:oldCursor);
       assert.equal(fs.existsSync(path.join(f.opts.runRoot,'stream-public.json')),false);
-      if(fault==='COLLISION_CHANGED'){
+      if(['AFTER_INDEX_LINK_ORPHAN','ORPHAN_CHANGED','FOREIGN_LINK'].includes(fault))assert.equal(fs.statSync(target).nlink,2);
+      if(fault==='FOREIGN_LINK'){rename(staging,staging+'.foreign');assert.throws(()=>finish(f.opts),/FILE_INVALID/);return;}
+      if(['COLLISION_CHANGED','ORPHAN_CHANGED'].includes(fault)){
         const node=JSON.parse(read(target));node.nodes[0].summary.acc.buy++;fs.writeFileSync(target,stableJson(node));
         assert.throws(()=>finish(f.opts),/IMMUTABLE_COLLISION/);return;
       }
       const actual=finish(f.opts),oracle=finish({...f.opts,indexLayout:null,projectionMode:'FULL_SCAN',runRoot:path.join(f.root,'oracle')});
+      if(fault==='AFTER_INDEX_LINK_ORPHAN'){assert.equal(fs.statSync(target).nlink,1);assert.equal(fs.existsSync(staging),false);}
       assert.deepEqual(JSON.parse(read(path.join(f.opts.runRoot,actual.artifactHash+'.stream-view.json'))),JSON.parse(read(path.join(f.root,'oracle',oracle.artifactHash+'.stream-view.json'))));
       t.diagnostic(JSON.stringify({fault,oldCursor,recoveredCursor:job.nextIndex,exact:true}));
-    }finally{fs.linkSync=link;fs.renameSync=rename;dispose(f.root);}
+    }finally{fs.linkSync=link;fs.renameSync=rename;fs.openSync=open;fs.fsyncSync=sync;fs.readFileSync=read;fs.unlinkSync=unlink;dispose(f.root);}
   });
 }
 
@@ -86,6 +100,25 @@ test('uncommitted range nodes roll back at 2MiB without changing the retained fo
   assert.ok(b.byteLength()>INDEX_PACK_LIMITS.pageBytes);b.rollback(mark);assert.equal(b.byteLength(),size);
   const roots=b.finish();assert.equal(roots.length,1);assert.equal(roots[0].summary.count,1);assert.equal(files.size,1);
   const only=[...files.values()][0];assert.equal(digest(stableJson(only)),roots[0].ref.hash);
+});
+
+test('real process exit after pack link recovers through normal managed ownership', {skip:process.platform!=='win32'},()=>{
+  const f=fixture(896);try{
+    const binding={bindingHash:'a'.repeat(64),runtimeCommit:'b'.repeat(40),configPath:path.join(f.root,'config.json'),outputRoot:f.root};
+    const child=`import fs from 'node:fs';import {runStreamCycle} from ${JSON.stringify(new URL('../src/cru55-stream-pipeline.mjs',import.meta.url).href)};import {probeManagedProcess} from ${JSON.stringify(new URL('../src/cru55-managed-owner.mjs',import.meta.url).href)};
+      const opts=JSON.parse(process.argv[1]);opts.ownerContext={...JSON.parse(process.argv[2]),...probeManagedProcess(process.pid),nonce:'child'};
+      const link=fs.linkSync;fs.linkSync=(a,b)=>{const r=link(a,b);if(b.includes('projection-index'))process.exit(71);return r;};
+      for(let i=0;i<100;i++)runStreamCycle(opts);process.exit(72);`;
+    const exit=spawnSync(process.execPath,['--input-type=module','-e',child,JSON.stringify(f.opts),JSON.stringify(binding)],{encoding:'utf8',windowsHide:true,timeout:60000});
+    assert.equal(exit.status,71,exit.stderr||exit.error?.message);
+    const index=path.join(f.opts.runRoot,'projection-index'),pending=fs.readdirSync(index).find(n=>n.endsWith('.pack-pending'));assert.ok(pending);
+    const target=path.join(index,pending.slice(0,-'.pack-pending'.length));assert.equal(fs.statSync(target).nlink,2);
+    const old=JSON.parse(fs.readFileSync(path.join(f.opts.runRoot,'job.json'))).value;assert.equal(old.nextIndex,1);
+    const ownerContext={...binding,...probeManagedProcess(process.pid),nonce:'parent'};
+    const actual=finish({...f.opts,ownerContext}),oracle=finish({...f.opts,indexLayout:null,projectionMode:'FULL_SCAN',runRoot:path.join(f.root,'oracle')});
+    assert.equal(fs.statSync(target).nlink,1);assert.ok(fs.readdirSync(path.join(f.root,'managed-retired-locks')).length);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.opts.runRoot,actual.artifactHash+'.stream-view.json'))),JSON.parse(fs.readFileSync(path.join(f.root,'oracle',oracle.artifactHash+'.stream-view.json'))));
+  }finally{dispose(f.root);}
 });
 
 test('dense archive groups split at the byte cap and keep exact full-scan output',t=>{

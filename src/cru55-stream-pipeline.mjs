@@ -56,6 +56,31 @@ function immutable(file,value,cap=PIPELINE_LIMITS.jobBytes,beforeRead){
   try{try{fs.linkSync(tmp,file);}catch(e){if(e.code!=='EEXIST'||!same(existing(),value))throw e;}}finally{fs.unlinkSync(tmp);}
 }
 const sealed = value => ({value,hash:digest(stableJson(value))});
+// Only the opt-in derived pack owns this deterministic staging name. A crash
+// after link must not relax the single-link rule for arbitrary output files.
+function immutablePack(file,value,beforeRead){
+  const cap=INDEX_PACK_LIMITS.pageBytes,bytes=stableJson(value);
+  if(Buffer.byteLength(bytes)>cap)fail('STREAM_PIPELINE_ARTIFACT_BUDGET');
+  const pending=assertPlainPath(file+'.pack-pending');assertPlainPath(file);
+  const meta=p=>{assertPlainPath(p);const s=fs.statSync(p,{bigint:true});if(!s.isFile()||s.size>BigInt(cap))fail('STREAM_PIPELINE_FILE_INVALID');return s;};
+  const sameFile=(a,b)=>a.dev===b.dev&&a.ino===b.ino&&a.birthtimeNs===b.birthtimeNs&&a.size===b.size&&a.mtimeNs===b.mtimeNs;
+  const verify=(p,s)=>{beforeRead(Number(s.size));const actual=fs.readFileSync(p,'utf8');if(actual!==bytes)fail('STREAM_PIPELINE_IMMUTABLE_COLLISION');const after=meta(p);if(!sameFile(s,after)||s.nlink!==after.nlink)fail('STREAM_PIPELINE_FILE_CHANGED');};
+  if(fs.existsSync(file)){
+    const target=meta(file);
+    if(target.nlink===1n){if(fs.existsSync(pending))fail('STREAM_PIPELINE_FILE_INVALID');verify(file,target);return;}
+    if(target.nlink!==2n||!fs.existsSync(pending))fail('STREAM_PIPELINE_FILE_INVALID');
+    const staged=meta(pending);
+    if(staged.nlink!==2n||!sameFile(target,staged))fail('STREAM_PIPELINE_FILE_INVALID');
+    verify(file,target);
+    if(!sameFile(staged,meta(pending))||meta(pending).nlink!==2n||!sameFile(target,meta(file))||meta(file).nlink!==2n)fail('STREAM_PIPELINE_FILE_CHANGED');
+    fs.unlinkSync(pending);fileMetadata(file,cap);return;
+  }
+  if(fs.existsSync(pending)){
+    const staged=meta(pending);if(staged.nlink!==1n)fail('STREAM_PIPELINE_FILE_INVALID');verify(pending,staged);
+    const fd=fs.openSync(pending,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  }else atomic(pending,value,cap);
+  try{fs.linkSync(pending,file);}finally{if(fs.existsSync(pending))fs.unlinkSync(pending);}
+}
 function unseal(file){const s=json(file);if(digest(stableJson(s.value))!==s.hash)fail('STREAM_PIPELINE_STATE_CHANGED');return s.value;}
 function resolve(calendarPath,currentCode){
   calendarPath=calendarPath??path.join(REPO,'config/taifex-official-calendar-2026.json');assertPlainPath(calendarPath);
@@ -237,7 +262,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       if(indexLayout){
         // One private group per cycle. Reserve one full index-page collision
         // read BEFORE archive reads; replaying an orphan cannot starve progress.
-        const append=beginRangeAppend(job.rangeIndex.roots,(hash,node)=>immutable(name('projection-index/'+hash+'.json'),node,INDEX_PACK_LIMITS.pageBytes,size=>work.take(size,true)));
+        const append=beginRangeAppend(job.rangeIndex.roots,(hash,node)=>immutablePack(name('projection-index/'+hash+'.json'),node,size=>work.take(size,true)));
         let projection=job.projection,nextIndex=job.nextIndex,previousChunkHash=job.previousChunkHash,previousPageHash=job.previousPageHash;
         let groupPages=0,groupRecords=0,historicalRecords=0,indexedPoints=0;
         let futurePriceExcluded=job.rangeIndex.futurePriceExcluded,maxPointAvailable=job.rangeIndex.maxPointAvailable;

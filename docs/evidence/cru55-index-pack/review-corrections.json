@@ -1,0 +1,15 @@
+{
+  "scope": "DERIVED_INDEX_PACK_V1 independent review corrections",
+  "reviewedBase": "4710da163aae4f159f66deff5bca260a3a8ae3f9",
+  "originalVerdicts": ["correctness REQUEST_CHANGES: staging/fsync fault coverage", "safety REQUEST_CHANGES: after-link process exit leaves two hardlinks"],
+  "productCorrection": "Packed index only: fsynced deterministic staging; recover exact same-file two-link pair only after charged full-byte equality; remove owned staging link and retain immutable target. Legacy/raw unchanged.",
+  "verified": {
+    "packedSuite": {"passed": 15, "failed": 0, "durationMs": 88132.4276},
+    "realWindowsProcessExitAndManagedRecovery": {"passed": 1, "failed": 0, "durationMs": 10391.9468, "childExitCode": 71, "retiredOwnerLockPreserved": true, "targetLinksBefore": 2, "targetLinksAfter": 1, "fullScanArtifactExact": true},
+    "faults": ["MID_GROUP_STAGE", "BEFORE_INDEX_FSYNC", "AFTER_INDEX_FSYNC", "BEFORE_INDEX_LINK", "AFTER_INDEX_LINK", "AFTER_INDEX_LINK_ORPHAN", "ORPHAN_CHANGED", "FOREIGN_LINK", "BEFORE_JOB_REPLACE", "AFTER_JOB_REPLACE", "COLLISION_CHANGED"],
+    "sparseReadPages": {"legacy": 7, "packed": 1},
+    "sparseReadBytes": {"legacy": 191136, "packed": 189743}
+  },
+  "retainedFailures": ["First real-process test used 270 records: old durable job had not yet persisted PROJECT nextIndex, so assertion undefined===1 failed. Test fixture changed to existing 896-record boundary; product code unchanged by this test correction."],
+  "limitations": ["Focused exception tests emulate filesystem crash residue; separate Windows test really exits process after link and uses normal managed ownership recovery.", "No campaign or G1-A completion implied."]
+}
