@@ -11,5 +11,11 @@
     "sparseReadBytes": {"legacy": 191136, "packed": 189743}
   },
   "retainedFailures": ["First real-process test used 270 records: old durable job had not yet persisted PROJECT nextIndex, so assertion undefined===1 failed. Test fixture changed to existing 896-record boundary; product code unchanged by this test correction."],
-  "limitations": ["Focused exception tests emulate filesystem crash residue; separate Windows test really exits process after link and uses normal managed ownership recovery.", "No campaign or G1-A completion implied."]
+  "followupCorrection": {
+    "finding": "Both reviewers reproduced Windows EPERM when fsync uses a read-only descriptor on durable pending-only staging.",
+    "fix": "r+ without truncation, descriptor and path identity/link checks around fsync; only packed derived staging is affected.",
+    "pendingOnlyFaultTest": {"passed": 1, "durationMs": 6395.1555},
+    "realWindowsBeforeLinkExitAndManagedRecovery": {"passed": 1, "durationMs": 10021.4526, "childExitCode": 71, "fullScanArtifactExact": true}
+  },
+  "limitations": ["Focused exception tests emulate filesystem crash residue; separate Windows tests really exit process before and after link and use normal managed ownership recovery.", "No campaign or G1-A completion implied."]
 }

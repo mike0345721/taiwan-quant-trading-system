@@ -77,7 +77,7 @@ function immutablePack(file,value,beforeRead){
   }
   if(fs.existsSync(pending)){
     const staged=meta(pending);if(staged.nlink!==1n)fail('STREAM_PIPELINE_FILE_INVALID');verify(pending,staged);
-    const fd=fs.openSync(pending,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+    const fd=fs.openSync(pending,'r+');try{const opened=fs.fstatSync(fd,{bigint:true});if(!sameFile(staged,opened)||opened.nlink!==1n)fail('STREAM_PIPELINE_FILE_CHANGED');fs.fsyncSync(fd);if(!sameFile(staged,meta(pending))||meta(pending).nlink!==1n)fail('STREAM_PIPELINE_FILE_CHANGED');}finally{fs.closeSync(fd);}
   }else atomic(pending,value,cap);
   try{fs.linkSync(pending,file);}finally{if(fs.existsSync(pending))fs.unlinkSync(pending);}
 }
