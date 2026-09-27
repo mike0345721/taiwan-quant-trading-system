@@ -184,9 +184,14 @@ test('true process exit invalidates disk receipt; new native owner must full ver
 
 
 test('v3 candidate config creates an isolated output contract and formal activation stays blocked',()=>{
-  const root=process.cwd(),base=path.resolve('data/test-tmp');fs.mkdirSync(base,{recursive:true});
-  const dir=fs.mkdtempSync(path.join(base,'continuity-binding-')),sourceRoot=path.join(root,'data/cru55-dynamic/fixtures');fs.mkdirSync(sourceRoot,{recursive:true});
-  const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',windowsHide:true}).trim();
+  const base=path.resolve('data/test-tmp');fs.mkdirSync(base,{recursive:true});
+  const dir=fs.mkdtempSync(path.join(base,'continuity-binding-')),root=path.join(dir,'candidate'),sourceRoot=path.join(root,'data/cru55-dynamic/fixtures');fs.mkdirSync(sourceRoot,{recursive:true});
+  // A hermetic candidate gitfile checkout, independent of the caller's branch
+  // and whether CI checked out a normal repository or a managed worktree.
+  const git=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']}).trim();
+  git(['init','--quiet','--initial-branch=codex/cru55-cvd-performance-v1','--separate-git-dir='+path.join(dir,'metadata')]);
+  git(['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','--allow-empty','-m','fixture']);
+  const head=git(['rev-parse','HEAD']);
   const b={schemaVersion:'cru55-managed-candidate-v1',runtimeCommit:head,runId:'candidate-continuity-contract-test',producer:CONTINUITY_PRODUCER,sourceVerification:CONTINUITY_POLICY,outputVersion:'stream-continuity-v1',ownerDecisionUrl:'https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5847637358',sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-24'},sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},...SAFETY};
   const file=path.join(dir,'config.json');
   try{

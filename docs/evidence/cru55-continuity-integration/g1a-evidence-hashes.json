@@ -1,0 +1,87 @@
+{
+  "kind": "LOCAL_EVIDENCE_HASH_RECEIPT",
+  "runtimeHead": "ed537b4c48a73d035071530a27ebd80aed4cefd7",
+  "privateFilesNotUploaded": true,
+  "files": [
+    {
+      "name": "plan.json",
+      "bytes": 4231,
+      "sha256": "6b301968d8cf5c50ffa37acc6aef3fb510162be547fc2aea5a1f3ff57ad40852"
+    },
+    {
+      "name": "diagnostic-contract.json",
+      "bytes": 1731,
+      "sha256": "f36cec374a5e58cbfddb1a6060373e09817c66fab55805909ccd28086ac01b5e"
+    },
+    {
+      "name": "helper-review-approved.json",
+      "bytes": 1120,
+      "sha256": "e5b8a0ec87cc8928473376524042f705517fada806253df40ebecf7d1a6283fd"
+    },
+    {
+      "name": "campaign-start.json",
+      "bytes": 465,
+      "sha256": "6a1600aa4ee8bd5f0e0eae88c1633edf5b295603074efa877d9e343e15dc183f"
+    },
+    {
+      "name": "measurement.ndjson",
+      "bytes": 605484,
+      "sha256": "1923ddd69f07a770724dd2aa5c1781620871941f98ae3d19c7cdf73ea834acba"
+    },
+    {
+      "name": "append.ndjson",
+      "bytes": 3471081,
+      "sha256": "dbdac8e0d909b4e7d62fe660ce337e8eac2904bc78ae7195f80ef49591a52800"
+    },
+    {
+      "name": "append-result.json",
+      "bytes": 200205,
+      "sha256": "effdace970e807d31f8f8dd943b7261e8cfe7a2254d530e9953d3acb74bef29c"
+    },
+    {
+      "name": "result.json",
+      "bytes": 8229,
+      "sha256": "4d0acf84e831df501d3203b1e79fc81a5b92c159ee579167c2faff79fd8e1693"
+    },
+    {
+      "name": "ui.ndjson",
+      "bytes": 274247,
+      "sha256": "f28c0b8d8ced65483f2258c3cae8c5c621af76acab96e31f7d0526eee591a863"
+    },
+    {
+      "name": "ui-clock.json",
+      "bytes": 235,
+      "sha256": "ec47c9428297916f513772a335695847f9d5b65c834212c91ea2b0b7257e8ea1"
+    },
+    {
+      "name": "ui-clock-resume.json",
+      "bytes": 207,
+      "sha256": "f5f6f55efdf7611853519105e3adec490f293cd03384b7e8c6c86419e1929670"
+    },
+    {
+      "name": "ui-interruption.json",
+      "bytes": 287,
+      "sha256": "a183181fccc37f4ee055757e9ca141ef6b3bf2535f9cf5dd89fab7d93a7f5b76"
+    },
+    {
+      "name": "cleanup-recovery.json",
+      "bytes": 317,
+      "sha256": "df8b4a1aed1fff84c154c13d09acc35c105afabae31e19be72d2b843d03b15e5"
+    },
+    {
+      "name": "post-audit.json",
+      "bytes": 824,
+      "sha256": "7a790e6d6f3ae51cdfddbe83a189697c053f8e14daa2186ba5b7e4c932421a2c"
+    },
+    {
+      "name": "per-record-latency.ndjson",
+      "bytes": 8546379,
+      "sha256": "8c373d9fdf78847dd4ba5688cdccc1b55d0150dd1cafd264e367b652857e4842"
+    },
+    {
+      "name": "summary.json",
+      "bytes": 27244,
+      "sha256": "ade0a365560cc90267d533999c37ef804f13588e97b97418a64592f34178e96d"
+    }
+  ]
+}
