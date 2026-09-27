@@ -12,7 +12,7 @@ export function createDynamicReader(root,options={}){
   return ({view='day',timeframe='1m'}={})=>{
     if(!root)throw Error('CRU55_DYNAMIC_SOURCE_NOT_CONFIGURED');
     if(!['day','night'].includes(view)||!FRAMES.includes(timeframe))throw Error('CRU55_QUERY_INVALID');
-    if(options.producer==='STREAM_PAGED_V2'||fs.existsSync(path.join(root,'stream-selection.json'))||fs.existsSync(path.join(root,view,'stream-public.json')))return stream({view,timeframe});
+    if(['STREAM_PAGED_V2','STREAM_PAGED_V3'].includes(options.producer)||fs.existsSync(path.join(root,'stream-selection.json'))||fs.existsSync(path.join(root,view,'stream-public.json')))return stream({view,timeframe});
     const dir=assertPlainPath(path.join(root,view));
     const statusFile=path.join(dir,'lifecycle-status.json');
     if(fs.existsSync(statusFile)&&json(statusFile,16384).state==='BLOCKED')throw Error('CRU55_PRODUCER_BLOCKED');

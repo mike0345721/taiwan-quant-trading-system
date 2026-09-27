@@ -39,15 +39,17 @@ function check(lease){
   checkHandle(native(),lease.handle,lease.binding,lease.end);
   return lease.id;
 }
-export function releasePrefixGuards(group){
+export function releasePrefixGuards(group,{checked=false}={}){
   const entries=leases.get(group);if(!entries)return;
   leases.delete(group);
   const a=native();
+  let failed=false;
   for(const lease of entries.values()){
-    a.unmap(lease.view);a.close(lease.mapping);
-    a.unlock(lease.handle,0,lease.end>>>0,Math.floor(lease.end/2**32),lease.overlap);
-    a.close(lease.handle);
+    if(!a.unmap(lease.view))failed=true;if(!a.close(lease.mapping))failed=true;
+    if(!a.unlock(lease.handle,0,lease.end>>>0,Math.floor(lease.end/2**32),lease.overlap))failed=true;
+    if(!a.close(lease.handle))failed=true;
   }
+  if(checked&&failed)throw Error('STREAM_PREFIX_CLEANUP_FAILED');
 }
 export function protectPrefix(group,slot,binding,end){
   if(!Number.isSafeInteger(end)||end<1)throw Error('STREAM_PREFIX_CUTOFF_INVALID');

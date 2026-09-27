@@ -15,10 +15,12 @@ import { readPriorArtifact,beginPriorVerification,advancePriorVerification,prior
 import { acquireManagedLock } from './cru55-managed-owner.mjs';
 import { protectPrefix,assertPrefixProtected,releasePrefixGuards } from './cru55-prefix-guard.mjs';
 import { replaceDurableFileSync } from './cru55-atomic-replace.mjs';
+import {assertManagedContinuity} from './cru55-guarded-continuity.mjs';
+import {CONTINUITY_POLICY,FULL_PREFIX_POLICY,CONTINUITY_RESEARCH} from './cru55-continuity-policy.mjs';
 import { validatePublicationSchedule } from './cru55-publication-schedule.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
-const CODE_FILES=['cru55-publication-schedule.mjs','cru55-atomic-replace.mjs','cru55-stream-core.mjs','cru55-stream-store.mjs','cru55-stream-projection.mjs','cru55-stream-pipeline.mjs','cru55-projection-range-index.mjs','cru55-indexed-projection.mjs',
+const CODE_FILES=['cru55-guarded-continuity.mjs','cru55-continuity-policy.mjs','cru55-publication-schedule.mjs','cru55-atomic-replace.mjs','cru55-stream-core.mjs','cru55-stream-store.mjs','cru55-stream-projection.mjs','cru55-stream-pipeline.mjs','cru55-projection-range-index.mjs','cru55-indexed-projection.mjs',
   'cvd-observation-core.mjs','dashboard-tx-chart.mjs','tx-intraday-pressure-path-efficiency.mjs','cvd-relationship-projection.mjs',
   'cvd-session-context-projection.mjs','cvd-handoff-projection.mjs','market-state-forward-shadow-calendar.mjs','cru55-stream-prior-verifier.mjs','cru55-managed-owner.mjs','cru55-prefix-guard.mjs'];
 const codeIdentity=()=>digest(stableJson([...CODE_FILES.map(f=>digest(fs.readFileSync(path.join(REPO,'src',f)))),digest(fs.readFileSync(path.join(REPO,'package-lock.json')))]));
@@ -93,14 +95,17 @@ const loadedCode = codeIdentity();
 // New candidate pipeline. Raw is read-only; every publication requires a full
 // original-byte prefix pass. Windows protects the captured prefix through
 // publication; other platforms retain conservative whole-file stamp validation.
-export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxVerifyRanges=PIPELINE_LIMITS.rawRanges,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP',projectionMode='INDEXED',publicationSchedule=null,indexLayout=null}={}){
-  const started=performance.now();
+export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT',calendarPath,priorPublication=null,priorPublications=null,ownerContext=null,stopOrdinal=null,publishAtSessionBoundary=false,maxPages=8,maxVerifyRanges=PIPELINE_LIMITS.rawRanges,maxBytes=PIPELINE_LIMITS.bytes,prefixProtection=process.platform==='win32'?'WINDOWS_PREFIX':'STAMP',projectionMode='INDEXED',publicationSchedule=null,indexLayout=null,sourceVerification=FULL_PREFIX_POLICY,continuity=null}={}){
+  const started=performance.now(),continuityChunksBefore=continuity?.metrics?.metadataChunks??0;
   publicationSchedule=validatePublicationSchedule(publicationSchedule);
   indexLayout=validateIndexLayout(indexLayout);
   if(indexLayout&&projectionMode!=='INDEXED')fail('STREAM_INDEX_LAYOUT_REQUIRES_INDEXED');
   if(!['INDEXED','FULL_SCAN'].includes(projectionMode))fail('STREAM_PROJECTION_MODE_INVALID');
   if(!['WINDOWS_PREFIX','STAMP'].includes(prefixProtection))fail('STREAM_PREFIX_MODE_INVALID');
   const protectedMode=prefixProtection==='WINDOWS_PREFIX';
+  const guarded=sourceVerification===CONTINUITY_POLICY;
+  if(![FULL_PREFIX_POLICY,CONTINUITY_POLICY].includes(sourceVerification))fail('STREAM_VERIFICATION_POLICY_INVALID');
+  if(guarded){if(!protectedMode)fail('STREAM_CONTINUITY_WINDOWS_REQUIRED');assertManagedContinuity(continuity,ownerContext);}
   if(!Number.isInteger(maxVerifyRanges)||maxVerifyRanges<1||maxVerifyRanges>PIPELINE_LIMITS.rawRanges)fail('STREAM_VERIFY_RANGE_BUDGET');
   if(!Number.isInteger(maxPages)||maxPages<2||maxPages>PIPELINE_LIMITS.pages||!Number.isInteger(maxBytes)||maxBytes<2*STREAM_STORE_LIMITS.pageBytes+2*STREAM_STORE_LIMITS.inputBytes||maxBytes>PIPELINE_LIMITS.bytes)fail('STREAM_PIPELINE_BUDGET');
   if(!['GOVERNED_FRAGMENT','SYNTHETIC_FIXTURE'].includes(sourceKind))fail('STREAM_SOURCE_KIND_INVALID');
@@ -137,7 +142,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     const store=createStreamStore({root:name('pages'),sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity,ioBudget:work,ownerContext});
     fs.mkdirSync(name('chunks'),{recursive:true});
     const chunkPath=i=>name('chunks/'+String(i).padStart(12,'0')+'.json');
-    const jobBinding={sourceBinding,resolverIdentity:resolved.resolverIdentity,sourceKind,stopOrdinal,publishAtSessionBoundary,prefixProtection,projectionMode,...(publicationSchedule?{publicationSchedule}:{}),...(indexLayout?{indexLayout}:{})};
+    const jobBinding={...(guarded?{sourceVerification,ownerBinding:ownerContext.bindingHash}:{}),sourceBinding,resolverIdentity:resolved.resolverIdentity,sourceKind,stopOrdinal,publishAtSessionBoundary,prefixProtection,projectionMode,...(publicationSchedule?{publicationSchedule}:{}),...(indexLayout?{indexLayout}:{})};
     let job=fs.existsSync(jobFile)?unseal(jobFile):{schemaVersion:'cru55-stream-job-v2',binding:jobBinding,priorPublication,priorPublications,phase:'INGEST',targetSize:size,...(publicationSchedule?{capturedSize:size,startOrdinal:ingest.lastOrdinal}:{}),roundSession:null,startedAt:new Date().toISOString(),verifyRestarts:0};
     if(!same(job.binding,jobBinding))fail('STREAM_JOB_BINDING_CHANGED');
     if(stopOrdinal!==null&&ingest.lastOrdinal>stopOrdinal)fail('STREAM_CUTOFF_REGRESSION');
@@ -145,7 +150,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
     if(publicationSchedule&&(!Number.isSafeInteger(job.startOrdinal)||job.startOrdinal<0||job.startOrdinal>ingest.lastOrdinal||!Number.isSafeInteger(job.capturedSize)||job.capturedSize<job.targetSize))fail('STREAM_SCHEDULE_CHECKPOINT_INVALID');
     let pages=0,bytes=0;
     const result=(state,extra={})=>{const sizeNow=Number(fs.fstatSync(fd).size),visible=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536).endByteOffset:0;return {state,phase:job.phase,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:ingest.endByteOffset,ingestedOrdinal:ingest.lastOrdinal,
-      metrics:{cycleMs:performance.now()-started,pages:work.pages,rawRanges:work.rawRanges,bytes:work.bytes,budgetScope:'bytes=original raw ranges+archive/index pages; pages=all archive/index reads; ingest batches<=maxPages; verification ranges<=128; bounded metadata/code reads separate',backlogBytes:Math.max(0,sizeNow-ingest.endByteOffset),publicationBacklogBytes:Math.max(0,sizeNow-visible),verificationRestarts:job.verifyRestarts,jobStartedAt:job.startedAt,projectionWork:job.projectionWork??null},...extra};};
+      metrics:{...(guarded?{continuityMetadataChunks:continuity.metrics.metadataChunks-continuityChunksBefore,continuity:{...continuity.metrics}}:{}),cycleMs:performance.now()-started,pages:work.pages,rawRanges:work.rawRanges,bytes:work.bytes,budgetScope:'bytes=original raw ranges+archive/index pages; pages=all archive/index reads; ingest batches<=maxPages; verification ranges<=128; bounded metadata/code reads separate',backlogBytes:Math.max(0,sizeNow-ingest.endByteOffset),publicationBacklogBytes:Math.max(0,sizeNow-visible),verificationRestarts:job.verifyRestarts,jobStartedAt:job.startedAt,projectionWork:job.projectionWork??null},...extra};};
     let projectionBatch=null;
     const flushProjection=()=>{if(projectionBatch){job.projection=projectionBatch.finish();projectionBatch=null;}if(job.phase==='QUERY'&&job.projection)job.projection=projectionPrimitives.seal(job.projection);};
     savePending=()=>{flushProjection();atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,...SAFETY});return result('PENDING',{reason:'WORK_BUDGET'});};
@@ -214,7 +219,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       const checkpoint=store.read().checkpoint;
       if(!checkpoint.state.lastPoint){if(fs.existsSync(jobFile))fs.unlinkSync(jobFile);return result('WAITING_FOR_ELIGIBLE_TRADE');}
       const generationHash=digest(stableJson({sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity,rawChunkHash:ingest.lastChunkHash,checkpointHash:checkpoint.stateHash}));
-      job={...job,phase:'PROJECT',cutoff:{index:ingest.index,endByteOffset:ingest.endByteOffset,lastChunkHash:ingest.lastChunkHash,headPageHash:ingest.headPageHash},generationHash,nextIndex:1,previousChunkHash:null,previousPageHash:null,projection:createProjectionJob({checkpoint,sourceKind,generationHash,calendar:resolved.calendar})};
+      job={...job,activeIdentity:checkpoint.state.activeIdentity,phase:'PROJECT',cutoff:{index:ingest.index,endByteOffset:ingest.endByteOffset,lastChunkHash:ingest.lastChunkHash,headPageHash:ingest.headPageHash},generationHash,nextIndex:1,previousChunkHash:null,previousPageHash:null,projection:createProjectionJob({checkpoint,sourceKind,generationHash,calendar:resolved.calendar})};
       job.projectionWork={mode:projectionMode,rebuildReason:projectionMode==='FULL_SCAN'?'ORACLE_FULL_SCAN':'INITIAL_BUILD',processedRecords:0,newRecords:0,historicalReplayRecords:0,indexedPoints:0,rangeQueries:0,rangeNodes:0,aggregateNodes:0,orderedLeaves:0,rawVerificationBytes:0};
       job.indexBaseOrdinal=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536).cutoff.ledgerOrdinal:0;
       if(projectionMode==='INDEXED'){
@@ -329,7 +334,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       job.phase='VERIFY';job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));
     }
     if(job.phase==='VERIFY'){
-      if(protectedMode){
+      if(protectedMode&&!guarded){
         const lease=protectPrefix(runRoot,'current',sourceBinding,job.cutoff.endByteOffset);
         if(job.verifyLease!==lease){
           if(job.verifyIndex>1)job.verifyRestarts++;
@@ -339,14 +344,21 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       }
       const now=stamp(fs.fstatSync(fd,{bigint:true}));
       if(!protectedMode&&!same(now,job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=now;job.verifyRestarts++;}
-      while(job.verifyIndex<=job.cutoff.index&&work.rawRanges<maxVerifyRanges&&bytes<maxBytes){
+      const currentContext=guarded?{runRoot,role:'current',sessionEpoch:stableJson(job.activeIdentity),sourceBinding,sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity}:null;
+      if(guarded){
+        const v=continuity.verify(runRoot+'|current',currentContext,{endByteOffset:job.cutoff.endByteOffset,lastChunkHash:job.cutoff.lastChunkHash,chunkCount:job.cutoff.index,chunkPath,fd,budget:work,maxRanges:maxVerifyRanges,round:job.startedAt+'|'+job.generationHash});
+        if(job.projectionWork)job.projectionWork.rawVerificationBytes=v.metrics.fullReadBytes+v.metrics.suffixReadBytes;
+        if(!v.complete){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY',reason:'CONTINUITY_PREFIX_PENDING'});}
+        job.verifyIndex=job.cutoff.index+1;job.verifyOffset=job.cutoff.endByteOffset;job.verifyPreviousHash=job.cutoff.lastChunkHash;
+      }
+      while(!guarded&&job.verifyIndex<=job.cutoff.index&&work.rawRanges<maxVerifyRanges&&bytes<maxBytes){
         const chunk=json(chunkPath(job.verifyIndex)),{chunkHash,...body}=chunk;
         if(digest(stableJson(body))!==chunkHash||chunk.previousChunkHash!==job.verifyPreviousHash||chunk.offset!==job.verifyOffset||chunk.length<1||chunk.length>STREAM_STORE_LIMITS.inputBytes)fail('STREAM_CHUNK_CHAIN_INVALID');
         work.take(chunk.length,false);if(digest(exact(fd,chunk.offset,chunk.length))!==chunk.rawHash)fail('STREAM_RAW_PREFIX_CHANGED');
         if(job.projectionWork)job.projectionWork.rawVerificationBytes+=chunk.length;
         job.verifyOffset+=chunk.length;job.verifyPreviousHash=chunkHash;job.verifyIndex++;pages++;bytes+=chunk.length;
       }
-      if(protectedMode)assertPrefixProtected(runRoot,'current',job.verifyLease);
+      if(protectedMode&&!guarded)assertPrefixProtected(runRoot,'current',job.verifyLease);
       if(!protectedMode&&!same(stamp(fs.fstatSync(fd,{bigint:true})),job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=stamp(fs.fstatSync(fd,{bigint:true}));job.verifyRestarts++;}
       else if(job.verifyIndex>job.cutoff.index){
         if(job.verifyOffset!==job.cutoff.endByteOffset||job.verifyPreviousHash!==job.cutoff.lastChunkHash||job.previousPageHash!==job.cutoff.headPageHash)fail('STREAM_VERIFIED_CUTOFF_MISMATCH');
@@ -361,10 +373,10 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
         const actualSession=job.activeSession;
         const reference=job.priorPublications?job.priorPublications[actualSession==='DAY'?'night':'day']:job.priorPublication;
         if(reference){
-          const artifact=readPriorArtifact(reference);adjacent=artifact.view;
-          job.priorVerification??=beginPriorVerification(reference);
+          const artifact=readPriorArtifact(reference,{allowContinuity:guarded});adjacent=artifact.view;
+          job.priorVerification??=beginPriorVerification(reference,{allowContinuity:guarded});
           if(job.priorVerification.reference.artifactHash!==reference.artifactHash)fail('STREAM_PRIOR_JOB_REFERENCE_CHANGED');
-          const verification=advancePriorVerification(job.priorVerification,{budget:work,maxRanges:Math.max(0,maxVerifyRanges-work.rawRanges),protectionGroup:protectedMode?runRoot:null});
+          const verification=advancePriorVerification(job.priorVerification,{budget:work,maxRanges:Math.max(0,maxVerifyRanges-work.rawRanges),protectionGroup:protectedMode&&!guarded?runRoot:null,continuity:guarded?continuity:null,runRoot,verificationRound:job.startedAt+'|'+job.generationHash});
           job.priorVerification=verification.state;pages+=verification.ranges;
           if(!verification.complete){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY_PRIOR',reason:'PRIOR_RAW_PREFIX_PENDING'});}
         }
@@ -378,32 +390,39 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           if(digest(stableJson(projection))!==job.projectionRef||projection.generationHash!==job.generationHash||projection.checkpoint.state.activeIdentity?.[2]!==actualSession||projection.checkpoint.state.sourceLedgerIdentity!==ingest.sourceLedgerIdentity||projection.checkpoint.state.resolverIdentity!==resolved.resolverIdentity)fail('STREAM_PROJECTION_REFERENCE_CHANGED');
         }
         const finished=reusable?priorArtifact.view:finishProjectionJob(projection,{prior:adjacent??priorArtifact?.view??null,previousPublication:priorArtifact?.view??null}),view=finished.view??finished;
-        const body={schemaVersion:'cru55-stream-view-v2',generationHash:job.generationHash,sourceLedgerIdentity:ingest.sourceLedgerIdentity,adjacentArtifactHash,
-          integrity:{policy:'FULL_PREFIX_BEFORE_PUBLICATION',originalRawPrefixVerified:true,adjacentRawPrefixVerified:reference?true:null,endByteOffset:job.cutoff.endByteOffset,rawChunkHash:job.cutoff.lastChunkHash,stableVerificationRequired:true,protection:protectedMode?'WINDOWS_SHARED_RANGE_READONLY_SECTION':'WHOLE_FILE_STAMP'},view,...SAFETY};
+        const body={schemaVersion:guarded?'cru55-stream-view-v3':'cru55-stream-view-v2',generationHash:job.generationHash,sourceLedgerIdentity:ingest.sourceLedgerIdentity,adjacentArtifactHash,
+          ...(guarded?{researchEligibility:CONTINUITY_RESEARCH}:{}),
+          integrity:{...(guarded?continuity.publication():{policy:FULL_PREFIX_POLICY}),originalRawPrefixVerified:!guarded,...(guarded?{guardedPrefixVerified:true,chunkCount:job.cutoff.index}:{}),adjacentRawPrefixVerified:reference?!guarded:null,...(guarded?{adjacentGuardedPrefixVerified:reference?true:null}:{}),endByteOffset:job.cutoff.endByteOffset,rawChunkHash:job.cutoff.lastChunkHash,stableVerificationRequired:true,protection:protectedMode?'WINDOWS_SHARED_RANGE_READONLY_SECTION':'WHOLE_FILE_STAMP'},view,...SAFETY};
         const artifactHash=digest(stableJson(body)),artifact={...body,artifactHash};
         immutable(name(artifactHash+'.stream-view.json'),artifact,PIPELINE_LIMITS.artifactBytes);
         // Recheck after serialization and every replacement wait. A legitimate
         // changing stamp/prior returns to verification without exposing a pointer.
         let changedReason=null;
+        const currentTarget={endByteOffset:job.cutoff.endByteOffset,lastChunkHash:job.cutoff.lastChunkHash,chunkCount:job.cutoff.index};
         const beforePublish=()=>{
+          if(guarded)continuity.assertReady(runRoot+'|current',currentContext,currentTarget);
           assertPlainPath(sourcePath);
           if(!same(identity(sourcePath,fs.statSync(sourcePath,{bigint:true})),sourceBinding))fail('STREAM_SOURCE_REPLACED');
-          if(reference&&!priorStillVerified(job.priorVerification,{protectionGroup:protectedMode?runRoot:null})){changedReason='PRIOR_SOURCE_CHANGED_DURING_VERIFY';return false;}
-          if(protectedMode)assertPrefixProtected(runRoot,'current',job.verifyLease);
+          if(reference&&!priorStillVerified(job.priorVerification,{protectionGroup:protectedMode&&!guarded?runRoot:null,continuity:guarded?continuity:null,runRoot,verificationRound:job.startedAt+'|'+job.generationHash})){changedReason='PRIOR_SOURCE_CHANGED_DURING_VERIFY';return false;}
+          if(protectedMode&&!guarded)assertPrefixProtected(runRoot,'current',job.verifyLease);
           if(!protectedMode&&!same(stamp(fs.fstatSync(fd,{bigint:true})),job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyRestarts++;changedReason='SOURCE_CHANGED_DURING_VERIFY';return false;}
           return true;
         };
-        const c=view.charts['1m'],pointer={schemaVersion:'cru55-stream-public-v2',artifactHash,generationHash:job.generationHash,session:c.session,tradeDate:c.tradeDate,cutoff:c.cutoff,availableAt:c.availableAt,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:job.cutoff.endByteOffset};
+        const c=view.charts['1m'],pointer={schemaVersion:guarded?'cru55-stream-public-v3':'cru55-stream-public-v2',...(guarded?{producerEpoch:continuity.publication().producer.epoch,publishedAt:new Date().toISOString()}: {}),artifactHash,generationHash:job.generationHash,session:c.session,tradeDate:c.tradeDate,cutoff:c.cutoff,availableAt:c.availableAt,sourceLedgerIdentity:ingest.sourceLedgerIdentity,endByteOffset:job.cutoff.endByteOffset};
         const old=fs.existsSync(name('stream-public.json'))?json(name('stream-public.json'),65536):null;
         if(!atomic(name('stream-public.json'),pointer,65536,beforePublish)){atomic(jobFile,sealed(job));return result('PENDING',{...(changedReason==='PRIOR_SOURCE_CHANGED_DURING_VERIFY'?{phase:'VERIFY_PRIOR'}:{}),reason:changedReason});}
         if(fs.existsSync(jobFile))fs.unlinkSync(jobFile);
         atomic(name('lifecycle-status.json'),{state:'PUBLISHED',artifactHash,verifiedAt:new Date().toISOString(),...SAFETY});
-        releasePrefixGuards(runRoot);
+        if(guarded){
+          const requirements=[{key:runRoot+'|current',context:currentContext,target:currentTarget}];
+          if(job.priorVerification?.continuityRequirement)requirements.push(job.priorVerification.continuityRequirement);
+          continuity.publish(runRoot,pointer.session,artifactHash,requirements,pointer.publishedAt);
+        }else releasePrefixGuards(runRoot);
         return result(old?.artifactHash===artifactHash?'UNCHANGED':'PUBLISHED',pointer);
       }
     }
     atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,verifyRestarts:job.verifyRestarts,...SAFETY});
     return result('PENDING');
-  }catch(e){if(e.message==='STREAM_WORK_BUDGET_PENDING'&&savePending)return savePending();releasePrefixGuards(runRoot);atomic(name('lifecycle-status.json'),{state:'BLOCKED',error:e.message,...SAFETY});throw e;}
+  }catch(e){if(e.message==='STREAM_WORK_BUDGET_PENDING'&&savePending)return savePending();if(guarded)continuity.invalidate(e.message);releasePrefixGuards(runRoot);atomic(name('lifecycle-status.json'),{state:'BLOCKED',error:e.message,...SAFETY});throw e;}
   finally{if(fd!==undefined)fs.closeSync(fd);if(releaseManaged)releaseManaged();if(owned&&json(path.join(lock,'owner.json')).token===token){fs.unlinkSync(path.join(lock,'owner.json'));fs.rmdirSync(lock);}}
 }

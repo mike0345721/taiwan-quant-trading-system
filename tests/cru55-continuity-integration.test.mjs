@@ -1,0 +1,191 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {execFileSync,fork} from 'node:child_process';
+import {ManagedContinuity} from '../src/cru55-guarded-continuity.mjs';
+import {probeManagedProcess,nativeManagedProcess} from '../src/cru55-managed-owner.mjs';
+import {CONTINUITY_POLICY,CONTINUITY_PRODUCER,validateContinuityConfig} from '../src/cru55-continuity-policy.mjs';
+import {runStreamCycle} from '../src/cru55-stream-pipeline.mjs';
+import {createStreamReader} from '../src/cru55-stream-reader.mjs';
+import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
+import {SAFETY,digest,stableJson} from '../src/cvd-observation-core.mjs';
+import {readManagedConfig,managedDelayMs} from '../src/cru55-managed-plan.mjs';
+import {sourceDirectoryIdentity,validateRuntimeBinding} from '../src/cru55-runtime-binding.mjs';
+
+const native=process.platform==='win32';
+const json=file=>JSON.parse(fs.readFileSync(file,'utf8'));
+function fixture(){
+  const base=path.resolve('data/test-tmp');fs.mkdirSync(base,{recursive:true});
+  const root=fs.mkdtempSync(path.join(base,'continuity-product-')),outputRoot=path.join(root,'output');
+  fs.mkdirSync(path.join(outputRoot,'managed-owner.lock'),{recursive:true});
+  const actual=probeManagedProcess(process.pid),owner={nonce:crypto.randomUUID(),pid:process.pid,startTime:actual.startTime,commandLine:actual.commandLine,
+    bindingHash:'b'.repeat(64),runtimeCommit:'a'.repeat(40),configPath:path.join(root,'config.json'),outputRoot};
+  fs.writeFileSync(path.join(outputRoot,'managed-owner.lock','owner.json'),JSON.stringify({schemaVersion:'cru55-managed-owner-v1',...owner}));
+  const sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(outputRoot,'sources','a'.repeat(64));
+  const continuity=new ManagedContinuity(owner);
+  let previous='GENESIS',ordinal=0;
+  const append=(count,{time='2026-09-14T15:00:00+08:00',volume=1,kind='futures_tick',step=20000}={})=>{
+    let text='';
+    for(let i=0;i<count;i++,ordinal++){
+      const clock=Date.parse(time)+ordinal*step,event=new Date(clock).toISOString();
+      const row=buildLiveEventRecord({kind,code:'TXFI6',receivedAt:new Date(clock+1).toISOString(),...SAFETY,
+        payload:{_product_family:'TX',_target_code:'TXFI6',actualContract:'TXFI6',eventTime:event,datetime:event,close:20000+ordinal%11,volume,tick_type:ordinal%3,bid_price:[19999],ask_price:[20001]}},previous);
+      previous=row.recordHash;text+=JSON.stringify(row)+'\n';
+    }
+    fs.appendFileSync(sourcePath,text);return Buffer.byteLength(text);
+  };
+  const options={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',ownerContext:owner,sourceVerification:CONTINUITY_POLICY,continuity,maxPages:8,maxVerifyRanges:2};
+  const finish=(extra={})=>{for(let i=0;i<500;i++){const r=runStreamCycle({...options,...extra});if(['PUBLISHED','UNCHANGED'].includes(r.state))return r;}throw Error('DID_NOT_SETTLE');};
+  const publish=r=>{fs.writeFileSync(path.join(outputRoot,'stream-selection.json'),JSON.stringify({schemaVersion:'cru55-stream-selection-v1',bindingHash:owner.bindingHash,...SAFETY,
+    views:{[r.session.toLowerCase()]:{...r,sourceKey:'a'.repeat(64),relativeRunPath:'sources/'+'a'.repeat(64)}}}));};
+  return {root,outputRoot,sourcePath,runRoot,owner,continuity,append,finish,publish,options,
+    close(){continuity.close();const resolved=fs.realpathSync(root);assert.ok(resolved.startsWith(base+path.sep));fs.rmSync(resolved,{recursive:true,force:true});}};
+}
+
+test('v3 exact products, bounded full/suffix verification, actual owner, per-request reader and research quarantine',{skip:!native},t=>{
+  const f=fixture();
+  try{
+    let total=0,last=0;
+    for(const [count,volume,kind] of [[140,1,'futures_tick'],[19,0.25,'futures_tick'],[4,2,'futures_tick'],[1,1,'futures_bidask']]){
+      t.diagnostic(JSON.stringify({count,volume,kind}));
+      const bytes=f.append(count,{volume,kind});total+=bytes;
+      const before={...f.continuity.metrics},r=f.finish();f.publish(r);
+      const oracle=f.finish({runRoot:path.join(f.root,'oracle'),sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',continuity:null,ownerContext:null,projectionMode:'FULL_SCAN'});
+      const a=json(path.join(f.runRoot,r.artifactHash+'.stream-view.json')),b=json(path.join(f.root,'oracle',oracle.artifactHash+'.stream-view.json'));
+      // Compare the complete numerical/time/quality/null products, including
+      // all six frames, charts and history; only policy envelopes differ.
+      assert.deepEqual(a.view,b.view);
+      assert.equal(f.continuity.metrics.fullReadBytes-before.fullReadBytes,last?0:total);
+      assert.equal(f.continuity.metrics.suffixReadBytes-before.suffixReadBytes,last?bytes:0);
+      assert.equal(a.integrity.originalRawPrefixVerified,false);assert.equal(a.researchEligibility.eligible,false);
+      const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER});
+      const value=reader({view:'night'});assert.equal(value.chart.cutoff.ledgerOrdinal,r.cutoff.ledgerOrdinal);assert.equal(value.researchEligibility.eligible,false);
+      assert.equal(value.publication.publishedAt,r.publishedAt);assert.ok(Date.parse(r.publishedAt)>Date.parse(value.chart.availableAt));
+      assert.throws(()=>createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash})({view:'night'}),/POLICY/);
+      assert.throws(()=>createStreamReader(f.outputRoot,{bindingHash:'c'.repeat(64),producer:CONTINUITY_PRODUCER})({view:'night'}),/BINDING/);
+      last=r.cutoff.ledgerOrdinal;
+    }
+    const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER});reader({view:'night'});
+    const status=path.join(f.outputRoot,'stream-continuity-status.json'),old=json(status);
+    fs.writeFileSync(status,JSON.stringify({...old,state:'INVALID'}));assert.throws(()=>reader({view:'night'}),/PUBLICATION_INVALID/);
+    fs.writeFileSync(status,JSON.stringify(old));
+    const ownerFile=path.join(f.outputRoot,'managed-owner.lock','owner.json'),owner=json(ownerFile);
+    fs.writeFileSync(ownerFile,JSON.stringify({...owner,nonce:'changed'}));assert.throws(()=>reader({view:'night'}),/OWNER_RECORD_CHANGED/);
+    fs.writeFileSync(ownerFile,JSON.stringify(owner));
+    assert.throws(()=>nativeManagedProcess(process.pid,'0'),/CREATION_CHANGED/);
+    // Invalidation is durably visible while all guards are still held. A
+    // failed invalidation keeps guards; it must never free a still-visible value.
+    const rename=fs.renameSync;let invalidationObserved=false;
+    fs.renameSync=(from,to)=>{if(to===status){assert.throws(()=>{const fd=fs.openSync(f.sourcePath,'r+');try{fs.writeSync(fd,Buffer.from('x'),0,1,0);}finally{fs.closeSync(fd);}});invalidationObserved=true;}return rename(from,to);};
+    try{f.continuity.close();}finally{fs.renameSync=rename;}
+    assert.equal(invalidationObserved,true);assert.throws(()=>reader({view:'night'}),/PUBLICATION_INVALID/);
+    t.diagnostic(JSON.stringify({totalRawBytes:total,metrics:f.continuity.metrics,exactProducts:true,researchEligible:false}));
+  }finally{f.close();}
+});
+
+test('same-file prior gets independent full proof; append/reopen, date rotation, shutdown and restart full verification',{skip:!native},t=>{
+  const f=fixture();let restarted;
+  try{
+    f.append(8);const night=f.finish(),prior={artifactHash:night.artifactHash,artifactPath:path.join(f.runRoot,night.artifactHash+'.stream-view.json')};
+    const nightBytes=fs.statSync(f.sourcePath).size;
+    f.append(8,{time:'2026-09-15T08:45:00+08:00'});
+    const before={...f.continuity.metrics},day=f.finish({priorPublication:prior});f.publish(day);
+    assert.equal(day.session,'DAY');
+    const total=fs.statSync(f.sourcePath).size;
+    assert.equal(f.continuity.metrics.fullReadBytes-before.fullReadBytes,total+nightBytes,'new current session and separate same-file prior both full verify');
+    const a=json(path.join(f.runRoot,day.artifactHash+'.stream-view.json'));assert.equal(a.integrity.adjacentRawPrefixVerified,false);assert.equal(a.integrity.adjacentGuardedPrefixVerified,true);
+    // Collector's open-append-close pattern, including CPython and a new dated
+    // file, works while old prefix is pinned; destructive rotation waits for close.
+    execFileSync('python',['-c','import sys\nwith open(sys.argv[1], "ab") as f: f.write(b"\\n")',f.sourcePath],{windowsHide:true});
+    fs.writeFileSync(path.join(f.root,'next-date.ndjson'),'');
+    assert.throws(()=>fs.renameSync(f.sourcePath,f.sourcePath+'.rotated'));
+    // Remove only the deliberate incomplete tail after normal guard cleanup.
+    f.continuity.close();fs.truncateSync(f.sourcePath,total);
+    restarted=new ManagedContinuity(f.owner);
+    const recovered=f.finish({continuity:restarted,priorPublication:prior});f.publish(recovered);
+    assert.equal(restarted.metrics.fullReadBytes,total+nightBytes);assert.equal(restarted.metrics.suffixReadBytes,0);
+    assert.deepEqual(json(path.join(f.runRoot,recovered.artifactHash+'.stream-view.json')).view,a.view);
+    restarted.close();fs.renameSync(f.sourcePath,f.sourcePath+'.rotated');fs.renameSync(f.sourcePath+'.rotated',f.sourcePath);
+    t.diagnostic(JSON.stringify({sameFile:true,nightBytes,total,restartFullBytes:restarted.metrics.fullReadBytes}));
+  }finally{restarted?.close();f.close();}
+});
+
+test('policy is explicit and no legacy or incomplete binding can opt in',()=>{
+  assert.equal(validateContinuityConfig({producer:'STREAM_PAGED_V2',sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION'}),false);
+  const b={producer:CONTINUITY_PRODUCER,sourceVerification:CONTINUITY_POLICY,outputVersion:'stream-continuity-v1',ownerDecisionUrl:'https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5847637358'};
+  assert.equal(validateContinuityConfig(b),true);
+  for(const key of Object.keys(b)){const bad={...b};delete bad[key];assert.throws(()=>validateContinuityConfig(bad),/BINDING_INVALID/);}
+  assert.throws(()=>runStreamCycle({sourceVerification:CONTINUITY_POLICY,prefixProtection:'STAMP'}),/WINDOWS_REQUIRED/);
+});
+
+
+test('fractional and unsafe numeric inputs keep the full-scan result or exact existing rejection',{skip:!native},t=>{
+  for(const volume of [0.1,Number.MAX_SAFE_INTEGER]){
+    const f=fixture();
+    try{
+      f.append(140);f.finish();f.finish({runRoot:path.join(f.root,'oracle'),sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',continuity:null,ownerContext:null,projectionMode:'FULL_SCAN'});
+      f.append(19,{volume});
+      let result,oracle,error,oracleError;
+      try{result=f.finish();}catch(e){error=e.message;}
+      try{oracle=f.finish({runRoot:path.join(f.root,'oracle'),sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',continuity:null,ownerContext:null,projectionMode:'FULL_SCAN'});}catch(e){oracleError=e.message;}
+      assert.equal(error,oracleError);
+      if(!error)assert.deepEqual(json(path.join(f.runRoot,result.artifactHash+'.stream-view.json')).view,json(path.join(f.root,'oracle',oracle.artifactHash+'.stream-view.json')).view);
+      else {assert.equal(error,'STREAM_WINDOW_PARITY_MISMATCH');assert.equal(json(path.join(f.outputRoot,'stream-continuity-status.json')).state,'INVALID');}
+      t.diagnostic(JSON.stringify({volume,result:error??'EXACT_PRODUCTS',oracle:oracleError??'EXACT_PRODUCTS'}));
+    }finally{f.close();}
+  }
+});
+
+test('guard loss forces full verification and corrupt metadata revokes cached reader eligibility',{skip:!native},t=>{
+  const f=fixture();
+  try{
+    f.append(8);let r=f.finish();f.publish(r);
+    const before={...f.continuity.metrics},stat=fs.statSync;let injected=false;
+    fs.statSync=(file,...args)=>{if(file===f.sourcePath&&args[0]?.bigint&&!injected){injected=true;throw Error('STREAM_PREFIX_LEASE_LOST');}return stat(file,...args);};
+    try{assert.throws(()=>f.finish(),/LEASE_LOST/);}finally{fs.statSync=stat;}
+    assert.equal(json(path.join(f.outputRoot,'stream-continuity-status.json')).state,'INVALID');
+    r=f.finish();f.publish(r);
+    assert.equal(f.continuity.metrics.fullReadBytes-before.fullReadBytes,fs.statSync(f.sourcePath).size);
+    const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER});reader({view:'night'});
+    const chunk=path.join(f.runRoot,'chunks','000000000001.json'),old=json(chunk);fs.writeFileSync(chunk,JSON.stringify({...old,rawHash:'0'.repeat(64)}));
+    assert.throws(()=>f.finish(),/CHUNK_CHAIN_INVALID/);assert.throws(()=>reader({view:'night'}),/PRODUCER_BLOCKED|PUBLICATION_INVALID/);
+    t.diagnostic(JSON.stringify({guardLossFullBytes:fs.statSync(f.sourcePath).size,metadataTamperBlocked:true}));
+  }finally{f.close();}
+});
+
+
+test('true process exit invalidates disk receipt; new native owner must full verify before reader acceptance',{skip:!native,timeout:60000},async t=>{
+  const base=path.resolve('data/test-tmp'),root=fs.mkdtempSync(path.join(base,'continuity-process-')),outputRoot=path.join(root,'output');
+  const children=[];
+  const start=()=>new Promise((resolve,reject)=>{
+    const child=fork(path.resolve('tests/fixtures/cru55-continuity-owner-child.mjs'),[root],{windowsHide:true,stdio:['ignore','ignore','pipe','ipc']});children.push(child);
+    let stderr='';child.stderr.on('data',x=>{stderr+=x;});child.once('error',reject);child.once('exit',code=>{if(code)reject(Error(stderr));});child.once('message',result=>resolve({child,...result}));
+  });
+  const stop=(child,mode)=>new Promise(resolve=>{child.once('exit',resolve);child.send(mode);});
+  try{
+    const a=await start(),reader=createStreamReader(outputRoot,{bindingHash:'b'.repeat(64),producer:CONTINUITY_PRODUCER});reader({view:'night'});
+    await stop(a.child,'crash');assert.equal(json(path.join(outputRoot,'stream-continuity-status.json')).state,'VALID');
+    assert.throws(()=>reader({view:'night'}),/DEAD_OR_UNKNOWN/);
+    const b=await start();assert.equal(b.metrics.fullReadBytes,b.bytes);assert.equal(b.metrics.suffixReadBytes,0);assert.notEqual(b.result.producerEpoch,a.result.producerEpoch);reader({view:'night'});
+    await stop(b.child,'close');assert.throws(()=>reader({view:'night'}),/PUBLICATION_INVALID/);
+    t.diagnostic(JSON.stringify({trueExit:true,newEpoch:true,restartFullBytes:b.bytes}));
+  }finally{for(const child of children)if(child.exitCode===null)child.kill();assert.ok(fs.realpathSync(root).startsWith(base+path.sep));fs.rmSync(root,{recursive:true,force:true});}
+});
+
+
+test('v3 candidate config creates an isolated output contract and formal activation stays blocked',()=>{
+  const root=process.cwd(),base=path.resolve('data/test-tmp');fs.mkdirSync(base,{recursive:true});
+  const dir=fs.mkdtempSync(path.join(base,'continuity-binding-')),sourceRoot=path.join(root,'data/cru55-dynamic/fixtures');fs.mkdirSync(sourceRoot,{recursive:true});
+  const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',windowsHide:true}).trim();
+  const b={schemaVersion:'cru55-managed-candidate-v1',runtimeCommit:head,runId:'candidate-continuity-contract-test',producer:CONTINUITY_PRODUCER,sourceVerification:CONTINUITY_POLICY,outputVersion:'stream-continuity-v1',ownerDecisionUrl:'https://github.com/mike0345721/taiwan-quant-trading-system/pull/73#issuecomment-5847637358',sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-24'},sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},...SAFETY};
+  const file=path.join(dir,'config.json');
+  try{
+    fs.writeFileSync(file,JSON.stringify(b));const plan=readManagedConfig(file,{runtimeRoot:root,candidate:true});assert.equal(plan.outputRoot,path.join(root,'data/cru55-dynamic/managed',b.runId,b.outputVersion));assert.equal(plan.activationReady,false);
+    assert.equal(managedDelayMs({state:'PENDING',metrics:{continuityMetadataChunks:128,bytes:0,pages:0}}),0);
+    const formal={...b,schemaVersion:'cru55-runtime-binding-v1',state:'OWNER_APPROVED',runtimeRoot:root,dataRoot:path.join(root,'data'),sourceRoot:path.join(root,'data/live-events'),outputRoot:path.join(root,'data/cru55-runtime/output',b.outputVersion)};formal.readerRoot=formal.outputRoot;
+    assert.throws(()=>validateRuntimeBinding(formal,{runtimeRoot:root,head,approvedMain:head,activation:true}),/CANDIDATE_ONLY/);
+    fs.writeFileSync(file,JSON.stringify({...b,outputVersion:undefined}));assert.throws(()=>readManagedConfig(file,{runtimeRoot:root,candidate:true}),/BINDING_INVALID/);
+  }finally{assert.ok(fs.realpathSync(dir).startsWith(base+path.sep));fs.rmSync(dir,{recursive:true,force:true});}
+});

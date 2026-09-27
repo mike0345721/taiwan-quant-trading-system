@@ -5,8 +5,8 @@ import { createDynamicReader } from './cru55-dynamic-reader.mjs';
 import { readRuntimeBinding } from './cru55-runtime-binding.mjs';
 
 // A separate production mount. The frozen isolated adapter and its guards stay intact.
-export function prepareFormalEntry({ publicDir }, readSnapshot) {
-  const binding=process.env.CRU55_RUNTIME_BINDING?readRuntimeBinding(process.env.CRU55_RUNTIME_BINDING,{runtimeRoot:path.dirname(publicDir),activation:true}):null;
+export function prepareFormalEntry({ publicDir, cru55Acceptance=null }, readSnapshot) {
+  const binding=cru55Acceptance??(process.env.CRU55_RUNTIME_BINDING?readRuntimeBinding(process.env.CRU55_RUNTIME_BINDING,{runtimeRoot:path.dirname(publicDir),activation:true}):null);
   if(binding&&process.env.CRU55_DYNAMIC_ROOT&&path.resolve(process.env.CRU55_DYNAMIC_ROOT)!==binding.readerRoot)throw Error('CRU55_BINDING_READER_ENV_MISMATCH');
   const dynamic = createDynamicReader(binding?.readerRoot??process.env.CRU55_DYNAMIC_ROOT,binding?{bindingHash:binding.bindingHash,producer:binding.producer}:{});
   const files = {

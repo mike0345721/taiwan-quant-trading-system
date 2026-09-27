@@ -5,6 +5,7 @@ import { digest,stableJson,SAFETY } from './cvd-observation-core.mjs';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { readRuntimeIdentity } from './runtime-identity.mjs';
 import { validatePublicationSchedule } from './cru55-publication-schedule.mjs';
+import {validateContinuityConfig} from './cru55-continuity-policy.mjs';
 import { validateIndexLayout } from './cru55-projection-range-index.mjs';
 
 const samePath=(a,b)=>process.platform==='win32'?path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase():path.resolve(a)===path.resolve(b);
@@ -62,13 +63,16 @@ export function validateRuntimeBinding(binding,{runtimeRoot,head,approvedMain,ac
   // data roots need a separately reviewed whole-chain binding, not one override.
   if(!eq(data,path.join(root,'data')))throw Error('CRU55_BINDING_EXISTING_DATA_ROOT');
   if(!/^[a-f0-9]{40}$/.test(binding.runtimeCommit||'')||head!==binding.runtimeCommit)throw Error('CRU55_BINDING_HEAD_MISMATCH');
+  const guarded=validateContinuityConfig(binding);
+  // This policy is authorized only in an isolated candidate, never activation.
+  if(guarded&&activation)throw Error('CRU55_CONTINUITY_CANDIDATE_ONLY');
   const version=binding.outputVersion;
-  if(version!==undefined&&(binding.producer!=='STREAM_PAGED_V2'||!/^stream-[a-z0-9-]{1,64}$/.test(version)))throw Error('CRU55_BINDING_OUTPUT_VERSION');
+  if(version!==undefined&&(!['STREAM_PAGED_V2','STREAM_PAGED_V3'].includes(binding.producer)||!/^stream-[a-z0-9-]{1,64}$/.test(version)))throw Error('CRU55_BINDING_OUTPUT_VERSION');
   const expectedOutput=version?path.join(data,'cru55-runtime','output',version):path.join(data,'runtime','cru55-overview');
   if(!eq(output,expectedOutput))throw Error('CRU55_BINDING_OUTPUT_ROOT');
   if(binding.readerRoot!==binding.outputRoot||binding.sourceRoot!==path.join(data,'live-events'))throw Error('CRU55_BINDING_READER_WRITER_SOURCE_MISMATCH');
   const legacy=binding.sourceVerification==='FULL_PREFIX_EACH_BATCH'&&binding.producer==='BOUNDED_ACCEPTED_V1';
-  const stream=binding.sourceVerification==='FULL_PREFIX_BEFORE_PUBLICATION'&&binding.producer==='STREAM_PAGED_V2';
+  const stream=guarded||binding.sourceVerification==='FULL_PREFIX_BEFORE_PUBLICATION'&&binding.producer==='STREAM_PAGED_V2';
   if(!legacy&&!stream)throw Error('CRU55_BINDING_UNREVIEWED_PRODUCER');
   const publicationSchedule=validatePublicationSchedule(binding.publicationSchedule);
   const indexLayout=validateIndexLayout(binding.indexLayout);

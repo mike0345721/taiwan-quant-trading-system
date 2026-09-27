@@ -4,6 +4,30 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { stableJson } from './cvd-observation-core.mjs';
+import { createRequire } from 'node:module';
+
+let processApi;
+// No CIM on reader requests. The creation FILETIME and signaled state are
+// checked on the same OS handle, preventing PID reuse from reviving a receipt.
+export function nativeManagedProcess(pid, expectedCreation = null) {
+  if (process.platform !== 'win32' || !Number.isSafeInteger(pid) || pid < 1) throw Error('CRU55_NATIVE_PROCESS_REQUIRED');
+  if (!processApi) {
+    const k = createRequire(import.meta.url)('koffi').load('kernel32.dll');
+    const call = (n,r,a) => k.func('__stdcall',n,r,a);
+    processApi = {open:call('OpenProcess','intptr_t',['uint32','int','uint32']),
+      times:call('GetProcessTimes','int',['intptr_t','void *','void *','void *','void *']),
+      wait:call('WaitForSingleObject','uint32',['intptr_t','uint32']),close:call('CloseHandle','int',['intptr_t'])};
+  }
+  const a=processApi,h=a.open(0x100000|0x1000,0,pid);
+  if (!h) throw Error('CRU55_PRODUCER_DEAD_OR_UNKNOWN');
+  try {
+    const creation=Buffer.alloc(8),exit=Buffer.alloc(8),kernel=Buffer.alloc(8),user=Buffer.alloc(8);
+    if (!a.times(h,creation,exit,kernel,user) || a.wait(h,0)!==258) throw Error('CRU55_PRODUCER_DEAD_OR_UNKNOWN');
+    const value=creation.readBigUInt64LE().toString();
+    if (expectedCreation!==null && value!==expectedCreation) throw Error('CRU55_PRODUCER_CREATION_CHANGED');
+    return value;
+  } finally { if(!a.close(h)) throw Error('CRU55_PROCESS_HANDLE_CLEANUP_FAILED'); }
+}
 
 const fail=code=>{throw Error(code);};
 const inside=(root,file)=>{const relative=path.relative(root,file);return relative!==''&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative);};
