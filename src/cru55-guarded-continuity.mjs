@@ -26,7 +26,7 @@ function source(binding,end){
 // The only reusable raw proof lives here, in one real managed owner's memory.
 // Durable job cursors, public status and artifact metadata never restore proof.
 export class ManagedContinuity {
-  #owner; #producer; #status; #roles=new Map(); #publications={}; #closed=false;
+  #owner; #producer; #status; #roles=new Map(); #publications={}; #requirements=new Map(); #closed=false;
   metrics={fullReadBytes:0,suffixReadBytes:0,metadataChunks:0,verifications:0};
   constructor(owner){
     if(owner?.pid!==process.pid||!hash(owner.bindingHash)||!hash(digest(stableJson(owner)))||!owner.nonce)fail('OWNER_INVALID');
@@ -48,7 +48,7 @@ export class ManagedContinuity {
   invalidate(reason='STOPPED'){
     // If durable invalidation fails, retain ALL guards. Caller must stop the
     // writer; the reader's native process check then invalidates it on death.
-    this.#publications={};this.#save('INVALID',reason);
+    this.#publications={};this.#requirements.clear();this.#save('INVALID',reason);
     const errors=[];
     for(const s of this.#roles.values())try{releasePrefixGuards(s.group,{checked:true});}catch(e){errors.push(e);}
     this.#roles.clear();
@@ -63,7 +63,8 @@ export class ManagedContinuity {
     source(context.sourceBinding,end);
     let s=this.#roles.get(key);
     if(s&&!equal(s.context,context)){
-      this.#publications={};this.#save('INVALID','ROLE_CONTEXT_CHANGED');
+      for(const [publication,requirements] of this.#requirements){if(requirements.some(r=>r.key===key)){delete this.#publications[publication];this.#requirements.delete(publication);}}
+      this.#save(Object.keys(this.#publications).length?'VALID':'INVALID','ROLE_CONTEXT_CHANGED');
       releasePrefixGuards(s.group,{checked:true});this.#roles.delete(key);s=null;
     }
     if(s){try{this.#live(s);}catch(e){if(e.message!=='STREAM_PREFIX_LEASE_LOST')throw e;this.invalidate('GUARD_LOST_REQUIRES_FULL_VERIFY');s=null;}}
@@ -120,7 +121,7 @@ export class ManagedContinuity {
   publication(){return {policy:CONTINUITY_POLICY,producer:structuredClone(this.#producer),researchEligibility:CONTINUITY_RESEARCH};}
   publish(runRoot,session,artifactHash,requirements,publishedAt){
     for(const r of requirements)this.assertReady(r.key,r.context,r.target);
-    this.#publications[runRoot+'|'+session]={artifactHash,publishedAt};this.#save('VALID');
+    this.#publications[runRoot+'|'+session]={artifactHash,publishedAt};this.#requirements.set(runRoot+'|'+session,structuredClone(requirements));this.#save('VALID');
   }
 }
 export function assertManagedContinuity(instance,owner){if(!instances.has(instance))fail('MANAGED_INSTANCE_REQUIRED');instance.assertOwner(owner);}

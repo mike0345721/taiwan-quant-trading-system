@@ -346,7 +346,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
       if(!protectedMode&&!same(now,job.verifyStamp)){job.verifyIndex=1;job.verifyOffset=0;job.verifyPreviousHash=null;job.verifyStamp=now;job.verifyRestarts++;}
       const currentContext=guarded?{runRoot,role:'current',sessionEpoch:stableJson(job.activeIdentity),sourceBinding,sourceLedgerIdentity:ingest.sourceLedgerIdentity,resolverIdentity:resolved.resolverIdentity}:null;
       if(guarded){
-        const v=continuity.verify(runRoot+'|current',currentContext,{endByteOffset:job.cutoff.endByteOffset,lastChunkHash:job.cutoff.lastChunkHash,chunkCount:job.cutoff.index,chunkPath,fd,budget:work,maxRanges:maxVerifyRanges,round:job.startedAt+'|'+job.generationHash});
+        const v=continuity.verify(runRoot+'|current',currentContext,{endByteOffset:job.cutoff.endByteOffset,lastChunkHash:job.cutoff.lastChunkHash,chunkCount:job.cutoff.index,chunkPath,fd,budget:work,maxRanges:Math.max(0,maxVerifyRanges-work.rawRanges),round:job.startedAt+'|'+job.generationHash});
         if(job.projectionWork)job.projectionWork.rawVerificationBytes=v.metrics.fullReadBytes+v.metrics.suffixReadBytes;
         if(!v.complete){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY',reason:'CONTINUITY_PREFIX_PENDING'});}
         job.verifyIndex=job.cutoff.index+1;job.verifyOffset=job.cutoff.endByteOffset;job.verifyPreviousHash=job.cutoff.lastChunkHash;
@@ -369,7 +369,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           priorArtifact=json(name(oldPointer.artifactHash+'.stream-view.json'),PIPELINE_LIMITS.artifactBytes);
           const {artifactHash,...priorBody}=priorArtifact;if(artifactHash!==oldPointer.artifactHash||digest(stableJson(priorBody))!==artifactHash)fail('STREAM_PRIOR_ARTIFACT_INVALID');
         }
-        let adjacent=null;
+        let adjacent=null,revalidatedPrior=null;
         const actualSession=job.activeSession;
         const reference=job.priorPublications?job.priorPublications[actualSession==='DAY'?'night':'day']:job.priorPublication;
         if(reference){
@@ -379,6 +379,26 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           const verification=advancePriorVerification(job.priorVerification,{budget:work,maxRanges:Math.max(0,maxVerifyRanges-work.rawRanges),protectionGroup:protectedMode&&!guarded?runRoot:null,continuity:guarded?continuity:null,runRoot,verificationRound:job.startedAt+'|'+job.generationHash});
           job.priorVerification=verification.state;pages+=verification.ranges;
           if(!verification.complete){atomic(jobFile,sealed(job));return result('PENDING',{phase:'VERIFY_PRIOR',reason:'PRIOR_RAW_PREFIX_PENDING'});}
+          if(guarded){
+            // Prior may be from the same physical file or a dead writer epoch.
+            // Re-attest its unchanged view only after this owner's independent
+            // prior proof. Do not relabel old availability as newly observed data.
+            const {artifactHash:originalHash,...originalBody}=artifact;
+            const currentProducer=continuity.publication().producer;
+            const sameEpoch=same(artifact.integrity.producer,currentProducer);
+            const priorBody=sameEpoch?originalBody:{...originalBody,
+              revalidatedFromArtifactHash:originalHash,
+              integrity:{...artifact.integrity,producer:currentProducer}};
+            const newHash=digest(stableJson(priorBody)),newArtifact={...priorBody,artifactHash:newHash};
+            const priorRoot=path.dirname(reference.artifactPath),relative=path.relative(ownerContext.outputRoot,priorRoot).split(path.sep).join('/');
+            if(!/^sources\/[a-f0-9]{64}$/.test(relative))fail('STREAM_PRIOR_OUTPUT_ESCAPE');
+            immutable(path.join(priorRoot,newHash+'.stream-view.json'),newArtifact,PIPELINE_LIMITS.artifactBytes);
+            const c=artifact.view.charts['1m'];
+            revalidatedPrior={schemaVersion:'cru55-stream-public-v3',relativeRunPath:relative,sourceKey:path.basename(priorRoot),
+              artifactHash:newHash,producerEpoch:currentProducer.epoch,publishedAt:new Date().toISOString(),
+              originalPublishedAt:reference.publishedAt??null,session:c.session,tradeDate:c.tradeDate,availableAt:c.availableAt,cutoff:c.cutoff};
+            continuity.publish(priorRoot,c.session,newHash,[job.priorVerification.continuityRequirement],revalidatedPrior.publishedAt);
+          }
         }
         const adjacentArtifactHash=reference?.artifactHash??null;
         const reusable=priorArtifact?.generationHash===job.generationHash&&(priorArtifact.adjacentArtifactHash??null)===adjacentArtifactHash;
@@ -418,7 +438,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
           if(job.priorVerification?.continuityRequirement)requirements.push(job.priorVerification.continuityRequirement);
           continuity.publish(runRoot,pointer.session,artifactHash,requirements,pointer.publishedAt);
         }else releasePrefixGuards(runRoot);
-        return result(old?.artifactHash===artifactHash?'UNCHANGED':'PUBLISHED',pointer);
+        return result(old?.artifactHash===artifactHash?'UNCHANGED':'PUBLISHED',{...pointer,...(revalidatedPrior?{revalidatedPrior}:{})});
       }
     }
     atomic(jobFile,sealed(job));atomic(name('lifecycle-status.json'),{state:'PENDING',phase:job.phase,verifyRestarts:job.verifyRestarts,...SAFETY});

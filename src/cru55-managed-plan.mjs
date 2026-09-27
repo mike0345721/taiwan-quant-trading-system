@@ -100,7 +100,7 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
   for(const view of ['day','night']){const prior=selection.views[view];if(!prior)continue;
     if(!/^sources\/[a-f0-9]{64}$/.test(prior.relativeRunPath||'')||!/^[a-f0-9]{64}$/.test(prior.artifactHash||''))throw Error('CRU55_MANAGED_PRIOR_REFERENCE');
     const artifactPath=assertBoundWriteRoot(binding,path.join(binding.outputRoot,...prior.relativeRunPath.split('/'),prior.artifactHash+'.stream-view.json'));
-    if(fs.existsSync(artifactPath))priorPublications[view]={artifactPath,artifactHash:prior.artifactHash};
+    if(fs.existsSync(artifactPath))priorPublications[view]={artifactPath,artifactHash:prior.artifactHash,...(binding.sourceVerification===CONTINUITY_POLICY?{publishedAt:prior.publishedAt??null}:{})};
   }
   const result=await runStreamCycle({sourcePath:source.sourcePath,runRoot,sourceKind:binding.sourceKind,sourceVerification:binding.sourceVerification,continuity,priorPublications,ownerContext,publishAtSessionBoundary:true,publicationSchedule:binding.publicationSchedule??null,indexLayout:validateIndexLayout(binding.indexLayout),maxPages:8,maxBytes:8*1024*1024});
   verifyBoundSourceRoot(binding); // no routing publication after the approved alias changes
@@ -108,6 +108,11 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
     const view=result.session?.toLowerCase(),availableAt=Date.parse(result.availableAt);
     if(!['day','night'].includes(view)||!/^[a-f0-9]{64}$/.test(result.artifactHash||'')||!Number.isFinite(availableAt))throw Error('CRU55_MANAGED_PUBLICATION_IDENTITY');
     if(!selection.views[view]||availableAt>=Date.parse(selection.views[view].availableAt))selection.views[view]={...(binding.sourceVerification===CONTINUITY_POLICY?{schemaVersion:result.schemaVersion,producerEpoch:result.producerEpoch,publishedAt:result.publishedAt}:{}),relativeRunPath,sourceKey:source.sourceKey,artifactHash:result.artifactHash,session:result.session,tradeDate:result.tradeDate,availableAt:result.availableAt,cutoff:result.cutoff};
+    if(result.revalidatedPrior){
+      const prior=result.revalidatedPrior,view=prior.session?.toLowerCase();
+      if(binding.sourceVerification!==CONTINUITY_POLICY||!['day','night'].includes(view)||prior.schemaVersion!=='cru55-stream-public-v3')throw Error('CRU55_MANAGED_PRIOR_REATTESTATION');
+      selection.views[view]=prior;
+    }
     await publishManagedJson(binding,'stream-selection.json',selection);
   }
   // A bounded step alternates files, including the new calendar date after

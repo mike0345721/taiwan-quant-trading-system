@@ -11,7 +11,7 @@ import {runStreamCycle} from '../src/cru55-stream-pipeline.mjs';
 import {createStreamReader} from '../src/cru55-stream-reader.mjs';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {SAFETY,digest,stableJson} from '../src/cvd-observation-core.mjs';
-import {readManagedConfig,managedDelayMs} from '../src/cru55-managed-plan.mjs';
+import {readManagedConfig,managedDelayMs,runManagedCycle} from '../src/cru55-managed-plan.mjs';
 import {sourceDirectoryIdentity,validateRuntimeBinding} from '../src/cru55-runtime-binding.mjs';
 
 const native=process.platform==='win32';
@@ -23,7 +23,8 @@ function fixture(){
   const actual=probeManagedProcess(process.pid),owner={nonce:crypto.randomUUID(),pid:process.pid,startTime:actual.startTime,commandLine:actual.commandLine,
     bindingHash:'b'.repeat(64),runtimeCommit:'a'.repeat(40),configPath:path.join(root,'config.json'),outputRoot};
   fs.writeFileSync(path.join(outputRoot,'managed-owner.lock','owner.json'),JSON.stringify({schemaVersion:'cru55-managed-owner-v1',...owner}));
-  const sourcePath=path.join(root,'raw.ndjson'),runRoot=path.join(outputRoot,'sources','a'.repeat(64));
+  fs.mkdirSync(path.join(root,'input'));
+  const sourcePath=path.join(root,'input','2026-09-15.ndjson'),runRoot=path.join(outputRoot,'sources','a'.repeat(64));
   const continuity=new ManagedContinuity(owner);
   let previous='GENESIS',ordinal=0;
   const append=(count,{time='2026-09-14T15:00:00+08:00',volume=1,kind='futures_tick',step=20000}={})=>{
@@ -38,8 +39,8 @@ function fixture(){
   };
   const options={sourcePath,runRoot,sourceKind:'SYNTHETIC_FIXTURE',ownerContext:owner,sourceVerification:CONTINUITY_POLICY,continuity,maxPages:8,maxVerifyRanges:2};
   const finish=(extra={})=>{for(let i=0;i<500;i++){const r=runStreamCycle({...options,...extra});if(['PUBLISHED','UNCHANGED'].includes(r.state))return r;}throw Error('DID_NOT_SETTLE');};
-  const publish=r=>{fs.writeFileSync(path.join(outputRoot,'stream-selection.json'),JSON.stringify({schemaVersion:'cru55-stream-selection-v1',bindingHash:owner.bindingHash,...SAFETY,
-    views:{[r.session.toLowerCase()]:{...r,sourceKey:'a'.repeat(64),relativeRunPath:'sources/'+'a'.repeat(64)}}}));};
+  const publish=r=>{const selectionFile=path.join(outputRoot,'stream-selection.json'),previous=fs.existsSync(selectionFile)?json(selectionFile).views:{};fs.writeFileSync(path.join(outputRoot,'stream-selection.json'),JSON.stringify({schemaVersion:'cru55-stream-selection-v1',bindingHash:owner.bindingHash,...SAFETY,
+    views:{...previous,...(r.revalidatedPrior?{[r.revalidatedPrior.session.toLowerCase()]:r.revalidatedPrior}:{}),[r.session.toLowerCase()]:{...r,sourceKey:'a'.repeat(64),relativeRunPath:'sources/'+'a'.repeat(64)}}}));};
   return {root,outputRoot,sourcePath,runRoot,owner,continuity,append,finish,publish,options,
     close(){continuity.close();const resolved=fs.realpathSync(root);assert.ok(resolved.startsWith(base+path.sep));fs.rmSync(resolved,{recursive:true,force:true});}};
 }
@@ -88,11 +89,13 @@ test('v3 exact products, bounded full/suffix verification, actual owner, per-req
 test('same-file prior gets independent full proof; append/reopen, date rotation, shutdown and restart full verification',{skip:!native},t=>{
   const f=fixture();let restarted;
   try{
-    f.append(8);const night=f.finish(),prior={artifactHash:night.artifactHash,artifactPath:path.join(f.runRoot,night.artifactHash+'.stream-view.json')};
+    f.append(8);const night=f.finish();f.publish(night);const prior={artifactHash:night.artifactHash,artifactPath:path.join(f.runRoot,night.artifactHash+'.stream-view.json')};
     const nightBytes=fs.statSync(f.sourcePath).size;
     f.append(8,{time:'2026-09-15T08:45:00+08:00'});
     const before={...f.continuity.metrics},day=f.finish({priorPublication:prior});f.publish(day);
     assert.equal(day.session,'DAY');
+    const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER});
+    assert.equal(reader({view:'night'}).chart.cutoff.ledgerOrdinal,night.cutoff.ledgerOrdinal);assert.equal(reader({view:'day'}).chart.cutoff.ledgerOrdinal,day.cutoff.ledgerOrdinal);
     const total=fs.statSync(f.sourcePath).size;
     assert.equal(f.continuity.metrics.fullReadBytes-before.fullReadBytes,total+nightBytes,'new current session and separate same-file prior both full verify');
     const a=json(path.join(f.runRoot,day.artifactHash+'.stream-view.json'));assert.equal(a.integrity.adjacentRawPrefixVerified,false);assert.equal(a.integrity.adjacentGuardedPrefixVerified,true);
@@ -102,10 +105,12 @@ test('same-file prior gets independent full proof; append/reopen, date rotation,
     fs.writeFileSync(path.join(f.root,'next-date.ndjson'),'');
     assert.throws(()=>fs.renameSync(f.sourcePath,f.sourcePath+'.rotated'));
     // Remove only the deliberate incomplete tail after normal guard cleanup.
-    f.continuity.close();fs.truncateSync(f.sourcePath,total);
+    f.continuity.close();assert.throws(()=>reader({view:'night'}));assert.throws(()=>reader({view:'day'}));fs.truncateSync(f.sourcePath,total);
     restarted=new ManagedContinuity(f.owner);
     const recovered=f.finish({continuity:restarted,priorPublication:prior});f.publish(recovered);
     assert.equal(restarted.metrics.fullReadBytes,total+nightBytes);assert.equal(restarted.metrics.suffixReadBytes,0);
+    assert.deepEqual(reader({view:'night'}).chart.cutoff,night.cutoff);assert.deepEqual(reader({view:'day'}).chart.cutoff,day.cutoff);
+    assert.deepEqual(json(path.join(f.runRoot,recovered.revalidatedPrior.artifactHash+'.stream-view.json')).view,json(prior.artifactPath).view);
     assert.deepEqual(json(path.join(f.runRoot,recovered.artifactHash+'.stream-view.json')).view,a.view);
     restarted.close();fs.renameSync(f.sourcePath,f.sourcePath+'.rotated');fs.renameSync(f.sourcePath+'.rotated',f.sourcePath);
     t.diagnostic(JSON.stringify({sameFile:true,nightBytes,total,restartFullBytes:restarted.metrics.fullReadBytes}));
@@ -170,7 +175,10 @@ test('true process exit invalidates disk receipt; new native owner must full ver
     assert.throws(()=>reader({view:'night'}),/DEAD_OR_UNKNOWN/);
     const b=await start();assert.equal(b.metrics.fullReadBytes,b.bytes);assert.equal(b.metrics.suffixReadBytes,0);assert.notEqual(b.result.producerEpoch,a.result.producerEpoch);reader({view:'night'});
     await stop(b.child,'close');assert.throws(()=>reader({view:'night'}),/PUBLICATION_INVALID/);
-    t.diagnostic(JSON.stringify({trueExit:true,newEpoch:true,restartFullBytes:b.bytes}));
+    const c=await start();reader({view:'night'});
+    const cleanup=new Promise(resolve=>c.child.once('message',resolve)),exit=new Promise(resolve=>c.child.once('exit',resolve));c.child.send('cleanup-failure');
+    const failure=await cleanup;await exit;assert.equal(failure.cleanupError,'CRU55_CONTINUITY_CLEANUP_FAILED');assert.equal(failure.state,'INVALID');assert.throws(()=>reader({view:'night'}),/PUBLICATION_INVALID/);
+    t.diagnostic(JSON.stringify({trueExit:true,newEpoch:true,restartFullBytes:b.bytes,nativeCleanupFailureInvalidated:true}));
   }finally{for(const child of children)if(child.exitCode===null)child.kill();assert.ok(fs.realpathSync(root).startsWith(base+path.sep));fs.rmSync(root,{recursive:true,force:true});}
 });
 
@@ -188,4 +196,22 @@ test('v3 candidate config creates an isolated output contract and formal activat
     assert.throws(()=>validateRuntimeBinding(formal,{runtimeRoot:root,head,approvedMain:head,activation:true}),/CANDIDATE_ONLY/);
     fs.writeFileSync(file,JSON.stringify({...b,outputVersion:undefined}));assert.throws(()=>readManagedConfig(file,{runtimeRoot:root,candidate:true}),/BINDING_INVALID/);
   }finally{assert.ok(fs.realpathSync(dir).startsWith(base+path.sep));fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('real managed routing restores both same-file selections after a new owner epoch',{skip:!native},async t=>{
+  const f=fixture();let restarted;
+  try{
+    const sourceRoot=path.dirname(f.sourcePath),binding={sourceRoot,outputRoot:f.outputRoot,sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-15'},sourceKind:'SYNTHETIC_FIXTURE',bindingHash:f.owner.bindingHash,sourceVerification:CONTINUITY_POLICY,producer:CONTINUITY_PRODUCER};
+    const finish=async continuity=>{for(let i=0;i<100;i++){const r=await runManagedCycle(binding,{runStreamCycle,ownerContext:f.owner,continuity,now:Date.parse('2026-09-15T12:00:00+08:00')});if(['PUBLISHED','UNCHANGED'].includes(r.state))return r;}throw Error('MANAGED_NOT_SETTLED');};
+    f.append(8);await finish(f.continuity);const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER}),night=reader({view:'night'});
+    f.append(8,{time:'2026-09-15T08:45:00+08:00'});await finish(f.continuity);const day=reader({view:'day'});const {freshness:nowFresh,...nowChart}=reader({view:'night'}).chart,{freshness:oldFresh,...oldChart}=night.chart;assert.deepEqual(nowChart,oldChart);assert.equal(nowFresh.state,oldFresh.state);assert.equal(nowFresh.reason,oldFresh.reason);
+    f.continuity.close();assert.throws(()=>reader({view:'night'}));assert.throws(()=>reader({view:'day'}));
+    f.owner.nonce=crypto.randomUUID();fs.writeFileSync(path.join(f.outputRoot,'managed-owner.lock','owner.json'),JSON.stringify({schemaVersion:'cru55-managed-owner-v1',...f.owner}));
+    restarted=new ManagedContinuity(f.owner);await finish(restarted);
+    assert.deepEqual(reader({view:'night'}).chart.cutoff,night.chart.cutoff);assert.deepEqual(reader({view:'day'}).chart.cutoff,day.chart.cutoff);
+    assert.notEqual(reader({view:'night'}).integrity.producer.epoch,night.integrity.producer.epoch);
+    assert.equal(reader({view:'night'}).researchEligibility.eligible,false);
+    t.diagnostic(JSON.stringify({managedBothViews:true,restartFullBytes:restarted.metrics.fullReadBytes}));
+  }finally{restarted?.close();f.close();}
 });
