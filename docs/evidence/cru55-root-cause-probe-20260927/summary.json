@@ -1,0 +1,727 @@
+{
+  "kind": "ROOT_CAUSE_PROBE",
+  "verdict": "BLOCKED_WITH_EVIDENCE",
+  "head": "5f3634aa686091d106cb87bf094732880267872e",
+  "productRootCauseProven": false,
+  "goal1": "PARTIAL_WITH_UNASSIGNED_COST",
+  "goal2": "BLOCKED_PROCESS_COVERAGE_AND_NO_HIGH_LOAD",
+  "secondG1ACampaignStarted": false,
+  "retryConsumed": false,
+  "source": {
+    "records": 40946,
+    "bytes": 56057510,
+    "sha256": "5e4fefea8a4fd2196132d39f173bc8894d7aab69e81757d3ba3fe8370a512d12",
+    "matchesFrozenPrefix": true,
+    "frozenStatUnchanged": true
+  },
+  "committed": {
+    "records": 39953,
+    "bytes": 54698108
+  },
+  "publishedApi": {
+    "records": 39825,
+    "bytes": 54522861
+  },
+  "backlog": {
+    "unpublishedRecords": 1121,
+    "unpublishedBytes": 1534649
+  },
+  "verification": {
+    "all": {
+      "calls": 39,
+      "completed": 16,
+      "uniqueCompletedRounds": 7,
+      "wallMs": 14674.476300000068,
+      "cpuUs": 13067000,
+      "stages": {
+        "metadata_read": {
+          "calls": 1861,
+          "chunks": 1861,
+          "bytes": 1265227,
+          "wallMs": 8319.215000000506,
+          "cpuUs": 7563000,
+          "userUs": 1904000,
+          "systemUs": 5659000
+        },
+        "json_parse": {
+          "calls": 1861,
+          "chunks": 1861,
+          "bytes": 1265227,
+          "wallMs": 42.28369999953429,
+          "cpuUs": 32000,
+          "userUs": 16000,
+          "systemUs": 16000
+        },
+        "hash_chain": {
+          "calls": 1861,
+          "chunks": 1861,
+          "bytes": 1265227,
+          "wallMs": 112.95250000023225,
+          "cpuUs": 31000,
+          "userUs": 0,
+          "systemUs": 31000
+        },
+        "anchor_receipt": {
+          "calls": 3822,
+          "chunks": 1846,
+          "bytes": 0,
+          "wallMs": 31.630899998825043,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_full_read": {
+          "calls": 749,
+          "chunks": 749,
+          "bytes": 131026787,
+          "wallMs": 73.8586000000505,
+          "cpuUs": 79000,
+          "userUs": 31000,
+          "systemUs": 48000
+        },
+        "raw_suffix_read": {
+          "calls": 54,
+          "chunks": 54,
+          "bytes": 9302710,
+          "wallMs": 4.229299999948125,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_hash": {
+          "calls": 803,
+          "chunks": 803,
+          "bytes": 140329497,
+          "wallMs": 363.4288000001252,
+          "cpuUs": 362000,
+          "userUs": 78000,
+          "systemUs": 284000
+        },
+        "guard_acquire": {
+          "calls": 5,
+          "chunks": 5,
+          "bytes": 0,
+          "wallMs": 67.8697000000102,
+          "cpuUs": 31000,
+          "userUs": 0,
+          "systemUs": 31000
+        },
+        "guard_assert": {
+          "calls": 82,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 488.9770000000135,
+          "cpuUs": 378000,
+          "userUs": 141000,
+          "systemUs": 237000
+        },
+        "guard_release": {
+          "calls": 2,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 0.1875,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "owner_context": {
+          "calls": 39,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 665.8280999999988,
+          "cpuUs": 454000,
+          "userUs": 203000,
+          "systemUs": 251000
+        }
+      }
+    },
+    "cold": {
+      "calls": 6,
+      "completed": 1,
+      "uniqueCompletedRounds": 1,
+      "wallMs": 2184.3989,
+      "cpuUs": 2235000,
+      "stages": {
+        "metadata_read": {
+          "calls": 250,
+          "chunks": 250,
+          "bytes": 169947,
+          "wallMs": 930.5430000001943,
+          "cpuUs": 1014000,
+          "userUs": 328000,
+          "systemUs": 686000
+        },
+        "json_parse": {
+          "calls": 250,
+          "chunks": 250,
+          "bytes": 169947,
+          "wallMs": 5.315600000045379,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "hash_chain": {
+          "calls": 250,
+          "chunks": 250,
+          "bytes": 169947,
+          "wallMs": 18.680499999871245,
+          "cpuUs": 15000,
+          "userUs": 0,
+          "systemUs": 15000
+        },
+        "anchor_receipt": {
+          "calls": 514,
+          "chunks": 245,
+          "bytes": 0,
+          "wallMs": 4.180700000040815,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_full_read": {
+          "calls": 245,
+          "chunks": 245,
+          "bytes": 42903318,
+          "wallMs": 23.136300000085612,
+          "cpuUs": 32000,
+          "userUs": 0,
+          "systemUs": 32000
+        },
+        "raw_suffix_read": {
+          "calls": 0,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 0,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_hash": {
+          "calls": 245,
+          "chunks": 245,
+          "bytes": 42903318,
+          "wallMs": 108.19719999999506,
+          "cpuUs": 47000,
+          "userUs": 16000,
+          "systemUs": 31000
+        },
+        "guard_acquire": {
+          "calls": 1,
+          "chunks": 1,
+          "bytes": 0,
+          "wallMs": 40.54349999999977,
+          "cpuUs": 16000,
+          "userUs": 0,
+          "systemUs": 16000
+        },
+        "guard_assert": {
+          "calls": 12,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 56.797799999971176,
+          "cpuUs": 47000,
+          "userUs": 0,
+          "systemUs": 47000
+        },
+        "guard_release": {
+          "calls": 0,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 0,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "owner_context": {
+          "calls": 6,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 104.19210000000021,
+          "cpuUs": 79000,
+          "userUs": 15000,
+          "systemUs": 64000
+        }
+      }
+    },
+    "warm": {
+      "calls": 33,
+      "completed": 15,
+      "uniqueCompletedRounds": 6,
+      "wallMs": 12490.077400000067,
+      "cpuUs": 10832000,
+      "stages": {
+        "metadata_read": {
+          "calls": 1611,
+          "chunks": 1611,
+          "bytes": 1095280,
+          "wallMs": 7388.6720000003115,
+          "cpuUs": 6549000,
+          "userUs": 1576000,
+          "systemUs": 4973000
+        },
+        "json_parse": {
+          "calls": 1611,
+          "chunks": 1611,
+          "bytes": 1095280,
+          "wallMs": 36.96809999948891,
+          "cpuUs": 32000,
+          "userUs": 16000,
+          "systemUs": 16000
+        },
+        "hash_chain": {
+          "calls": 1611,
+          "chunks": 1611,
+          "bytes": 1095280,
+          "wallMs": 94.272000000361,
+          "cpuUs": 16000,
+          "userUs": 0,
+          "systemUs": 16000
+        },
+        "anchor_receipt": {
+          "calls": 3308,
+          "chunks": 1601,
+          "bytes": 0,
+          "wallMs": 27.45019999878423,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_full_read": {
+          "calls": 504,
+          "chunks": 504,
+          "bytes": 88123469,
+          "wallMs": 50.72229999996489,
+          "cpuUs": 47000,
+          "userUs": 31000,
+          "systemUs": 16000
+        },
+        "raw_suffix_read": {
+          "calls": 54,
+          "chunks": 54,
+          "bytes": 9302710,
+          "wallMs": 4.229299999948125,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "raw_hash": {
+          "calls": 558,
+          "chunks": 558,
+          "bytes": 97426179,
+          "wallMs": 255.23160000013013,
+          "cpuUs": 315000,
+          "userUs": 62000,
+          "systemUs": 253000
+        },
+        "guard_acquire": {
+          "calls": 4,
+          "chunks": 4,
+          "bytes": 0,
+          "wallMs": 27.32620000001043,
+          "cpuUs": 15000,
+          "userUs": 0,
+          "systemUs": 15000
+        },
+        "guard_assert": {
+          "calls": 70,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 432.17920000004233,
+          "cpuUs": 331000,
+          "userUs": 141000,
+          "systemUs": 190000
+        },
+        "guard_release": {
+          "calls": 2,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 0.1875,
+          "cpuUs": 0,
+          "userUs": 0,
+          "systemUs": 0
+        },
+        "owner_context": {
+          "calls": 33,
+          "chunks": 0,
+          "bytes": 0,
+          "wallMs": 561.6359999999986,
+          "cpuUs": 375000,
+          "userUs": 188000,
+          "systemUs": 187000
+        }
+      }
+    },
+    "failures": []
+  },
+  "cyclePhases": {
+    "INGEST": {
+      "cycles": 11,
+      "workMs": 45330.756900000066,
+      "pipelineMs": 41661.38549999998,
+      "cpuUs": 16737000,
+      "configMs": 2469.9822000000195,
+      "managerMs": 1199.3892000000633
+    },
+    "PROJECT": {
+      "cycles": 84,
+      "workMs": 89168.92029999994,
+      "pipelineMs": 60765.4551999999,
+      "cpuUs": 46671000,
+      "configMs": 17828.42510000003,
+      "managerMs": 10575.040000000012
+    },
+    "QUERY": {
+      "cycles": 6,
+      "workMs": 4668.7672999999995,
+      "pipelineMs": 2688.311000000016,
+      "cpuUs": 2125000,
+      "configMs": 1370.276300000005,
+      "managerMs": 610.1799999999785
+    },
+    "VERIFY": {
+      "cycles": 18,
+      "workMs": 26587.052299999974,
+      "pipelineMs": 19595.815299999987,
+      "cpuUs": 14365000,
+      "configMs": 4118.110599999964,
+      "managerMs": 2873.126400000023
+    },
+    "VERIFY_PRIOR": {
+      "cycles": 9,
+      "workMs": 11535.48940000002,
+      "pipelineMs": 7438.076899999971,
+      "cpuUs": 7520000,
+      "configMs": 2436.6487999999954,
+      "managerMs": 1660.763700000054
+    }
+  },
+  "cpu": {
+    "windows": 90,
+    "windowStart": "2026-09-27T13:24:36.5100000Z",
+    "windowEnd": "2026-09-27T13:27:49.8400000Z",
+    "totalMs": 193329.54479999995,
+    "logicalProcessors": 12,
+    "weightedHostPercent": 30.988679956794677,
+    "p95": 54.86925352981357,
+    "max": 71.01861967245699,
+    "highWindows": 0,
+    "allSameTimestamp": true,
+    "hostBusyDeltaMs": 718923.2868000001,
+    "knownProcessCpuDeltaMs": 512093.75,
+    "unattributedCpuDeltaMs": 206829.53680000012,
+    "groups": [
+      {
+        "group": "other",
+        "cpuDeltaMs": 204265.625,
+        "unknownProcessWindows": 4,
+        "capacityPercent": 8.804725337907412,
+        "hostBusySharePercent": 28.412715062994668
+      },
+      {
+        "group": "Chrome",
+        "cpuDeltaMs": 191937.5,
+        "unknownProcessWindows": 306,
+        "capacityPercent": 8.273330226486243,
+        "hostBusySharePercent": 26.697911101799626
+      },
+      {
+        "group": "Codex_ChatGPT_CUA_hosts",
+        "cpuDeltaMs": 55796.875,
+        "unknownProcessWindows": 0,
+        "capacityPercent": 2.405084845228132,
+        "hostBusySharePercent": 7.76117230092205
+      },
+      {
+        "group": "System",
+        "cpuDeltaMs": 44234.375,
+        "unknownProcessWindows": 0,
+        "capacityPercent": 1.9066914580904064,
+        "hostBusySharePercent": 6.152864403223278
+      },
+      {
+        "group": "sampler",
+        "cpuDeltaMs": 12906.25,
+        "unknownProcessWindows": 0,
+        "capacityPercent": 0.5563147807780556,
+        "hostBusySharePercent": 1.7952193560799814
+      },
+      {
+        "group": "observer",
+        "cpuDeltaMs": 2265.625,
+        "unknownProcessWindows": 0,
+        "capacityPercent": 0.09765816369590566,
+        "hostBusySharePercent": 0.31514141238692167
+      },
+      {
+        "group": "PowerShell_other",
+        "cpuDeltaMs": 671.875,
+        "unknownProcessWindows": 88,
+        "capacityPercent": 0.028960696820165124,
+        "hostBusySharePercent": 0.09345572919060435
+      },
+      {
+        "group": "Defender",
+        "cpuDeltaMs": 15.625,
+        "unknownProcessWindows": 0,
+        "capacityPercent": 0.0006735045772131424,
+        "hostBusySharePercent": 0.0021733890509442874
+      },
+      {
+        "group": "writer",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      },
+      {
+        "group": "appender",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      },
+      {
+        "group": "server",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      }
+    ],
+    "topOther": [
+      {
+        "name": "dwm",
+        "group": "other",
+        "cpuDeltaMs": 74078.125,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 7.965284449336643,
+        "capacityPercent": 3.1930852005675083,
+        "hostBusySharePercent": 10.304037490526866
+      },
+      {
+        "name": "avp",
+        "group": "other",
+        "cpuDeltaMs": 35140.625,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 8.162150895552006,
+        "capacityPercent": 1.5147117941523573,
+        "hostBusySharePercent": 4.887951975573702
+      },
+      {
+        "name": "lsass",
+        "group": "other",
+        "cpuDeltaMs": 15046.875,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 2.590873388808384,
+        "capacityPercent": 0.6485849078562562,
+        "hostBusySharePercent": 2.092973656059349
+      },
+      {
+        "name": "systemsettings",
+        "group": "other",
+        "cpuDeltaMs": 6750,
+        "validWindows": 88,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 14.834694755200486,
+        "capacityPercent": 0.29095397735607753,
+        "hostBusySharePercent": 0.9389040700079322
+      },
+      {
+        "name": "explorer",
+        "group": "other",
+        "cpuDeltaMs": 5328.125,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 7.291298842085081,
+        "capacityPercent": 0.22966506082968158,
+        "hostBusySharePercent": 0.7411256663720021
+      },
+      {
+        "name": "svchost",
+        "group": "other",
+        "cpuDeltaMs": 4984.375,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 5.931136059770089,
+        "capacityPercent": 0.21484796013099244,
+        "hostBusySharePercent": 0.6933111072512277
+      },
+      {
+        "name": "svchost",
+        "group": "other",
+        "cpuDeltaMs": 4843.75,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 5.759513371058803,
+        "capacityPercent": 0.20878641893607416,
+        "hostBusySharePercent": 0.673750605792729
+      },
+      {
+        "name": "audiodg",
+        "group": "other",
+        "cpuDeltaMs": 4125,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 0.6788389330050925,
+        "capacityPercent": 0.1778052083842696,
+        "hostBusySharePercent": 0.5737747094492919
+      },
+      {
+        "name": "svchost",
+        "group": "other",
+        "cpuDeltaMs": 3703.125,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 4.353762549459323,
+        "capacityPercent": 0.15962058479951477,
+        "hostBusySharePercent": 0.5150932050737961
+      },
+      {
+        "name": "node",
+        "group": "other",
+        "cpuDeltaMs": 3406.25,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 4.61339550775211,
+        "capacityPercent": 0.14682399783246505,
+        "hostBusySharePercent": 0.47379881310585464
+      },
+      {
+        "name": "python",
+        "group": "other",
+        "cpuDeltaMs": 3390.625,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 0.4219786984921516,
+        "capacityPercent": 0.14615049325525192,
+        "hostBusySharePercent": 0.47162542405491037
+      },
+      {
+        "name": "wmiprvse",
+        "group": "other",
+        "cpuDeltaMs": 3281.25,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 1.8306669668960494,
+        "capacityPercent": 0.14143596121475993,
+        "hostBusySharePercent": 0.45641170069830034
+      },
+      {
+        "name": "tcfhcsecservisignmonitor",
+        "group": "other",
+        "cpuDeltaMs": 2812.5,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 0.4906125334374029,
+        "capacityPercent": 0.12123082389836565,
+        "hostBusySharePercent": 0.3912100291699717
+      },
+      {
+        "name": "svchost",
+        "group": "other",
+        "cpuDeltaMs": 2421.875,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 3.187620360621592,
+        "capacityPercent": 0.10439320946803708,
+        "hostBusySharePercent": 0.3368753028963645
+      },
+      {
+        "name": "avpui",
+        "group": "other",
+        "cpuDeltaMs": 2328.125,
+        "validWindows": 90,
+        "unknownWindows": 0,
+        "peakCapacityPercent": 0.7352570260926132,
+        "capacityPercent": 0.10035218200475823,
+        "hostBusySharePercent": 0.3238349685906988
+      }
+    ],
+    "allProcessesCovered": false,
+    "requiredRolesCovered": false
+  },
+  "coverageAudit": {
+    "requiredRolePids": [
+      {
+        "group": "writer",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      },
+      {
+        "group": "appender",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      },
+      {
+        "group": "server",
+        "status": "NOT_OBSERVED",
+        "cpuDeltaMs": null,
+        "capacityPercent": null,
+        "hostBusySharePercent": null
+      }
+    ],
+    "requiredRolesCovered": false,
+    "allProcessesCovered": false,
+    "cause": "PDH wildcard instance set expanded once before child process creation; later writer/appender/server are absent. Common timestamps are valid for captured counters only.",
+    "hostHighLoadReproduced": false,
+    "hostProcessResidualUnattributedPercent": 28.769347244351923,
+    "doNotUseCimDifferentWindowsToFill": true
+  },
+  "instrumentation": {
+    "originalHash": "77cef3f09c734a277e21d93743d080a639c5985918b763a494350b8f02baeed1",
+    "instrumentedHash": "c4612db56b2c7c22f2d91032d69eceaa8e5fd721bbdbcad9aa576e2abfa3fe4d",
+    "runtimeArtifactIdentityExcludesDiagnosticHook": true,
+    "diagnosticOnly": true
+  },
+  "instrumentationLimitations": [
+    "chunkPath() in current VERIFY invokes name()/assertPlainPath() before the metadata_read timer; this path checking remains within total verify but is not assigned to a substage.",
+    "owner_context includes guard stages; cannot sum it with nested guard timers. Other bookkeeping and instrumentation overhead are unassigned.",
+    "Final instrumentation does measure target/pending/receipt comparisons plus per-chunk anchor and final cutoff; the earlier summary limitation omitting target checks is superseded by this audit.",
+    "Substage process CPU is quantized; a measured zero does not establish zero CPU cost. No corrected before/after performance comparison exists."
+  ],
+  "budget": {
+    "preflightSandboxMs": 5659.8548,
+    "initialPdhFailureMs": 30297.8502,
+    "shareConflictFailureMs": 152142.8797,
+    "measuredContinuationMs": 203588.19489997625,
+    "totalDynamicMs": 391688.77959997626,
+    "oldFocusedTestSeconds": 157.663,
+    "newProductTests": 0
+  },
+  "append": {
+    "events": 9624,
+    "bytes": 56057510,
+    "actualDurationMs": 120617.96269994974,
+    "firstFailure": null,
+    "complete": false,
+    "fidelity": {
+      "lateness": {
+        "n": 9624,
+        "p50": 11.185399949550629,
+        "p95": 19.329199969768524,
+        "p99": 108.8555999994278,
+        "max": 337.45130002498627
+      },
+      "reasons": [
+        "P99_LATENESS"
+      ]
+    }
+  },
+  "originalHelpersUnchanged": true,
+  "formalBefore": {
+    "runtimeCommit": "e81c5259b5e38db6ad573242e9cf1ee4f305207f"
+  },
+  "formalAfter": {
+    "runtimeCommit": "e81c5259b5e38db6ad573242e9cf1ee4f305207f"
+  },
+  "runtimeFix": false,
+  "review": "NOT_TRIGGERED_NO_RUNTIME_FIX",
+  "nextAction": "No further run. Return evidence and measurement gaps to Owner; root-cause condition remains unsatisfied."
+}
