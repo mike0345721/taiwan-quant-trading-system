@@ -199,6 +199,30 @@ test('v3 candidate config creates an isolated output contract and formal activat
 });
 
 
+test('interleaved prior completion never regresses managed selection or a newer live publication',{skip:!native},async t=>{
+  const f=fixture();
+  try{
+    f.append(8);const old=f.finish();f.publish(old);
+    f.append(8);const next=f.finish();f.publish(next);
+    assert.equal(f.continuity.publish(f.runRoot,old.session,old.artifactHash,[],old.publishedAt,{availableAt:old.availableAt,cutoff:old.cutoff}),false);
+    // Even an equal/later availableAt must not roll a same-source cutoff back.
+    assert.equal(f.continuity.publish(f.runRoot,old.session,old.artifactHash,[],old.publishedAt,{availableAt:next.availableAt,cutoff:old.cutoff}),false);
+    const reader=createStreamReader(f.outputRoot,{bindingHash:f.owner.bindingHash,producer:CONTINUITY_PRODUCER});assert.equal(reader({view:'night'}).chart.cutoff.ledgerOrdinal,next.cutoff.ledgerOrdinal);
+    const selectionFile=path.join(f.outputRoot,'stream-selection.json');fs.unlinkSync(selectionFile);
+    const sourceRoot=path.dirname(f.sourcePath);fs.writeFileSync(path.join(sourceRoot,'2026-09-16.ndjson'),fs.readFileSync(f.sourcePath));
+    const binding={sourceRoot,outputRoot:f.outputRoot,sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-15'},sourceKind:'SYNTHETIC_FIXTURE',bindingHash:f.owner.bindingHash,sourceVerification:CONTINUITY_POLICY,producer:CONTINUITY_PRODUCER};
+    const cycle=result=>runManagedCycle(binding,{runStreamCycle:async()=>result,ownerContext:f.owner,continuity:f.continuity,now:Date.parse('2026-09-16T12:00:00+08:00')});
+    await cycle(old);const stale=json(selectionFile).views.night;
+    await cycle(next);const current=json(selectionFile).views.night;
+    assert.notEqual(stale.sourceKey,current.sourceKey);
+    await cycle({...next,session:'DAY',revalidatedPrior:stale});
+    assert.deepEqual(json(selectionFile).views.night,current);
+    await cycle({...next,session:'DAY',revalidatedPrior:{...current,availableAt:current.availableAt,cutoff:old.cutoff,artifactHash:old.artifactHash}});
+    assert.deepEqual(json(selectionFile).views.night,current);
+    t.diagnostic(JSON.stringify({interleavedSources:2,selectionMonotonic:true,registryMonotonic:true,newerReaderValid:true}));
+  }finally{f.close();}
+});
+
 test('real managed routing restores both same-file selections after a new owner epoch',{skip:!native},async t=>{
   const f=fixture();let restarted;
   try{

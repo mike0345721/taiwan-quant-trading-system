@@ -397,7 +397,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
             revalidatedPrior={schemaVersion:'cru55-stream-public-v3',relativeRunPath:relative,sourceKey:path.basename(priorRoot),
               artifactHash:newHash,producerEpoch:currentProducer.epoch,publishedAt:new Date().toISOString(),
               originalPublishedAt:reference.publishedAt??null,session:c.session,tradeDate:c.tradeDate,availableAt:c.availableAt,cutoff:c.cutoff};
-            continuity.publish(priorRoot,c.session,newHash,[job.priorVerification.continuityRequirement],revalidatedPrior.publishedAt);
+            if(!continuity.publish(priorRoot,c.session,newHash,[job.priorVerification.continuityRequirement],revalidatedPrior.publishedAt,{availableAt:c.availableAt,cutoff:c.cutoff}))revalidatedPrior=null;
           }
         }
         const adjacentArtifactHash=reference?.artifactHash??null;
@@ -436,7 +436,7 @@ export function runStreamCycle({sourcePath,runRoot,sourceKind='GOVERNED_FRAGMENT
         if(guarded){
           const requirements=[{key:runRoot+'|current',context:currentContext,target:currentTarget}];
           if(job.priorVerification?.continuityRequirement)requirements.push(job.priorVerification.continuityRequirement);
-          continuity.publish(runRoot,pointer.session,artifactHash,requirements,pointer.publishedAt);
+          continuity.publish(runRoot,pointer.session,artifactHash,requirements,pointer.publishedAt,{availableAt:pointer.availableAt,cutoff:pointer.cutoff});
         }else releasePrefixGuards(runRoot);
         return result(old?.artifactHash===artifactHash?'UNCHANGED':'PUBLISHED',{...pointer,...(revalidatedPrior?{revalidatedPrior}:{})});
       }

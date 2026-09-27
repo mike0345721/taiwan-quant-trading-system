@@ -6,7 +6,7 @@ import {assertPlainPath} from './cvd-observation-isolation.mjs';
 import {replaceDurableFileSync} from './cru55-atomic-replace.mjs';
 import {protectPrefix,assertPrefixProtected,releasePrefixGuards} from './cru55-prefix-guard.mjs';
 import {nativeManagedProcess,probeManagedProcess} from './cru55-managed-owner.mjs';
-import {CONTINUITY_POLICY,CONTINUITY_RESEARCH} from './cru55-continuity-policy.mjs';
+import {CONTINUITY_POLICY,CONTINUITY_RESEARCH,continuityPublicationAdvances} from './cru55-continuity-policy.mjs';
 
 const equal=(a,b)=>stableJson(a)===stableJson(b),hash=x=>/^[a-f0-9]{64}$/.test(x??'');
 const fail=message=>{throw Error('CRU55_CONTINUITY_'+message);};
@@ -119,9 +119,11 @@ export class ManagedContinuity {
     this.#live(s);return true;
   }
   publication(){return {policy:CONTINUITY_POLICY,producer:structuredClone(this.#producer),researchEligibility:CONTINUITY_RESEARCH};}
-  publish(runRoot,session,artifactHash,requirements,publishedAt){
+  publish(runRoot,session,artifactHash,requirements,publishedAt,position){
+    const key=runRoot+'|'+session,next={...position,sourceKey:runRoot,artifactHash,publishedAt};
+    if(!continuityPublicationAdvances(next,this.#publications[key]))return false;
     for(const r of requirements)this.assertReady(r.key,r.context,r.target);
-    this.#publications[runRoot+'|'+session]={artifactHash,publishedAt};this.#requirements.set(runRoot+'|'+session,structuredClone(requirements));this.#save('VALID');
+    this.#publications[key]=next;this.#requirements.set(key,structuredClone(requirements));this.#save('VALID');return true;
   }
 }
 export function assertManagedContinuity(instance,owner){if(!instances.has(instance))fail('MANAGED_INSTANCE_REQUIRED');instance.assertOwner(owner);}

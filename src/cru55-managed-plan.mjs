@@ -7,7 +7,7 @@ import { assertPlainPath } from './cvd-observation-isolation.mjs';
 import { readRuntimeBinding,verifyBoundSourceRoot,resolveBoundSourceFile,assertBoundWriteRoot } from './cru55-runtime-binding.mjs';
 import { validatePublicationSchedule } from './cru55-publication-schedule.mjs';
 import { validateIndexLayout } from './cru55-projection-range-index.mjs';
-import {validateContinuityConfig,CONTINUITY_POLICY} from './cru55-continuity-policy.mjs';
+import {validateContinuityConfig,CONTINUITY_POLICY,continuityPublicationAdvances} from './cru55-continuity-policy.mjs';
 import {assertManagedContinuity} from './cru55-guarded-continuity.mjs';
 import { readRuntimeIdentity } from './runtime-identity.mjs';
 export function managedDelayMs(result){
@@ -107,11 +107,12 @@ export async function runManagedCycle(binding,{runStreamCycle,ownerContext=null,
   if(result.state==='PUBLISHED'||result.state==='UNCHANGED'){
     const view=result.session?.toLowerCase(),availableAt=Date.parse(result.availableAt);
     if(!['day','night'].includes(view)||!/^[a-f0-9]{64}$/.test(result.artifactHash||'')||!Number.isFinite(availableAt))throw Error('CRU55_MANAGED_PUBLICATION_IDENTITY');
-    if(!selection.views[view]||availableAt>=Date.parse(selection.views[view].availableAt))selection.views[view]={...(binding.sourceVerification===CONTINUITY_POLICY?{schemaVersion:result.schemaVersion,producerEpoch:result.producerEpoch,publishedAt:result.publishedAt}:{}),relativeRunPath,sourceKey:source.sourceKey,artifactHash:result.artifactHash,session:result.session,tradeDate:result.tradeDate,availableAt:result.availableAt,cutoff:result.cutoff};
+    const advances=binding.sourceVerification===CONTINUITY_POLICY?continuityPublicationAdvances({...result,sourceKey:source.sourceKey},selection.views[view]):!selection.views[view]||availableAt>=Date.parse(selection.views[view].availableAt);
+    if(advances)selection.views[view]={...(binding.sourceVerification===CONTINUITY_POLICY?{schemaVersion:result.schemaVersion,producerEpoch:result.producerEpoch,publishedAt:result.publishedAt}:{}),relativeRunPath,sourceKey:source.sourceKey,artifactHash:result.artifactHash,session:result.session,tradeDate:result.tradeDate,availableAt:result.availableAt,cutoff:result.cutoff};
     if(result.revalidatedPrior){
       const prior=result.revalidatedPrior,view=prior.session?.toLowerCase();
       if(binding.sourceVerification!==CONTINUITY_POLICY||!['day','night'].includes(view)||prior.schemaVersion!=='cru55-stream-public-v3')throw Error('CRU55_MANAGED_PRIOR_REATTESTATION');
-      selection.views[view]=prior;
+      if(continuityPublicationAdvances(prior,selection.views[view]))selection.views[view]=prior;
     }
     await publishManagedJson(binding,'stream-selection.json',selection);
   }
