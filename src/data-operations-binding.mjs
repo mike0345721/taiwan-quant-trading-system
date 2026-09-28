@@ -56,6 +56,17 @@ export function assertOperationsBindingLaunch(options) {
   return binding;
 }
 
+export function assertOperationsBindingRoots(options) {
+  let manifest;
+  try { manifest = JSON.parse(readBoundedFile(options.manifestPath, 1024 * 1024).toString('utf8')); }
+  catch { return; } // Record unreadable/invalid input inside the guarded job lifecycle.
+  if (!manifest.operationsBinding) return;
+  for (const key of ['dataRoot', 'outputRoot', 'calendarPath']) {
+    if (!same(options[key], manifest.operationsBinding[key])) fail('LAUNCH_MISMATCH');
+  }
+  if (!same(options.evidenceRoot, manifest.evidenceRoot)) fail('LAUNCH_MISMATCH');
+}
+
 export function resolveOperationsReader({ manifestPath, dataRoot, outputRoot, calendar }) {
   if (!manifestPath) return { dataRoot, outputRoot: outputRoot || path.join(dataRoot, 'quality/daily-data-operations'), calendar };
   const binding = readOperationsBinding(manifestPath);

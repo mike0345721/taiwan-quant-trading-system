@@ -286,6 +286,8 @@ test('Windows installer dry validation requires explicit schedules and exact can
   for(const definition of body.definitions) { assert.equal(definition.workingDirectory,source.replace(/[\\/]$/,'')); assert.ok(definition.arguments.includes('run-daily-data-operations-hidden.ps1')); assert.ok(definition.userSid); }
 });
 for (const [name, mutate, reason] of [
+  ['missing manifest', f => fs.unlinkSync(f.options.manifestPath), /ENOENT/],
+  ['malformed manifest', f => fs.writeFileSync(f.options.manifestPath, '{'), /JSON|property|position/i],
   ['missing A1', f => fs.unlinkSync(path.join(f.options.evidenceRoot, 'report.json')), /ENOENT/],
   ['hash mismatch', f => fs.appendFileSync(path.join(f.options.evidenceRoot, 'report.json'), ' '), /HASH_MISMATCH/],
   ['ambiguous checkpoint', f => { f.manifest.requests.push(f.manifest.requests[1]); f.save(); }, /AMBIGUOUS/],
