@@ -7,6 +7,7 @@ import { runDailyDataOperations, assertOperationsOutputRoot } from './build-dail
 import { assertOperationsDate, CHECKPOINT_TYPES } from '../src/daily-data-operations.mjs';
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
 import { resolveScheduledCheckpointRequest } from '../src/data-operations-scheduler-health.mjs';
+import { assertOperationsBindingLaunch } from '../src/data-operations-binding.mjs';
 
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 import { sha256, readBoundedFile, contained, noLinks } from '../src/daily-data-operations-files.mjs';
@@ -90,7 +91,7 @@ export function resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPat
 function buildCurrentAcceptance({ manifest, dataRoot, evidenceRoot, calendarPath, calendarBytes,
   manifestPath, tradeDate, checkpointType, now }) {
   const binding = manifest.sourceBindings;
-  const allowed = ['ledgerDataRoot', 'registryPath', 'registrySha256', 'dailyStatusPath',
+  const allowed = ['activeAppRoot', 'ledgerDataRoot', 'registryPath', 'registrySha256', 'dailyStatusPath',
     'databasePath', 'batchEvidencePath', 'derivedArtifactPaths', 'sessionsByCheckpoint'];
   if (!binding || Object.keys(binding).some(key => !allowed.includes(key))) fail('A1_BINDING_INVALID');
   for (const key of ['ledgerDataRoot', 'registryPath', 'dailyStatusPath']) {
@@ -141,6 +142,7 @@ function buildCurrentAcceptance({ manifest, dataRoot, evidenceRoot, calendarPath
 
 export function runAcceptance(options) {
   validateAcceptanceLaunch(options);
+  const binding = assertOperationsBindingLaunch(options);
   const { dataRoot, outputRoot, manifestPath, evidenceRoot, calendarPath, checkpointType,
     runMode = 'MANUAL_REPLAY', triggerIdentity = null } = options;
   if (!['MANUAL_REPLAY', 'CANDIDATE_SCHEDULER_TEST', 'SCHEDULED'].includes(runMode)) fail('RUN_MODE_INVALID');
@@ -157,7 +159,11 @@ export function runAcceptance(options) {
   return runDailyDataOperations({ dataRoot, outputRoot, calendarPath, checkpointType, generatedAt: now.toISOString(),
     runContext: { runMode, triggerIdentity, runtimeCommit, requestedTradeDate: tradeDate,
       schedulerPolicySha256: scheduled?.policySha256 ?? null },
-    resolveInput: () => resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now, dataRoot, runMode }) });
+    resolveInput: () => {
+      const input = resolveAcceptanceInput({ manifestPath, evidenceRoot, calendarPath, tradeDate, checkpointType, now, dataRoot, runMode });
+      if (binding && input.inputResolutionIdentity.manifestSha256 !== binding.manifestSha256) fail('BINDING_CHANGED');
+      return input;
+    } });
 }
 
 export function validateAcceptanceLaunch(options) {
@@ -166,6 +172,7 @@ export function validateAcceptanceLaunch(options) {
   }
   if (!CHECKPOINT_TYPES.includes(options.checkpointType)) fail('CHECKPOINT_INVALID');
   assertOperationsOutputRoot(options.dataRoot, options.outputRoot, [options.manifestPath, options.evidenceRoot, options.calendarPath]);
+  if (fs.existsSync(options.manifestPath)) assertOperationsBindingLaunch(options);
   if (options.runMode === 'CANDIDATE_SCHEDULER_TEST' && path.resolve(options.dataRoot) !== path.join(appRoot, 'data')) fail('CANDIDATE_DATA_ROOT_INVALID');
   return { valid: true, runner: fileURLToPath(import.meta.url), outputRoot: options.outputRoot };
 }

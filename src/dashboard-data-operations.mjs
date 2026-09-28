@@ -75,7 +75,7 @@ function projectHealth(h) {
       [key, /^[a-f0-9]{64}$/.test(h.inputResolutionIdentity[key] || '') ? h.inputResolutionIdentity[key] : null])) : null;
   return result;
 }
-export function readDataOperations({ dataRoot, outputRoot, calendar, now = new Date() }) {
+export function readDataOperations({ dataRoot, outputRoot, calendar, bindingIdentity = null, now = new Date() }) {
   let report = null, health = null, unavailableReason = null;
   const history = [];
   try {
@@ -105,6 +105,7 @@ export function readDataOperations({ dataRoot, outputRoot, calendar, now = new D
     }
   } catch { unavailableReason = 'ASSESSMENT_INVALID_OR_UNREADABLE'; }
   const view = projectDataOperations(report, health, history);
+  if (bindingIdentity) view.bindingIdentity = bindingIdentity;
   try { view.schedulerHealth = readSchedulerHealth({ dataRoot, outputRoot, calendar, now }); }
   catch { view.schedulerHealth = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(),
     tradeDate: null, applicability: 'UNKNOWN', checkpoints: [], reasonZh: '排程政策無法驗證，今日進度未知。' }; }

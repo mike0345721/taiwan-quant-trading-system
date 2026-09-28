@@ -13,7 +13,9 @@ export function buildDailyUpdateGateSummary({ stages = [], failures = [], market
     : continuityStage.ok === true
       ? 'PASS'
       : /ETIMEDOUT|timeout/i.test(continuityStage.error ?? '') ? 'TIMEOUT' : 'FAIL';
-  const requiredSource = taifex === 'PASS' && marketDaily.status === 'VALID'
+  const closed = marketDaily.status === 'NOT_EXPECTED' && marketDaily.applicability === 'NOT_EXPECTED'
+    && marketDaily.reasonCode === 'MARKET_CLOSED';
+  const requiredSource = taifex === 'FAIL' ? 'BLOCKED' : closed ? 'NOT_EXPECTED' : taifex === 'PASS' && marketDaily.status === 'VALID'
     ? 'PASS'
     : taifex === 'FAIL' || marketDaily.status === 'MISSING' ? 'BLOCKED' : 'UNKNOWN';
   const reasons = [];
@@ -23,7 +25,9 @@ export function buildDailyUpdateGateSummary({ stages = [], failures = [], market
   if (continuity === 'TIMEOUT') reasons.push('DATA_CONTINUITY_AUDIT_TIMEOUT');
   else if (continuity === 'FAIL') reasons.push('DATA_CONTINUITY_AUDIT_FAIL');
   const hasCriticalFailure = failures.some((failure) => failure.critical === true);
-  const overall = requiredSource === 'BLOCKED' || hasCriticalFailure ? 'FAILED' : reasons.length ? 'DEGRADED' : 'PASS';
+  const overall = requiredSource === 'BLOCKED' || hasCriticalFailure ? 'FAILED' : reasons.length ? 'DEGRADED'
+    : closed ? 'NOT_EXPECTED' : requiredSource === 'UNKNOWN' ? 'UNKNOWN' : 'PASS';
+  if (closed) reasons.push('MARKET_CLOSED');
   return {
     requiredSource,
     taifex,
