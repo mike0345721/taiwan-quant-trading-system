@@ -59,7 +59,7 @@
           <td>${escape(r.ownerLabelZh)}<br>${escape(r.session)} · ${escape(r.operationalRole)}${r.inCheckpointScope ? '' : '（本 checkpoint 範圍外）'}</td>
           <td>${pill(r.operationalState)}<br>${escape(r.dueState)}</td><td>${(r.reasonsZh || []).map(escape).join('；')}<br>
           <code>${(r.reasonCodes || []).map(escape).join(' / ') || '無原因碼'}</code><br>${(r.remediation || []).map(a => `${escape(a.ownerLane)} / ${escape(a.actionClass)}：${escape(a.smallestNextCheck)}`).join('<br>')}</td></tr>`).join('')}</tbody></table></div>
-        <h4>驗收工作、歷史指標與 lineage</h4><pre>${escape(JSON.stringify({ jobHealth: h, artifactIdentity: v.artifactIdentity ?? null,
+        <h4>驗收工作、歷史指標與 lineage</h4><pre>${escape(JSON.stringify({ jobHealth: h, bindingIdentity: v.bindingIdentity ?? null, artifactIdentity: v.artifactIdentity ?? null,
           checkpoint: v.checkpointDetail ?? null, countsScope: v.countScope ?? null, history: v.history || [] }, null, 2))}</pre>
       </details>`;
   }

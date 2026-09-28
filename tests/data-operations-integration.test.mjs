@@ -15,6 +15,7 @@ import { runAcceptance, resolveAcceptanceInput, sha256, taipeiDate } from '../sc
 import { runDailyDataOperations } from '../scripts/build-daily-data-operations.mjs';
 import { projectDataOperations, readDataOperations } from '../src/dashboard-data-operations.mjs';
 import { hashPassword } from '../src/security.mjs';
+import { resolveOperationsReader } from '../src/data-operations-binding.mjs';
 
 const source = fileURLToPath(new URL('..', import.meta.url));
 const calendarPath = path.join(source, 'config/taifex-official-calendar-2026.json');
@@ -285,6 +286,9 @@ test('Windows installer dry validation requires explicit schedules and exact can
   for(const definition of body.definitions) { assert.equal(definition.workingDirectory,source.replace(/[\\/]$/,'')); assert.ok(definition.arguments.includes('run-daily-data-operations-hidden.ps1')); assert.ok(definition.userSid); }
 });
 for (const [name, mutate, reason] of [
+  ['missing manifest', f => fs.unlinkSync(f.options.manifestPath), /ENOENT/],
+  ['malformed manifest', f => fs.writeFileSync(f.options.manifestPath, '{'), /JSON|property|position/i],
+  ['null manifest', f => fs.writeFileSync(f.options.manifestPath, 'null'), /null/],
   ['missing A1', f => fs.unlinkSync(path.join(f.options.evidenceRoot, 'report.json')), /ENOENT/],
   ['hash mismatch', f => fs.appendFileSync(path.join(f.options.evidenceRoot, 'report.json'), ' '), /HASH_MISMATCH/],
   ['ambiguous checkpoint', f => { f.manifest.requests.push(f.manifest.requests[1]); f.save(); }, /AMBIGUOUS/],
@@ -396,17 +400,26 @@ for (const oldResult of ['success','401']) test(`session reset ignores delayed o
   settle(oldResult==='success'?{data:{schemaVersion:'dashboard-data-operations-v1',availability:'AVAILABLE'}}:{status:401});
   await old; assert.equal(displayed.length,1); assert.equal(unauthorized,0); assert.equal(statuses.length,before);
 });
-test('actual protected HTTP: 401, login, canonical parity, no write route, preserved CSRF', { timeout: 25000 }, async t => {
+for (const bound of [false, true]) test(`actual protected HTTP (shared binding=${bound}): 401, login, canonical parity, no write route, preserved CSRF`, { timeout: 25000 }, async t => {
   const f = fixture(t), runtime = path.join(f.root, 'runtime');
   for (const item of ['server.mjs','src','v2/src','config']) fs.cpSync(path.join(source,item), path.join(runtime,item), { recursive:true });
-  const dataRoot = path.join(runtime, 'data'), outputRoot = path.join(dataRoot, 'quality/daily-data-operations');
-  const canonical = runAcceptance({ ...f.options, dataRoot, outputRoot });
+  const dataRoot = path.join(bound ? f.root : runtime, 'data'), outputRoot = path.join(dataRoot, 'quality/daily-data-operations');
+  let evidenceRoot = f.options.evidenceRoot;
+  if (bound) {
+    evidenceRoot = path.join(dataRoot, 'quality/daily-collection-acceptance/pinned');
+    fs.cpSync(f.options.evidenceRoot, evidenceRoot, { recursive: true });
+    f.manifest.evidenceRoot = evidenceRoot;
+    f.manifest.operationsBinding = { schemaVersion: 'data-operations-binding-v1', dataRoot, outputRoot, calendarPath };
+    f.save();
+  }
+  const canonical = runAcceptance({ ...f.options, dataRoot, outputRoot, evidenceRoot });
   const socket = net.createServer(); socket.listen(0, '127.0.0.1'); await once(socket,'listening');
   const port = socket.address().port; await new Promise(r => socket.close(r));
   const passphrase = crypto.randomBytes(24).toString('hex');
   const child = spawn(process.execPath, ['server.mjs'], { cwd:runtime, windowsHide:true, stdio:'ignore', env:{ ...process.env,
     NODE_ENV:'production', HOST:'127.0.0.1', PORT:String(port), MOCK_DATA:'true', COOKIE_SECURE:'false', REFRESH_INTERVAL_SECONDS:'0',
-    DASHBOARD_PASSWORD_HASH:hashPassword(passphrase), DATA_OPERATIONS_OUTPUT_ROOT:outputRoot,
+    DASHBOARD_PASSWORD_HASH:hashPassword(passphrase), DATA_OPERATIONS_OUTPUT_ROOT:bound ? '' : outputRoot,
+    DATA_OPERATIONS_MANIFEST_PATH:bound ? f.options.manifestPath : '',
     CRU34_LIVE_SNAPSHOT_PATH:'', CRU34_LIVE_STATUS_PATH:'', CRU34_SNAPSHOT_ARTIFACT_PATH:'',
     V2_RESEARCH_DATABASE_PATH:path.join(runtime,'missing.sqlite'), V2_BACKTEST_REPORT_PATH:path.join(runtime,'missing.json') } });
   f.lifecycle.child = child;
@@ -417,12 +430,20 @@ test('actual protected HTTP: 401, login, canonical parity, no write route, prese
   assert.equal(login.status,200); const session = await login.json(); const cookie=login.headers.get('set-cookie').split(';')[0];
   const headers={cookie,'content-type':'application/json'};
   const response=await fetch(base+'/api/v1/data-operations',{headers}); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
-  const body=await response.json(); assert.deepEqual(body.data,readDataOperations({dataRoot,outputRoot,now:new Date(body.data.schedulerHealth.observedAt)}));
+  const readerOptions = bound ? resolveOperationsReader({manifestPath:f.options.manifestPath}) : {dataRoot,outputRoot};
+  const body=await response.json(); assert.deepEqual(body.data,readDataOperations({...readerOptions,now:new Date(body.data.schedulerHealth.observedAt)}));
   assert.equal(body.data.artifactIdentity.reportHash,canonical.assessment.reportHash);
   assert.ok(!JSON.stringify(body).includes(f.root));
   const before=fs.readdirSync(path.join(outputRoot,'runs'));
   assert.equal((await fetch(base+'/api/v1/data-operations',{method:'POST',headers:{...headers,'x-csrf-token':session.csrfToken},body:'{}'})).status,404);
   assert.deepEqual(fs.readdirSync(path.join(outputRoot,'runs')),before);
   assert.equal((await fetch(base+'/api/auth/logout',{method:'POST',headers,body:'{}'})).status,403);
+  if (bound) {
+    f.manifest.operationsBinding.outputRoot = path.join(f.root, 'wrong'); f.save();
+    const invalid = await fetch(base+'/api/v1/data-operations', {headers});
+    assert.equal(invalid.status, 503); assert.equal(invalid.headers.get('cache-control'), 'no-store');
+    assert.equal((await invalid.json()).error, 'OPERATIONS_BINDING_UNVERIFIED');
+    assert.deepEqual(fs.readdirSync(path.join(outputRoot,'runs')),before);
+  }
   assert.equal((await fetch(base+'/api/auth/logout',{method:'POST',headers:{...headers,'x-csrf-token':session.csrfToken},body:'{}'})).status,200);
 });

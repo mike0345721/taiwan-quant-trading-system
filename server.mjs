@@ -19,6 +19,7 @@ import { inspectIx0001Leadership, inspectShioajiBridge } from './src/shioaji-bri
 import { costScenarios } from './v2/src/trading-costs.mjs';
 import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
+import { resolveOperationsReader } from './src/data-operations-binding.mjs';
 import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
@@ -367,9 +368,15 @@ const server = http.createServer(async (req, res) => {
       if (!session) return;
 
       if (req.method === 'GET' && pathname === '/api/v1/data-operations') {
-        sendJson(res, 200, { ok: true, data: readDataOperations({ dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
-          outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT || path.join(config.dataDir, 'quality', 'daily-data-operations'), calendar: chartCalendar }) },
-        { 'Cache-Control': 'no-store' });
+        try {
+          sendJson(res, 200, { ok: true, data: readDataOperations(resolveOperationsReader({
+            manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH,
+            dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
+            outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT, calendar: chartCalendar })) },
+            { 'Cache-Control': 'no-store' });
+        } catch {
+          sendJson(res, 503, { ok: false, error: 'OPERATIONS_BINDING_UNVERIFIED' }, { 'Cache-Control': 'no-store' });
+        }
         return;
       }
 

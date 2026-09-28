@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { buildDailyUpdateGateSummary } from '../../src/daily-update-gates.mjs';
+import { inspectDailyMarket } from '../../src/daily-market-applicability.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(scriptDir);
@@ -20,18 +20,8 @@ function taipeiDate() {
 }
 
 function inspectMarketDaily() {
-  const tradeDate = taipeiDate();
-  const databasePath = path.join(dataDir, 'research-v2.sqlite');
-  if (!fs.existsSync(databasePath)) return { status: 'UNKNOWN', tradeDate };
-  const db = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    const row = db.prepare('SELECT trade_date FROM market_daily WHERE trade_date = ? LIMIT 1').get(tradeDate);
-    return { status: row?.trade_date === tradeDate ? 'VALID' : 'MISSING', tradeDate };
-  } catch {
-    return { status: 'UNKNOWN', tradeDate };
-  } finally {
-    db.close();
-  }
+  return inspectDailyMarket({ tradeDate: taipeiDate(), databasePath: path.join(dataDir, 'research-v2.sqlite'),
+    calendarPath: path.join(appRoot, 'config/taifex-official-calendar-2026.json') });
 }
 
 fs.mkdirSync(reportsDir, { recursive: true });
