@@ -44,10 +44,9 @@ test('formal route uses current named aggregates, gates data and preserves the o
     assert.equal(lower.asOfDate,'2026-09-21');assert.equal(lower.options,null);
     snapshot={dataMode:'mock',asOfDate:'2026-09-21'};
     assert.equal(await (await fetch(base+'/api/lower',options)).json(),null);
-    const page=await (await fetch(base+'/')).text();
-    assert.match(page,/data-formal-entry="true"/);assert.match(page,/formal-overview.js/);
-    assert.match(page,/vendor\/lightweight-charts.js/);assert.doesNotMatch(page,/SYNTHETIC \/ UI DEMO/);
-    assert.doesNotMatch(page,/CRU-55 · ISOLATED PREVIEW/);
+    // Unbound formal entry must leave default routes to the stable static handler.
+    assert.equal((await fetch(base+'/')).status,404);
+    assert.equal((await fetch(base+'/index.html')).status,404);
     const workspace=await (await fetch(base+'/workspace?space=futures')).text();
     for(const id of ['login-form','dw-journal-submit','daily-update-button'])
       assert.ok(workspace.includes('id="'+id+'"'),id);

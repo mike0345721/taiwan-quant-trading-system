@@ -9,8 +9,10 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
   const binding=process.env.CRU55_RUNTIME_BINDING?readRuntimeBinding(process.env.CRU55_RUNTIME_BINDING,{runtimeRoot:path.dirname(publicDir),activation:true}):null;
   if(binding&&process.env.CRU55_DYNAMIC_ROOT&&path.resolve(process.env.CRU55_DYNAMIC_ROOT)!==binding.readerRoot)throw Error('CRU55_BINDING_READER_ENV_MISMATCH');
   const dynamic = createDynamicReader(binding?.readerRoot??process.env.CRU55_DYNAMIC_ROOT,binding?{bindingHash:binding.bindingHash,producer:binding.producer}:{});
+  // Source presence and an env-only candidate do not authorize the Owner default.
+  const defaultSurfaceEligible = binding?.activationReady === true;
   const files = {
-    '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html',
+    ...(defaultSurfaceEligible ? { '/': 'cru55-preview.html', '/index.html': 'cru55-preview.html' } : {}),
     '/preview.css': 'cru55-preview.css', '/preview.js': 'cru55-preview.js',
     '/formal-overview.js': 'cru55-formal-overview.js',
     '/formal-presentation.mjs': 'cru55-formal-presentation.mjs',
@@ -70,6 +72,6 @@ export function prepareFormalEntry({ publicDir }, readSnapshot) {
   return Object.assign(handle,{runtimeBinding:Object.freeze({
     state:binding?'BOUND':process.env.CRU55_DYNAMIC_ROOT?'CANDIDATE_UNBOUND':'UNCONFIGURED',
     bindingHash:binding?.bindingHash??null, runtimeCommit:binding?.runtimeCommit??null,
-    fullDayReady:false,
+    defaultSurfaceEligible, fullDayReady:false,
   })});
 }
