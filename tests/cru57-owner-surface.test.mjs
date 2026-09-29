@@ -15,7 +15,7 @@ import { hashPassword } from '../src/security.mjs';
 
 const source = fileURLToPath(new URL('../', import.meta.url));
 const stable = fs.readFileSync(path.join(source, 'public/index.html'), 'utf8');
-const required = ['data-dashboard-page="quality"', 
+const required = ['data-dashboard-page="quality"',
   'id="data-operations-read-status"', 'id="data-operations-refresh"', 'id="data-operations-content"'];
 function temporary(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru57-surface-'));
