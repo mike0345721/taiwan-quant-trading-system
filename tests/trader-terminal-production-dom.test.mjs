@@ -71,12 +71,14 @@ function productionDocument({ omitChangeMetric = false, interactive = false } = 
     ? [
       fs.readFileSync(path.join(root, 'public', 'styles.css'), 'utf8'),
       fs.readFileSync(path.join(root, 'public', 'trader-terminal-shell.css'), 'utf8'),
+      fs.readFileSync(path.join(root, 'public', 'data-operations.css'), 'utf8'),
     ].map(inlineStyle).join('\n')
     : '';
   const scripts = [
     interactive ? lightweightChartsBundle() : 'window.LightweightCharts = Object.freeze({});',
     fs.readFileSync(path.join(root, 'public', 'trader-terminal-shell.js'), 'utf8'),
     fs.readFileSync(path.join(root, 'public', 'observed-flow-refresh.js'), 'utf8'),
+    fs.readFileSync(path.join(root, 'public', 'data-operations.js'), 'utf8'),
     fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8'),
   ].map(inlineScript).join('\n');
   return html.replace('</head>', `${styles}\n</head>`).replace('</body>', `${scripts}\n</body>`);
@@ -481,6 +483,141 @@ async function runProductionDom(options = {}) {
   }
 }
 
+async function verifyFlowSalience(cdp) {
+  // Real Chromium, isolated profile and production assets; deterministic UI inputs,
+  // not evidence of current market data or production runtime acceptance.
+  const scenarios = [
+    { name: 'stale-weak-negative', source: 'STALE', ratio: -0.064, cells: 0, sign: 'negative', response: -6 },
+    { name: 'stale-positive', source: 'STALE', ratio: 0.20, cells: 1, sign: 'positive', response: 6 },
+    { name: 'historical-negative', source: 'HISTORICAL', ratio: -0.55, cells: 3, sign: 'negative', response: -6 },
+    { name: 'live-positive', source: 'LIVE', ratio: 0.775, cells: 4, sign: 'positive', response: 24 },
+    { name: 'live-negative', source: 'LIVE', ratio: -0.325, cells: 2, sign: 'negative', response: -6 },
+    { name: 'live-neutral', source: 'LIVE', ratio: 0, cells: 0, sign: 'neutral', response: 0 },
+    { name: 'warming', source: 'WARMING_UP', ratio: -0.8, cells: 0, sign: 'unavailable', response: -6 },
+    { name: 'unavailable', source: 'UNAVAILABLE', ratio: 0.8, cells: 0, sign: 'unavailable', response: 6 },
+    { name: 'missing', source: 'STALE', ratio: null, cells: 0, sign: 'unavailable', response: null },
+    { name: 'window-warming', source: 'LIVE', truth: 'WARMING_UP', ratio: -0.8, cells: 0, sign: 'unavailable', response: -6 },
+    { name: 'window-unavailable', source: 'LIVE', truth: 'UNAVAILABLE', ratio: 0.8, cells: 0, sign: 'unavailable', response: 6 },
+    { name: 'window-historical', source: 'HISTORICAL', truth: 'HISTORICAL', ratio: 0.20, cells: 1, sign: 'positive', response: 6 },
+  ];
+  const evidence = [];
+  const output = process.env.CRU58_SCREENSHOT_DIR;
+  if (output) fs.mkdirSync(output, { recursive: true });
+  for (const [width, height] of [[1920, 1080], [1536, 864], [1366, 768]]) {
+    await setViewport(cdp, width, height);
+    await cdp.command('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+    for (const scenario of scenarios) {
+      const actual = await evaluate(cdp, `(() => {
+        const spec = ${JSON.stringify(scenario)};
+        const palette = document.getElementById('market-palette-select');
+        palette.value = 'green-up';
+        palette.dispatchEvent(new Event('change', { bubbles: true }));
+        observedFlowSelectedWindow = '5m';
+        const value = structuredClone(globalThis.__ui1Workspace.observedFlow);
+        value.sourceState = spec.source;
+        const selected = value.windows.context300s;
+        selected.truthState = spec.truth || spec.source;
+        Object.assign(selected.pressure, {
+          pressureRatio: spec.ratio, classifiedCoverage: 0.96,
+          status: 'QUALITY_INSUFFICIENT', direction: 'UNAVAILABLE',
+        });
+        selected.response.displacementPoints = spec.response;
+        selected.pathEfficiency.value = spec.name === 'missing' ? null : 0.4;
+        if (spec.name === 'missing') selected.pressure.classifiedCoverage = null;
+        const before = JSON.stringify(value);
+        renderObservedFlow(value);
+        const bar = document.getElementById('dw-flow-selected-bar');
+        const ratio = document.getElementById('dw-flow-selected-ratio');
+        const response = document.getElementById('dw-flow-selected-response');
+        const mini = document.querySelector('[data-flow-window="5m"] .dw-flow-mini-bar');
+        const energy = (id) => {
+          const host = document.getElementById(id);
+          return { classes: host.className, strength: host.style.getPropertyValue('--flow-energy'),
+            opacity: getComputedStyle(host.firstElementChild).opacity,
+            background: getComputedStyle(host.firstElementChild).backgroundImage,
+            border: getComputedStyle(host).borderStyle };
+        };
+        return {
+          name: spec.name, width: innerWidth, height: innerHeight,
+          scale: visualViewport.scale, dpr: devicePixelRatio,
+          unchanged: before === JSON.stringify(value),
+          ratio: ratio.textContent, sign: ratio.dataset.rawSign,
+          color: getComputedStyle(ratio).color, accent: getComputedStyle(bar).boxShadow,
+          bar: bar.className, cells: Number(bar.dataset.displayCells),
+          filled: bar.querySelectorAll('.is-filled').length,
+          filledOpacity: bar.querySelector('.is-filled') ? getComputedStyle(bar.querySelector('.is-filled')).opacity : null,
+          filledBackground: bar.querySelector('.is-filled') ? getComputedStyle(bar.querySelector('.is-filled')).backgroundColor : null,
+          outline: getComputedStyle(bar).outlineStyle,
+          mini: { classes: mini.className, sign: mini.dataset.rawSign, cells: Number(mini.dataset.displayCells) },
+          side: document.getElementById('dw-flow-selected-side').textContent,
+          truth: document.getElementById('dw-observed-flow-truth').textContent,
+          response: response.textContent, responseSign: response.dataset.rawSign,
+          responseColor: getComputedStyle(response).color,
+          responseEnergy: energy('dw-flow-response-energy'),
+          pathEnergy: energy('dw-flow-path-energy'), coverageEnergy: energy('dw-flow-coverage-energy'),
+          overflow: document.documentElement.scrollWidth > innerWidth,
+          clipping: [...document.querySelectorAll('.dw-observed-flow, .dw-flow-selected-results article, .dw-flow-window-strip button')]
+            .filter(node => node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
+            .map(node => node.id || node.className),
+        };
+      })()`);
+      evidence.push(actual);
+      assert.equal(actual.unchanged, true);
+      assert.equal(actual.width, width);
+      assert.equal(actual.height, height);
+      assert.equal(actual.scale, 1);
+      assert.equal(actual.dpr, 1);
+      assert.equal(actual.overflow, false, JSON.stringify(actual));
+      assert.deepEqual(actual.clipping, [], JSON.stringify(actual));
+      assert.equal(actual.cells, scenario.cells);
+      assert.equal(actual.filled, scenario.cells);
+      assert.equal(actual.sign, scenario.sign);
+      assert.equal(actual.mini.sign, scenario.sign);
+      assert.equal(actual.mini.cells, scenario.cells);
+      assert.match(actual.pathEnergy.classes, /is-neutral/);
+      assert.match(actual.coverageEnergy.classes, /is-neutral/);
+      const inactive = scenario.sign === 'unavailable';
+      for (const classes of [actual.bar, actual.mini.classes, actual.responseEnergy.classes]) {
+        assert.equal(classes.includes('is-inactive'), inactive, JSON.stringify(actual));
+      }
+      if (!inactive) {
+        assert.equal(actual.side, '方向判定受限');
+        assert.equal(actual.ratio, (scenario.ratio > 0 ? '+' : '') + scenario.ratio.toFixed(3));
+        assert.match(actual.truth, new RegExp(scenario.source));
+        assert.equal(actual.outline, 'dashed');
+        assert.equal(actual.responseEnergy.opacity, '1');
+        assert.equal(actual.responseEnergy.strength, Math.round(Math.abs(scenario.response) / 50 * 100) + '%');
+        assert.equal(actual.pathEnergy.strength, '40%');
+        assert.equal(actual.coverageEnergy.strength, '96%');
+        if (scenario.cells) assert.equal(actual.filledOpacity, '1');
+        if (scenario.sign !== 'neutral') {
+          const color = scenario.sign === 'positive' ? 'rgb(55, 214, 122)' : 'rgb(255, 107, 107)';
+          assert.equal(actual.color, color);
+          assert.ok(actual.accent.includes(color), actual.accent);
+          assert.equal(actual.responseColor, color);
+          assert.equal(actual.responseSign, scenario.sign);
+        }
+      } else {
+        assert.equal(actual.ratio, '不可判定');
+        assert.equal(actual.response, '不可用');
+        assert.equal(actual.responseEnergy.strength, '0%');
+        assert.match(actual.pathEnergy.classes, /is-inactive/);
+        assert.match(actual.coverageEnergy.classes, /is-inactive/);
+      }
+      if (output && ['stale-weak-negative', 'stale-positive', 'live-neutral'].includes(scenario.name)) {
+        await evaluate(cdp, `document.querySelector('.dw-observed-flow').scrollIntoView({ block: 'center', behavior: 'instant' })`);
+        await waitAnimationFrames(cdp, 12);
+        const screenshot = await cdp.command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+        fs.writeFileSync(path.join(output, `${scenario.name}-${width}x${height}.png`), Buffer.from(screenshot.data, 'base64'));
+      }
+    }
+  }
+  if (output) fs.writeFileSync(path.join(output, 'salience-browser-evidence.json'), JSON.stringify(evidence, null, 2));
+  await setViewport(cdp, 1536, 864);
+  await evaluate(cdp, 'window.scrollTo(0, 0)');
+  await evaluate(cdp, 'renderObservedFlow(globalThis.__ui1Workspace.observedFlow)');
+}
+
 async function runProductionInteractionRegression({ drawerOnly = false } = {}) {
   const binary = browserBinary();
   assert.ok(binary, 'Chrome or Edge is required for the Production DOM interaction regression');
@@ -538,6 +675,8 @@ async function runProductionInteractionRegression({ drawerOnly = false } = {}) {
       'AUTHENTICATED_PRODUCTION_DOM_TIMEOUT',
     );
     await evaluate(cdp, `(() => {
+      // Deterministic render fixtures must not race the unrelated background fetch timeout.
+      flowChannel.stop();
       const host = document.querySelector('.dw-chart-canvas');
       if (!host || !window.LightweightCharts?.createChart) return false;
       window.__ui1LayoutChart = window.LightweightCharts.createChart(host, {
@@ -815,6 +954,9 @@ async function runProductionInteractionRegression({ drawerOnly = false } = {}) {
       };
       renderObservedFlow(pathUnavailableValue);
       const pathUnavailable = selected();
+      // Window selection reads the transport channel, not the last direct render.
+      flowChannel.reset();
+      flowChannel.merge({ ...base, sourceState: 'HISTORICAL' }, flowChannel.ticket());
       const chartToFlow = [['1m', '1m'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['4h', '4h'], ['1D', 'tradingDay']]
         .map(([chartKey, flowKey]) => {
           document.querySelector('[data-chart-timeframe="' + chartKey + '"]').click();
@@ -879,6 +1021,7 @@ async function runProductionInteractionRegression({ drawerOnly = false } = {}) {
         live, stale, warming, historical, unavailable, occupancyBoundaries,
         overlay: { hiddenOrMarkers, shownOrMarkers } };
     })()`);
+    await verifyFlowSalience(cdp);
     const paletteEvidence = await evaluate(cdp, `(() => {
       const control = document.getElementById('market-palette-select');
       const capture = () => {
@@ -1630,7 +1773,7 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
   assert.match(matrix.selectedTradingDay.summary, /待定義/);
   assert.match(matrix.live.barClass, /is-negative/);
   assert.doesNotMatch(matrix.live.barClass, /is-inactive/);
-  assert.match(matrix.stale.barClass, /is-inactive/);
+  assert.doesNotMatch(matrix.stale.barClass, /is-inactive/);
   assert.match(matrix.stale.truthClass, /is-stale/);
   assert.match(matrix.warming.truth, /暖機中/);
   assert.match(matrix.historical.truth, /歷史資料｜非目前盤勢/);
@@ -1662,11 +1805,12 @@ test('authenticated Production DOM navigation and chart layout remain isolated a
     assert.match(value, /UNAVAILABLE · DASHBOARD_REFRESH/, `${id}:${value}`);
   }
   assert.equal(result.refreshFailureEvidence.copyDisabled, true);
+  // Flow is independent of dashboard refresh and fails closed on this fixture's chart identity mismatch.
   for (const [id, value] of Object.entries(result.refreshFailureEvidence.observedAfterFailure)) {
-    assert.match(value, /UNAVAILABLE .* DASHBOARD_REFRESH/, `${id}:${value}`);
+    assert.match(value, /UNAVAILABLE .* CHART_FLOW_IDENTITY_MISMATCH/, `${id}:${value}`);
   }
   assert.match(result.refreshFailureEvidence.observedDetail, /證據不可用/);
-  assert.match(result.refreshFailureEvidence.observedDetail, /DASHBOARD_REFRESH:GOVERNED_DASHBOARD_FIXTURE_FAILURE/);
+  assert.match(result.refreshFailureEvidence.observedDetail, /CHART_FLOW_IDENTITY_MISMATCH/);
   assert.doesNotMatch(result.refreshFailureEvidence.observedDetail, /主動買方代理量/);
   assert.equal(result.leadershipRefreshFailureEvidence.before.state, 'LIVE');
   assert.match(result.leadershipRefreshFailureEvidence.before.bars, /2330/);

@@ -2974,8 +2974,22 @@ function renderObservedFlowSegments(host, ratio, options = {}) {
   host.className = `${options.mini ? 'dw-flow-mini-bar' : 'dw-pressure-segments'} is-${direction}`;
   host.dataset.rawRatio = valid ? String(numeric) : '';
   host.dataset.displayCells = String(cells);
+  observedFlowRawSign(host, valid && !options.inactive ? numeric : null);
   host.classList.toggle('is-limited', Boolean(options.limited));
   host.classList.toggle('is-inactive', Boolean(options.inactive) || !valid);
+}
+
+// Raw sign is independent of the frozen cell thresholds and formal direction gate.
+function observedFlowRawSign(host, value) {
+  if (!host) return;
+  const valid = value !== null && value !== undefined && Number.isFinite(Number(value));
+  host.dataset.rawSign = !valid ? 'unavailable' : Number(value) > 0 ? 'positive'
+    : Number(value) < 0 ? 'negative' : 'neutral';
+}
+
+function observedFlowMagnitudeAvailable(value, window, available) {
+  return Boolean(available) && ['LIVE', 'STALE', 'HISTORICAL'].includes(value?.sourceState)
+    && ['LIVE', 'STALE', 'HISTORICAL', null, undefined].includes(window?.truthState);
 }
 
 function renderObservedFlowEnergy(host, value, options = {}) {
@@ -3069,14 +3083,16 @@ function renderObservedFlowStrip(value, available) {
       continue;
     }
     const window = value?.windows?.[definition.source];
-    const windowAvailable = available && ['LIVE', 'STALE', null, undefined].includes(window?.truthState);
+    const windowAvailable = observedFlowMagnitudeAvailable(value, window, available);
     const ratio = windowAvailable ? observedFlowRatio(window?.pressure) : null;
     const coverage = window?.pressure?.classifiedCoverage;
-    const limited = coverage !== 1 || window?.pressure?.status !== 'READY';
+    const limited = coverage !== 1 || window?.pressure?.status !== 'READY' || value?.sourceState !== 'LIVE'
+      || ['STALE', 'HISTORICAL'].includes(window?.truthState);
     note.textContent = window?.truthState === 'WARMING_UP' ? '暖機中'
       : ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 2 });
+    observedFlowRawSign(note, ratio);
     renderObservedFlowSegments(bar, ratio, {
-      mini: true, limited, inactive: value?.sourceState !== 'LIVE',
+      mini: true, limited, inactive: !windowAvailable,
     });
   }
 }
@@ -3128,16 +3144,17 @@ function renderObservedFlowSelected(value, available, reason) {
     renderObservedFlowEnergy($('dw-flow-coverage-energy'), null, { inactive: true });
     return;
   }
-  const windowAvailable = available && window?.truthState !== 'WARMING_UP'
-    && window?.truthState !== 'UNAVAILABLE';
+  const windowAvailable = observedFlowMagnitudeAvailable(value, window, available);
   const pressure = window?.pressure || {};
   const ratio = windowAvailable ? observedFlowRatio(pressure) : null;
   const coverage = pressure.classifiedCoverage;
-  const limited = coverage !== 1 || pressure.status !== 'READY' || value.sourceState !== 'LIVE';
+  const limited = coverage !== 1 || pressure.status !== 'READY' || value.sourceState !== 'LIVE'
+    || ['STALE', 'HISTORICAL'].includes(window?.truthState);
   renderObservedFlowSegments($('dw-flow-selected-bar'), ratio, {
-    limited, inactive: value.sourceState !== 'LIVE',
+    limited, inactive: !windowAvailable,
   });
   dwText('dw-flow-selected-ratio', ratio == null ? '不可判定' : observedFlowMetric(ratio, { signedValue: true, digits: 3 }));
+  observedFlowRawSign($('dw-flow-selected-ratio'), ratio);
   dwText('dw-flow-selected-side', ratio == null ? '成交力道不可判定' : observedFlowPressureSide(pressure, value.sourceState));
   const rawResponsePoints = window?.response?.displacementPoints;
   const responsePoints = Number(rawResponsePoints);
@@ -3145,9 +3162,10 @@ function renderObservedFlowSelected(value, available, reason) {
     && Number.isFinite(responsePoints);
   dwText('dw-flow-selected-response', responseReady
     ? observedFlowMetric(responsePoints, { signedValue: true, suffix: ' 點', digits: 0 }) : '不可用');
+  observedFlowRawSign($('dw-flow-selected-response'), responseReady ? responsePoints : null);
   dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response) : '成交力道不可判定');
   renderObservedFlowEnergy($('dw-flow-response-energy'), responseReady ? responsePoints : null, {
-    range: 50, limited, inactive: value.sourceState !== 'LIVE',
+    range: 50, limited, inactive: !windowAvailable,
   });
   const rawPathValue = window?.pathEfficiency?.value;
   const pathValue = Number(rawPathValue);
@@ -3155,13 +3173,13 @@ function renderObservedFlowSelected(value, available, reason) {
     && Number.isFinite(pathValue);
   dwText('dw-flow-selected-path', pathReady ? observedFlowMetric(pathValue, { digits: 3 }) : '不可用');
   renderObservedFlowEnergy($('dw-flow-path-energy'), pathReady ? pathValue : null, {
-    range: 1, tone: 'neutral', limited, inactive: value.sourceState !== 'LIVE',
+    range: 1, tone: 'neutral', limited, inactive: !windowAvailable,
   });
   dwText('dw-flow-selected-coverage', windowAvailable
     ? (observedFlowCoverage(coverage) || `不可用 · ${dwHumanize(pressure.unavailableReason || 'CLASSIFIED_COVERAGE_UNAVAILABLE')}`)
     : `不可用 · ${dwHumanize(reason)}`);
   renderObservedFlowEnergy($('dw-flow-coverage-energy'), windowAvailable ? coverage : null, {
-    range: 1, tone: 'neutral', limited, inactive: value.sourceState !== 'LIVE',
+    range: 1, tone: 'neutral', limited, inactive: !windowAvailable,
   });
   const selectedReasonCode = !windowAvailable
     ? (window?.unavailableReason || reason)
