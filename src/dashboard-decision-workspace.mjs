@@ -375,6 +375,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `IX0001 Leadership: state=${snapshot.leadershipSource?.state || 'UNAVAILABLE'}; mode=${snapshot.leadershipSource?.sourceMode || 'UNAVAILABLE'}; tradeDate=${snapshot.leadershipSource?.sourceTradeDate || 'UNAVAILABLE'}; quality=${snapshot.leadershipSource?.quality || 'QUALITY_INSUFFICIENT'}; descriptiveOnly=${snapshot.LEADERSHIP_DESCRIPTIVE_ONLY}; notPromoted=${snapshot.NOT_PROMOTED}; notTradingSignal=${snapshot.NOT_A_TRADING_SIGNAL}`,
     `IX0001 top positive contribution: ${contributionLine(snapshot.indexLeadership?.topPositive)}`,
     `IX0001 top negative contribution: ${contributionLine(snapshot.indexLeadership?.topNegative)}`,
+    `IX0001 top industry contribution: ${contributionLine(snapshot.industryLeadership?.rows)}`,
     observedFlowCopyLine(snapshot.observedFlow),
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
