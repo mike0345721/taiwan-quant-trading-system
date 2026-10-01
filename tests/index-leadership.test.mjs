@@ -16,8 +16,8 @@ function fixture() {
   return {
     indexContribution: {
       abs10: indexEvent('abs10', [
-        { code: '2317', points: -8, price: 210, reference: 212, priceChange: -2, pctChange: -0.94 },
-        { code: '2330', points: 12, price: 1000, reference: 990, priceChange: 10, pctChange: 1.01 },
+        { code: '2317', name: '鴻海', points: -8, price: 210, reference: 212, priceChange: -2, pctChange: -0.94 },
+        { code: '2330', name: '台積電', points: 12, price: 1000, reference: 990, priceChange: 10, pctChange: 1.01 },
       ]),
       positive25: indexEvent('positive25', [
         { code: '2454', points: 3 }, { code: '2330', points: 12 },
