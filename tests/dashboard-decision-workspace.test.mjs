@@ -214,20 +214,21 @@ test('Copy Snapshot allowlist carries descriptive IX0001 leadership without prom
   const indexLeadership = {
     state: 'SESSION_CLOSED', sourceMode: 'EOD_CONTEXT', sourceTradeDate: '2026-08-12',
     lastAvailableAt: '2026-08-12T00:19:00.000Z', quality: 'PASS',
-    indexLeadership: { topPositive: [{ code: '2330', points: 12 }], topNegative: [{ code: '2317', points: -4 }] },
-    industryLeadership: { rows: [{ category: '01', points: 8 }], invariantDelta: 0.01, invariantTolerance: 0.1 },
+    indexLeadership: { topPositive: [{ code: '2330', name: '台積電', points: 12 }], topNegative: [{ code: '2317', name: '鴻海', points: -4 }] },
+    industryLeadership: { rows: [{ category: '01', categoryName: '水泥工業', points: 8 }], invariantDelta: 0.01, invariantTolerance: 0.1 },
   };
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), indexLeadership, now });
-  assert.deepEqual(workspace.snapshot.indexLeadership.topPositive, [{ code: '2330', points: 12 }]);
-  assert.deepEqual(workspace.snapshot.industryLeadership.rows, [{ category: '01', points: 8 }]);
+  assert.deepEqual(workspace.snapshot.indexLeadership.topPositive, [{ code: '2330', name: '台積電', points: 12 }]);
+  assert.deepEqual(workspace.snapshot.industryLeadership.rows, [{ category: '01', categoryName: '水泥工業', points: 8 }]);
   assert.equal(workspace.snapshot.LEADERSHIP_DESCRIPTIVE_ONLY, true);
   assert.equal(workspace.snapshot.NOT_PROMOTED, true);
   assert.equal(workspace.snapshot.NOT_A_TRADING_SIGNAL, true);
   assert.equal(workspace.snapshot.recommendation, false);
   assert.equal(workspace.snapshot.systemDirectionalSignal, false);
   assert.match(workspace.chatGptCopy, /IX0001 Leadership: state=SESSION_CLOSED; mode=EOD_CONTEXT/);
-  assert.match(workspace.chatGptCopy, /IX0001 top positive contribution: 2330:12pt/);
-  assert.match(workspace.chatGptCopy, /IX0001 top negative contribution: 2317:-4pt/);
+  assert.match(workspace.chatGptCopy, /IX0001 top positive contribution: 台積電:12pt/);
+  assert.match(workspace.chatGptCopy, /IX0001 top negative contribution: 鴻海:-4pt/);
+  assert.match(workspace.chatGptCopy, /IX0001 top industry contribution: 水泥工業:8pt/);
   assert.doesNotMatch(workspace.chatGptCopy, /D:\\\\|C:\\\\|\.env|apiKey|secretKey/);
 });
 
