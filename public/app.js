@@ -3755,7 +3755,12 @@ function leadershipRow(row, maxAbs, { compact = false } = {}) {
   const points = finiteNumber(row?.points);
   const tone = points > 0 ? 'is-positive' : points < 0 ? 'is-negative' : '';
   item.className = `dw-leadership-row ${tone}`;
-  const label = document.createElement('strong'); label.textContent = row?.code || row?.category || 'UNKNOWN';
+  const label = document.createElement('strong');
+  const stockName = typeof row?.name === 'string' && row.name.trim() ? row.name.trim() : null;
+  const industryName = typeof row?.categoryName === 'string' && row.categoryName.trim() ? row.categoryName.trim() : null;
+  label.textContent = stockName || industryName || (row?.category ? '產業名稱未提供' : '名稱未提供');
+  if (stockName && row?.code) label.title = `股票代碼 ${row.code}`;
+  if (industryName && row?.category) label.title = `TWSE 產業代碼 ${row.category}`;
   if (!compact) {
     const track = document.createElement('div'); track.className = 'dw-leadership-track';
     const fill = document.createElement('i'); fill.className = 'dw-leadership-fill';
