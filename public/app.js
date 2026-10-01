@@ -5,13 +5,14 @@ const state = {
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
-  gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
+  gptQuestion: '現在市場發生什麼？',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartVolumeCount: 0,
   txChartLoading: false, txChartRequestId: 0, txChartPendingFit: false,
   txChartPalette: 'red-up',
   marketChangeFeed: null,
   indexLeadership: null, indexLeadershipLoading: false,
+  marketPulse: null, marketPulseLoading: false,
 };
 const $ = (id) => document.getElementById(id);
 const flowChannel = window.Cru49Flow.createFlowChannel({
@@ -2740,6 +2741,56 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   terminalWrite('dw-pulse-volume', latestVolume == null ? null : fmt(latestVolume), { reason: 'LATEST_BAR_VOLUME_UNAVAILABLE' });
 }
 
+function renderLiveMarketPulse(pulse) {
+  state.marketPulse = pulse || null;
+  const rvol = pulse?.rvol || {};
+  const ratio = finiteNumber(rvol.ratio);
+  const percentile = finiteNumber(rvol.percentile);
+  const cumulativeRatio = finiteNumber(rvol.cumulativeRatio);
+  const rvolReady = rvol.state === 'READY' && ratio != null;
+  const rvolValue = rvolReady
+    ? [
+      `${fmt(ratio, 2)}×`,
+      percentile == null ? null : `P${fmt(percentile, 0)}`,
+      cumulativeRatio == null ? null : `累積 ${fmt(cumulativeRatio, 2)}×`,
+    ].filter(Boolean).join(' · ')
+    : null;
+  const rvolTitle = rvolReady
+    ? `完成5分K · n=${rvol.sampleDays} · baseline ${rvol.baselineStartDate || '—'}～${rvol.baselineEndDate || '—'} · median ${fmt(rvol.baselineMedian, 0)}`
+    : (rvol.reason || 'RVOL_UNAVAILABLE');
+  terminalWrite('tt-pulse-rvol', rvolValue, { reason: rvol.reason || 'RVOL_UNAVAILABLE', title: rvolTitle });
+  terminalWrite('dw-rvol-state', rvolValue, { reason: rvol.reason || 'RVOL_UNAVAILABLE', title: rvolTitle });
+
+  const basis = pulse?.basis || {};
+  const points = finiteNumber(basis.points);
+  const pct = finiteNumber(basis.pct);
+  const basisReady = ['LIVE', 'SESSION_CLOSED_REFERENCE'].includes(basis.state) && points != null;
+  const mode = basis.state === 'LIVE' ? 'LIVE'
+    : basis.state === 'SESSION_CLOSED_REFERENCE' ? '現貨收盤參考' : null;
+  const basisValue = basisReady
+    ? `${signed(points, ' 點', 2)}${pct == null ? '' : ` · ${signed(pct, '%', 3)}`} · ${mode}`
+    : null;
+  const basisTitle = basisReady
+    ? `${basis.label || '基差'} · TX ${fmt(basis.futuresPrice, 2)} - IX0001 ${fmt(basis.spotPrice, 2)} · cash=${basis.spotTradeDate || '—'}`
+    : (basis.reason || 'BASIS_UNAVAILABLE');
+  for (const id of ['tt-top-basis', 'tt-pulse-basis', 'tt-futures-basis']) {
+    terminalWrite(id, basisValue, { reason: basis.reason || 'BASIS_UNAVAILABLE', title: basisTitle });
+    if (basisReady) tone(id, points);
+  }
+}
+
+async function loadLiveMarketPulse() {
+  if (state.marketPulseLoading || !state.csrfToken) return;
+  state.marketPulseLoading = true;
+  try {
+    const payload = await api('/api/v1/market-pulse', { cache: 'no-store' });
+    if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, marketPulse: payload.data };
+    renderLiveMarketPulse(payload.data);
+  } finally {
+    state.marketPulseLoading = false;
+  }
+}
+
 function observedFlowMetric(value, { signedValue = false, suffix = '', digits = 3 } = {}) {
   const parsed = finiteNumber(value);
   if (parsed == null) return null;
@@ -3704,7 +3755,12 @@ function leadershipRow(row, maxAbs, { compact = false } = {}) {
   const points = finiteNumber(row?.points);
   const tone = points > 0 ? 'is-positive' : points < 0 ? 'is-negative' : '';
   item.className = `dw-leadership-row ${tone}`;
-  const label = document.createElement('strong'); label.textContent = row?.code || row?.category || 'UNKNOWN';
+  const label = document.createElement('strong');
+  const stockName = typeof row?.name === 'string' && row.name.trim() ? row.name.trim() : null;
+  const industryName = typeof row?.categoryName === 'string' && row.categoryName.trim() ? row.categoryName.trim() : null;
+  label.textContent = stockName || industryName || (row?.category ? '產業名稱未提供' : '名稱未提供');
+  if (stockName && row?.code) label.title = `股票代碼 ${row.code}`;
+  if (industryName && row?.category) label.title = `TWSE 產業代碼 ${row.category}`;
   if (!compact) {
     const track = document.createElement('div'); track.className = 'dw-leadership-track';
     const fill = document.createElement('i'); fill.className = 'dw-leadership-fill';
@@ -3741,7 +3797,7 @@ function renderIndexLeadership(leadership) {
   dwText('dw-leadership-time', value.lastAvailableAt
     ? `資料日 ${value.sourceTradeDate || '—'} · ${timeLabel(value.lastAvailableAt)}` : 'LIVE DAY EVENT ACCEPTANCE PENDING');
   dwText('dw-leadership-quality', value.quality || 'QUALITY_INSUFFICIENT');
-  const leadershipReason = value.reason || 'INDEX_LEADERSHIP_UNAVAILABLE';
+  const leadershipReason = value.reasonCode || value.reason || 'INDEX_LEADERSHIP_UNAVAILABLE';
   const leadershipState = value.state && value.state !== 'UNAVAILABLE' ? value.state : null;
   terminalWrite('dw-leadership-state', leadershipState, { reason: leadershipReason });
   terminalWrite('dw-leadership-mode', value.sourceMode ? `${value.sourceMode} · IX0001 DAY` : null, { reason: leadershipReason });
@@ -3757,6 +3813,19 @@ function renderIndexLeadership(leadership) {
   dwText('dw-industry-invariant', invariant.invariantDelta == null
     ? '總和檢核等待資料'
     : `Σ ${signed(invariant.pointsSum, ' 點', 2)} · 指數 ${signed(invariant.indexPriceChange, ' 點', 2)} · Δ ${fmt(invariant.invariantDelta, 3)} / 容許 ${fmt(invariant.invariantTolerance, 3)}`);
+  const positive = finiteNumber(value.indexLeadership?.positivePointsSum);
+  const negative = finiteNumber(value.indexLeadership?.negativePointsSum);
+  const contributionNet = positive != null && negative != null ? positive + negative : null;
+  terminalWrite('tt-contribution-net', contributionNet == null ? null : signed(contributionNet, ' 點', 2), {
+    reason: leadershipReason,
+    title: value.lastAvailableAt
+      ? `IX0001 描述性貢獻 · ${value.sourceMode || 'UNAVAILABLE'} · ${timeLabel(value.lastAvailableAt)}`
+      : 'IX0001 貢獻等待日盤合法資料',
+  });
+  const trendLeadership = $('tt-trend-leadership-track')?.querySelector('header strong');
+  if (trendLeadership) trendLeadership.textContent = value.state === 'LIVE'
+    ? 'LIVE · DESCRIPTIVE'
+    : value.runtimeActivationState === 'ENABLED' ? '等待日盤資料' : '來源尚未啟用';
 }
 
 async function loadIndexLeadership() {
@@ -4477,6 +4546,7 @@ function renderDecisionWorkspace(workspace) {
   renderMarketPulse(workspace, state.txChartPayload || chart);
   renderObservedFlow(workspace?.observedFlow);
   renderTerminalShell(workspace, state.txChartPayload || chart);
+  renderLiveMarketPulse(workspace?.marketPulse);
   renderIndexLeadership(workspace?.indexLeadership);
 
   const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
@@ -4563,6 +4633,7 @@ async function loadDashboard() {
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+  await loadLiveMarketPulse().catch(() => {});
   await reportCru46BrowserRuntimeProof();
   await loadDecisionJournal();
   renderPrelive(payload.service?.prelive);
@@ -4681,10 +4752,18 @@ $('dw-copy-chatgpt').addEventListener('click', async () => {
   dwText('dw-journal-feedback', 'ChatGPT discussion context copied · NOT A TRADING SIGNAL');
 });
 $('dw-copy-gpt-prompt').addEventListener('click', async () => {
-  const workspace = state.decisionWorkspace;
-  if (!workspace?.chatGptCopy) { dwText('dw-journal-feedback', 'Copy context UNAVAILABLE'); return; }
-  await copyToClipboard(`QUESTION\n${state.gptQuestion}\n\n${workspace.chatGptCopy}`);
-  dwText('dw-journal-feedback', 'Question + immutable snapshot copied');
+  const chatWindow = window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
+  dwText('dw-journal-feedback', '正在建立最新 immutable snapshot…');
+  try {
+    const payload = await api(`/api/v1/ask-gpt-context?question=${encodeURIComponent(state.gptQuestion)}`, { cache: 'no-store' });
+    if (!payload?.data?.prompt) throw new Error('DISCUSSION_PROMPT_UNAVAILABLE');
+    await copyToClipboard(payload.data.prompt);
+    dwText('dw-journal-feedback',
+      `已複製最新盤況 · ${String(payload.data.snapshotHash || '').slice(0, 12)}… · 請貼到已開啟的 ChatGPT`);
+  } catch (error) {
+    if (!chatWindow) window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
+    dwText('dw-journal-feedback', `Ask GPT context UNAVAILABLE · ${error.message}`);
+  }
 });
 $('dw-journal-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -4913,4 +4992,9 @@ setInterval(() => {
 // IX0001 Leadership consumes the bounded latest cache only; it never reloads the full ledger.
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) loadIndexLeadership().catch(renderIndexLeadershipFailure);
+}, 5_000);
+
+// Market Pulse reads the bounded 5m chart + 8790 latest snapshot; no collector or history rebuild is started.
+setInterval(() => {
+  if (!$('dashboard-view').classList.contains('hidden')) loadLiveMarketPulse().catch(() => {});
 }, 5_000);

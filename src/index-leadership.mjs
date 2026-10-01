@@ -26,6 +26,7 @@ function taipeiParts(now) {
 function normalizeEntry(entry = {}) {
   return Object.freeze({
     code: typeof entry.code === 'string' ? entry.code : null,
+    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : null,
     price: finite(entry.price),
     reference: finite(entry.reference),
     priceChange: finite(entry.priceChange),
@@ -37,6 +38,7 @@ function normalizeEntry(entry = {}) {
 function normalizeIndustryEntry(entry = {}) {
   return Object.freeze({
     category: typeof entry.category === 'string' ? entry.category : null,
+    categoryName: typeof entry.categoryName === 'string' && entry.categoryName.trim() ? entry.categoryName.trim() : null,
     points: finite(entry.points),
   });
 }

@@ -16,14 +16,14 @@ function fixture() {
   return {
     indexContribution: {
       abs10: indexEvent('abs10', [
-        { code: '2317', points: -8, price: 210, reference: 212, priceChange: -2, pctChange: -0.94 },
-        { code: '2330', points: 12, price: 1000, reference: 990, priceChange: 10, pctChange: 1.01 },
+        { code: '2317', name: '鴻海', points: -8, price: 210, reference: 212, priceChange: -2, pctChange: -0.94 },
+        { code: '2330', name: '台積電', points: 12, price: 1000, reference: 990, priceChange: 10, pctChange: 1.01 },
       ]),
       positive25: indexEvent('positive25', [
-        { code: '2454', points: 3 }, { code: '2330', points: 12 },
+        { code: '2454', name: '聯發科', points: 3 }, { code: '2330', name: '台積電', points: 12 },
       ]),
       negative25: indexEvent('negative25', [
-        { code: '2303', points: -2 }, { code: '2317', points: -8 },
+        { code: '2303', name: '聯電', points: -2 }, { code: '2317', name: '鴻海', points: -8 },
       ]),
     },
     industryContribution: {
@@ -31,7 +31,7 @@ function fixture() {
       eventTime: '2026-08-24T09:01:04+08:00', receivedAt: '2026-08-24T01:01:04.200Z', availableAt: '2026-08-24T01:01:04.200Z',
       simtrade: false, qualityStatus: 'PASS', qualityReasons: [], rawPayloadHash: 'b'.repeat(64),
       indexClose: 25000, indexPriceChange: 4, industryPointsSum: 4, industryInvariantDelta: 0,
-      industryInvariantTolerance: 0.1, entries: [{ category: '01', points: 6 }, { category: '02', points: -2 }],
+      industryInvariantTolerance: 0.1, entries: [{ category: '01', categoryName: '水泥工業', points: 6 }, { category: '02', categoryName: '食品工業', points: -2 }],
     },
     simulatedMatching: { indexContribution: {}, industryContribution: null },
   };
@@ -46,9 +46,11 @@ test('DAY IX0001 leadership preserves provider data and derives only descriptive
   assert.deepEqual(result.indexLeadership.topAbsolute.map((row) => row.code), ['2330', '2317']);
   assert.deepEqual(result.indexLeadership.topPositive.map((row) => row.code), ['2330', '2454']);
   assert.deepEqual(result.indexLeadership.topNegative.map((row) => row.code), ['2317', '2303']);
+  assert.deepEqual(result.indexLeadership.topPositive.map((row) => row.name), ['台積電', '聯發科']);
   assert.equal(result.indexLeadership.positivePointsSum, 15);
   assert.equal(result.indexLeadership.negativePointsSum, -10);
   assert.deepEqual(result.industryLeadership.rows.map((row) => row.category), ['01', '02']);
+  assert.deepEqual(result.industryLeadership.rows.map((row) => row.categoryName), ['水泥工業', '食品工業']);
   assert.equal(result.industryLeadership.invariantDelta, 0);
   assert.equal(result.recommendation, false);
   assert.equal(result.systemDirectionalSignal, false);
@@ -120,7 +122,7 @@ test('missing and non-numeric provider fields remain null instead of becoming ze
 
   const result = buildIndexLeadership(raw, { now: new Date('2026-08-24T01:01:05.000Z') });
   assert.deepEqual(result.indexLeadership.rankings.abs10.entries[0], {
-    code: '2330', price: null, reference: null, priceChange: null, pctChange: null, points: null,
+    code: '2330', name: null, price: null, reference: null, priceChange: null, pctChange: null, points: null,
   });
   assert.equal(result.industryLeadership.source.indexClose, null);
   assert.equal(result.industryLeadership.source.indexPriceChange, null);

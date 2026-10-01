@@ -214,18 +214,21 @@ test('Copy Snapshot allowlist carries descriptive IX0001 leadership without prom
   const indexLeadership = {
     state: 'SESSION_CLOSED', sourceMode: 'EOD_CONTEXT', sourceTradeDate: '2026-08-12',
     lastAvailableAt: '2026-08-12T00:19:00.000Z', quality: 'PASS',
-    indexLeadership: { topPositive: [{ code: '2330', points: 12 }], topNegative: [{ code: '2317', points: -4 }] },
-    industryLeadership: { rows: [{ category: '01', points: 8 }], invariantDelta: 0.01, invariantTolerance: 0.1 },
+    indexLeadership: { topPositive: [{ code: '2330', name: '台積電', points: 12 }], topNegative: [{ code: '2317', name: '鴻海', points: -4 }] },
+    industryLeadership: { rows: [{ category: '01', categoryName: '水泥工業', points: 8 }], invariantDelta: 0.01, invariantTolerance: 0.1 },
   };
   const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), indexLeadership, now });
-  assert.deepEqual(workspace.snapshot.indexLeadership.topPositive, [{ code: '2330', points: 12 }]);
-  assert.deepEqual(workspace.snapshot.industryLeadership.rows, [{ category: '01', points: 8 }]);
+  assert.deepEqual(workspace.snapshot.indexLeadership.topPositive, [{ code: '2330', name: '台積電', points: 12 }]);
+  assert.deepEqual(workspace.snapshot.industryLeadership.rows, [{ category: '01', categoryName: '水泥工業', points: 8 }]);
   assert.equal(workspace.snapshot.LEADERSHIP_DESCRIPTIVE_ONLY, true);
   assert.equal(workspace.snapshot.NOT_PROMOTED, true);
   assert.equal(workspace.snapshot.NOT_A_TRADING_SIGNAL, true);
   assert.equal(workspace.snapshot.recommendation, false);
   assert.equal(workspace.snapshot.systemDirectionalSignal, false);
   assert.match(workspace.chatGptCopy, /IX0001 Leadership: state=SESSION_CLOSED; mode=EOD_CONTEXT/);
+  assert.match(workspace.chatGptCopy, /IX0001 top positive contribution: 台積電:12pt/);
+  assert.match(workspace.chatGptCopy, /IX0001 top negative contribution: 鴻海:-4pt/);
+  assert.match(workspace.chatGptCopy, /IX0001 top industry contribution: 水泥工業:8pt/);
   assert.doesNotMatch(workspace.chatGptCopy, /D:\\\\|C:\\\\|\.env|apiKey|secretKey/);
 });
 
@@ -367,7 +370,10 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
     'dw-observed-flow-quality', 'dw-observed-flow-source', 'dw-observed-flow-promotion',
     'dw-observed-flow-detail',
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
-  assert.match(html, /COPY MODE · NOT A TRADING SIGNAL/);
+  assert.match(html, /<section id="dw-ask-gpt"[\s\S]*用目前盤況詢問 ChatGPT/);
+  assert.match(html, /<details class="dw-gpt-more">[\s\S]*更多問題/);
+  assert.match(html, /data-gpt-question="現在市場發生什麼？" class="is-selected"/);
+  assert.doesNotMatch(html, /<details id="dw-ask-gpt"/);
   assert.match(html, /LONG_INTENT/);
   assert.match(html, /SHORT_INTENT/);
   assert.match(html, /NO_TRADE/);
@@ -471,4 +477,29 @@ test('final trader UX keeps event hierarchy, source modes and raw contracts visi
   assert.match(app, /localStorage\.setItem\(sidebarPreferenceKey/);
   assert.match(app, /is-capability-limited/);
   assert.doesNotMatch(app, /place_order|update_order|cancel_order/);
+});
+
+test('Market Pulse is immutable discussion context and RVOL is exposed without becoming a signal', () => {
+  const marketPulse = {
+    schemaVersion: 'market-pulse-live-v1', generatedAt: '2026-08-11T14:00:00.000Z',
+    rvol: {
+      state: 'READY', ratio: 1.82, percentile: 91, sampleDays: 20, baselineMedian: 100,
+      currentVolume: 182, cumulativeRatio: 1.35, completedBarAvailableAt: '2026-08-11T13:59:00.000Z',
+    },
+    basis: {
+      state: 'SESSION_CLOSED_REFERENCE', label: '夜盤對現貨收盤差', points: 42, pct: 0.18,
+      futuresAvailableAt: '2026-08-11T13:59:30.000Z', spotAvailableAt: '2026-08-11T05:31:00.000Z',
+      referenceMode: 'LAST_CASH_CLOSE',
+    },
+    recommendation: false, systemDirectionalSignal: false, formalWeight: 0, researchOnly: true,
+    executionAuthorized: false, orderRoutesEnabled: false,
+  };
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), marketPulse, now });
+  assert.deepEqual(workspace.snapshot.marketPulse, marketPulse);
+  assert.equal(workspace.priceChartSlot.RVOL.availability, 'AVAILABLE');
+  assert.match(String(workspace.priceChartSlot.RVOL.value), /1\.82×/);
+  assert.match(workspace.chatGptCopy, /Market Pulse: RVOL state=READY ratio=1\.82/);
+  assert.match(workspace.chatGptCopy, /Basis label=夜盤對現貨收盤差 state=SESSION_CLOSED_REFERENCE points=42/);
+  assert.equal(workspace.policies.directGptApi, false);
+  assert.equal(workspace.policies.chatGptHandoff, 'COPY_AND_OPEN_CHATGPT');
 });

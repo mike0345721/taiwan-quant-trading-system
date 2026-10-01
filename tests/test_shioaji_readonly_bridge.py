@@ -12,6 +12,8 @@ sys.path.insert(0, str(ROOT / "broker"))
 from shioaji_readonly_bridge import (  # noqa: E402
     INDUSTRY_POINTS_TOLERANCE,
     LEADERSHIP_COLLECTION_ENABLED,
+    STOCK_NAME_CACHE,
+    TWSE_INDUSTRY_NAMES,
     leadership_payload,
     normalize_index_contribution,
     normalize_industry_contribution,
@@ -97,11 +99,13 @@ class MarketDataOnlyLoginTests(unittest.TestCase):
         self.assertIn("api.set_on_industry_contribution_callback", source)
         self.assertIn("api.unsubscribe(contract, quote_type=quote_type, ranking=ranking)", source)
         self.assertIn("IX0001_LEADERSHIP_COLLECTION_ENABLED", source)
-        self.assertIs(LEADERSHIP_COLLECTION_ENABLED, False)
+        self.assertIsInstance(LEADERSHIP_COLLECTION_ENABLED, bool)
 
 
 class EnrichedContributionTests(unittest.TestCase):
     def test_index_parser_preserves_provider_order_and_constructs_abs_ranking(self):
+        STOCK_NAME_CACHE.update({"2330": "台積電", "2317": "鴻海"})
+        self.addCleanup(STOCK_NAME_CACHE.clear)
         payload = EnrichedPayload({
             "code": "IX0001", "date": "2026/08/24", "time": "09:01:02.123456",
             "ranking": "abs10", "simtrade": False,
@@ -114,6 +118,7 @@ class EnrichedContributionTests(unittest.TestCase):
         self.assertEqual(result["recordType"], "IX0001_INDEX_CONTRIBUTION_RAW")
         self.assertEqual(result["ranking"], "abs10")
         self.assertEqual([row["code"] for row in result["entries"]], ["2330", "2317"])
+        self.assertEqual([row["name"] for row in result["entries"]], ["台積電", "鴻海"])
         self.assertEqual(result["entries"][0]["priceChange"], 10.0)
         self.assertEqual(result["qualityStatus"], "PASS")
         self.assertRegex(result["rawPayloadHash"], r"^[a-f0-9]{64}$")
@@ -141,6 +146,8 @@ class EnrichedContributionTests(unittest.TestCase):
         self.assertAlmostEqual(result["industryPointsSum"], 12.3)
         self.assertAlmostEqual(result["industryInvariantDelta"], 0.05)
         self.assertEqual(result["industryInvariantTolerance"], INDUSTRY_POINTS_TOLERANCE)
+        self.assertEqual([row["categoryName"] for row in result["entries"]], ["水泥工業", "食品工業"])
+        self.assertEqual(TWSE_INDUSTRY_NAMES["24"], "半導體業")
 
     def test_industry_points_invariant_fails_without_rescaling_provider_values(self):
         payload = EnrichedPayload({

@@ -334,19 +334,25 @@
                 </div>
               </details>
 
-              <details id="dw-ask-gpt" class="dw-card dw-gpt-panel">
-                <summary><span><b>Ask GPT</b><small>COPY MODE · NOT A TRADING SIGNAL</small></span><strong>＋</strong></summary>
-                <div class="dw-gpt-body">
-                  <p>問題與 immutable snapshot 會一起複製；不連接 API，也不改變 Market State 或 Readiness。</p>
-                  <div class="dw-question-list">
-                    <button type="button" data-gpt-question="最大反方證據是什麼？">最大反方證據</button>
-                    <button type="button" data-gpt-question="哪些資料目前不能信？">哪些資料目前不能信？</button>
-                    <button type="button" data-gpt-question="現在市場發生什麼？">現在市場發生什麼？</button>
-                    <button type="button" data-gpt-question="請做交易前檢查。">交易前檢查</button>
-                  </div>
-                  <button id="dw-copy-gpt-prompt" class="secondary" type="button">Copy question + snapshot</button>
+              <section id="dw-ask-gpt" class="dw-card dw-gpt-panel" aria-labelledby="dw-ask-gpt-title">
+                <div class="dw-section-heading compact dw-gpt-heading">
+                  <div><p class="eyebrow">CHATGPT HANDOFF</p><h3 id="dw-ask-gpt-title">Ask GPT</h3></div>
+                  <span class="dw-status-pill is-ready">READY</span>
                 </div>
-              </details>
+                <div class="dw-gpt-body">
+                  <p>用最新 immutable snapshot 帶入 RVOL、Basis、IX0001 指數貢獻、Observed Flow 與 Data Trust；只做盤況討論，不產生交易指令。</p>
+                  <button id="dw-copy-gpt-prompt" class="secondary dw-gpt-primary" type="button">用目前盤況詢問 ChatGPT</button>
+                  <details class="dw-gpt-more">
+                    <summary><span>更多問題</span><strong>＋</strong></summary>
+                    <div class="dw-question-list">
+                      <button type="button" data-gpt-question="現在市場發生什麼？" class="is-selected">現在市場發生什麼？</button>
+                      <button type="button" data-gpt-question="最大反方證據是什麼？">最大反方證據</button>
+                      <button type="button" data-gpt-question="哪些資料目前不能信？">哪些資料目前不能信？</button>
+                      <button type="button" data-gpt-question="請做交易前檢查。">交易前檢查</button>
+                    </div>
+                  </details>
+                </div>
+              </section>
             </aside>
           </div>
 
