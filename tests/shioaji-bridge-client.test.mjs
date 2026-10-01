@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { inspectShioajiBridge } from '../src/shioaji-bridge-client.mjs';
+import { inspectShioajiBridge, inspectShioajiLatest } from '../src/shioaji-bridge-client.mjs';
 
 const quoteTypeHealth = Object.fromEntries(['Tick', 'BidAsk'].map((quoteType) => [quoteType, {
   quoteType, subscriptionState: 'RESTORED', deliveryState: 'LIVE', freshnessState: 'LIVE',
@@ -93,4 +93,32 @@ test('fails closed if a bridge reports an execution route', async () => {
   server.close();
   assert.equal(status.connected, false);
   assert.equal(status.error, 'unsafe_bridge_response');
+});
+
+test('latest snapshot accepts only safety-preserving read-only records', async () => {
+  const server = await fixture({
+    ok: true, provider: 'shioaji', mode: 'market_data_only',
+    data: {
+      IX0001: { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false, payload: { close: 47940.13 } },
+      TXFJ6: { formalWeight: 0, researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false, payload: { close: 48350 } },
+    },
+  });
+  const { port } = server.address();
+  const result = await inspectShioajiLatest({ baseUrl: `http://127.0.0.1:${port}` });
+  server.close();
+  assert.equal(result.state, 'AVAILABLE');
+  assert.equal(result.data.IX0001.payload.close, 47940.13);
+  assert.equal(result.executionAuthorized, false);
+});
+
+test('latest snapshot fails closed if any record crosses the execution boundary', async () => {
+  const server = await fixture({
+    ok: true, mode: 'market_data_only',
+    data: { TXFJ6: { formalWeight: 0, researchOnly: true, executionAuthorized: true, orderRoutesEnabled: false } },
+  });
+  const { port } = server.address();
+  const result = await inspectShioajiLatest({ baseUrl: `http://127.0.0.1:${port}` });
+  server.close();
+  assert.equal(result.state, 'UNAVAILABLE');
+  assert.equal(result.reason, 'BRIDGE_LATEST_UNAVAILABLE');
 });

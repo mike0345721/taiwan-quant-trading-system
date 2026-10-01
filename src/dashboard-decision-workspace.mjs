@@ -192,7 +192,7 @@ export function buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict
 export function createDecisionSnapshot({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
   marketChangeFeed = null, currentMarketFactSummary = null, liveBreadth = null,
-  indexLeadership = null, observedFlow = null,
+  indexLeadership = null, observedFlow = null, marketPulse = null,
   decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
 } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
@@ -209,6 +209,14 @@ export function createDecisionSnapshot({
   if (indexLeadership?.lastAvailableAt && Date.parse(indexLeadership.lastAvailableAt) > parsedSnapshotTime) throw new Error('DECISION_SNAPSHOT_FUTURE_LEADERSHIP_EVIDENCE');
   if (observedFlow?.source?.availableAt && Date.parse(observedFlow.source.availableAt) > parsedSnapshotTime) {
     throw new Error('DECISION_SNAPSHOT_FUTURE_OBSERVED_FLOW_EVIDENCE');
+  }
+  const pulseTimes = [
+    marketPulse?.rvol?.completedBarAvailableAt,
+    marketPulse?.basis?.futuresAvailableAt,
+    marketPulse?.basis?.spotAvailableAt,
+  ].filter(Boolean);
+  if (pulseTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) {
+    throw new Error('DECISION_SNAPSHOT_FUTURE_MARKET_PULSE_EVIDENCE');
   }
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
@@ -280,6 +288,7 @@ export function createDecisionSnapshot({
     evidenceConflict: evidenceConflict || buildDashboardDw4Evidence(dataHealth),
     currentMarketFactSummary,
     observedFlow,
+    marketPulse,
     ...leadershipCopyAllowlist(indexLeadership),
     governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
       eventId: event.eventId || null,
@@ -317,6 +326,14 @@ export function validateDecisionSnapshot(snapshot) {
       || snapshot.observedFlow.systemDirectionalSignal !== false)) {
     throw new Error('DECISION_SNAPSHOT_OBSERVED_FLOW_AUTHORIZATION_BOUNDARY');
   }
+  if (snapshot.marketPulse && (snapshot.marketPulse.formalWeight !== 0
+      || snapshot.marketPulse.researchOnly !== true
+      || snapshot.marketPulse.executionAuthorized !== false
+      || snapshot.marketPulse.orderRoutesEnabled !== false
+      || snapshot.marketPulse.recommendation !== false
+      || snapshot.marketPulse.systemDirectionalSignal !== false)) {
+    throw new Error('DECISION_SNAPSHOT_MARKET_PULSE_AUTHORIZATION_BOUNDARY');
+  }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
   if (snapshot.identityState != null) {
     const identityComplete = Boolean(snapshot.tradeDate && snapshot.contract && snapshot.session);
@@ -336,6 +353,8 @@ export function copyForChatGpt(snapshot, question = null) {
     const values = (item.detail?.descriptiveValues || []).map((entry) => `${entry.label}=${entry.value}${entry.unit || ''}`).join(', ');
     return `${item.family}: ${values || 'UNAVAILABLE'}; availability=${item.availabilityState}; quality=${item.qualityState}; promotion=${item.promotionState}; directionalEligible=${item.eligibleDirectionalEvidence}`;
   });
+  const contributionLine = (rows) => (rows || []).slice(0, 5)
+    .map((row) => `${row.code || '?'}:${row.points ?? 'UNAVAILABLE'}pt`).join(', ') || 'UNAVAILABLE';
   const readable = [
     'DISCUSSION CONTEXT — NOT A TRADING SIGNAL',
     `Snapshot: ${snapshot.snapshotTime}`,
@@ -352,7 +371,10 @@ export function copyForChatGpt(snapshot, question = null) {
     `Market State: direction=${snapshot.marketState.direction}; global=${snapshot.marketState.globalAlignment}; risk=${snapshot.marketState.risk}`,
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
+    `Market Pulse: RVOL state=${snapshot.marketPulse?.rvol?.state || 'UNAVAILABLE'} ratio=${snapshot.marketPulse?.rvol?.ratio ?? 'UNAVAILABLE'} percentile=${snapshot.marketPulse?.rvol?.percentile ?? 'UNAVAILABLE'} sampleDays=${snapshot.marketPulse?.rvol?.sampleDays ?? 0}; Basis label=${snapshot.marketPulse?.basis?.label || '基差'} state=${snapshot.marketPulse?.basis?.state || 'UNAVAILABLE'} points=${snapshot.marketPulse?.basis?.points ?? 'UNAVAILABLE'} pct=${snapshot.marketPulse?.basis?.pct ?? 'UNAVAILABLE'} referenceMode=${snapshot.marketPulse?.basis?.referenceMode || 'UNAVAILABLE'}`,
     `IX0001 Leadership: state=${snapshot.leadershipSource?.state || 'UNAVAILABLE'}; mode=${snapshot.leadershipSource?.sourceMode || 'UNAVAILABLE'}; tradeDate=${snapshot.leadershipSource?.sourceTradeDate || 'UNAVAILABLE'}; quality=${snapshot.leadershipSource?.quality || 'QUALITY_INSUFFICIENT'}; descriptiveOnly=${snapshot.LEADERSHIP_DESCRIPTIVE_ONLY}; notPromoted=${snapshot.NOT_PROMOTED}; notTradingSignal=${snapshot.NOT_A_TRADING_SIGNAL}`,
+    `IX0001 top positive contribution: ${contributionLine(snapshot.indexLeadership?.topPositive)}`,
+    `IX0001 top negative contribution: ${contributionLine(snapshot.indexLeadership?.topNegative)}`,
     observedFlowCopyLine(snapshot.observedFlow),
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
@@ -453,6 +475,7 @@ export function discussionSnapshot(snapshot) {
     governedMarketChanges: snapshot.governedMarketChanges,
     currentMarketFactSummary: snapshot.currentMarketFactSummary,
     observedFlow: discussionObservedFlow(snapshot.observedFlow),
+    marketPulse: snapshot.marketPulse,
     indexLeadership: snapshot.indexLeadership,
     industryLeadership: snapshot.industryLeadership,
     leadershipSource: snapshot.leadershipSource,
@@ -513,7 +536,7 @@ function discussionObservedFlow(observedFlow) {
 export function buildDecisionWorkspace({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, marketChangeFeed = null,
   dw4EvidenceObservations = null, liveBreadth = null, indexLeadership = null, observedFlow = null,
-  runtimeVersion = null, productSurface = null, now = new Date(),
+  marketPulse = null, runtimeVersion = null, productSurface = null, now = new Date(),
 } = {}) {
   const evidenceConflict = buildDashboardDw4Evidence(dataHealth, {
     observations: dw4EvidenceObservations,
@@ -536,6 +559,7 @@ export function buildDecisionWorkspace({
     liveBreadth,
     indexLeadership,
     observedFlow,
+    marketPulse,
     decisionReadiness: decisionSummary.readiness,
     snapshotTime: now.toISOString(),
   });
@@ -565,6 +589,7 @@ export function buildDecisionWorkspace({
     currentMarketFactSummary,
     indexLeadership,
     observedFlow,
+    marketPulse,
     evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',
@@ -585,7 +610,10 @@ export function buildDecisionWorkspace({
       price: lockedSnapshotCandidate.price,
       OR: lockedSnapshotCandidate.OR,
       VWAP: lockedSnapshotCandidate.VWAP,
-      RVOL: unavailable('DERIVATION_NOT_IMPLEMENTED'),
+      RVOL: marketPulse?.rvol?.state === 'READY'
+        ? available(`${marketPulse.rvol.ratio.toFixed(2)}× · P${Math.round(marketPulse.rvol.percentile)} · n=${marketPulse.rvol.sampleDays}`,
+          'TX_RVOL20_SAME_5M_SLOT', marketPulse.rvol.completedBarAvailableAt)
+        : unavailable(marketPulse?.rvol?.reason || 'RVOL_UNAVAILABLE'),
       timeframe: chart?.timeframe || '5m',
       session: chart?.session || null,
       actualContract: chart?.actualContract || null,
@@ -621,6 +649,7 @@ export function buildDecisionWorkspace({
     chatGptCopy: copyForChatGpt(lockedSnapshotCandidate),
     policies: {
       directGptApi: false,
+      chatGptHandoff: 'COPY_AND_OPEN_CHATGPT',
       discussionOnly: true,
       formalWeight: 0,
       researchOnly: true,

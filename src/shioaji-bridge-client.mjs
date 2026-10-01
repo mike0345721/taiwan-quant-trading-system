@@ -201,6 +201,41 @@ export async function inspectShioajiBridge(options = {}) {
   }
 }
 
+export async function inspectShioajiLatest(options = {}) {
+  try {
+    const response = await getJson('/latest', options);
+    const data = response?.data && typeof response.data === 'object' ? response.data : null;
+    const safe = response?.mode === 'market_data_only'
+      && data
+      && Object.values(data).every((record) => record?.executionAuthorized === false
+        && record?.orderRoutesEnabled === false
+        && record?.formalWeight === 0
+        && record?.researchOnly === true);
+    if (!safe) throw new Error('unsafe_latest_response');
+    return Object.freeze({
+      state: 'AVAILABLE',
+      reason: null,
+      data,
+      checkedAt: new Date().toISOString(),
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+      orderRoutesEnabled: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      state: 'UNAVAILABLE',
+      reason: error?.name === 'AbortError' ? 'BRIDGE_LATEST_TIMEOUT' : 'BRIDGE_LATEST_UNAVAILABLE',
+      data: null,
+      checkedAt: new Date().toISOString(),
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+      orderRoutesEnabled: false,
+    });
+  }
+}
+
 function subscriptionState(bridge, prefix) {
   const rows = bridge?.requiredSubscriptions || bridge?.continuity?.requiredSubscriptions || [];
   const matching = rows.filter((row) => row.product === prefix || row.product?.startsWith(`${prefix}_`));

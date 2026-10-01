@@ -15,12 +15,12 @@ import { V2ResearchService } from './src/v2-research.mjs';
 import { loadPriceConfirmation } from './src/intraday-confirmation.mjs';
 import { listReplayDays, loadCatalogReplay } from './src/intraday-replay-catalog.mjs';
 import { marketFeedReadiness } from './src/market-feed.mjs';
-import { inspectIx0001Leadership, inspectShioajiBridge } from './src/shioaji-bridge-client.mjs';
+import { inspectIx0001Leadership, inspectShioajiBridge, inspectShioajiLatest } from './src/shioaji-bridge-client.mjs';
 import { costScenarios } from './v2/src/trading-costs.mjs';
 import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { resolveOperationsReader } from './src/data-operations-binding.mjs';
-import { buildDecisionWorkspace } from './src/dashboard-decision-workspace.mjs';
+import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
@@ -39,6 +39,7 @@ import {
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import { loadFlowRefresh } from './src/dashboard-flow-refresh.mjs';
+import { buildMarketPulseLive } from './src/market-pulse-live.mjs';
 import {
   buildCru46Readiness,
   inspectChartPayload,
@@ -136,6 +137,24 @@ function currentObservedFlow() {
     liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
 }
 
+async function currentMarketPulse(chart = null) {
+  const selectedChart = chart || loadTxDecisionChart({
+    dataRoot: txChartDataRoot,
+    cacheRoot: txChartCacheRoot,
+    calendar: chartCalendar,
+    timeframe: '5m',
+    mode: 'LIVE',
+  });
+  const bridgeLatest = config.cru55Acceptance
+    ? { state: 'UNAVAILABLE', reason: 'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE', data: null }
+    : await inspectShioajiLatest();
+  return buildMarketPulseLive({
+    chart: selectedChart,
+    bridgeLatest,
+    archiveDir: path.join(txChartDataRoot, 'intraday', 'archive'),
+  });
+}
+
 function currentCru46RuntimeReadiness() {
   const identity = cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
@@ -188,11 +207,44 @@ async function decisionWorkspacePayload(snapshot, service) {
   const feed = buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
   const observedFlow = currentObservedFlow();
+  const marketPulse = await currentMarketPulse(chart);
   return buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
+    marketPulse,
   });
+}
+
+async function currentDiscussionWorkspace() {
+  if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
+    try { await refreshSnapshot(); } catch { /* retain truthful unavailable state below */ }
+  }
+  if (!latestSnapshot) return null;
+  const shioaji = config.cru55Acceptance
+    ? isolatedBridge
+    : await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+  const indexLeadership = config.cru55Acceptance
+    ? isolatedLeadership
+    : await inspectIx0001Leadership({ bridge: shioaji });
+  const clientSnapshot = {
+    ...latestSnapshot,
+    researchDecision: v2Research.decisionSupport(),
+    priceConfirmation: loadPriceConfirmation(intradayPath),
+  };
+  enrichSnapshot(clientSnapshot, await cache.listHistory(400));
+  clientSnapshot.sixAxisShadow = buildSixAxisShadow(clientSnapshot);
+  const servicePayload = {
+    readOnly: true,
+    brokerConnected: shioaji.connected,
+    brokerMarketData: shioaji,
+    lastRefreshError,
+    prelive: preliveStatus(latestSnapshot, shioaji),
+    runtimeVersion,
+    productSurface: productSurfaceContract,
+    indexLeadership,
+  };
+  return decisionWorkspacePayload(clientSnapshot, servicePayload);
 }
 
 function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
@@ -382,6 +434,37 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/observed-flow') {
         sendJson(res, 200, { ok: true, data: currentObservedFlow() });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/market-pulse') {
+        sendJson(res, 200, { ok: true, data: await currentMarketPulse() }, { 'Cache-Control': 'no-store' });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {
+        const question = String(url.searchParams.get('question') || '').trim().slice(0, 500) || null;
+        const workspace = await currentDiscussionWorkspace();
+        if (!workspace?.snapshot) {
+          sendJson(res, 503, { ok: false, error: 'DISCUSSION_SNAPSHOT_UNAVAILABLE' }, { 'Cache-Control': 'no-store' });
+          return;
+        }
+        sendJson(res, 200, {
+          ok: true,
+          data: {
+            prompt: copyForChatGpt(workspace.snapshot, question),
+            snapshotHash: workspace.snapshot.snapshotHash,
+            snapshotTime: workspace.snapshot.snapshotTime,
+            handoffMode: 'COPY_AND_OPEN_CHATGPT',
+            directGptApi: false,
+            recommendation: false,
+            systemDirectionalSignal: false,
+            formalWeight: 0,
+            researchOnly: true,
+            executionAuthorized: false,
+            orderRoutesEnabled: false,
+          },
+        }, { 'Cache-Control': 'no-store' });
         return;
       }
 
