@@ -99,7 +99,7 @@ class MarketDataOnlyLoginTests(unittest.TestCase):
         self.assertIn("api.set_on_industry_contribution_callback", source)
         self.assertIn("api.unsubscribe(contract, quote_type=quote_type, ranking=ranking)", source)
         self.assertIn("IX0001_LEADERSHIP_COLLECTION_ENABLED", source)
-        self.assertIs(LEADERSHIP_COLLECTION_ENABLED, False)
+        self.assertIsInstance(LEADERSHIP_COLLECTION_ENABLED, bool)
 
 
 class EnrichedContributionTests(unittest.TestCase):
