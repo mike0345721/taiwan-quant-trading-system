@@ -348,5 +348,9 @@ test('Leadership presentation preserves missing points instead of coercing them 
   assert.equal(normalize(-3), -3);
   const leadershipSource = app.slice(app.indexOf('function leadershipRow'), app.indexOf('function renderIndexLeadership'));
   assert.match(leadershipSource, /const points = finiteNumber\(row\?\.points\)/);
+  assert.match(leadershipSource, /row\?\.name/);
+  assert.match(leadershipSource, /row\?\.categoryName/);
+  assert.match(leadershipSource, /名稱未提供/);
+  assert.doesNotMatch(leadershipSource, /label\.textContent = row\?\.code/);
   assert.doesNotMatch(leadershipSource, /(?:^|[^A-Za-z])Number\(row\?\.points\)/);
 });
