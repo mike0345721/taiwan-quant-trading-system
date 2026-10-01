@@ -46,9 +46,11 @@ test('DAY IX0001 leadership preserves provider data and derives only descriptive
   assert.deepEqual(result.indexLeadership.topAbsolute.map((row) => row.code), ['2330', '2317']);
   assert.deepEqual(result.indexLeadership.topPositive.map((row) => row.code), ['2330', '2454']);
   assert.deepEqual(result.indexLeadership.topNegative.map((row) => row.code), ['2317', '2303']);
+  assert.deepEqual(result.indexLeadership.topPositive.map((row) => row.name), ['台積電', '聯發科']);
   assert.equal(result.indexLeadership.positivePointsSum, 15);
   assert.equal(result.indexLeadership.negativePointsSum, -10);
   assert.deepEqual(result.industryLeadership.rows.map((row) => row.category), ['01', '02']);
+  assert.deepEqual(result.industryLeadership.rows.map((row) => row.categoryName), ['水泥工業', '食品工業']);
   assert.equal(result.industryLeadership.invariantDelta, 0);
   assert.equal(result.recommendation, false);
   assert.equal(result.systemDirectionalSignal, false);
@@ -120,7 +122,7 @@ test('missing and non-numeric provider fields remain null instead of becoming ze
 
   const result = buildIndexLeadership(raw, { now: new Date('2026-08-24T01:01:05.000Z') });
   assert.deepEqual(result.indexLeadership.rankings.abs10.entries[0], {
-    code: '2330', price: null, reference: null, priceChange: null, pctChange: null, points: null,
+    code: '2330', name: null, price: null, reference: null, priceChange: null, pctChange: null, points: null,
   });
   assert.equal(result.industryLeadership.source.indexClose, null);
   assert.equal(result.industryLeadership.source.indexPriceChange, null);
