@@ -5,7 +5,7 @@ const state = {
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
-  gptQuestion: '請指出目前最大反向證據，並依資料缺口做 pre-trade checklist。',
+  gptQuestion: '現在市場發生什麼？',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartVolumeCount: 0,
   txChartLoading: false, txChartRequestId: 0, txChartPendingFit: false,

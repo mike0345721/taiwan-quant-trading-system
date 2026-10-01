@@ -369,8 +369,10 @@ test('DW-1 UI exposes required shell without direct GPT or order routes', () => 
     'dw-observed-flow-quality', 'dw-observed-flow-source', 'dw-observed-flow-promotion',
     'dw-observed-flow-detail',
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
-  assert.match(html, /CHATGPT HANDOFF · NOT A TRADING SIGNAL/);
-  assert.match(html, /複製即時盤況並開啟 ChatGPT/);
+  assert.match(html, /<section id="dw-ask-gpt"[\s\S]*用目前盤況詢問 ChatGPT/);
+  assert.match(html, /<details class="dw-gpt-more">[\s\S]*更多問題/);
+  assert.match(html, /data-gpt-question="現在市場發生什麼？" class="is-selected"/);
+  assert.doesNotMatch(html, /<details id="dw-ask-gpt"/);
   assert.match(html, /LONG_INTENT/);
   assert.match(html, /SHORT_INTENT/);
   assert.match(html, /NO_TRADE/);

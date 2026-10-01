@@ -648,15 +648,20 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-list-label.is-against { color: var(--warning); }
 .dw-card ul, .dw-missing-box ul { padding-left: 17px; margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .dw-missing-box { margin-top: 8px; padding: 9px 10px; border-radius: 9px; background: rgba(245,200,107,.04); color: #b8a578; font-size: 10px; }
+.dw-gpt-heading { align-items: center; }
 .dw-gpt-panel summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; list-style: none; }
 .dw-gpt-panel summary::-webkit-details-marker { display: none; }
 .dw-gpt-panel summary span { display: grid; gap: 2px; }
 .dw-gpt-panel summary small { color: var(--muted); font-size: 9px; font-weight: 500; }
-.dw-gpt-body { padding-top: 12px; }
-.dw-gpt-body p { color: var(--muted); font-size: 10px; line-height: 1.55; }
-.dw-question-list { display: flex; flex-wrap: wrap; gap: 5px; }
-.dw-question-list button { padding: 6px 8px; background: #1b2637; color: #cbd6e6; font-size: 9px; }
-.dw-gpt-body > button { width: 100%; margin-top: 10px; }
+.dw-gpt-body { padding-top: 8px; }
+.dw-gpt-body p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.dw-gpt-primary { width: 100%; margin-top: 10px; }
+.dw-gpt-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--dw-line); }
+.dw-gpt-more > summary { color: #9fb6df; font-size: 11px; font-weight: 800; }
+.dw-gpt-more[open] > summary strong { transform: rotate(45deg); }
+.dw-question-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.dw-question-list button { padding: 6px 8px; background: #1b2637; color: #cbd6e6; font-size: 11px; }
+.dw-question-list button.is-selected { border-color: var(--accent); background: rgba(85,214,190,.11); color: var(--text); }
 .dw-change-strip { display: grid; gap: 12px; padding: 14px; border-color: rgba(138,167,255,.24); }
 .dw-change-heading, .dw-evidence-subhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .dw-change-heading h3 { margin-top: 3px; font-size: 17px; }
