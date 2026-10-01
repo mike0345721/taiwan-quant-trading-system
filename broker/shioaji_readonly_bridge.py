@@ -52,6 +52,19 @@ LEADERSHIP_CACHE: dict[str, Any] = {
 }
 FUTURES_METADATA: dict[str, dict[str, str]] = {}
 OPTIONS_METADATA: dict[str, dict[str, Any]] = {}
+SHIOAJI_API: Any | None = None
+STOCK_NAME_CACHE: dict[str, str] = {}
+TWSE_INDUSTRY_NAMES: dict[str, str] = {
+    "01": "水泥工業", "02": "食品工業", "03": "塑膠工業", "04": "紡織纖維",
+    "05": "電機機械", "06": "電器電纜", "08": "玻璃陶瓷", "09": "造紙工業",
+    "10": "鋼鐵工業", "11": "橡膠工業", "12": "汽車工業", "14": "建材營造",
+    "15": "航運業", "16": "觀光餐旅", "17": "金融保險", "18": "貿易百貨",
+    "19": "綜合", "20": "其他", "21": "化學工業", "22": "生技醫療業",
+    "23": "油電燃氣業", "24": "半導體業", "25": "電腦及週邊設備業", "26": "光電業",
+    "27": "通信網路業", "28": "電子零組件業", "29": "電子通路業", "30": "資訊服務業",
+    "31": "其他電子業", "35": "綠能環保", "36": "數位雲端", "37": "運動休閒",
+    "38": "居家生活",
+}
 LOCK = threading.Lock()
 EVENT_LEDGER = LiveEventLedger(ROOT / "data" / "live-events")
 SERVER: ThreadingHTTPServer | None = None
@@ -255,6 +268,32 @@ def safe_value(value: Any) -> Any:
     if hasattr(value, "__dict__"):
         return safe_value(vars(value))
     return str(value)
+
+
+def resolve_stock_name(code: str) -> str | None:
+    key = str(code or "").strip()
+    if not key:
+        return None
+    cached = STOCK_NAME_CACHE.get(key)
+    if cached:
+        return cached
+    api = SHIOAJI_API
+    if api is None:
+        return None
+    try:
+        contract = api.contracts.get(key)
+        name = str(getattr(contract, "name", "") or "").strip() if contract else ""
+    except Exception:
+        return None
+    if name:
+        STOCK_NAME_CACHE[key] = name
+        return name
+    return None
+
+
+def resolve_industry_name(category: str) -> str | None:
+    key = str(category or "").strip().zfill(2)
+    return TWSE_INDUSTRY_NAMES.get(key)
 
 
 def _iso_datetime(value: Any) -> datetime | None:
@@ -638,8 +677,10 @@ def normalize_index_contribution(data: Any, received_at: str | None = None) -> d
             quality_reasons.append("ENTRY_NOT_MAPPING")
             continue
         row = safe_value(entry)
+        code = str(row.get("code") or "")
         entries.append({
-            "code": str(row.get("code") or ""),
+            "code": code,
+            "name": resolve_stock_name(code),
             "price": finite_number(row.get("price")),
             "reference": finite_number(row.get("reference")),
             "priceChange": finite_number(row.get("price_chg")),
@@ -693,8 +734,10 @@ def normalize_industry_contribution(data: Any, received_at: str | None = None) -
             quality_reasons.append("ENTRY_NOT_MAPPING")
             continue
         row = safe_value(entry)
+        category = str(row.get("category") or "")
         entries.append({
-            "category": str(row.get("category") or ""),
+            "category": category,
+            "categoryName": resolve_industry_name(category),
             "points": finite_number(row.get("points")),
         })
     index_close = finite_number(provider.get("index_close"))
@@ -1178,7 +1221,7 @@ def startup_exit_code(error: Exception) -> tuple[int, str]:
 
 
 def main() -> None:
-    global SERVER, BRIDGE_STARTED_AT
+    global SERVER, BRIDGE_STARTED_AT, SHIOAJI_API
     instance_mutex = acquire_single_instance()
     # Acquire the singleton port before login. A second launcher therefore exits
     # without consuming another broker connection or creating duplicate subscriptions.
@@ -1216,6 +1259,7 @@ def main() -> None:
             secret_key=secret_key,
             subscribe_trade=False,
         )
+        SHIOAJI_API = api
         bridge_started = True
         BRIDGE_STARTED_AT = datetime.now().astimezone().isoformat()
         record_lifecycle("bridge_started", simulation=simulation, processId=os.getpid())
