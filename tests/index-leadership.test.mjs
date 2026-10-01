@@ -20,10 +20,10 @@ function fixture() {
         { code: '2330', name: '台積電', points: 12, price: 1000, reference: 990, priceChange: 10, pctChange: 1.01 },
       ]),
       positive25: indexEvent('positive25', [
-        { code: '2454', points: 3 }, { code: '2330', points: 12 },
+        { code: '2454', name: '聯發科', points: 3 }, { code: '2330', name: '台積電', points: 12 },
       ]),
       negative25: indexEvent('negative25', [
-        { code: '2303', points: -2 }, { code: '2317', points: -8 },
+        { code: '2303', name: '聯電', points: -2 }, { code: '2317', name: '鴻海', points: -8 },
       ]),
     },
     industryContribution: {
@@ -31,7 +31,7 @@ function fixture() {
       eventTime: '2026-08-24T09:01:04+08:00', receivedAt: '2026-08-24T01:01:04.200Z', availableAt: '2026-08-24T01:01:04.200Z',
       simtrade: false, qualityStatus: 'PASS', qualityReasons: [], rawPayloadHash: 'b'.repeat(64),
       indexClose: 25000, indexPriceChange: 4, industryPointsSum: 4, industryInvariantDelta: 0,
-      industryInvariantTolerance: 0.1, entries: [{ category: '01', points: 6 }, { category: '02', points: -2 }],
+      industryInvariantTolerance: 0.1, entries: [{ category: '01', categoryName: '水泥工業', points: 6 }, { category: '02', categoryName: '食品工業', points: -2 }],
     },
     simulatedMatching: { indexContribution: {}, industryContribution: null },
   };
