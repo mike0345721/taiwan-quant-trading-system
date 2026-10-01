@@ -15,6 +15,7 @@ from shioaji_readonly_bridge import (  # noqa: E402
     STOCK_NAME_CACHE,
     TWSE_INDUSTRY_NAMES,
     leadership_payload,
+    ledger_hash_safe_numbers,
     normalize_index_contribution,
     normalize_industry_contribution,
     safe_value,
@@ -47,6 +48,23 @@ class SafeValueTests(unittest.TestCase):
         normalized = safe_value(CallbackPayload().to_dict(raw=True))
         self.assertEqual(normalized["exchange"], "TSE")
         self.assertEqual(normalized["datetime"], "2026-07-27T09:00:00")
+
+
+class LedgerCanonicalizationTests(unittest.TestCase):
+    def test_whole_number_floats_are_normalized_for_js_hash_compatibility(self):
+        payload = {
+            "price": 2495.0,
+            "reference": 2480.0,
+            "pct": 0.6048387096774194,
+            "rows": [{"points": 10.0}, {"points": -4.2}],
+        }
+        normalized = ledger_hash_safe_numbers(payload)
+        self.assertIs(type(normalized["price"]), int)
+        self.assertEqual(normalized["price"], 2495)
+        self.assertIs(type(normalized["reference"]), int)
+        self.assertEqual(normalized["rows"][0]["points"], 10)
+        self.assertEqual(normalized["rows"][1]["points"], -4.2)
+        self.assertEqual(normalized["pct"], 0.6048387096774194)
 
 
 class MarketDataOnlyLoginTests(unittest.TestCase):

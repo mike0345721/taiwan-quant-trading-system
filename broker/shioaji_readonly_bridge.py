@@ -270,6 +270,25 @@ def safe_value(value: Any) -> Any:
     return str(value)
 
 
+def ledger_hash_safe_numbers(value: Any) -> Any:
+    """Normalize whole-number floats so Python and JS canonical JSON hash identically."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else value
+    if isinstance(value, Decimal):
+        parsed = float(value)
+        return int(parsed) if parsed.is_integer() else parsed
+    if isinstance(value, (list, tuple)):
+        return [ledger_hash_safe_numbers(item) for item in value]
+    if isinstance(value, Mapping):
+        return {
+            str(key): ledger_hash_safe_numbers(item)
+            for key, item in value.items()
+        }
+    return ledger_hash_safe_numbers(safe_value(value))
+
+
 def resolve_stock_name(code: str) -> str | None:
     key = str(code or "").strip()
     if not key:
@@ -790,14 +809,24 @@ def normalize_industry_contribution(data: Any, received_at: str | None = None) -
 
 def record_index_contribution(data: Any) -> None:
     try:
-        enqueue("ix0001_index_contribution", normalize_index_contribution(data))
+        normalized = normalize_index_contribution(data)
+        normalized["ledgerCanonicalization"] = "JS_SAFE_NUMBERS_V1"
+        enqueue(
+            "ix0001_index_contribution",
+            ledger_hash_safe_numbers(normalized),
+        )
     except Exception as error:
         record_callback_error(error)
 
 
 def record_industry_contribution(data: Any) -> None:
     try:
-        enqueue("ix0001_industry_contribution", normalize_industry_contribution(data))
+        normalized = normalize_industry_contribution(data)
+        normalized["ledgerCanonicalization"] = "JS_SAFE_NUMBERS_V1"
+        enqueue(
+            "ix0001_industry_contribution",
+            ledger_hash_safe_numbers(normalized),
+        )
     except Exception as error:
         record_callback_error(error)
 

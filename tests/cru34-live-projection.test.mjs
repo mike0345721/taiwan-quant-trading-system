@@ -120,6 +120,73 @@ test('checkpoint restart re-verifies ledger generation and anchor bytes', () => 
   assert.throws(() => projectCru34LiveBatch({ ...value, instrumentProfile: profile }), /LEDGER_HASH_CHAIN_INVALID/);
 });
 
+test('legacy Python-canonicalized IX0001 contribution preserves chain continuity without becoming CRU34 evidence', () => {
+  const firstAt = '2026-10-01T01:51:30.000Z';
+  const nextAt = '2026-10-01T01:51:45.000Z';
+  const common = {
+    code: 'TXFJ6', productFamily: 'TX', actualContract: 'TXFJ6',
+    tradeDate: '2026-10-01', session: 'DAY', simtrade: false,
+  };
+  const prefix = chain([
+    { kind: 'futures_bidask', receivedAt: firstAt, payload: { ...common, datetime: firstAt, bid_price: [99], ask_price: [100] } },
+    { kind: 'futures_tick', receivedAt: firstAt, payload: { ...common, datetime: firstAt, eventTime: firstAt, close: 100, price: 100, volume: 2, executedVolume: 2, tick_type: 1 } },
+  ]);
+  const priorHash = prefix.at(-1).recordHash;
+  const legacyBody = {
+    schemaVersion: '1.0.0', provider: 'shioaji', code: 'ix0001_index_contribution',
+    product: 'ix0001_index_contribution', receivedAt: '2026-10-01T09:51:39.019885+08:00',
+    exchangeTimestamp: null, sequence: null, eventId: crypto.randomUUID(),
+    duplicate: false, sequenceGap: 0, clockSkewMs: null, formalWeight: 0,
+    researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    kind: 'ix0001_index_contribution',
+    payload: { sourceVersion: '1.7.2', entries: [{ code: '2330', price: 2495, reference: 2480, priceChange: 15, points: 119.73 }] },
+    previousHash: priorHash,
+  };
+  const legacy = { ...legacyBody, recordHash: 'a'.repeat(64) };
+  assert.notEqual(
+    crypto.createHash('sha256').update(`${priorHash}\n${cru34LiveCanonicalJson(legacyBody)}`).digest('hex'),
+    legacy.recordHash,
+  );
+  const suffix = chain([
+    { kind: 'futures_bidask', receivedAt: nextAt, payload: { ...common, datetime: nextAt, bid_price: [100], ask_price: [101] } },
+    { kind: 'futures_tick', receivedAt: nextAt, payload: { ...common, datetime: nextAt, eventTime: nextAt, close: 101, price: 101, volume: 1, executedVolume: 1, tick_type: 1 } },
+  ], legacy.recordHash);
+  const value = fixture([...prefix, legacy, ...suffix]);
+  const result = projectCru34LiveBatch({
+    ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000,
+    now: new Date('2026-10-01T01:52:00.000Z'),
+  });
+  assert.equal(result.checkpoint.lastVerifiedLedgerOrdinal, 5);
+  assert.equal(result.checkpoint.rollingCanonicalEvents.some((event) => event.kind.includes('contribution')), false);
+});
+
+test('legacy contribution compatibility still fails closed on broken linkage and marked new records require strict hash', () => {
+  const base = records({ seconds: 0 });
+  const priorHash = base.at(-1).recordHash;
+  const body = {
+    schemaVersion: '1.0.0', provider: 'shioaji', code: 'ix0001_index_contribution',
+    product: 'ix0001_index_contribution', receivedAt: '2026-10-01T09:51:39.019885+08:00',
+    exchangeTimestamp: null, sequence: null, eventId: crypto.randomUUID(),
+    duplicate: false, sequenceGap: 0, clockSkewMs: null, formalWeight: 0,
+    researchOnly: true, executionAuthorized: false, orderRoutesEnabled: false,
+    kind: 'ix0001_index_contribution', payload: { sourceVersion: '1.7.2', entries: [{ price: 2495 }] }, previousHash: priorHash,
+  };
+  const brokenLink = { ...body, previousHash: 'b'.repeat(64), recordHash: 'c'.repeat(64) };
+  assert.throws(
+    () => projectCru34LiveBatch({ ...fixture([...base, brokenLink]), instrumentProfile: profile }),
+    /LEDGER_HASH_CHAIN_INVALID/,
+  );
+  const marked = {
+    ...body,
+    payload: { ...body.payload, ledgerCanonicalization: 'JS_SAFE_NUMBERS_V1' },
+    recordHash: 'd'.repeat(64),
+  };
+  assert.throws(
+    () => projectCru34LiveBatch({ ...fixture([...base, marked]), instrumentProfile: profile }),
+    /LEDGER_HASH_CHAIN_INVALID/,
+  );
+});
+
 test('record and byte bounds advance through checkpoints without an unbounded scan', () => {
   const value = fixture();
   const first = projectCru34LiveBatch({ ...value, instrumentProfile: profile, maxBatchBytes: 4096, maxBatchRecords: 3 });

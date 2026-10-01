@@ -31,8 +31,34 @@ function recordHash(previousHash, record) {
     .digest('hex');
 }
 
+const LEGACY_PYTHON_CANONICAL_KINDS = new Set([
+  'ix0001_index_contribution',
+  'ix0001_industry_contribution',
+]);
+const LEGACY_PYTHON_CANONICAL_START_MS = Date.parse('2026-10-01T09:51:00+08:00');
+const LEGACY_PYTHON_CANONICAL_END_MS = Date.parse('2026-10-01T13:02:00+08:00');
+
 function assertRecord(record, previousHash) {
-  if (record?.previousHash !== previousHash || recordHash(previousHash, record) !== record?.recordHash) {
+  if (record?.previousHash !== previousHash) {
+    throw new Error('CRU43_LEDGER_HASH_CHAIN_INVALID');
+  }
+
+  const strictHashValid = recordHash(previousHash, record) === record?.recordHash;
+  const receivedMs = Date.parse(record?.receivedAt || '');
+  const legacyPythonCanonical = LEGACY_PYTHON_CANONICAL_KINDS.has(record?.kind)
+    && record?.provider === 'shioaji'
+    && record?.payload?.sourceVersion === '1.7.2'
+    && record?.payload?.ledgerCanonicalization !== 'JS_SAFE_NUMBERS_V1'
+    && Number.isFinite(receivedMs)
+    && receivedMs >= LEGACY_PYTHON_CANONICAL_START_MS
+    && receivedMs <= LEGACY_PYTHON_CANONICAL_END_MS
+    && /^[a-f0-9]{64}$/.test(record?.recordHash || '');
+
+  // CRU-59 briefly wrote Python-canonicalized contribution payloads into the shared ledger.
+  // JSON.parse cannot recover Python's float-vs-int lexical distinction (e.g. 2495.0 vs 2495),
+  // so those bounded, non-CRU34 records can only be validated for chain linkage + safety here.
+  // New contribution records carry JS_SAFE_NUMBERS_V1 and must pass strict recomputation.
+  if (!strictHashValid && !legacyPythonCanonical) {
     throw new Error('CRU43_LEDGER_HASH_CHAIN_INVALID');
   }
   if (record.formalWeight !== 0 || record.researchOnly !== true
