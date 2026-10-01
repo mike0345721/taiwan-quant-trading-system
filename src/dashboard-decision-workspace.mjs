@@ -354,7 +354,7 @@ export function copyForChatGpt(snapshot, question = null) {
     return `${item.family}: ${values || 'UNAVAILABLE'}; availability=${item.availabilityState}; quality=${item.qualityState}; promotion=${item.promotionState}; directionalEligible=${item.eligibleDirectionalEvidence}`;
   });
   const contributionLine = (rows) => (rows || []).slice(0, 5)
-    .map((row) => `${row.code || '?'}:${row.points ?? 'UNAVAILABLE'}pt`).join(', ') || 'UNAVAILABLE';
+    .map((row) => `${row.name || row.categoryName || '名稱未提供'}:${row.points ?? 'UNAVAILABLE'}pt`).join(', ') || 'UNAVAILABLE';
   const readable = [
     'DISCUSSION CONTEXT — NOT A TRADING SIGNAL',
     `Snapshot: ${snapshot.snapshotTime}`,
