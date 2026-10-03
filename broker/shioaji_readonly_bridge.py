@@ -1316,7 +1316,7 @@ def main() -> None:
                     "responseCode": int(response_code),
                     "eventCode": int(event_code),
                     "info": str(info)[:300],
-                    "event": str(event),
+                    "event": str(event)[:300],
                     "observedAt": observed_at,
                 }
                 with LOCK:
