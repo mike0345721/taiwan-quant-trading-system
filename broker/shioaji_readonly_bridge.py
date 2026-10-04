@@ -301,7 +301,14 @@ def resolve_stock_name(code: str) -> str | None:
         return None
     try:
         contract = api.contracts.get(key)
-        name = str(getattr(contract, "name", "") or "").strip() if contract else ""
+        if contract is None:
+            return None
+        # Shioaji 1.7 get() returns an identity-only Contract; names live in info().
+        info = api.contracts.info(contract)
+        if getattr(info, "code", None) != key:
+            return None
+        raw_name = getattr(info, "name", None)
+        name = raw_name.strip() if isinstance(raw_name, str) else ""
     except Exception:
         return None
     if name:
