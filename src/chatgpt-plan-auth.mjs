@@ -48,7 +48,7 @@ export function consumeCallback(pending, callbackUrl, browserSession, now = Date
   if (!code || code.length > 8192) fail('AUTH_CODE_MISSING');
   return { clientId, code, verifier: pending.verifier, redirectUri: pending.redirectUri, oidcNonce: pending.oidcNonce, saved: pending.saved };
 }
-export function validateIdToken(token, jwks, { clientId, oidcNonce, expectedSubject, now = Date.now() }) {
+export function validateIdToken(token, jwks, { clientId, oidcNonce, expectedSubject, refresh = false, now = Date.now() }) {
   try {
     if (typeof token !== 'string' || token.length > 32_768) fail('ID_TOKEN_INVALID');
     const parts = token.split('.');
@@ -64,7 +64,8 @@ export function validateIdToken(token, jwks, { clientId, oidcNonce, expectedSubj
     if (payload.iss !== ISSUER || !aud.includes(clientId) || (aud.length > 1 && payload.azp !== clientId) || (payload.azp && payload.azp !== clientId)) fail('ID_TOKEN_IDENTITY_INVALID');
     const seconds = now / 1000;
     if (!Number.isFinite(payload.exp) || payload.exp <= seconds || !Number.isFinite(payload.iat) || payload.iat > seconds + 60 || (payload.nbf !== undefined && (!Number.isFinite(payload.nbf) || payload.nbf > seconds + 60))) fail('ID_TOKEN_EXPIRED_OR_EARLY');
-    if (!same(payload.nonce, oidcNonce) || typeof payload.sub !== 'string' || !payload.sub || (expectedSubject && expectedSubject !== payload.sub)) fail('ID_TOKEN_NONCE_OR_ACCOUNT_MISMATCH');
+    const nonceValid = refresh === true && expectedSubject && payload.nonce === undefined ? true : same(payload.nonce, oidcNonce);
+    if (!nonceValid || (refresh && !expectedSubject) || typeof payload.sub !== 'string' || !payload.sub || (expectedSubject && expectedSubject !== payload.sub)) fail('ID_TOKEN_NONCE_OR_ACCOUNT_MISMATCH');
     return { issuer: payload.iss, subject: payload.sub, email: typeof payload.email === 'string' ? payload.email : null };
   } catch (error) { if (error instanceof PlanError) throw error; fail('ID_TOKEN_INVALID'); }
 }
@@ -91,7 +92,7 @@ export async function exchangeAuthorization(transaction, { fetcher = fetch, now 
   const jwks = await requestJson(ISSUER + '/.well-known/jwks.json', {}, fetcher);
   const identity = validateIdToken(raw.id_token, jwks, { clientId: transaction.clientId, oidcNonce: transaction.oidcNonce, expectedSubject: transaction.saved?.subject, now });
   const scopes = typeof raw.scope === 'string' ? raw.scope.split(/\s+/).filter(Boolean) : [];
-  return { ...identity, client_id: transaction.clientId, access_token: raw.access_token, refresh_token: typeof raw.refresh_token === 'string' ? raw.refresh_token : null, id_token: raw.id_token, scopes, expiresAt: now + raw.expires_in * 1000, savedAt: new Date(now).toISOString() };
+  return { ...identity, client_id: transaction.clientId, access_token: raw.access_token, refresh_token: typeof raw.refresh_token === 'string' ? raw.refresh_token : null, id_token: raw.id_token, scopes, expiresAt: now + raw.expires_in * 1000, originalNonce: transaction.oidcNonce, earliestRefreshAt: typeof raw.earliest_refresh_at === 'number' ? (raw.earliest_refresh_at < 100000000000 ? raw.earliest_refresh_at * 1000 : raw.earliest_refresh_at) : (Date.parse(raw.earliest_refresh_at) || null), savedAt: new Date(now).toISOString() };
 }
 export function requirePlanPermission(record, now = Date.now()) {
   if (!record || !issued(record.client_id) || !record.subject || !record.access_token) fail('SIGN_IN_REQUIRED');

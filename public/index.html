@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="/data-operations.css?v=cru52-a2b">
   <script src="/data-operations.js?v=cru52-a2b" defer></script>
   <script src="/app.js?v=cru49-refresh" defer></script>
+  <link rel="stylesheet" href="/ask-gpt-inline.css">
+  <script src="/ask-gpt-inline.js" defer></script>
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
@@ -336,12 +338,29 @@
 
               <section id="dw-ask-gpt" class="dw-card dw-gpt-panel" aria-labelledby="dw-ask-gpt-title">
                 <div class="dw-section-heading compact dw-gpt-heading">
-                  <div><p class="eyebrow">CHATGPT HANDOFF</p><h3 id="dw-ask-gpt-title">Ask GPT</h3></div>
-                  <span class="dw-status-pill is-ready">READY</span>
+                  <div><p class="eyebrow">MARKET DISCUSSION</p><h3 id="dw-ask-gpt-title">Ask GPT｜盤況討論</h3></div>
+                  <span class="dw-status-pill">唯讀解說</span>
                 </div>
                 <div class="dw-gpt-body">
                   <p>用最新 immutable snapshot 帶入 RVOL、Basis、IX0001 指數貢獻、Observed Flow 與 Data Trust；只做盤況討論，不產生交易指令。</p>
-                  <button id="dw-copy-gpt-prompt" class="secondary dw-gpt-primary" type="button">用目前盤況詢問 ChatGPT</button>
+                  <div id="ai-inline" aria-busy="false">
+                    <p><strong>在本頁提問與閱讀回答</strong> · 使用目前市場快照，不是鎖定或歷史回放畫面。資料來源可能過期或不完整，模型不得補造。</p>
+                    <p id="ai-version"></p><p id="ai-connection">正在確認連線設定…</p>
+                    <div class="ai-actions"><button id="ai-refresh" type="button" class="secondary">讀取連線狀態</button><button id="ai-connect" type="button" class="secondary" disabled>連接／重新授權</button></div>
+                    <a id="ai-setup-link" class="hidden" target="_blank" rel="noopener noreferrer">開啟本機訂閱授權設定</a>
+                    <label for="ai-account">已授權的 ChatGPT 帳號</label><select id="ai-account" disabled><option value="">尚未讀取</option></select>
+                    <div id="ai-model-row"><button id="ai-models" type="button" class="secondary" disabled>載入帳號可用模型</button><label for="ai-model">本次使用模型（不會自動升級）</label><select id="ai-model" disabled><option value="">請先載入模型</option></select></div>
+                    <label for="ai-question">想了解什麼？</label><textarea id="ai-question" maxlength="1000" rows="3" disabled>現在市場發生什麼？請分開事實、可能解讀與資料缺口。</textarea>
+                    <label class="ai-consent"><input id="ai-credits" type="checkbox" disabled><span>我已在 ChatGPT「使用情況」確認額外點數與自動儲值關閉；本次只使用訂閱額度。</span></label>
+                    <p>每次提問才送出盤況。沒有付費 API 備援；達上限會停止。<a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">查看 ChatGPT 用量設定</a></p>
+                    <div class="ai-actions"><button id="ai-submit" type="button" disabled>用目前盤況在本頁分析</button><button id="ai-cancel" type="button" class="secondary" disabled>取消分析</button><button id="ai-recover" type="button" class="secondary">查回上次結果</button></div>
+                    <p id="ai-status" role="status" aria-live="polite">尚未發出模型請求。</p>
+                    <p id="ai-meta"></p><pre id="ai-answer" tabindex="0" aria-label="模型盤況解說">回答會出現在這裡，不會跳去其他聊天頁面。</pre><p id="ai-receipt"></p>
+                    <details><summary>查看本次送出的資料、時間與品質限制</summary><pre id="ai-evidence">尚未送出資料。</pre></details>
+                    <p>僅供理解市場，不是交易訊號或自動下單。模型解讀仍可能錯誤。</p>
+                  </div>
+                  <p><strong>人工備援</strong>：下方會複製盤況並另開 ChatGPT，不是原頁分析。</p>
+                  <button id="dw-copy-gpt-prompt" class="secondary dw-gpt-primary" type="button">複製盤況到 ChatGPT（備援）</button>
                   <p id="dw-gpt-feedback" class="dw-gpt-feedback" role="status" aria-live="polite">先複製最新盤況，再開啟 ChatGPT；請在新頁面貼上。</p>
                   <a id="dw-open-chatgpt" class="dw-gpt-open hidden" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">開啟 ChatGPT</a>
                   <details class="dw-gpt-more">

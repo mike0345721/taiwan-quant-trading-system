@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { InlineAssistant } from './src/ask-gpt-inline-service.mjs';
+import { createInlineHandler } from './src/ask-gpt-inline-http.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -332,6 +334,14 @@ function requireCsrf(req, res, session) {
   return true;
 }
 
+const inlineEnabled = process.env.ASK_GPT_INLINE_ENABLED === '1';
+if (process.env.ASK_GPT_INLINE_ENABLED && !['0','1'].includes(process.env.ASK_GPT_INLINE_ENABLED)) throw Error('INLINE_ACTIVATION_INVALID');
+if (inlineEnabled && (config.host !== '127.0.0.1' || config.cru55Candidate || config.cru55Acceptance)) throw Error('INLINE_RUNTIME_NOT_SUPPORTED');
+const inlineAssistant = new InlineAssistant({ enabled: inlineEnabled,
+  root: path.join(config.dataDir, 'ask-gpt-inline'), runtimeCommit: runtimeIdentity.commit,
+  snapshotProvider: currentDiscussionWorkspace });
+const inlineHandler = createInlineHandler({assistant:inlineAssistant,port:config.port,requireCsrf});
+
 const server = http.createServer(async (req, res) => {
   const isHttps = requestIsHttps(req, config.trustProxy);
   setSecurityHeaders(res, { isHttps });
@@ -354,6 +364,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
+        inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
         cru55Acceptance: config.cru55Acceptance?{runId:config.cru55Acceptance.runId,bindingHash:config.cru55Acceptance.bindingHash,sourceKind:config.cru55Acceptance.sourceKind}:null,
         runtimeIdentityStatus: runtimeIdentity.status,
         approvedMainCommit: runtimeVersion.approvedMainCommit,
@@ -418,6 +429,8 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/v1/')) {
       const session = requireSession(req, res);
       if (!session) return;
+
+      if (await inlineHandler(req, res, url, session)) return;
 
       if (req.method === 'GET' && pathname === '/api/v1/data-operations') {
         try {
@@ -734,6 +747,7 @@ if (!cru55 && !config.cru55Acceptance && config.refreshIntervalMs > 0) {
 }
 
 function shutdown(signal) {
+  void inlineAssistant.close();
   console.log(`收到 ${signal}，停止服務…`);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10_000).unref();
