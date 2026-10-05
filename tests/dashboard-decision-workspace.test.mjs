@@ -354,7 +354,7 @@ test('manual decision journal is isolated, append-only and snapshot immutable', 
   assert.throws(() => appendDecisionJournal(path.resolve('data/market-state/forward-shadow/journal.ndjson'), { intent: 'NO_TRADE', snapshot }), /FORWARD_SHADOW_PATH_FORBIDDEN/);
 });
 
-test('DW-1 UI exposes required shell without direct GPT or order routes', () => {
+test('DW-1 UI exposes required shell with same-page GPT, handoff fallback and no order routes', () => {
   const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
   for (const id of [
