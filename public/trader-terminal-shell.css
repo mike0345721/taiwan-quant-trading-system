@@ -300,7 +300,8 @@
 .tt-tier-two-grid,
 .tt-tier-three-grid { display: grid; gap: var(--tt-space-sm); margin-top: var(--tt-space-sm); }
 .tt-tier-two-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: clamp(268px, 25vh, 280px); }
-.tt-tier-three-grid { grid-template-columns: 1.75fr .78fr 1.25fr; height: clamp(205px, 20vh, 220px); }
+/* Keep the desktop row content-sized so Ask GPT feedback and recovery remain visible. */
+.tt-tier-three-grid { grid-template-columns: 1.75fr .78fr 1.25fr; min-height: clamp(205px, 20vh, 220px); height: auto; }
 
 .tt-card,
 .tt-tier-one-grid > section,
