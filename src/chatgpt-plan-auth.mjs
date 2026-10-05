@@ -9,7 +9,14 @@ const nonce = () => randomBytes(32).toString('base64url');
 const same = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export class PlanError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = code => { throw new PlanError(code); };
-export function publicError(error) { return error instanceof PlanError ? error.code : error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'REQUEST_TIMED_OUT' : 'REQUEST_FAILED'; }
+export function publicError(error) {
+  if(error instanceof PlanError)return error.code;
+  if(error?.name==='TimeoutError'||error?.name==='AbortError')return 'REQUEST_TIMED_OUT';
+  const code=error?.cause?.code||error?.code;
+  if(['SELF_SIGNED_CERT_IN_CHAIN','DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_VERIFY_LEAF_SIGNATURE','UNABLE_TO_GET_ISSUER_CERT_LOCALLY','CERT_HAS_EXPIRED','ERR_TLS_CERT_ALTNAME_INVALID'].includes(code))return 'UPSTREAM_TLS_UNTRUSTED';
+  if(['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT'].includes(code))return 'UPSTREAM_CONNECTION_FAILED';
+  return 'REQUEST_FAILED';
+}
 function issued(id) { return typeof id === 'string' && /^[a-zA-Z0-9_-]{8,200}$/.test(id) && id !== 'dynamic_agent_client'; }
 export function prepareAuthorization({ hostId, redirectUri, browserSession, saved = null, now = Date.now() }) {
   const callback = new URL(redirectUri);

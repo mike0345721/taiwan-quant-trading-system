@@ -74,12 +74,13 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
           const key=body.registration;
           if(key && (typeof key!=='string' || !/^[a-f0-9]{64}$/.test(key))) reject('REGISTRATION_INVALID');
           const saved=key?store.get(key):null;if(key&&!saved)reject('REGISTRATION_NOT_FOUND');
-          busy=true;
+          busy=true;pending=null;update('PREPARING_AUTHORIZATION');
           try {
             await ops.discovery();
             const prepared=prepareAuthorization({hostId:store.hostId,redirectUri:origin+'/auth/callback',browserSession:session.id,saved});
             pending=prepared.pending;update('WAITING_FOR_OWNER_SIGN_IN');json(res,200,{ok:true,authorizationUrl:prepared.url});
-          } finally {busy=false;}return;
+          } catch(error) { update('AUTHORIZATION_FAILED',publicError(error));throw error; }
+          finally {busy=false;}return;
         }
         if(url.pathname==='/api/cancel') {pending=null;update('AUTHORIZATION_CANCELLED');json(res,200,{ok:true});return;}
         if(url.pathname==='/api/models') {

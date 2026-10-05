@@ -6,6 +6,7 @@
 <section><h2>1．本人登入與授權</h2><p>按下按鈕後，會在 <strong>auth.openai.com</strong> 完成本人的登入與使用方案授權。這不是開啟空白聊天頁，也不需要提供 API Key。</p>
 <label for="account">選擇帳號連線</label><select id="account"><option value="">新增 ChatGPT 帳號或工作區</option></select>
 <button id="connect" class="siwc" disabled>Continue with ChatGPT</button><button id="cancel" class="secondary" disabled>取消這次登入</button>
+<p id="notice" role="alert" aria-live="assertive"></p>
 <p id="active" class="muted">尚未驗證帳號；登入不等於已確認模型可用。</p>
 <p class="muted">憑證只由此應用保存在 Windows 目前使用者的加密儲存區，不會傳回聊天、寫進 GitHub，或從既有 Codex／瀏覽器提取登入資料。</p></section>
 <section><h2>2．確認不使用額外付費額度</h2><p>在 ChatGPT 的<strong>設定 → 用量 → App limits</strong>，確認未允許 Apps 使用額外 credits。不要為這次驗證啟用自動加值。</p>
@@ -17,5 +18,5 @@
 <button id="probe" disabled>測試一次連線（使用訂閱額度）</button>
 <p class="muted">每次啟動最多允許一次測試請求，失敗不自動重試或升級模型。收到完整完成事件才標示成功；用量與剩餘額度以 ChatGPT 官方介面為準。</p>
 <h3>模型實際回覆</h3><pre id="answer">尚未發出模型請求。</pre><p id="model-result" class="muted"></p></section>
-<footer><p>完成授權與測試後，回到原本專案對話回報結果；後續才接原 Dashboard 內的問答。取消此頁不等於撤銷官方授權，需在 ChatGPT 設定中移除連線。</p><button id="stop" class="secondary" disabled>關閉這次驗證入口</button><p id="notice" role="alert"></p></footer>
+<footer><p>完成授權與測試後，回到原本專案對話回報結果；後續才接原 Dashboard 內的問答。取消此頁不等於撤銷官方授權，需在 ChatGPT 設定中移除連線。</p><button id="stop" class="secondary" disabled>關閉這次驗證入口</button></footer>
 </main></body></html>

@@ -65,3 +65,20 @@ node scripts/scan-secrets.mjs
 下一步先取得真實 Owner authorization／scope／catalog／completed probe，再於同一主線候選整合原面板問答、錯誤狀態、受控快照、模型路由與正式負向測試。Merge／formal rollout 仍需 exact Owner gate，未啟動額外付費服務。
 
 `formalWeight=0 / researchOnly=true / executionAuthorized=false / orderRoutesEnabled=false`。本階段不讀寫市場資料、不啟 CVD、不改 scheduler，也不改既有未驗證研究的權重。
+
+## 2026-10-05｜登入按鈕無反應的實機修復
+
+Owner 回報按 Continue with ChatGPT 沒反應。13:22 查核設定入口未到期、18721/PID14144仍在線；本機原Chrome頁面實際有 REQUEST_FAILED，但提示位於最底部。相同候選的 Node discovery 重現 SELF_SIGNED_CERT_IN_CHAIN；Windows信任庫模式與修正版原生transport都成功驗證官方公開discovery。不能因此推斷某防毒／代理是原因，也不代表帳號已授權。
+
+修正僅作用於本機設定服務：
+
+- 啟動時用 Node `tls.setDefaultCACertificates` 合併原本預設與 Windows 已信任憑證，限目前程序。沒有匯入新根憑證、改OS／全域環境、關閉TLS驗證或變更其他程序。若NODE_TLS_REJECT_UNAUTHORIZED=0或Node缺乏所需API，入口拒絕啟動。
+- 官方discovery之前顯示PREPARING_AUTHORIZATION；失敗保存AUTHORIZATION_FAILED與白名單原因，不能繼續顯示單純等待本人。
+- 錯誤直接顯示在登入按鈕旁及狀態區，不再藏在footer。未知錯誤仍去敏，不傳回原始上游訊息。
+- 不跳過discovery、JWT、PKCE、CSRF、本人官方同意、額外credits確認或任何既有驗證；不新增模型呼叫或付費fallback。
+
+兩項新狀態回歸在舊程式皆FAIL，修正後相關整組43/43 PASS（含Windows DPAPI與原Copy/Open保護）。新增trust-policy及錯誤去敏測試。既有secret scanner無例外PASS。
+
+`data/chatgpt-plan-preflight-tests/click-browser-receipt.json`記錄真實Chrome實點按鈕：使用真實匿名官方discovery後觀測到官方授權導航請求；測試在送往授權頁前主動攔截，因此沒有替Owner登入，也不算OAuth／entitlement／模型完成。另以注入TLS失敗測試1536/720寬度的錯誤可見性（明確是工程負向測試）。所有自有瀏覽器與測試listener已清理。
+
+新增配置需支援TLS CA API的Node（本次MSI為24.18.0）；不更改專案其他程式的Node版本要求。正式8787、8790／CRU34及main保持不變。後續仍由Owner在新開的有限時設定入口完成官方同意。

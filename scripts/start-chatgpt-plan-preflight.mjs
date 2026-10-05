@@ -6,9 +6,11 @@ import { spawn } from 'node:child_process';
 import { createWindowsPlanStore } from '../src/chatgpt-plan-store.mjs';
 import { startPlanSetup } from '../src/chatgpt-plan-setup.mjs';
 import { publicError } from '../src/chatgpt-plan-auth.mjs';
+import { configurePlanTransport } from '../src/chatgpt-plan-transport.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 let app;
 try {
+  configurePlanTransport();
   const args=process.argv.slice(2);
   if(args.some(x=>x!=='--no-open'))throw new Error('UNSUPPORTED_ARGUMENT');
   const evidence=path.join(root,'data','chatgpt-plan-preflight');fs.mkdirSync(evidence,{recursive:true});

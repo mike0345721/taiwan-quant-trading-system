@@ -48,3 +48,20 @@ test('an occupied setup port fails before protected-store initialization',async 
 test('an unrelated unauthenticated request cannot overwrite the pending authorization phase',async t=>{
  const s=await setup(t);await s.bootstrap();await s.request('/api/authorize',{});await fetch(s.app.origin+'/unrelated-route');const state=await (await s.request('/api/status')).json();assert.equal(state.phase,'WAITING_FOR_OWNER_SIGN_IN');
 });
+
+test('anonymous discovery TLS failure is persisted before sign-in with no model request',async t=>{
+ const s=await setup(t,{discovery:async()=>{throw new TypeError('private diagnostic',{cause:{code:'SELF_SIGNED_CERT_IN_CHAIN'}});}});
+ await s.bootstrap();const res=await s.request('/api/authorize',{});assert.equal(res.status,400);
+ const state=await (await s.request('/api/status')).json();
+ assert.equal(state.phase,'AUTHORIZATION_FAILED');assert.equal(state.reason,'UPSTREAM_TLS_UNTRUSTED');
+ assert.equal(s.calls.models,0);assert.equal(s.calls.inference,0);
+ assert.equal(JSON.stringify(s.receipts).includes('private diagnostic'),false);
+});
+test('discovery preparing state is observable while the bounded request is pending',async t=>{
+ let release;const waiting=new Promise(resolve=>{release=resolve;});
+ const s=await setup(t,{discovery:()=>waiting});await s.bootstrap();
+ const pending=s.request('/api/authorize',{});
+ try {let state;for(let i=0;i<40;i++){state=await (await s.request('/api/status')).json();if(state.busy)break;await new Promise(r=>setTimeout(r,5));}
+ assert.equal(state.phase,'PREPARING_AUTHORIZATION');assert.equal(state.busy,true);
+ }finally{release();await pending;}
+});
