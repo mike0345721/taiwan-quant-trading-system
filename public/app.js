@@ -4617,7 +4617,11 @@ async function copyToClipboard(value) {
   }
   const textarea = document.createElement('textarea');
   textarea.value = value; textarea.setAttribute('readonly', ''); textarea.style.position = 'fixed'; textarea.style.opacity = '0';
-  document.body.append(textarea); textarea.select(); document.execCommand('copy'); textarea.remove();
+  document.body.append(textarea);
+  try {
+    textarea.select();
+    if (!document.execCommand('copy')) throw new Error('CLIPBOARD_WRITE_FAILED');
+  } finally { textarea.remove(); }
 }
 
 async function loadDashboard() {
@@ -4752,17 +4756,37 @@ $('dw-copy-chatgpt').addEventListener('click', async () => {
   dwText('dw-journal-feedback', 'ChatGPT discussion context copied · NOT A TRADING SIGNAL');
 });
 $('dw-copy-gpt-prompt').addEventListener('click', async () => {
-  const chatWindow = window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
-  dwText('dw-journal-feedback', '正在建立最新 immutable snapshot…');
+  const button = $('dw-copy-gpt-prompt');
+  if (button.disabled) return;
+  const openLink = $('dw-open-chatgpt');
+  const feedback = (message) => {
+    dwText('dw-gpt-feedback', message);
+    dwText('dw-journal-feedback', message);
+  };
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  openLink?.classList.add('hidden');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  feedback('正在建立最新盤況，請暫時留在此頁…');
   try {
-    const payload = await api(`/api/v1/ask-gpt-context?question=${encodeURIComponent(state.gptQuestion)}`, { cache: 'no-store' });
+    const payload = await api(`/api/v1/ask-gpt-context?question=${encodeURIComponent(state.gptQuestion)}`, { cache: 'no-store', signal: controller.signal });
     if (!payload?.data?.prompt) throw new Error('DISCUSSION_PROMPT_UNAVAILABLE');
+    // Clipboard write must finish while this document still owns focus.
     await copyToClipboard(payload.data.prompt);
-    dwText('dw-journal-feedback',
-      `已複製最新盤況 · ${String(payload.data.snapshotHash || '').slice(0, 12)}… · 請貼到已開啟的 ChatGPT`);
+    openLink?.classList.remove('hidden');
+    feedback(`已複製最新盤況 · ${String(payload.data.snapshotHash || '').slice(0, 12)}… · 請到 ChatGPT 貼上；若未開啟，請點下方連結。`);
+    // noopener may return null even when the tab opens: do not infer popup failure from it.
+    try { window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer'); }
+    catch { /* The visible, user-activated link remains available after successful copying. */ }
   } catch (error) {
-    if (!chatWindow) window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
-    dwText('dw-journal-feedback', `Ask GPT context UNAVAILABLE · ${error.message}`);
+    feedback(controller.signal.aborted
+      ? '建立盤況逾時，尚未複製。請稍後重試。'
+      : `尚未複製盤況，請保持此頁在前景後重試。原因：${error.message}`);
+  } finally {
+    clearTimeout(timeout);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
   }
 });
 $('dw-journal-form').addEventListener('submit', async (event) => {

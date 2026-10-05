@@ -938,3 +938,8 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 @media (max-width: 1050px) { .cockpit-lead { grid-template-columns: 1fr; }.evidence-board { grid-template-columns: 1fr 1fr; }.evidence-column.conflict { grid-column: 1 / -1; grid-row: 2; } }
 @media (max-width: 760px) { .decision-cockpit { padding: 16px; }.cockpit-heading { flex-direction: column; }.cockpit-badges { justify-content: flex-start; }.cockpit-axis-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.evidence-board,.component-score-panel,.shadow-six-axis-list { grid-template-columns: 1fr; }.evidence-column.conflict { grid-column: auto; grid-row: auto; }.today-deep-dive > summary { flex-direction: column; gap: 4px; } }
 @media (max-width: 480px) { .cockpit-mini-row,.cockpit-axis-grid,.component-bars { grid-template-columns: 1fr; }.cockpit-posture { min-height: 0; }.cockpit-posture h3 { margin-top: 15px; }.component-row { grid-template-columns: 58px 1fr 34px; } }
+
+/* CRU-59: keep handoff progress and recovery next to the primary action. */
+.dw-gpt-body .dw-gpt-feedback { margin-top: 8px; overflow-wrap: anywhere; }
+.dw-gpt-open { display: inline-block; margin-top: 8px; font-size: 11px; }
+.dw-gpt-open.hidden { display: none; }
