@@ -85,7 +85,9 @@ const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(con
 const loginLimiter = new LoginRateLimiter();
 const v2Research = new V2ResearchService();
 let dailyUpdateProcess = null;
-const readDataRoot = cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir;
+// Candidate reads existing governed products while sessions, AI receipts and caches stay local.
+if (process.env.ASK_GPT_CANDIDATE_READ_ROOT && (process.env.ASK_GPT_INLINE_ENABLED !== '1' || config.host !== '127.0.0.1' || [8787,8790,8791].includes(config.port))) throw Error('INLINE_CANDIDATE_READ_ROOT_REJECTED');
+const readDataRoot = cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : process.env.ASK_GPT_CANDIDATE_READ_ROOT ? path.resolve(process.env.ASK_GPT_CANDIDATE_READ_ROOT) : config.dataDir;
 const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
 const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');

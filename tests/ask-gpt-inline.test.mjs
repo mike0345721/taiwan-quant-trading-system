@@ -120,3 +120,6 @@ test('HTTP routes preserve auth, exact origin, CSRF, and reject client prompt fi
  const status=await(await call('status')).json();assert.equal(status.data.enabled,true);assert.equal(s.counters.analyse,0);
  const result=await(await call('ask',s.body())).text();assert.ok(result.includes('COMPLETED'));assert.equal(s.counters.analyse,1);
 });
+
+test('same request id cannot silently accept a different question',async t=>{const s=await fixture(t),b=s.body();await s.assistant.run(b,'owner');await assert.rejects(s.assistant.run({...b,question:'different'},'owner'),/REQUEST_ID_PAYLOAD_MISMATCH/);assert.equal(s.counters.analyse,1);});
+test('live or unknown request lease is preserved and blocks another model request',async t=>{const s=await fixture(t),file=path.join(s.root,'active-request.lock');fs.writeFileSync(file,JSON.stringify({schema:'ask-gpt-active-lease-v1',root:fs.realpathSync(s.root),pid:process.pid,instance:randomUUID(),requestId:randomUUID()}));const before=fs.readFileSync(file,'utf8');await assert.rejects(s.assistant.run(s.body(),'owner'),/ANALYSIS_ALREADY_RUNNING_OR_INTERRUPTED_LOCK/);assert.equal(fs.readFileSync(file,'utf8'),before);assert.equal(s.counters.analyse,0);});

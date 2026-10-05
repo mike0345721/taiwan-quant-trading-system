@@ -15,7 +15,7 @@
 - 僅支援明確127.0.0.1私人Dashboard；不支援CRU55候選／動態正式表面或遠端多租戶。
 - Source in branch / source merged / formal activation是不同gate。未經Owner exact-tree批准，不Merge或更改正式8787設定。
 - Copy/Open保留為明確標示的人工備援；新的原頁分析API與其分離。
-- 候選測試使用18722、自有狀態與chart cache，既有市場資料唯讀，不給Owner另一個假正式產品。
+- 候選測試使用18722、自有狀態與chart cache；ASK_GPT_CANDIDATE_READ_ROOT只把既有intraday／audit／forward等來源讀取對齊governed根目錄，不改private寫入。此參數在8787/8790/8791或非loopback直接拒絕，正式預設路徑不變。既有市場資料唯讀，不給Owner另一個假正式產品。
 
 ## Auth / usage / failure handling
 沿用正式Dashboard真實Session與CSRF，再對新增API要求精確loopback Host/Origin。憑證僅在原app-owned Windows DPAPI store，與既有Codex、瀏覽器、券商憑證分離。
