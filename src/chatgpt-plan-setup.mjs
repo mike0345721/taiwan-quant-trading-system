@@ -25,12 +25,12 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
   if(!Number.isFinite(lifetimeMs) || lifetimeMs<=0 || lifetimeMs>60*60_000) reject('SETUP_LIFETIME_REJECTED');
   const ops={discovery,exchangeAuthorization,listPlanModels,probePlanInference,...operations};
   const assetBytes=new Map([...assets].map(([route,[file,type]])=>[route,{type,bytes:fs.readFileSync(new URL('../tools/chatgpt-plan-setup/'+file,import.meta.url))}]));
-  let origin,bootstrap=secret(),bootstrapExpires=Date.now()+300_000,session=null,pending=null,active=null,busy=false,attemptUsed=false,timer;
-  const state={phase:'AUTHORIZATION_REQUIRED',reason:null,updatedAt:new Date().toISOString(),models:[],result:null};
+  let origin,bootstrap=secret(),bootstrapExpires=Date.now()+300_000,session=null,pending=null,active=null,busy=false,attemptUsed=false,timer,lastReturn=null;
+  const state={phase:'AUTHORIZATION_REQUIRED',reason:null,callbackNotice:null,updatedAt:new Date().toISOString(),models:[],result:null};
   const expiresAt=new Date(Date.now()+lifetimeMs).toISOString();
   function receipt() {
     const result=state.result;
-    return {schema:'cru21-plan-preflight-v1',phase:state.phase,reason:state.reason,updatedAt:state.updatedAt,expiresAt,authenticated:Boolean(active),directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),modelCount:state.models.length,probeAttempted:attemptUsed,completed:result?.terminal==='response.completed',selectedModel:result?.model||null,requestId:result?.requestId||null,responseChars:result?.text?.length||0,responseHash:result?.text?createHash('sha256').update(result.text).digest('hex'):null,usage:result?.usage||null,usageRoute:'SIWC_OAUTH_PUBLIC_RESPONSES',creditsSetting:'OWNER_CONFIRMATION_REQUIRED_NOT_API_AUDITED',paidApiFallback:false,formalDashboardModified:false};
+    return {schema:'cru21-plan-preflight-v1',phase:state.phase,reason:state.reason,callbackNotice:state.callbackNotice,updatedAt:state.updatedAt,expiresAt,authenticated:Boolean(active),directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),modelCount:state.models.length,probeAttempted:attemptUsed,completed:result?.terminal==='response.completed',selectedModel:result?.model||null,requestId:result?.requestId||null,responseChars:result?.text?.length||0,responseHash:result?.text?createHash('sha256').update(result.text).digest('hex'):null,usage:result?.usage||null,usageRoute:'SIWC_OAUTH_PUBLIC_RESPONSES',creditsSetting:'OWNER_CONFIRMATION_REQUIRED_NOT_API_AUDITED',paidApiFallback:false,formalDashboardModified:false};
   }
   function update(phase,reason=null) {
     state.phase=phase;state.reason=reason;state.updatedAt=new Date().toISOString();
@@ -42,6 +42,9 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   }
   function json(res,status,body) {res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(body));}
+  const stateDigest=value=>typeof value==='string'?createHash('sha256').update(value).digest('hex'):null;
+  function cleanCallback(res) { res.writeHead(303,{Location:'/'});res.end(); }
+  function callbackNotice(code) { state.callbackNotice=code;update(state.phase,state.reason); }
   function requireSession(req) {
     const values=(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(x=>x.startsWith(cookieName+'=')).map(x=>x.slice(cookieName.length+1));
     if(!session || values.length!==1 || !equal(values[0],session.id)) reject('SETUP_SESSION_REQUIRED');
@@ -71,18 +74,23 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
         if(busy) reject('REQUEST_ALREADY_RUNNING');
         if(url.pathname==='/api/authorize') {
           if(attemptUsed) reject('PROBE_ALREADY_USED');
+          if(pending && !pending.consumed && Date.now()<=pending.expiresAt) reject('AUTH_ATTEMPT_IN_PROGRESS');
           const key=body.registration;
           if(key && (typeof key!=='string' || !/^[a-f0-9]{64}$/.test(key))) reject('REGISTRATION_INVALID');
           const saved=key?store.get(key):null;if(key&&!saved)reject('REGISTRATION_NOT_FOUND');
-          busy=true;pending=null;update('PREPARING_AUTHORIZATION');
+          busy=true;pending=null;state.callbackNotice=null;update('PREPARING_AUTHORIZATION');
           try {
             await ops.discovery();
             const prepared=prepareAuthorization({hostId:store.hostId,redirectUri:origin+'/auth/callback',browserSession:session.id,saved});
-            pending=prepared.pending;update('WAITING_FOR_OWNER_SIGN_IN');json(res,200,{ok:true,authorizationUrl:prepared.url});
+            pending={...prepared.pending,attemptId:secret()};update('WAITING_FOR_OWNER_SIGN_IN');json(res,200,{ok:true,authorizationUrl:prepared.url});
           } catch(error) { update('AUTHORIZATION_FAILED',publicError(error));throw error; }
           finally {busy=false;}return;
         }
-        if(url.pathname==='/api/cancel') {pending=null;update('AUTHORIZATION_CANCELLED');json(res,200,{ok:true});return;}
+        if(url.pathname==='/api/cancel') {
+          if(body.confirmed!==true || !pending || pending.consumed || !equal(body.attemptId,pending.attemptId)) reject('CANCEL_CONFIRMATION_REQUIRED');
+          lastReturn={stateHash:stateDigest(pending.state),outcome:'cancelled'};
+          pending=null;state.callbackNotice=null;update('AUTHORIZATION_CANCELLED');json(res,200,{ok:true});return;
+        }
         if(url.pathname==='/api/models') {
           requirePlanPermission(active);busy=true;
           try{state.models=await ops.listPlanModels(active);update('MODEL_SELECTION_READY');json(res,200,{ok:true});}finally{busy=false;}return;
@@ -99,26 +107,48 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
         reject('ROUTE_NOT_FOUND');
       }
       if(req.method==='GET' && url.pathname==='/auth/callback') {
-        requireSession(req);
-        if(busy)reject('REQUEST_ALREADY_RUNNING');
-        const tx=consumeCallback(pending,url.href,session.id);ownerRequest=true;busy=true;update('VALIDATING_AUTHORIZATION');
-        try{
+        // Always leave the code-bearing URL, including failure paths. Never replay a code.
+        try {requireSession(req);} catch {cleanCallback(res);return;}
+        const returnedHash=url.searchParams.getAll('state').length===1?stateDigest(url.searchParams.get('state')):null;
+        if(busy) {
+          callbackNotice(pending && returnedHash===stateDigest(pending.state)?'AUTH_RETURN_PROCESSING':'AUTH_STATE_MISMATCH');
+          cleanCallback(res);return;
+        }
+        if(!pending) {
+          const matching=returnedHash && returnedHash===lastReturn?.stateHash;
+          callbackNotice(matching && lastReturn.outcome==='success'?'AUTH_RETURN_ALREADY_HANDLED':matching && lastReturn.outcome==='cancelled'?'AUTHORIZATION_CANCELLED':'AUTH_ATTEMPT_MISSING_OR_USED');
+          cleanCallback(res);return;
+        }
+        const attempt=pending;let tx;
+        try {tx=consumeCallback(attempt,url.href,session.id);}
+        catch(error) {
+          const code=publicError(error);state.callbackNotice=code;
+          if(attempt.consumed) {
+            lastReturn={stateHash:stateDigest(attempt.state),outcome:'failed'};pending=null;
+            update(code==='AUTH_ATTEMPT_EXPIRED'?'AUTHORIZATION_EXPIRED':code==='AUTHORIZATION_DECLINED'?'AUTHORIZATION_CANCELLED':'AUTHORIZATION_FAILED',code);
+          } else {update(state.phase,state.reason);}
+          cleanCallback(res);return;
+        }
+        busy=true;state.callbackNotice=null;
+        lastReturn={stateHash:stateDigest(attempt.state),outcome:'processing'};
+        try {
+          update('VALIDATING_AUTHORIZATION');
           const record=await ops.exchangeAuthorization(tx);const key=store.save(record);
-          active=store.get(key);state.models=[];state.result=null;pending=null;
+          active=store.get(key);state.models=[];state.result=null;lastReturn.outcome='success';
           try{requirePlanPermission(active);update('AUTHORIZED_MODEL_NOT_TESTED');}catch(error){update('IDENTITY_ONLY_PLAN_NOT_GRANTED',publicError(error));}
-        }catch(error){pending=null;update('AUTHORIZATION_FAILED',publicError(error));}
-        finally{busy=false;}
-        res.writeHead(303,{Location:'/'});res.end();return;
+        } catch(error) {lastReturn.outcome='failed';update('AUTHORIZATION_FAILED',publicError(error));}
+        finally {pending=null;busy=false;}
+        cleanCallback(res);return;
       }
       if(req.method==='GET' && url.pathname==='/api/status' && !url.search) {
         requireSession(req);
-        if(pending && !pending.consumed && Date.now()>pending.expiresAt){pending=null;update('AUTHORIZATION_EXPIRED');}
-        json(res,200,{ok:true,...state,csrf:session.csrf,accounts:store.list(),activeLabel:active?store.list().find(r=>store.get(r.key)===active)?.label||'已驗證帳號':null,busy,probeAttempted:attemptUsed,expiresAt,directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),stage:'CONNECTION_PREREQUISITE_NOT_DASHBOARD_DELIVERY'});return;
+        if(pending && !pending.consumed && Date.now()>pending.expiresAt){lastReturn={stateHash:stateDigest(pending.state),outcome:'expired'};pending=null;update('AUTHORIZATION_EXPIRED','AUTH_ATTEMPT_EXPIRED');}
+        json(res,200,{ok:true,...state,pendingAttemptId:pending&&!pending.consumed?pending.attemptId:null,csrf:session.csrf,accounts:store.list(),activeLabel:active?store.list().find(r=>store.get(r.key)===active)?.label||'已驗證帳號':null,busy,probeAttempted:attemptUsed,expiresAt,directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),stage:'CONNECTION_PREREQUISITE_NOT_DASHBOARD_DELIVERY'});return;
       }
       reject('ROUTE_NOT_FOUND');
     }catch(error){
       const code=publicError(error);
-      if(ownerRequest && ['WAITING_FOR_OWNER_SIGN_IN','VALIDATING_AUTHORIZATION','MODEL_TEST_RUNNING'].includes(state.phase) && !['CSRF_REJECTED','SETUP_SESSION_REQUIRED','REQUEST_ORIGIN_REJECTED','LOOPBACK_OR_HOST_REJECTED','AUTH_STATE_MISMATCH','REQUEST_ALREADY_RUNNING'].includes(code)){try{update('REQUEST_FAILED',code);}catch{}}
+      if(ownerRequest && ['WAITING_FOR_OWNER_SIGN_IN','VALIDATING_AUTHORIZATION','MODEL_TEST_RUNNING'].includes(state.phase) && !['CSRF_REJECTED','SETUP_SESSION_REQUIRED','REQUEST_ORIGIN_REJECTED','LOOPBACK_OR_HOST_REJECTED','AUTH_STATE_MISMATCH','REQUEST_ALREADY_RUNNING','AUTH_ATTEMPT_IN_PROGRESS','CANCEL_CONFIRMATION_REQUIRED'].includes(code)){try{update('REQUEST_FAILED',code);}catch{}}
       json(res,code==='SETUP_SESSION_REQUIRED'?401:code==='ROUTE_NOT_FOUND'?404:400,{ok:false,error:code});
     }
   });

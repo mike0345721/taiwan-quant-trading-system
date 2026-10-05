@@ -82,3 +82,20 @@ Owner 回報按 Continue with ChatGPT 沒反應。13:22 查核設定入口未到
 `data/chatgpt-plan-preflight-tests/click-browser-receipt.json`記錄真實Chrome實點按鈕：使用真實匿名官方discovery後觀測到官方授權導航請求；測試在送往授權頁前主動攔截，因此沒有替Owner登入，也不算OAuth／entitlement／模型完成。另以注入TLS失敗測試1536/720寬度的錯誤可見性（明確是工程負向測試）。所有自有瀏覽器與測試listener已清理。
 
 新增配置需支援TLS CA API的Node（本次MSI為24.18.0）；不更改專案其他程式的Node版本要求。正式8787、8790／CRU34及main保持不變。後續仍由Owner在新開的有限時設定入口完成官方同意。
+
+
+## 2026-10-05｜授權回傳生命週期與中斷接續修正
+
+Owner 回報 `AUTH_ATTEMPT_MISSING_OR_USED`。15:42 查核時舊設定服務已到15:37期限，無listener、沒有已驗證授權或模型請求。此「現在已到期」不能用來解釋15:13截圖中的原始失敗。只讀檢查原回傳網址的參數名稱，確有code/scope/state/client_id，未讀出或保存其值；不因此宣稱換取憑證已成功。舊版僅有覆寫式status，缺少第一次失敗的完整時間線，原始觸發仍未確證。
+
+上一中斷輪留下 `tests/chatgpt-plan-callback-recovery.test.mjs`，沒有產品修正；本輪讀取保留並接續。舊版10個回傳生命週期案例皆FAIL。修正版保留state/PKCE/nonce/JWT、單次code、安全Session/CSRF等驗證；沒有重放截圖內的真實code，沒有代替Owner操作同意。
+
+- 失效／取消／重複callback會返回不含code的設定根頁，中文原因在登入旁可見，不再停在裸JSON。
+- 有登入正在等待時，拒絕第二次登入覆蓋pending；取消需使用者明確確認且綁定當前attempt ID。
+- 原因分開保存；重複成功回傳不再exchange，並保留已驗證帳號；第一次失敗不被後續重新整理掩蓋。
+- callback的錯誤state、無session、同時重複請求均不得清除有效pending或授予模型權限。
+- 手動launcher追加去敏生命週期events.ndjson，不記code、OAuth state、callback URL或credentials；status的到期不再是唯一保留事件。
+
+本輪53/53 Windows相關測試PASS、秘密掃描通過。真實Chrome的合成失效callback於1536/720寬度回到乾淨URL、提示完整、可以明確開始新登入；provider calls=0。這只證明callback恢復與UI，並非真實帳號授權／方案用量／模型回覆或Dashboard L5完成。
+
+同一PR82接續，不Merge或更新正式8787；collector、raw、scheduler、CVD與execution保持不動。下一步仍需Owner本人正常授權，真實scope、catalog、response.completed缺一項都不宣稱已連通。

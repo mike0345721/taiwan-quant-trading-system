@@ -1,8 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let csrf='',poll,last=null,working=false,stopped=false;
+let csrf='',poll,last=null,working=false,stopped=false,navigating=false;
 const labels={PREPARING_AUTHORIZATION:'正在連接官方登入服務…',AUTHORIZATION_REQUIRED:'等待本人登入授權',WAITING_FOR_OWNER_SIGN_IN:'等待官方登入與同意',VALIDATING_AUTHORIZATION:'正在驗證官方授權',AUTHORIZED_MODEL_NOT_TESTED:'帳號已授權；模型尚未測試',IDENTITY_ONLY_PLAN_NOT_GRANTED:'已確認身分，但沒有取得方案用量權限',MODEL_SELECTION_READY:'模型清單已取得；等待你選擇測試',MODEL_TEST_RUNNING:'正在發出一次模型連線測試',CONNECTIVITY_PROBE_COMPLETED:'真實模型連線測試完成（不是原面板交付）',AUTHORIZATION_CANCELLED:'這次登入已取消',AUTHORIZATION_EXPIRED:'這次登入已逾時，請重新登入',AUTHORIZATION_FAILED:'授權驗證失敗',REQUEST_FAILED:'這次操作失敗',SETUP_EXPIRED:'驗證入口已到期',SETUP_STOPPED:'驗證入口已關閉'};
-const errors={UPSTREAM_TLS_UNTRUSTED:'無法驗證官方登入服務的安全憑證，已停止。請回報此錯誤，不需修改密碼或啟用額外付費。',UPSTREAM_CONNECTION_FAILED:'目前無法連到官方登入服務，沒有發出模型請求。請稍後再按登入。',REQUEST_TIMED_OUT:'官方服務連線逾時，這次操作未完成；不會自動重試或切換付費 API。',REQUEST_FAILED:'登入準備失敗，尚未進入官方授權；請回報目前狀態，不必反覆點擊。',SETUP_SESSION_REQUIRED:'此頁沒有有效的本機驗證工作階段，請由啟動入口重新開啟。',SETUP_LINK_EXPIRED_OR_USED:'此啟動連結已過期或已使用；請重新啟動驗證入口。',PLAN_PERMISSION_NOT_GRANTED:'官方回傳未包含方案用量權限，不會發出模型請求。',CREDITS_SETTING_CONFIRMATION_REQUIRED:'請先確認 ChatGPT 沒有允許 Apps 使用額外 credits。',REAUTHORIZE_REQUIRED:'授權已過期，需重新登入，不會偷偷改用付費 API。',PLAN_USAGE_LIMIT_REACHED:'方案額度或應用程式限制已達上限，已停止。',PLAN_USAGE_UNAVAILABLE:'此帳號目前無法提供方案用量，已停止。',PROBE_ALREADY_USED:'本次入口只允許一次模型測試，已停止重複請求。',STREAM_INTERRUPTED:'模型串流沒有完整完成，不能視為成功。',AUTHORIZATION_DECLINED:'你未授權這次連線，沒有發出模型請求。',AUTH_STATE_MISMATCH:'授權回傳和這次工作階段不一致，已拒絕。'};
+const errors={AUTH_ATTEMPT_MISSING_OR_USED:'這個登入回傳已失效或已處理；請查看目前狀態，再從本頁開始新的登入，不要重整舊回傳網址。',AUTH_RETURN_ALREADY_HANDLED:'這次登入已處理完成；重複開頁不會再次使用授權碼。',AUTH_RETURN_PROCESSING:'授權正在驗證中，請等待，不需要重整或再次登入。',AUTH_ATTEMPT_IN_PROGRESS:'已有登入進行中；請完成原本的官方頁面，或明確取消後再開始。',CANCEL_CONFIRMATION_REQUIRED:'取消未執行：必須確認目前這次登入，舊分頁不能取消另一輪登入。',AUTH_ATTEMPT_EXPIRED:'本次登入已逾時，請從本頁重新登入；不會重新使用舊授權碼。',AUTHORIZATION_CANCELLED:'本次登入已取消，沒有取得新的模型授權；可從本頁重新開始。',ISSUED_CLIENT_ID_MISSING:'官方回傳缺少新註冊識別，尚未完成註冊；已停止並保留原因。',UPSTREAM_TLS_UNTRUSTED:'無法驗證官方登入服務的安全憑證，已停止。請回報此錯誤，不需修改密碼或啟用額外付費。',UPSTREAM_CONNECTION_FAILED:'目前無法連到官方登入服務，沒有發出模型請求。請稍後再按登入。',REQUEST_TIMED_OUT:'官方服務連線逾時，這次操作未完成；不會自動重試或切換付費 API。',REQUEST_FAILED:'登入準備失敗，尚未進入官方授權；請回報目前狀態，不必反覆點擊。',SETUP_SESSION_REQUIRED:'此頁沒有有效的本機驗證工作階段，請由啟動入口重新開啟。',SETUP_LINK_EXPIRED_OR_USED:'此啟動連結已過期或已使用；請重新啟動驗證入口。',PLAN_PERMISSION_NOT_GRANTED:'官方回傳未包含方案用量權限，不會發出模型請求。',CREDITS_SETTING_CONFIRMATION_REQUIRED:'請先確認 ChatGPT 沒有允許 Apps 使用額外 credits。',REAUTHORIZE_REQUIRED:'授權已過期，需重新登入，不會偷偷改用付費 API。',PLAN_USAGE_LIMIT_REACHED:'方案額度或應用程式限制已達上限，已停止。',PLAN_USAGE_UNAVAILABLE:'此帳號目前無法提供方案用量，已停止。',PROBE_ALREADY_USED:'本次入口只允許一次模型測試，已停止重複請求。',STREAM_INTERRUPTED:'模型串流沒有完整完成，不能視為成功。',AUTHORIZATION_DECLINED:'你未授權這次連線，沒有發出模型請求。',AUTH_STATE_MISMATCH:'授權回傳和這次工作階段不一致，已拒絕。'};
 function notice(code){$('notice').textContent=errors[code]||`操作未完成：${code}`;$('notice').scrollIntoView?.({block:'nearest'});}
 async function call(route,body){
  const response=await fetch(route,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(route==='/api/probe'?70000:25000)});
@@ -14,9 +14,9 @@ function choices(node,items,empty){
  if(items.some(item=>item.key===prior))node.value=prior;node.dataset.signature=signature;
 }
 function controls(){
- const busy=working||last?.busy||stopped;
- $('connect').disabled=!csrf||busy||Boolean(last?.probeAttempted);
- $('cancel').disabled=!csrf||busy||last?.phase!=='WAITING_FOR_OWNER_SIGN_IN';
+ const busy=working||last?.busy||stopped||navigating;
+ $('connect').disabled=!csrf||busy||Boolean(last?.probeAttempted)||Boolean(last?.pendingAttemptId);
+ $('cancel').disabled=!csrf||busy||last?.phase!=='WAITING_FOR_OWNER_SIGN_IN'||!last?.pendingAttemptId;
  $('models').disabled=!csrf||busy||!last?.directPermission||Boolean(last?.probeAttempted);
  $('model').disabled=busy||!last?.models?.length||Boolean(last?.probeAttempted);
  $('probe').disabled=!csrf||busy||!last?.directPermission||Boolean(last?.probeAttempted)||!$('credits').checked||!$('model').value;
@@ -28,6 +28,7 @@ async function refresh(){
   const data=await call('/api/status');last=data;csrf=data.csrf;
   $('status').textContent=labels[data.phase]||data.phase;
   $('detail').textContent=data.reason?(errors[data.reason]||data.reason):'';
+  if(data.callbackNotice)$('notice').textContent=errors[data.callbackNotice]||`登入回傳未完成：${data.callbackNotice}`;
   $('deadline').textContent=`最後更新：${new Date(data.updatedAt).toLocaleTimeString('zh-TW')}｜本次入口到期：${new Date(data.expiresAt).toLocaleTimeString('zh-TW')}`;
   $('active').textContent=data.activeLabel?`已驗證帳號：${data.activeLabel}；方案用量權限：${data.directPermission?'已取得，仍需完成模型測試':'未取得'}`:'尚未驗證帳號。';
   choices($('account'),data.accounts||[],'新增 ChatGPT 帳號或工作區');
@@ -36,9 +37,9 @@ async function refresh(){
   controls();
  }catch(error){stopped=true;clearInterval(poll);$('status').textContent='連線驗證入口已停止或無法連線';notice(error.name==='TimeoutError'?'REQUEST_TIMED_OUT':error.message);controls();}
 }
-async function action(fn){if(working||stopped)return;working=true;$('notice').textContent='';controls();try{await fn();}catch(error){notice(error.name==='TimeoutError'?'REQUEST_TIMED_OUT':error.message);}finally{working=false;if(!stopped)await refresh();else controls();}}
-$('connect').addEventListener('click',()=>action(async()=>{$('status').textContent='正在連接官方登入服務…';const result=await call('/api/authorize',{registration:$('account').value});const url=new URL(result.authorizationUrl);if(url.origin!=='https://auth.openai.com'||url.pathname!=='/api/accounts/authorize')throw new Error('AUTH_URL_REJECTED');location.assign(url.href);}));
-$('cancel').addEventListener('click',()=>action(()=>call('/api/cancel',{})));
+async function action(fn){if(working||stopped)return;working=true;$('notice').textContent='';controls();try{await fn();}catch(error){notice(error.name==='TimeoutError'?'REQUEST_TIMED_OUT':error.message);}finally{working=false;if(!stopped&&!navigating)await refresh();else controls();}}
+$('connect').addEventListener('click',()=>action(async()=>{$('status').textContent='正在連接官方登入服務…';const result=await call('/api/authorize',{registration:$('account').value});const url=new URL(result.authorizationUrl);if(url.origin!=='https://auth.openai.com'||url.pathname!=='/api/accounts/authorize')throw new Error('AUTH_URL_REJECTED');navigating=true;clearInterval(poll);location.assign(url.href);}));
+$('cancel').addEventListener('click',()=>{const attemptId=last?.pendingAttemptId;if(!attemptId||!window.confirm('確定取消目前這次登入？取消後須重新開始，舊回傳頁將不再有效。'))return;void action(()=>call('/api/cancel',{confirmed:true,attemptId}));});
 $('models').addEventListener('click',()=>action(()=>call('/api/models',{})));
 $('probe').addEventListener('click',()=>action(()=>call('/api/probe',{model:$('model').value,creditsDisabledConfirmed:$('credits').checked})));
 $('credits').addEventListener('change',controls);$('model').addEventListener('change',controls);

@@ -16,6 +16,8 @@ try {
   const evidence=path.join(root,'data','chatgpt-plan-preflight');fs.mkdirSync(evidence,{recursive:true});
   app=await startPlanSetup({initializeStore:createWindowsPlanStore,onReceipt:receipt=>{
     const destination=path.join(evidence,'status.json'),temporary=destination+'.tmp';
+    // Only sanitized lifecycle receipts: no callback URLs, codes, state, or credentials.
+    fs.appendFileSync(path.join(evidence,'events.ndjson'),JSON.stringify({...receipt,pid:process.pid})+'\n',{mode:0o600});
     fs.writeFileSync(temporary,JSON.stringify({...receipt,pid:process.pid},null,2),{mode:0o600});fs.renameSync(temporary,destination);
   }});
   console.log(JSON.stringify({state:'WAITING_FOR_OWNER_AUTHORIZATION',setupUrl:app.origin,pid:process.pid,expiresAt:app.expiresAt,modelRequests:0,formalDashboardModified:false}));
