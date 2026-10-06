@@ -53,6 +53,12 @@ test('testing state is deterministic inside the observation zone',()=>{
   const vwap=r.levels.find(x=>x.id==='VWAP');assert.ok(vwap);assert.equal(vwap.state,'TESTING');
   assert.ok(vwap.absoluteDistancePoints<=r.zonePoints);
 });
+test('upper boundary watch explains breakout acceptance from below instead of bearish continuation',()=>{
+  const base=chart();
+  const levels={...base.levels,vwap:{availability:'UNAVAILABLE'},openingRangeHigh:{availability:'UNAVAILABLE'},openingRangeLow:{availability:'UNAVAILABLE'},currentDayHigh:available(120),currentDayLow:{availability:'UNAVAILABLE'},previousDayHigh:{availability:'UNAVAILABLE'},previousDayLow:{availability:'UNAVAILABLE'},previousClose:{availability:'UNAVAILABLE'}};
+  const r=buildDecisionLevelWatch({chart:chart({lastPrice:118,openingRange:{status:'UNAVAILABLE'},levels}),snapshotTime:'2026-10-05T10:30:00.000Z'});
+  const high=r.levels.find(x=>x.id==='SESSION_HIGH');assert.ok(high);assert.match(high.confirm,/站上價位|上方/);assert.match(high.invalidate,/跌回價位下方/);assert.doesNotMatch(high.confirm,/維持價位下方/);
+});
 test('unavailable current price fails closed instead of inventing levels',()=>{
   const r=buildDecisionLevelWatch({chart:chart({lastPrice:null}),snapshotTime:'2026-10-05T10:30:00.000Z'});
   assert.equal(r.state,'UNAVAILABLE');assert.equal(r.nextWatch,null);assert.deepEqual(r.levels,[]);

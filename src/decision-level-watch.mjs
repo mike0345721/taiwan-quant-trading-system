@@ -68,24 +68,37 @@ function eventState(level,bars,currentPrice,zone){
   const movingToward=closes.length>=2?Math.abs(closes.at(-2)-price)>Math.abs(closes.at(-1)-price):null;
   return {state,side,distancePoints:distance,absoluteDistancePoints:abs,movingToward};
 }
+function levelRole(level){
+  if (['OR_HIGH','SESSION_HIGH','SWING_HIGH','PRIOR_HIGH'].includes(level?.id)) return 'UPPER';
+  if (['OR_LOW','SESSION_LOW','SWING_LOW','PRIOR_LOW'].includes(level?.id)) return 'LOWER';
+  return 'REFERENCE';
+}
 function responseContract(level,state){
-  const above=state.side==='ABOVE';
+  const role=levelRole(level);
+  if(role==='UPPER'){
+    return {
+      watchFor:'接近上緣時，先看是突破後被市場接受，還是碰高後遭拒絕；不要只看瞬間穿越。',
+      expectedResponse:'若向上突破有效，價格應維持在價位上方，且買方壓力增加時能繼續向上離開；若只是測試失敗，價格會無法在上方停留並回落。',
+      confirm:'突破確認：站上價位後仍能維持，且買方壓力增加時價格繼續往上離開。',
+      invalidate:'突破失效：買方壓力增加但價格推不動，或穿越後快速跌回價位下方。',
+    };
+  }
+  if(role==='LOWER'){
+    return {
+      watchFor:'接近下緣時，先看是跌破後被市場接受，還是探低後被承接；不要只看瞬間穿越。',
+      expectedResponse:'若向下跌破有效，價格應維持在價位下方，且賣方壓力增加時能繼續向下離開；若只是測試失敗，價格會無法在下方停留並收回。',
+      confirm:'跌破確認：跌到價位下方後仍能維持，且賣方壓力增加時價格繼續往下離開。',
+      invalidate:'跌破失效：賣方壓力增加但價格跌不動，或穿越後快速收回價位上方。',
+    };
+  }
   const base=level.family==='VWAP'
-    ? '不要只看穿越；觀察成交壓力出現後，價格能否在 VWAP 附近站穩並持續離開。'
-    : level.family==='OPENING_RANGE'
-      ? '觀察突破／跌破後能否離開開盤區間，而不是穿越後立刻收回。'
-      : '觀察觸及或突破後，成交壓力是否得到同方向價格延伸；推不動本身就是反證。';
+    ? '不要只看穿越；觀察成交壓力出現後，價格能否在 VWAP 某一側站穩並持續離開。'
+    : '把它當成中性價格參考；穿越後要看能否在某一側站穩並產生同方向價格延伸。';
   return {
     watchFor:base,
-    expectedResponse:above
-      ? '若上方接受成立，後續價格應能維持在價位上方；買方壓力增加時應伴隨向上價格反應。'
-      : '若下方接受成立，後續價格應能維持在價位下方；賣方壓力增加時應伴隨向下價格反應。',
-    confirm:above
-      ? '價格維持價位上方，且同向成交壓力出現時價格能繼續往上離開。'
-      : '價格維持價位下方，且同向成交壓力出現時價格能繼續往下離開。',
-    invalidate:above
-      ? '買方壓力增加但價格推不動，或快速跌回價位下方。'
-      : '賣方壓力增加但價格跌不動，或快速收回價位上方。',
+    expectedResponse:'有效接受應表現為價格在其中一側站穩，且同方向成交壓力增加時價格能繼續離開該價位。',
+    confirm:'確認：價格在其中一側站穩，且同方向成交壓力出現時能持續離開。',
+    invalidate:'失效：成交壓力增加但價格推不動，或穿越後很快又回到另一側。',
   };
 }
 function dedupe(rows,zone){
