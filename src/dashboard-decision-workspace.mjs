@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { buildDashboardDw4Evidence } from './dashboard-dw4-evidence.mjs';
 import { leadershipCopyAllowlist } from './index-leadership.mjs';
+import { buildDecisionLevelWatch } from './decision-level-watch.mjs';
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -192,7 +193,7 @@ export function buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict
 export function createDecisionSnapshot({
   snapshot = {}, dataHealth, runtimeTruth = null, chart = null, evidenceConflict = null,
   marketChangeFeed = null, currentMarketFactSummary = null, liveBreadth = null,
-  indexLeadership = null, observedFlow = null, marketPulse = null,
+  indexLeadership = null, observedFlow = null, marketPulse = null, levelWatch = null,
   decisionReadiness = 'NOT_READY', snapshotTime = new Date().toISOString(),
 } = {}) {
   const parsedSnapshotTime = Date.parse(snapshotTime);
@@ -217,6 +218,10 @@ export function createDecisionSnapshot({
   ].filter(Boolean);
   if (pulseTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) {
     throw new Error('DECISION_SNAPSHOT_FUTURE_MARKET_PULSE_EVIDENCE');
+  }
+  const levelTimes = (levelWatch?.levels || []).map((level) => level?.availableAt).filter(Boolean);
+  if (levelTimes.some((value) => Date.parse(value) > parsedSnapshotTime)) {
+    throw new Error('DECISION_SNAPSHOT_FUTURE_LEVEL_EVIDENCE');
   }
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
@@ -289,6 +294,7 @@ export function createDecisionSnapshot({
     currentMarketFactSummary,
     observedFlow,
     marketPulse,
+    levelWatch,
     ...leadershipCopyAllowlist(indexLeadership),
     governedMarketChanges: Object.freeze((marketChangeFeed?.latestFirst || marketChangeFeed?.events || []).slice(0, 5).map((event) => Object.freeze({
       eventId: event.eventId || null,
@@ -334,6 +340,14 @@ export function validateDecisionSnapshot(snapshot) {
       || snapshot.marketPulse.systemDirectionalSignal !== false)) {
     throw new Error('DECISION_SNAPSHOT_MARKET_PULSE_AUTHORIZATION_BOUNDARY');
   }
+  if (snapshot.levelWatch && (snapshot.levelWatch.formalWeight !== 0
+      || snapshot.levelWatch.researchOnly !== true
+      || snapshot.levelWatch.executionAuthorized !== false
+      || snapshot.levelWatch.orderRoutesEnabled !== false
+      || snapshot.levelWatch.recommendation !== false
+      || snapshot.levelWatch.systemDirectionalSignal !== false)) {
+    throw new Error('DECISION_SNAPSHOT_LEVEL_WATCH_AUTHORIZATION_BOUNDARY');
+  }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
   if (snapshot.identityState != null) {
     const identityComplete = Boolean(snapshot.tradeDate && snapshot.contract && snapshot.session);
@@ -372,6 +386,7 @@ export function copyForChatGpt(snapshot, question = null) {
     `Data Health: ${snapshot.dataHealth.overall}; stale=${snapshot.dataHealth.staleCount}; unavailable=${snapshot.dataHealth.unavailableCount}`,
     `OR / VWAP / Entry Quality: ${snapshot.OR.availability} / ${snapshot.VWAP.availability} / ${snapshot.entryQuality.availability}`,
     `Market Pulse: RVOL state=${snapshot.marketPulse?.rvol?.state || 'UNAVAILABLE'} ratio=${snapshot.marketPulse?.rvol?.ratio ?? 'UNAVAILABLE'} percentile=${snapshot.marketPulse?.rvol?.percentile ?? 'UNAVAILABLE'} sampleDays=${snapshot.marketPulse?.rvol?.sampleDays ?? 0}; Basis label=${snapshot.marketPulse?.basis?.label || '基差'} state=${snapshot.marketPulse?.basis?.state || 'UNAVAILABLE'} points=${snapshot.marketPulse?.basis?.points ?? 'UNAVAILABLE'} pct=${snapshot.marketPulse?.basis?.pct ?? 'UNAVAILABLE'} referenceMode=${snapshot.marketPulse?.basis?.referenceMode || 'UNAVAILABLE'}`,
+    `Key Level Watch: next=${snapshot.levelWatch?.nextWatch ? `${snapshot.levelWatch.nextWatch.label}@${snapshot.levelWatch.nextWatch.price} ${snapshot.levelWatch.nextWatch.state} distance=${snapshot.levelWatch.nextWatch.distancePoints}` : 'UNAVAILABLE'}; levels=${(snapshot.levelWatch?.levels || []).map((level) => `${level.label}@${level.price}:${level.state}`).join(', ') || 'UNAVAILABLE'}; deterministicOnly=true`,
     `IX0001 Leadership: state=${snapshot.leadershipSource?.state || 'UNAVAILABLE'}; mode=${snapshot.leadershipSource?.sourceMode || 'UNAVAILABLE'}; tradeDate=${snapshot.leadershipSource?.sourceTradeDate || 'UNAVAILABLE'}; quality=${snapshot.leadershipSource?.quality || 'QUALITY_INSUFFICIENT'}; descriptiveOnly=${snapshot.LEADERSHIP_DESCRIPTIVE_ONLY}; notPromoted=${snapshot.NOT_PROMOTED}; notTradingSignal=${snapshot.NOT_A_TRADING_SIGNAL}`,
     `IX0001 top positive contribution: ${contributionLine(snapshot.indexLeadership?.topPositive)}`,
     `IX0001 top negative contribution: ${contributionLine(snapshot.indexLeadership?.topNegative)}`,
@@ -477,6 +492,7 @@ export function discussionSnapshot(snapshot) {
     currentMarketFactSummary: snapshot.currentMarketFactSummary,
     observedFlow: discussionObservedFlow(snapshot.observedFlow),
     marketPulse: snapshot.marketPulse,
+    levelWatch: snapshot.levelWatch,
     indexLeadership: snapshot.indexLeadership,
     industryLeadership: snapshot.industryLeadership,
     leadershipSource: snapshot.leadershipSource,
@@ -549,6 +565,7 @@ export function buildDecisionWorkspace({
   const marketState = safeMarketState(runtimeTruth);
   const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart);
   const currentMarketFactSummary = buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict);
+  const levelWatch = buildDecisionLevelWatch({ chart, observedFlow, snapshotTime: now.toISOString() });
   const lockedSnapshotCandidate = createDecisionSnapshot({
     snapshot,
     dataHealth,
@@ -561,6 +578,7 @@ export function buildDecisionWorkspace({
     indexLeadership,
     observedFlow,
     marketPulse,
+    levelWatch,
     decisionReadiness: decisionSummary.readiness,
     snapshotTime: now.toISOString(),
   });
@@ -591,6 +609,7 @@ export function buildDecisionWorkspace({
     indexLeadership,
     observedFlow,
     marketPulse,
+    levelWatch,
     evidenceConflict,
     forwardShadowStatus: runtimeTruth?.statusExplanation || {
       status: 'UNKNOWN',

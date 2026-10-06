@@ -23,6 +23,7 @@ import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { resolveOperationsReader } from './src/data-operations-binding.mjs';
 import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
+import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
@@ -139,6 +140,12 @@ function currentObservedFlow() {
     dataRoot: cru34LiveDataRoot, projectionRoot: cru34LiveProjectionRoot,
     artifactPath: cru34SnapshotArtifactPath, freshnessCutoff: cru34SnapshotFreshnessCutoff,
     liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
+}
+
+function currentDecisionLevelWatch(chart = null) {
+  const selectedChart = chart || loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
+    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  return buildDecisionLevelWatch({ chart: selectedChart, observedFlow: currentObservedFlow(), snapshotTime: new Date().toISOString() });
 }
 
 async function currentMarketPulse(chart = null) {
@@ -454,6 +461,11 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/market-pulse') {
         sendJson(res, 200, { ok: true, data: await currentMarketPulse() }, { 'Cache-Control': 'no-store' });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/decision-level-watch') {
+        sendJson(res, 200, { ok: true, data: currentDecisionLevelWatch() }, { 'Cache-Control': 'no-store' });
         return;
       }
 

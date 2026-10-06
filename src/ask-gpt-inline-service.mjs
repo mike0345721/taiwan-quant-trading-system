@@ -10,6 +10,7 @@ import { buildInlineContext } from './ask-gpt-inline-context.mjs';
 const terminal=new Set(['COMPLETED','FAILED','TIMED_OUT','CANCELLED','INTERRUPTED']);
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ownerHash=s=>createHash('sha256').update(s).digest('hex');
+const accountFingerprint=s=>createHash('sha256').update(String(s||'')).digest('hex').slice(0,16);
 const reject=code=>{throw new PlanError(code);};
 function validateBody(body){
  if(!body||Array.isArray(body)||Object.keys(body).some(k=>!['requestId','account','model','question','creditsDisabledConfirmed'].includes(k)))reject('ANALYSIS_REQUEST_INVALID');
@@ -45,10 +46,13 @@ export class InlineAssistant {
   if(fs.readFileSync(file,'utf8')!==raw)return true;
   fs.renameSync(file,path.join(this.root,'interrupted-lease-'+randomUUID()+'.json'));return false;
  }
- read(id,owner){
+ readStored(id){
   this.ensure();const file=this.file(id);if(!fs.existsSync(file))reject('REQUEST_NOT_FOUND');
   if(fs.lstatSync(file).isSymbolicLink()||fs.statSync(file).size>262144)reject('ANALYSIS_RECEIPT_INVALID');
-  let r;try{r=JSON.parse(fs.readFileSync(file,'utf8'));}catch{reject('ANALYSIS_RECEIPT_INVALID');}
+  try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{reject('ANALYSIS_RECEIPT_INVALID');}
+ }
+ read(id,owner){
+  const r=this.readStored(id);
   if(r.ownerHash!==ownerHash(owner))reject('REQUEST_NOT_FOUND');
   if(!terminal.has(r.phase)&&(!this.active||this.active.record.requestId!==id)&&!this.clearDeadLease()){
    r.phase='INTERRUPTED';r.error={code:'PREVIOUS_REQUEST_INTERRUPTED'};r.updatedAt=new Date(this.now()).toISOString();this.persist(r);
@@ -56,7 +60,7 @@ export class InlineAssistant {
   if(!terminal.has(r.phase)&&r.instance!==this.instance)return this.public({...r,phase:'INTERRUPTED',error:{code:'PREVIOUS_REQUEST_STATE_UNVERIFIED'}});
   return this.public(r);
  }
- public(r){const{ownerHash:ignored,instance:ignoredInstance,account:ignoredAccount,...out}=r;return structuredClone({...out,finished:terminal.has(r.phase)});}
+ public(r){const{ownerHash:ignored,instance:ignoredInstance,account:ignoredAccount,accountFingerprint:ignoredFingerprint,...out}=r;return structuredClone({...out,finished:terminal.has(r.phase)});}
  persist(r){
   r.updatedAt=new Date(this.now()).toISOString();const file=this.file(r.requestId),tmp=file+'.'+randomUUID()+'.tmp';
   try{const json=JSON.stringify(r);if(Buffer.byteLength(json)>262144)reject('ANALYSIS_RECEIPT_LIMIT');fs.writeFileSync(tmp,json,{flag:'wx',mode:0o600});fs.renameSync(tmp,file);}
@@ -71,7 +75,7 @@ export class InlineAssistant {
  }
  async run(body,owner,{signal,onEvent=()=>{}}={}){
   validateBody(body);this.ensure();
-  if(fs.existsSync(this.file(body.requestId))){const prior=this.read(body.requestId,owner);if(prior.question!==body.question.trim()||prior.requestedModel!==body.model)reject('REQUEST_ID_PAYLOAD_MISMATCH');onEvent({type:'receipt',data:prior});return prior;}
+  if(fs.existsSync(this.file(body.requestId))){const stored=this.readStored(body.requestId);if(stored.ownerHash!==ownerHash(owner))reject('REQUEST_NOT_FOUND');if(stored.question!==body.question.trim()||stored.requestedModel!==body.model||stored.accountFingerprint!==accountFingerprint(body.account))reject('REQUEST_ID_PAYLOAD_MISMATCH');const prior=this.read(body.requestId,owner);onEvent({type:'receipt',data:prior});return prior;}
   if(this.active)reject('ANALYSIS_ALREADY_RUNNING');
   this.clearDeadLease();
   const lockPath=path.join(this.root,'active-request.lock');let lockFd;
@@ -81,7 +85,7 @@ export class InlineAssistant {
   const releaseLock=()=>{fs.closeSync(lockFd);if(fs.readFileSync(lockPath,'utf8')!==lockStamp)reject('ANALYSIS_LOCK_IDENTITY_CHANGED');fs.unlinkSync(lockPath);};
   const controller=new AbortController(),abort=()=>controller.abort(signal.reason||'CANCELLED');
   if(signal?.aborted){releaseLock();reject('REQUEST_CANCELLED');}signal?.addEventListener('abort',abort,{once:true});
-  const r={schema:'ask-gpt-inline-receipt-v1',requestId:body.requestId,instance:this.instance,ownerHash:ownerHash(owner),account:body.account,question:body.question.trim(),requestedModel:body.model,actualModel:null,runtimeCommit:this.runtimeCommit,phase:'PREPARING_SNAPSHOT',createdAt:new Date(this.now()).toISOString(),updatedAt:new Date(this.now()).toISOString(),snapshotHash:null,snapshotTime:null,contextHash:null,context:null,text:'',error:null,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false,creditsConfirmation:'EXPLICIT_REQUEST_CONFIRMED_NOT_BILLING_API_AUDIT',researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
+  const r={schema:'ask-gpt-inline-receipt-v1',requestId:body.requestId,instance:this.instance,ownerHash:ownerHash(owner),account:body.account,accountFingerprint:accountFingerprint(body.account),question:body.question.trim(),requestedModel:body.model,actualModel:null,runtimeCommit:this.runtimeCommit,phase:'PREPARING_SNAPSHOT',createdAt:new Date(this.now()).toISOString(),updatedAt:new Date(this.now()).toISOString(),snapshotHash:null,snapshotTime:null,contextHash:null,context:null,text:'',error:null,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false,creditsConfirmation:'EXPLICIT_REQUEST_CONFIRMED_NOT_BILLING_API_AUDIT',researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
   const job={record:r,controller};this.active=job;let lastTextEvent=0,ownsReceipt=false;
   const notify=event=>{try{onEvent(event);}catch{controller.abort('CONNECTION_CLOSED');}};
   const emit=()=>notify({type:'receipt',data:this.public(r)});
@@ -101,8 +105,8 @@ export class InlineAssistant {
    r.text=result.text;r.actualModel=result.model;r.providerRequestId=result.requestId;r.usage=result.usage;r.terminal=result.terminal;update('COMPLETED');
   }catch(e){
    if(!ownsReceipt)throw new PlanError('REQUEST_ID_COLLISION');
-   const timed=controller.signal.reason==='TIMED_OUT';const cancelled=controller.signal.aborted&&!timed;
-   r.phase=timed?'TIMED_OUT':cancelled?'CANCELLED':'FAILED';r.error=timed?{code:'REQUEST_TIMED_OUT'}:cancelled?{code:'REQUEST_CANCELLED'}:analysisError(e);
+   const timed=controller.signal.reason==='TIMED_OUT';const cancelled=controller.signal.aborted&&!timed;const derived=analysisError(e);const componentTimed=derived.code==='REQUEST_TIMED_OUT';
+   r.phase=cancelled?'CANCELLED':(timed||componentTimed)?'TIMED_OUT':'FAILED';r.error=cancelled?{code:'REQUEST_CANCELLED'}:(timed||componentTimed)?{...derived,code:'REQUEST_TIMED_OUT'}:derived;
    controller.abort(r.phase);
    try{this.persist(r);}catch{r.error={code:'ANALYSIS_RECEIPT_WRITE_FAILED'};}
    emit();

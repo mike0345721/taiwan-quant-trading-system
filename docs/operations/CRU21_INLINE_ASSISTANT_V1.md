@@ -37,3 +37,19 @@ L0範圍與安全凍結；L1 exact source＋focused tests；L2真依賴；L3同�
 2026-10-05：24項新增context／refresh／stream／session／HTTP／failure測試，加既有auth/setup/DPAPI/callback/Copy/Open/layout共77/77 PASS。秘密掃描及syntax/diff check通過。真實瀏覽器／完整市場分析與獨立review接續執行，未以此文件宣告PASS。
 
 實際CI與精確HEAD／更新後驗收以PR82最新查收紀錄為準。正式main/8787仍4d8251686bdb4abbdb469bc00ae798717c0fd583；既有CRU59剩餘L5狀態不由本工作覆蓋。
+
+
+## 2026-10-05 Owner Decision — Decision-first / Level Watch
+Owner 對第一版同頁回答的功能鏈驗收為 PASS，但交易決策價值 FAIL：回答過度像資料與術語摘要。下一候選固定改成 Decision-first，先說「現在怎麼看」，再只列最值得盯的 2–3 個合法價位、為什麼、到價看什麼 Expected vs Actual Response、Confirm / Invalidate 與現在不要做什麼；工程欄位收進證據層。
+
+關鍵價位採 Level first / AI second：
+- deterministic decision-level-watch-v1 僅由 governed chart / completed 5m bars / lawful references 產生，預設最多三條；
+- V1 包含 Session VWAP、已 frozen READY 的 OR High/Low、目前時段 High/Low、已完成且 availableAt 合法的 recent 5m swing、合法 prior references；
+- forming bar、future availableAt、identity mismatch、missing price 不能產生價位；目前 chart 品質限制會傳遞到當前時段／swing level；
+- K 線以細線＋短標籤低調顯示，Next Watch 只一行；Why / 到價看什麼 / 確認 / 失效放在展開層；
+- local watcher 每 5 秒讀 /api/v1/decision-level-watch，不呼叫模型。AI 只有 Owner 主動提問時才使用同一 bounded level evidence；
+- lifecycle 為 MONITORING / APPROACHING / TESTING / BREAKING / ACCEPTED / REJECTED / RECLAIMED / LOST，全部由 deterministic completed-bar/current-price 規則產生，不是模型判定。
+
+安全語意不變：這些價位是「反應觀察點」，不是支撐／壓力保證，不提供 BUY/SELL、倉位或自動下單。
+
+同一候選亦收斂上一輪三個工程 blocker：rotating refresh token 在消耗前先取得 cancellable identity prerequisite，token 回傳後不再 await 網路；requestId immutable identity 綁定 ChatGPT account fingerprint；component timeout 持久化為 TIMED_OUT 且 cancellation 優先。Provider completed 事件缺少合法 actual model 時 fail closed。

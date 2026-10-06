@@ -30,15 +30,31 @@ test('protected store preserves unrelated account and rejects wrong identity rep
 });
 test('token refresh uses issued client and atomically rotates tokens without scope expansion',async t=>{
  const s=storeAt(temp(t)),r=account();r.expiresAt=Date.now()-1000;const key=s.save(r);let calls=0;
- const result=await freshPlanRecord(s,key,{fetcher:async(url,opts)=>{calls++;assert.equal(url,ISSUER+'/api/accounts/oauth/token');assert.equal(opts.body.get('client_id'),r.client_id);assert.equal(opts.body.get('grant_type'),'refresh_token');assert.equal(opts.body.get('resource'),RESOURCE);assert.equal(opts.body.has('scope'),false);return response({token_type:'Bearer',access_token:'new-access',refresh_token:'new-refresh',expires_in:3600});}});
- assert.equal(calls,1);assert.equal(result.access_token,'new-access');s.reload();assert.equal(s.get(key).refresh_token,'new-refresh');assert.deepEqual(s.get(key).scopes,scopes);
+ const order=[];const result=await freshPlanRecord(s,key,{fetcher:async(url,opts={})=>{calls++;order.push(url);if(url.endsWith('/.well-known/jwks.json'))return response({keys:[]});assert.equal(url,ISSUER+'/api/accounts/oauth/token');assert.equal(opts.body.get('client_id'),r.client_id);assert.equal(opts.body.get('grant_type'),'refresh_token');assert.equal(opts.body.get('resource'),RESOURCE);assert.equal(opts.body.has('scope'),false);return response({token_type:'Bearer',access_token:'new-access',refresh_token:'new-refresh',expires_in:3600});}});
+ assert.deepEqual(order,[ISSUER+'/.well-known/jwks.json',ISSUER+'/api/accounts/oauth/token']);assert.equal(calls,2);assert.equal(result.access_token,'new-access');s.reload();assert.equal(s.get(key).refresh_token,'new-refresh');assert.deepEqual(s.get(key).scopes,scopes);
+});
+
+test('refresh cancellation before rotating token endpoint preserves old refresh token and never consumes it',async t=>{
+ const s=storeAt(temp(t)),r=account();r.expiresAt=0;const k=s.save(r),controller=new AbortController();let tokenCalls=0;
+ await assert.rejects(freshPlanRecord(s,k,{signal:controller.signal,fetcher:async url=>{if(url.endsWith('/.well-known/jwks.json')){controller.abort();throw Object.assign(new Error('cancel'),{name:'AbortError'});}tokenCalls++;return response({});}}));
+ assert.equal(tokenCalls,0);s.reload();assert.equal(s.get(k).refresh_token,r.refresh_token);
+});
+test('cancellation after a rotating token response cannot lose the replacement refresh token',async t=>{
+ const s=storeAt(temp(t)),r=account();r.expiresAt=0;r.originalNonce='synthetic-nonce';const k=s.save(r),controller=new AbortController(),now=Date.now();
+ const {jwt,jwks}=createJwt({iss:ISSUER,aud:r.client_id,sub:r.subject,iat:Math.floor(now/1000)-1,exp:Math.floor(now/1000)+3600});
+ let calls=0;const result=await freshPlanRecord(s,k,{now,signal:controller.signal,fetcher:async url=>{calls++;if(url.endsWith('/.well-known/jwks.json'))return response(jwks);controller.abort('owner-cancel');return response({token_type:'Bearer',access_token:'new-access',refresh_token:'new-refresh',id_token:jwt,expires_in:3600});}});
+ assert.equal(calls,2);assert.equal(controller.signal.aborted,true);assert.equal(result.refresh_token,'new-refresh');s.reload();assert.equal(s.get(k).refresh_token,'new-refresh');assert.equal(s.get(k).access_token,'new-access');
+});
+test('stream completion without a verified actual model is rejected',async()=>{
+ const missing={type:'response.completed',response:{id:'resp_missing',status:'completed',usage:{input_tokens:1,output_tokens:1,total_tokens:2}}};
+ await assert.rejects(readAnalysisStream(events([delta('text'),missing])),/MODEL_TERMINAL_INVALID/);
 });
 test('fresh token does not cause an unnecessary refresh or model call',async t=>{
  const s=storeAt(temp(t)),r=account(),key=s.save(r);const result=await freshPlanRecord(s,key,{fetcher:()=>{throw Error('UNEXPECTED_NETWORK');}});assert.equal(result.access_token,r.access_token);
 });
 test('terminal refresh rejection clears unusable credentials but retains client/account mapping',async t=>{
  const s=storeAt(temp(t)),r=account();r.expiresAt=0;const k=s.save(r);
- await assert.rejects(freshPlanRecord(s,k,{fetcher:async()=>response({error:'invalid_grant'},400)}),/REAUTHORIZE_REQUIRED/);s.reload();assert.equal(s.get(k).refresh_token,null);assert.equal(s.get(k).client_id,r.client_id);
+ let call=0;await assert.rejects(freshPlanRecord(s,k,{fetcher:async()=>{call++;return call===1?response({keys:[]}):response({error:'invalid_grant'},400);}}),/REAUTHORIZE_REQUIRED/);assert.equal(call,2);s.reload();assert.equal(s.get(k).refresh_token,null);assert.equal(s.get(k).client_id,r.client_id);
 });
 test('transient refresh failure preserves saved credentials without retries',async t=>{
  const s=storeAt(temp(t)),r=account();r.expiresAt=0;const k=s.save(r);let calls=0;
@@ -73,6 +89,16 @@ test('HTTP model rejection keeps safe provider code and never returns secret mes
 });
 test('bounded context retains missing as null, safe identity and canonical hash',()=>{
  const s=snap(),r=buildInlineContext(s);assert.equal(r.context.price.value,100);assert.equal(r.context.VWAP.value,null);assert.equal(r.context.recommendation,false);assert.equal(r.snapshotHash,s.snapshotHash);assert.ok(r.inputBytes<40000);assert.equal(JSON.stringify(r).includes('access_token'),false);
+});
+
+test('bounded AI context carries only the deterministic top level watch and decision reasons',()=>{
+ const now=new Date().toISOString();
+ const level={id:'VWAP',family:'VWAP',label:'DAY VWAP',price:100,state:'TESTING',side:'ABOVE',distancePoints:2,absoluteDistancePoints:2,movingToward:true,zonePoints:8,sourceId:'SESSION_VWAP',availableAt:now,qualityStatus:'PASS',why:'成交均價參考',watchFor:'觀察價格反應',expectedResponse:'應站穩',confirm:'價格離開',invalidate:'跌回'};
+ const levelWatch={schemaVersion:'decision-level-watch-v1',state:'READY',reason:null,currentPrice:102,zonePoints:8,zoneMethod:'TEST',levels:[level],nextWatch:level,observedFlow:{sourceState:'LIVE',quality:'PASS',pressure60:.6,response60:5,availableAt:now,formalDirection:'NOT_PROMOTED'},formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false};
+ const s=createDecisionSnapshot({dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0},chart:{lastPrice:102,source:'TEST_ONLY',availableAt:now,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',bars:[]},levelWatch,snapshotTime:now});
+ const c=buildInlineContext(s,{now:Date.parse(now)+1000}).context;
+ assert.equal(c.levelWatch.nextWatch.price,100);assert.equal(c.levelWatch.nextWatch.why,'成交均價參考');assert.equal(c.levelWatch.levels.length,1);
+ assert.equal(c.levelWatch.formalWeight,undefined);assert.equal(JSON.stringify(c.levelWatch).includes('access_token'),false);
 });
 test('invalid snapshot hash, future dispatch and client secret-shaped fields fail before inference',()=>{
  const s=snap();assert.throws(()=>buildInlineContext({...s,snapshotHash:'0'.repeat(64)}),/HASH_MISMATCH/);
@@ -121,5 +147,16 @@ test('HTTP routes preserve auth, exact origin, CSRF, and reject client prompt fi
  const result=await(await call('ask',s.body())).text();assert.ok(result.includes('COMPLETED'));assert.equal(s.counters.analyse,1);
 });
 
+
+test('same request id cannot switch ChatGPT account even with same question and model',async t=>{
+ const s=await fixture(t),b=s.body();await s.assistant.run(b,'owner');const other='b'.repeat(64);
+ await assert.rejects(s.assistant.run({...b,account:other},'owner'),/REQUEST_ID_PAYLOAD_MISMATCH/);assert.equal(s.counters.analyse,1);
+ const exposed=s.assistant.read(b.requestId,'owner');assert.equal(Object.hasOwn(exposed,'accountFingerprint'),false);
+});
+test('component timeout is persisted as TIMED_OUT rather than FAILED',async t=>{
+ const timeout=Object.assign(new Error('component timeout'),{name:'TimeoutError'});
+ const s=await fixture(t,{analysePlan:async()=>{throw timeout;}});
+ const r=await s.assistant.run(s.body(),'owner');assert.equal(r.phase,'TIMED_OUT');assert.equal(r.error.code,'REQUEST_TIMED_OUT');
+});
 test('same request id cannot silently accept a different question',async t=>{const s=await fixture(t),b=s.body();await s.assistant.run(b,'owner');await assert.rejects(s.assistant.run({...b,question:'different'},'owner'),/REQUEST_ID_PAYLOAD_MISMATCH/);assert.equal(s.counters.analyse,1);});
 test('live or unknown request lease is preserved and blocks another model request',async t=>{const s=await fixture(t),file=path.join(s.root,'active-request.lock');fs.writeFileSync(file,JSON.stringify({schema:'ask-gpt-active-lease-v1',root:fs.realpathSync(s.root),pid:process.pid,instance:randomUUID(),requestId:randomUUID()}));const before=fs.readFileSync(file,'utf8');await assert.rejects(s.assistant.run(s.body(),'owner'),/ANALYSIS_ALREADY_RUNNING_OR_INTERRUPTED_LOCK/);assert.equal(fs.readFileSync(file,'utf8'),before);assert.equal(s.counters.analyse,0);});

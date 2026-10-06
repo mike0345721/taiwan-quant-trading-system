@@ -219,6 +219,22 @@
                 <button id="dw-flow-tab-4h" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="4h"><strong>4小時</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待驗證</small></button>
                 <button id="dw-flow-tab-tradingDay" type="button" role="tab" aria-controls="dw-flow-selected-detail" aria-selected="false" data-flow-window="tradingDay" title="本交易日語意待 CRU-44 定義"><strong>本交易日</strong><span class="dw-flow-mini-bar" aria-hidden="true"></span><small>待定義</small></button>
               </div>
+              <div id="dw-next-watch" class="dw-next-watch" data-state="UNAVAILABLE" aria-live="polite">
+                <div class="dw-next-watch-line">
+                  <span>下一觀察</span>
+                  <strong id="dw-next-watch-label">等待合法關鍵價位</strong>
+                  <small id="dw-next-watch-distance">—</small>
+                </div>
+                <details id="dw-next-watch-detail">
+                  <summary>為什麼</summary>
+                  <div class="dw-next-watch-reason">
+                    <p><b>依據</b><span id="dw-next-watch-why">目前沒有可用價位。</span></p>
+                    <p><b>到價看什麼</b><span id="dw-next-watch-response">等待合法價位。</span></p>
+                    <p><b>確認</b><span id="dw-next-watch-confirm">—</span></p>
+                    <p><b>失效</b><span id="dw-next-watch-invalidate">—</span></p>
+                  </div>
+                </details>
+              </div>
               </header>
               <div class="dw-chart-stage">
                 <div class="dw-chart-price"><small>最新成交</small><strong id="dw-reference-price">—</strong></div>

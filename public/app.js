@@ -13,6 +13,7 @@ const state = {
   marketChangeFeed: null,
   indexLeadership: null, indexLeadershipLoading: false,
   marketPulse: null, marketPulseLoading: false,
+  levelWatch: null, levelWatchLoading: false,
 };
 const $ = (id) => document.getElementById(id);
 const flowChannel = window.Cru49Flow.createFlowChannel({
@@ -4093,6 +4094,58 @@ function levelValue(level) {
   return level?.availability === 'AVAILABLE' && Number.isFinite(Number(level.value)) ? Number(level.value) : null;
 }
 
+function levelEventLabel(stateValue) {
+  return ({
+    MONITORING: '觀察',
+    APPROACHING: '接近',
+    TESTING: '測試中',
+    BREAKING: '穿越中',
+    ACCEPTED: '已接受',
+    REJECTED: '遭拒絕',
+    RECLAIMED: '已收回',
+    LOST: '已失守',
+  })[stateValue] || '觀察';
+}
+
+function renderDecisionLevelWatch(levelWatch) {
+  state.levelWatch = levelWatch || null;
+  if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
+  const host = $('dw-next-watch');
+  const next = levelWatch?.state === 'READY' ? levelWatch.nextWatch : null;
+  if (!host || !next) {
+    if (host) host.dataset.state = 'UNAVAILABLE';
+    dwText('dw-next-watch-label', '等待合法關鍵價位');
+    dwText('dw-next-watch-distance', '—');
+    dwText('dw-next-watch-why', '目前沒有可用價位。');
+    dwText('dw-next-watch-response', '等待合法價位。');
+    dwText('dw-next-watch-confirm', '—');
+    dwText('dw-next-watch-invalidate', '—');
+    return;
+  }
+  host.dataset.state = next.state || 'MONITORING';
+  const distance = finiteNumber(next.distancePoints);
+  const distanceText = distance == null ? '距離未知' : distance === 0 ? '正在價位' : `距離 ${fmt(Math.abs(distance), 1)} 點`;
+  dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${levelEventLabel(next.state)}`);
+  dwText('dw-next-watch-distance', distanceText);
+  dwText('dw-next-watch-why', next.why || '由合法價格結構產生。');
+  dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
+  dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
+  dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
+}
+
+async function loadDecisionLevelWatch() {
+  if (state.levelWatchLoading || !state.csrfToken || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
+  state.levelWatchLoading = true;
+  try {
+    const payload = await api('/api/v1/decision-level-watch', { cache: 'no-store' });
+    renderDecisionLevelWatch(payload.data);
+    if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
+  } catch {
+    // Keep the last lawful level watch visible; model and trading paths are never invoked here.
+  } finally {
+    state.levelWatchLoading = false;
+  }
+}
 function clearTxChartLevels() {
   if (!state.txChartSeries?.candle) return;
   for (const line of state.txChartLevelLines) state.txChartSeries.candle.removePriceLine(line);
@@ -4126,16 +4179,33 @@ function renderTxChartLevels(chart) {
   terminalWrite('dw-chart-quality', chart?.qualityStatus || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
 
   clearTxChartLevels();
-  if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
-    addTxChartLevel(levels.openingRangeHigh, 'OR H', '#8aa7ff');
-    addTxChartLevel(levels.openingRangeLow, 'OR L', '#8aa7ff');
-    addTxChartLevel(levels.previousDayHigh, '前一日盤高', '#77869c');
-    addTxChartLevel(levels.previousDayLow, '前一日盤低', '#77869c');
-    addTxChartLevel(levels.previousClose, '前一日盤收', '#a1aec0');
+  const watch = state.levelWatch?.state === 'READY' ? state.levelWatch : state.decisionWorkspace?.levelWatch;
+  if (watch?.state === 'READY' && Array.isArray(watch.levels)) {
+    const familyColor = {
+      VWAP: 'rgba(245,200,107,.58)',
+      OPENING_RANGE: 'rgba(138,167,255,.50)',
+      SESSION_EXTREME: 'rgba(126,202,190,.46)',
+      RECENT_SWING: 'rgba(171,153,219,.42)',
+      PRIOR_REFERENCE: 'rgba(139,153,174,.34)',
+    };
+    for (const entry of watch.levels.slice(0, 3)) {
+      if (!Number.isFinite(Number(entry.price))) continue;
+      const isNext = entry.id === watch.nextWatch?.id;
+      const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');
+      addTxChartLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, `${entry.label} · ${levelEventLabel(entry.state)}`, color);
+    }
+  } else {
+    const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;
+    addTxChartLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', 'rgba(85,214,190,.44)');
+    addTxChartLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', 'rgba(239,130,147,.44)');
   }
-  const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;
-  addTxChartLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', '#55d6be');
-  addTxChartLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', '#ef8293');
+  if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
+    addTxChartLevel(levels.openingRangeHigh, 'OR H', 'rgba(138,167,255,.34)');
+    addTxChartLevel(levels.openingRangeLow, 'OR L', 'rgba(138,167,255,.34)');
+    addTxChartLevel(levels.previousDayHigh, '前一日盤高', 'rgba(119,134,156,.28)');
+    addTxChartLevel(levels.previousDayLow, '前一日盤低', 'rgba(119,134,156,.28)');
+    addTxChartLevel(levels.previousClose, '前一日盤收', 'rgba(161,174,192,.28)');
+  }
 }
 
 function chartSeriesData(payload) {
@@ -4548,6 +4618,7 @@ function renderDecisionWorkspace(workspace) {
   renderTerminalShell(workspace, state.txChartPayload || chart);
   renderLiveMarketPulse(workspace?.marketPulse);
   renderIndexLeadership(workspace?.indexLeadership);
+  renderDecisionLevelWatch(workspace?.levelWatch);
 
   const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
   $('dw-focus-mode')?.classList.toggle('is-capability-limited', compactCapabilityValues.every((value) => !value || ['UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(value)));
@@ -5021,4 +5092,9 @@ setInterval(() => {
 // Market Pulse reads the bounded 5m chart + 8790 latest snapshot; no collector or history rebuild is started.
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) loadLiveMarketPulse().catch(() => {});
+}, 5_000);
+
+// Key level watcher is deterministic/local. It never calls a model and only reads governed chart/flow projections.
+setInterval(() => {
+  if (!$('dashboard-view').classList.contains('hidden')) void loadDecisionLevelWatch();
 }, 5_000);

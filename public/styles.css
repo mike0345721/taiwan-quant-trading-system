@@ -584,6 +584,20 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-timeframe-switch button:hover, .dw-timeframe-switch button:focus-visible { color: var(--text); background: #172234; }
 .dw-timeframe-switch button.is-selected { color: #06110e; background: var(--accent); box-shadow: 0 0 18px rgba(85,214,190,.15); }
 .dw-chart-mode { color: var(--muted); font: 700 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.dw-next-watch { margin-top: 7px; padding: 7px 9px; border: 1px solid rgba(138,167,255,.14); border-radius: 8px; background: rgba(10,17,27,.58); color: #91a0b5; }
+.dw-next-watch-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 10px; }
+.dw-next-watch-line > span { flex: 0 0 auto; color: #73849b; font-weight: 800; letter-spacing: .02em; }
+.dw-next-watch-line > strong { min-width: 0; color: #c0ccdc; font-size: 10px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dw-next-watch-line > small { margin-left: auto; flex: 0 0 auto; color: #708096; font: 700 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dw-next-watch[data-state="APPROACHING"], .dw-next-watch[data-state="TESTING"], .dw-next-watch[data-state="BREAKING"] { border-color: rgba(245,200,107,.24); background: rgba(245,200,107,.045); }
+.dw-next-watch[data-state="APPROACHING"] .dw-next-watch-line > strong, .dw-next-watch[data-state="TESTING"] .dw-next-watch-line > strong, .dw-next-watch[data-state="BREAKING"] .dw-next-watch-line > strong { color: #ddc98e; }
+.dw-next-watch details { margin-top: 4px; }
+.dw-next-watch summary { width: max-content; color: #6f8097; font-size: 9px; cursor: pointer; user-select: none; }
+.dw-next-watch-reason { display: grid; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(138,167,255,.10); }
+.dw-next-watch-reason p { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 8px; margin: 0; color: #8d9cb1; font-size: 9px; line-height: 1.5; }
+.dw-next-watch-reason b { color: #718198; font-weight: 800; }
+@media (max-width: 720px) { .dw-next-watch-line { flex-wrap: wrap; }.dw-next-watch-line > strong { flex: 1 1 180px; }.dw-next-watch-line > small { margin-left: 0; }.dw-next-watch-reason p { grid-template-columns: 60px minmax(0,1fr); } }
+
 .dw-chart-stage { position: relative; min-height: 390px; margin-top: 8px; overflow: hidden; border-radius: 12px; border: 1px solid rgba(138,167,255,.15); background: #090f18; }
 .dw-chart-canvas { width: 100%; height: 100%; min-height: 390px; }
 .dw-chart-empty { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; gap: 6px; padding: 30px; text-align: center; background: linear-gradient(rgba(138,167,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(138,167,255,.035) 1px, transparent 1px), rgba(7,12,20,.93); background-size: 36px 36px; }
