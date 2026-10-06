@@ -37,7 +37,10 @@ export async function freshPlanRecord(store,key,{fetcher=fetch,now=Date.now(),si
    // Fetch all cancellable identity prerequisites before consuming a rotating refresh token.
    // After the token endpoint returns there are no awaited network steps before atomic persistence.
    const jwks=await expectJson(ISSUER+'/.well-known/jwks.json',{signal:combined(signal,15000)},fetcher);
-   const raw=await expectJson(ISSUER+'/api/accounts/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',client_id:record.client_id,refresh_token:record.refresh_token,resource:RESOURCE}),signal:combined(signal,15000)},fetcher);
+   if(signal?.aborted)throw new PlanError('REQUEST_CANCELLED');
+   // A rotating refresh exchange is intentionally not aborted by a later user cancellation: once sent,
+   // finish the bounded exchange and persist its replacement token atomically, then the caller may cancel analysis.
+   const raw=await expectJson(ISSUER+'/api/accounts/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',client_id:record.client_id,refresh_token:record.refresh_token,resource:RESOURCE}),signal:AbortSignal.timeout(15000)},fetcher);
    if(raw.token_type?.toLowerCase()!=='bearer'||typeof raw.access_token!=='string'||!raw.access_token||typeof raw.refresh_token!=='string'||!raw.refresh_token||!Number.isFinite(raw.expires_in)||raw.expires_in<=0||raw.expires_in>86400)throw new PlanError('REFRESH_RESPONSE_INVALID');
    if(raw.id_token){
     let originalNonce;try{originalNonce=record.originalNonce||JSON.parse(Buffer.from(record.id_token.split('.')[1],'base64url')).nonce;}catch{throw new PlanError('SAVED_IDENTITY_INVALID');}

@@ -42,7 +42,7 @@ test('refresh cancellation before rotating token endpoint preserves old refresh 
 test('cancellation after a rotating token response cannot lose the replacement refresh token',async t=>{
  const s=storeAt(temp(t)),r=account();r.expiresAt=0;r.originalNonce='synthetic-nonce';const k=s.save(r),controller=new AbortController(),now=Date.now();
  const {jwt,jwks}=createJwt({iss:ISSUER,aud:r.client_id,sub:r.subject,iat:Math.floor(now/1000)-1,exp:Math.floor(now/1000)+3600});
- let calls=0;const result=await freshPlanRecord(s,k,{now,signal:controller.signal,fetcher:async url=>{calls++;if(url.endsWith('/.well-known/jwks.json'))return response(jwks);controller.abort('owner-cancel');return response({token_type:'Bearer',access_token:'new-access',refresh_token:'new-refresh',id_token:jwt,expires_in:3600});}});
+ let calls=0;const result=await freshPlanRecord(s,k,{now,signal:controller.signal,fetcher:async(url,opts={})=>{calls++;if(url.endsWith('/.well-known/jwks.json'))return response(jwks);controller.abort('owner-cancel');assert.equal(opts.signal.aborted,false);return response({token_type:'Bearer',access_token:'new-access',refresh_token:'new-refresh',id_token:jwt,expires_in:3600});}});
  assert.equal(calls,2);assert.equal(controller.signal.aborted,true);assert.equal(result.refresh_token,'new-refresh');s.reload();assert.equal(s.get(k).refresh_token,'new-refresh');assert.equal(s.get(k).access_token,'new-access');
 });
 test('stream completion without a verified actual model is rejected',async()=>{
