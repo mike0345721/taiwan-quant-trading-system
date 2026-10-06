@@ -4107,6 +4107,17 @@ function levelEventLabel(stateValue) {
   })[stateValue] || '觀察';
 }
 
+function renderNextWatchBasis(rows = []) {
+  const host = $('dw-next-watch-basis');
+  if (!host) return;
+  const values = Array.isArray(rows) && rows.length ? rows.slice(0, 7) : ['目前沒有額外證據。'];
+  host.replaceChildren(...values.map((value) => {
+    const item = document.createElement('li');
+    item.textContent = value;
+    return item;
+  }));
+}
+
 function renderDecisionLevelWatch(levelWatch) {
   state.levelWatch = levelWatch || null;
   if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
@@ -4117,6 +4128,7 @@ function renderDecisionLevelWatch(levelWatch) {
     dwText('dw-next-watch-label', '等待合法關鍵價位');
     dwText('dw-next-watch-distance', '—');
     dwText('dw-next-watch-why', '目前沒有可用價位。');
+    renderNextWatchBasis(['等待合法價位與證據。']);
     dwText('dw-next-watch-response', '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
@@ -4129,6 +4141,7 @@ function renderDecisionLevelWatch(levelWatch) {
   dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${levelEventLabel(next.state)}`);
   dwText('dw-next-watch-distance', `${distanceText}${qualityText}`);
   dwText('dw-next-watch-why', next.why || '由合法價格結構產生。');
+  renderNextWatchBasis(next.basisReasons || []);
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
   dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
@@ -4181,6 +4194,14 @@ function renderTxChartLevels(chart) {
 
   clearTxChartLevels();
   const watch = state.levelWatch?.state === 'READY' ? state.levelWatch : state.decisionWorkspace?.levelWatch;
+  const vwapWatch = watch?.state === 'READY' && Array.isArray(watch.levels) ? watch.levels.find((entry) => entry.id === 'VWAP') : null;
+  const vwapSeriesLabel = chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP';
+  if (state.txChartSeries?.vwap?.applyOptions) {
+    state.txChartSeries.vwap.applyOptions({
+      title: vwapWatch ? `${vwapSeriesLabel} · ${levelEventLabel(vwapWatch.state)}` : vwapSeriesLabel,
+      lastValueVisible: true,
+    });
+  }
   if (watch?.state === 'READY' && Array.isArray(watch.levels)) {
     const familyColor = {
       VWAP: 'rgba(245,200,107,.58)',
@@ -4190,6 +4211,7 @@ function renderTxChartLevels(chart) {
       PRIOR_REFERENCE: 'rgba(139,153,174,.34)',
     };
     for (const entry of watch.levels.slice(0, 3)) {
+      if (entry.id === 'VWAP') continue;
       if (!Number.isFinite(Number(entry.price))) continue;
       const isNext = entry.id === watch.nextWatch?.id;
       const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');

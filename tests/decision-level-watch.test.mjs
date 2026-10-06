@@ -29,8 +29,9 @@ function chart(overrides={}){
 test('level watch is bounded to three lawful levels and keeps safety closed',()=>{
   const r=buildDecisionLevelWatch({chart:chart(),snapshotTime:'2026-10-05T10:30:00.000Z'});
   assert.equal(r.state,'READY');assert.ok(r.levels.length>=1&&r.levels.length<=3);
-  assert.ok(r.levels.some(x=>x.id==='VWAP'));assert.equal(r.nextWatch.id,'SWING_HIGH');
-  assert.ok(r.nextWatch.absoluteDistancePoints<=Math.min(...r.levels.map(x=>x.absoluteDistancePoints)));
+  assert.ok(r.levels.some(x=>x.id==='VWAP'));assert.equal(r.nextWatch.id,'VWAP');
+  assert.equal(r.rankingMethod,'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY');
+  assert.notEqual(r.nextWatch.importanceBand,'CONTEXT');assert.ok(r.nextWatch.basisReasons.length>=3);
   assert.equal(r.formalWeight,0);assert.equal(r.researchOnly,true);assert.equal(r.recommendation,false);
   assert.equal(r.executionAuthorized,false);assert.equal(r.orderRoutesEnabled,false);
   assert.ok(r.nextWatch.why.length>10);assert.match(r.nextWatch.confirm,/價格/);
@@ -87,10 +88,12 @@ test('completed-bar evidence is availability-time safe and inherits chart qualit
   const vwap=r.levels.find(x=>x.id==='VWAP');assert.ok(vwap);assert.equal(vwap.qualityStatus,'QUALITY_INSUFFICIENT');
   assert.equal(r.levels.some(x=>x.family==='RECENT_SWING'&&x.availableAt==='2026-10-05T11:00:00.000Z'),false);
 });
-test('level lifecycle distinguishes approaching testing breaking reclaimed lost accepted and rejected',()=>{
+test('static level lifecycle distinguishes approaching testing breaking reclaimed lost accepted and rejected',()=>{
   const state=(closes,currentPrice)=>{
-    const r=buildDecisionLevelWatch({chart:vwapOnly({closes,currentPrice}),snapshotTime:'2026-10-05T10:30:00.000Z'});
-    return r.levels.find(x=>x.id==='VWAP')?.state;
+    const c=vwapOnly({closes,currentPrice});
+    c.levels={...c.levels,vwap:{availability:'UNAVAILABLE'},previousClose:available(100,'2026-10-05T09:55:00.000Z')};
+    const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:30:00.000Z'});
+    return r.levels.find(x=>x.id==='PRIOR_CLOSE')?.state;
   };
   assert.equal(state([90,92,94,96,105,106],112),'APPROACHING');
   assert.equal(state([90,92,94,96,102,103],103),'TESTING');
@@ -99,4 +102,70 @@ test('level lifecycle distinguishes approaching testing breaking reclaimed lost 
   assert.equal(state([110,108,106,104,101,98],92),'LOST');
   assert.equal(state([90,92,94,99,108,109],109),'ACCEPTED');
   assert.equal(state([90,92,94,99,108,99],99),'REJECTED');
+});
+test('dynamic VWAP never backfills reclaimed or lost from the current VWAP value',()=>{
+  const r=buildDecisionLevelWatch({chart:vwapOnly({closes:[90,92,94,96,99,102],currentPrice:108}),snapshotTime:'2026-10-05T10:30:00.000Z'});
+  const vwap=r.levels.find(x=>x.id==='VWAP');assert.ok(vwap);
+  assert.ok(['MONITORING','APPROACHING','TESTING'].includes(vwap.state));
+  assert.equal(vwap.lifecycleBasis,'CURRENT_DYNAMIC_VWAP_ONLY_NO_HISTORICAL_STATIC_BACKFILL');
+});
+
+test('swing pivot becomes available only after the confirming next five-minute bar completes',()=>{
+  const unavailable={availability:'UNAVAILABLE'};
+  const bars=[
+    {time:'2026-10-05T10:00:00.000Z',open:95,high:100,low:90,close:97,volume:100,availableAt:'2026-10-05T10:04:59.000Z'},
+    {time:'2026-10-05T10:05:00.000Z',open:97,high:120,low:95,close:110,volume:120,availableAt:'2026-10-05T10:09:59.000Z'},
+    {time:'2026-10-05T10:10:00.000Z',open:110,high:112,low:96,close:101,volume:110,availableAt:'2026-10-05T10:14:59.000Z'},
+    {time:'2026-10-05T10:15:00.000Z',open:101,high:108,low:98,close:105,volume:90,availableAt:'2026-10-05T10:19:59.000Z'},
+  ];
+  const c={timeframe:'5m',lastPrice:105,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
+    levels:{vwap:unavailable,openingRangeHigh:unavailable,openingRangeLow:unavailable,currentDayHigh:unavailable,currentDayLow:unavailable,nightHigh:unavailable,nightLow:unavailable,previousDayHigh:unavailable,previousDayLow:unavailable,previousClose:unavailable},
+    openingRange:{status:'FORMING'}};
+  const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:20:00.000Z'});
+  const swing=r.levels.find(x=>x.id==='SWING_HIGH');assert.ok(swing);
+  assert.equal(swing.label,'近期5分K局部高點');
+  assert.equal(swing.availableAt,'2026-10-05T10:14:59.000Z');
+  assert.equal(swing.importanceBand,'CONTEXT');
+});
+test('nearby swing cannot outrank a lawful structural level only because it is closer',()=>{
+  const c=chart({lastPrice:108,openingRange:{status:'FORMING'},levels:{
+    ...chart().levels,
+    vwap:available(100,'2026-10-05T09:55:00.000Z'),
+    openingRangeHigh:{availability:'UNAVAILABLE'},openingRangeLow:{availability:'UNAVAILABLE'},
+    currentDayHigh:{availability:'UNAVAILABLE'},currentDayLow:{availability:'UNAVAILABLE'},
+    previousDayHigh:{availability:'UNAVAILABLE'},previousDayLow:{availability:'UNAVAILABLE'},previousClose:{availability:'UNAVAILABLE'},
+  }});
+  const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:30:00.000Z',maxVisible:1});
+  assert.equal(r.levels[0].id,'VWAP');
+  assert.notEqual(r.levels[0].importanceBand,'CONTEXT');
+});
+test('current Flow and RVOL are exposed as confirmation basis only when the level is nearby',()=>{
+  const c=vwapOnly({currentPrice:102});
+  c.bars=c.bars.map((b,i)=>({...b,volume:100+i*10}));
+  const observedFlow={sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.4},response:{displacementPoints:6}}}};
+  const marketPulse={rvol:{state:'READY',ratio:1.4,percentile:80,sampleDays:20}};
+  const r=buildDecisionLevelWatch({chart:c,observedFlow,marketPulse,snapshotTime:'2026-10-05T10:30:00.000Z'});
+  const vwap=r.levels.find(x=>x.id==='VWAP');assert.ok(vwap);
+  assert.equal(vwap.basis.currentConfirmation.observedFlow.directionRelation,'SAME_DIRECTION');
+  assert.equal(vwap.basis.currentConfirmation.participation.rvolRatio,1.4);
+  assert.match(vwap.basisReasons.join(' '),/成交反應/);
+  assert.match(vwap.basisReasons.join(' '),/RVOL 1\.40/);
+});
+test('repeated post-formation reactions elevate a static reference without claiming predictive win rate',()=>{
+  const unavailable={availability:'UNAVAILABLE'};
+  const bars=[
+    {time:'2026-10-05T10:00:00.000Z',open:99,high:102,low:98,close:100,volume:100,availableAt:'2026-10-05T10:04:59.000Z'},
+    {time:'2026-10-05T10:05:00.000Z',open:100,high:116,low:110,close:115,volume:120,availableAt:'2026-10-05T10:09:59.000Z'},
+    {time:'2026-10-05T10:10:00.000Z',open:105,high:106,low:99,close:101,volume:110,availableAt:'2026-10-05T10:14:59.000Z'},
+    {time:'2026-10-05T10:15:00.000Z',open:101,high:116,low:110,close:114,volume:130,availableAt:'2026-10-05T10:19:59.000Z'},
+    {time:'2026-10-05T10:20:00.000Z',open:114,high:115,low:108,close:110,volume:90,availableAt:'2026-10-05T10:24:59.000Z'},
+  ];
+  const c={timeframe:'5m',lastPrice:110,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
+    levels:{vwap:unavailable,openingRangeHigh:unavailable,openingRangeLow:unavailable,currentDayHigh:unavailable,currentDayLow:unavailable,nightHigh:unavailable,nightLow:unavailable,previousDayHigh:unavailable,previousDayLow:unavailable,previousClose:available(100,'2026-10-05T09:55:00.000Z')},
+    openingRange:{status:'FORMING'}};
+  const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:25:00.000Z'});
+  const ref=r.levels.find(x=>x.id==='PRIOR_CLOSE');assert.ok(ref);
+  assert.ok(ref.basis.reaction.testEpisodes>=2);
+  assert.ok(ref.basis.reaction.meaningfulReactionCount>=1);
+  assert.match(ref.basisReasons.join(' '),/不是勝率統計/);
 });

@@ -53,3 +53,24 @@ Owner 對第一版同頁回答的功能鏈驗收為 PASS，但交易決策價值
 安全語意不變：這些價位是「反應觀察點」，不是支撐／壓力保證，不提供 BUY/SELL、倉位或自動下單。
 
 同一候選亦收斂上一輪三個工程 blocker：rotating refresh token 在消耗前先取得 cancellable identity prerequisite，token 回傳後不再 await 網路；requestId immutable identity 綁定 ChatGPT account fingerprint；component timeout 持久化為 TIMED_OUT 且 cancellation 優先。Provider completed 事件缺少合法 actual model 時 fail closed。
+
+## 2026-10-06 Owner Review — Evidence-first Level Watch V2
+Owner追問「為什麼這個價位值得看」後，Level Watch 不再以固定 priority + 距離作為重要性代理。V2 固定分離：
+- **重要性**：合法結構來源、同區價位共振、價位形成後的獨立測試／價格離開反應；
+- **當下確認**：只有價位進入觀察區時，附 CRU34 60s Pressure→Price Response、完成K RVOL／量能背景；品質不足不得升格；
+- **提醒時機**：距離只決定何時提醒與 Next Watch，不代表價位本身較重要。
+
+不輸出0–100信心分數。內部只使用可解釋的 PRIMARY / SECONDARY / CONTEXT 三層；RECENT_SWING 單獨存在時維持 CONTEXT，不因靠近現價或剛觸及就自動升格。
+
+Swing 正式改稱「近期5分K局部高點／低點」，採三根 completed 5m local pivot；pivot 必須等**下一根5分K完成**後才可用，availableAt 綁 confirming bar，禁止把中間pivot bar時間當成已知時間。
+
+VWAP 是動態參考。沒有合法 historical exact VWAP path 時，不以「目前 VWAP 數值」倒套前幾根K判 RECLAIMED / LOST / ACCEPTED / REJECTED；只顯示目前 ABOVE/BELOW + MONITORING/APPROACHING/TESTING。K線本身沿用既有 VWAP series，Level Watch 不再另外畫第二條 VWAP price line；同一個右側標籤整合為 DAY/NIGHT VWAP · 事件狀態。
+
+Why drawer 必須揭露：
+- source/形成與可用時間；
+- 同一觀察區內的價位共振；
+- 形成後獨立測試次數、15分鐘內是否曾離開 observation zone（只作同場描述，不是勝率統計）；
+- 若當下接近，列 Flow/Price Response 與 RVOL/完成K量能是否可用；
+- data quality / research-only 限制。
+
+仍維持 formalWeight=0 / researchOnly=true / recommendation=false / executionAuthorized=false / orderRoutesEnabled=false，價位只是反應觀察點，不是已驗證支撐／壓力或策略Edge。

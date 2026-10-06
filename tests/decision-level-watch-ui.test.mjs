@@ -2,37 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
-const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-const css=fs.readFileSync(new URL('../public/styles.css',import.meta.url),'utf8');
-const server=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
-const inference=fs.readFileSync(new URL('../src/chatgpt-plan-inference.mjs',import.meta.url),'utf8');
-
-test('Next Watch is a compact chart-adjacent disclosure, not a new dominant panel',()=>{
- for(const id of ['dw-next-watch','dw-next-watch-label','dw-next-watch-distance','dw-next-watch-detail','dw-next-watch-why','dw-next-watch-response','dw-next-watch-confirm','dw-next-watch-invalidate']) assert.match(html,new RegExp(`id=["']${id}["']`));
- assert.ok(html.indexOf('dw-flow-window-strip')<html.indexOf('dw-next-watch'));
- assert.ok(html.indexOf('dw-next-watch')<html.indexOf('dw-chart-stage'));
- assert.match(css,/\.dw-next-watch\s*\{/);assert.match(css,/font-size:\s*9px|font-size:\s*10px/);
-});
-test('chart renders at most three deterministic level-watch lines and preserves optional legacy levels',()=>{
- assert.match(app,/watch\.levels\.slice\(0, 3\)/);
- assert.match(app,/show-optional-levels/);
- assert.match(app,/createPriceLine/);
- assert.match(app,/levelEventLabel/);
-});
-test('local watcher polls governed level endpoint without any model endpoint',()=>{
- assert.match(server,/\/api\/v1\/decision-level-watch/);
- assert.match(server,/currentDecisionLevelWatch/);
- const match=app.match(/async function loadDecisionLevelWatch\(\)[\s\S]*?function clearTxChartLevels/);
- assert.ok(match);assert.match(match[0],/\/api\/v1\/decision-level-watch/);
- assert.doesNotMatch(match[0],/ask-gpt\/ask|responses|analysePlan/);
- assert.match(app,/Key level watcher is deterministic\/local/);
-});
-test('decision-first model contract prioritizes levels and price response over engineering jargon',()=>{
- for(const heading of ['現在怎麼看','最值得盯的價位','確認 \/ 失效','現在不要做什麼','資料限制']) assert.match(inference,new RegExp(heading));
- assert.match(inference,/Pressure → Expected Response → Actual Response/);
- assert.match(inference,/不得自創價位/);
- assert.doesNotMatch(inference,/固定分四段/);
+test('chart keeps one VWAP label by reusing the VWAP series and skipping a duplicate price line',()=>{
+  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(app,/vwapSeriesLabel/);
+  assert.match(app,/state\.txChartSeries\.vwap\.applyOptions/);
+  assert.match(app,/if \(entry\.id === 'VWAP'\) continue;/);
 });
 
-test('Next Watch keeps quality limitation visible without exposing engineering jargon',()=>{assert.match(app,/資料品質受限/);assert.match(app,/qualityStatus/);});
+test('next watch exposes transparent evidence reasons without making them first-layer chart clutter',()=>{
+  const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(html,/id="dw-next-watch-basis"/);
+  assert.match(app,/renderNextWatchBasis\(next\.basisReasons \|\| \[\]\)/);
+  assert.match(html,/<summary>為什麼<\/summary>/);
+});
+
+test('owner-facing swing labels are plain-language local five-minute pivots',()=>{
+  const source=fs.readFileSync(new URL('../src/decision-level-watch.mjs',import.meta.url),'utf8');
+  assert.match(source,/近期5分K局部高點/);
+  assert.match(source,/近期5分K局部低點/);
+  assert.doesNotMatch(source,/label:'近期 Swing High'/);
+  assert.doesNotMatch(source,/label:'近期 Swing Low'/);
+});

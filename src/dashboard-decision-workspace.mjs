@@ -565,7 +565,7 @@ export function buildDecisionWorkspace({
   const marketState = safeMarketState(runtimeTruth);
   const decisionSummary = buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart);
   const currentMarketFactSummary = buildCurrentMarketFactSummary(marketChangeFeed, evidenceConflict);
-  const levelWatch = buildDecisionLevelWatch({ chart, observedFlow, snapshotTime: now.toISOString() });
+  const levelWatch = buildDecisionLevelWatch({ chart, observedFlow, marketPulse, snapshotTime: now.toISOString() });
   const lockedSnapshotCandidate = createDecisionSnapshot({
     snapshot,
     dataHealth,

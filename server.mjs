@@ -142,10 +142,11 @@ function currentObservedFlow() {
     liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
 }
 
-function currentDecisionLevelWatch(chart = null) {
+async function currentDecisionLevelWatch(chart = null) {
   const selectedChart = chart || loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
     calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
-  return buildDecisionLevelWatch({ chart: selectedChart, observedFlow: currentObservedFlow(), snapshotTime: new Date().toISOString() });
+  const marketPulse = await currentMarketPulse(selectedChart);
+  return buildDecisionLevelWatch({ chart: selectedChart, observedFlow: currentObservedFlow(), marketPulse, snapshotTime: new Date().toISOString() });
 }
 
 async function currentMarketPulse(chart = null) {
@@ -465,7 +466,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v1/decision-level-watch') {
-        sendJson(res, 200, { ok: true, data: currentDecisionLevelWatch() }, { 'Cache-Control': 'no-store' });
+        sendJson(res, 200, { ok: true, data: await currentDecisionLevelWatch() }, { 'Cache-Control': 'no-store' });
         return;
       }
 
