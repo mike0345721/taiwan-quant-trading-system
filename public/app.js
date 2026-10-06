@@ -4125,8 +4125,9 @@ function renderDecisionLevelWatch(levelWatch) {
   host.dataset.state = next.state || 'MONITORING';
   const distance = finiteNumber(next.distancePoints);
   const distanceText = distance == null ? '距離未知' : distance === 0 ? '正在價位' : `距離 ${fmt(Math.abs(distance), 1)} 點`;
+  const qualityText = next.qualityStatus && next.qualityStatus !== 'PASS' ? ' · 資料品質受限' : '';
   dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${levelEventLabel(next.state)}`);
-  dwText('dw-next-watch-distance', distanceText);
+  dwText('dw-next-watch-distance', `${distanceText}${qualityText}`);
   dwText('dw-next-watch-why', next.why || '由合法價格結構產生。');
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');

@@ -34,3 +34,5 @@ test('decision-first model contract prioritizes levels and price response over e
  assert.match(inference,/不得自創價位/);
  assert.doesNotMatch(inference,/固定分四段/);
 });
+
+test('Next Watch keeps quality limitation visible without exposing engineering jargon',()=>{assert.match(app,/資料品質受限/);assert.match(app,/qualityStatus/);});
