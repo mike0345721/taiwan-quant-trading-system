@@ -26,6 +26,10 @@ test('cross-origin, wrong Host and missing CSRF cannot initiate authorization or
 test('official authorization flow stores identity but does not automatically infer',async t=>{
  const s=await setup(t);await s.bootstrap();await s.authorize();const state=await (await s.request('/api/status')).json();assert.equal(state.phase,'AUTHORIZED_MODEL_NOT_TESTED');assert.equal(state.directPermission,true);assert.equal(s.calls.inference,0);const serialized=JSON.stringify(state);assert.equal(serialized.includes(syntheticBearer),false);assert.equal(serialized.includes('access_token'),false);assert.equal(JSON.stringify(s.receipts).includes(syntheticBearer),false);
 });
+test('setup permission flag requires both direct and resource scopes',async t=>{
+ const s=await setup(t,{exchangeAuthorization:async tx=>({issuer:'https://auth.openai.com',subject:'fixture-user',client_id:tx.clientId,access_token:syntheticBearer,scopes:[DIRECT_SCOPE],expiresAt:Date.now()+3600000})});
+ await s.bootstrap();await s.authorize();const state=await (await s.request('/api/status')).json();assert.equal(state.phase,'IDENTITY_ONLY_PLAN_NOT_GRANTED');assert.equal(state.directPermission,false);assert.equal(s.calls.models,0);assert.equal(s.calls.inference,0);
+});
 test('a request with valid cookie but no permission cannot list models or test',async t=>{
  const s=await setup(t);await s.bootstrap();assert.equal((await s.request('/api/models',{})).status,400);assert.equal((await s.request('/api/probe',{model:'fixture-model',creditsDisabledConfirmed:true})).status,400);assert.equal(s.calls.models,0);assert.equal(s.calls.inference,0);
 });

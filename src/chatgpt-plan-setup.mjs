@@ -30,7 +30,7 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
   const expiresAt=new Date(Date.now()+lifetimeMs).toISOString();
   function receipt() {
     const result=state.result;
-    return {schema:'cru21-plan-preflight-v1',phase:state.phase,reason:state.reason,callbackNotice:state.callbackNotice,updatedAt:state.updatedAt,expiresAt,authenticated:Boolean(active),directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),modelCount:state.models.length,probeAttempted:attemptUsed,completed:result?.terminal==='response.completed',selectedModel:result?.model||null,requestId:result?.requestId||null,responseChars:result?.text?.length||0,responseHash:result?.text?createHash('sha256').update(result.text).digest('hex'):null,usage:result?.usage||null,usageRoute:'SIWC_OAUTH_PUBLIC_RESPONSES',creditsSetting:'OWNER_CONFIRMATION_REQUIRED_NOT_API_AUDITED',paidApiFallback:false,formalDashboardModified:false};
+    return {schema:'cru21-plan-preflight-v1',phase:state.phase,reason:state.reason,callbackNotice:state.callbackNotice,updatedAt:state.updatedAt,expiresAt,authenticated:Boolean(active),directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')&&active?.scopes?.includes('resource.invoke')),modelCount:state.models.length,probeAttempted:attemptUsed,completed:result?.terminal==='response.completed',selectedModel:result?.model||null,requestId:result?.requestId||null,responseChars:result?.text?.length||0,responseHash:result?.text?createHash('sha256').update(result.text).digest('hex'):null,usage:result?.usage||null,usageRoute:'SIWC_OAUTH_PUBLIC_RESPONSES',creditsSetting:'OWNER_CONFIRMATION_REQUIRED_NOT_API_AUDITED',paidApiFallback:false,formalDashboardModified:false};
   }
   function update(phase,reason=null) {
     state.phase=phase;state.reason=reason;state.updatedAt=new Date().toISOString();
@@ -143,7 +143,7 @@ export async function startPlanSetup({ store, initializeStore=null, port=18721, 
       if(req.method==='GET' && url.pathname==='/api/status' && !url.search) {
         requireSession(req);
         if(pending && !pending.consumed && Date.now()>pending.expiresAt){lastReturn={stateHash:stateDigest(pending.state),outcome:'expired'};pending=null;update('AUTHORIZATION_EXPIRED','AUTH_ATTEMPT_EXPIRED');}
-        json(res,200,{ok:true,...state,pendingAttemptId:pending&&!pending.consumed?pending.attemptId:null,csrf:session.csrf,accounts:store.list(),activeLabel:active?store.list().find(r=>store.get(r.key)===active)?.label||'已驗證帳號':null,busy,probeAttempted:attemptUsed,expiresAt,directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')),stage:'CONNECTION_PREREQUISITE_NOT_DASHBOARD_DELIVERY'});return;
+        json(res,200,{ok:true,...state,pendingAttemptId:pending&&!pending.consumed?pending.attemptId:null,csrf:session.csrf,accounts:store.list(),activeLabel:active?store.list().find(r=>store.get(r.key)===active)?.label||'已驗證帳號':null,busy,probeAttempted:attemptUsed,expiresAt,directPermission:Boolean(active?.scopes?.includes('chatgpt.tokens.use.direct')&&active?.scopes?.includes('resource.invoke')),stage:'CONNECTION_PREREQUISITE_NOT_DASHBOARD_DELIVERY'});return;
       }
       reject('ROUTE_NOT_FOUND');
     }catch(error){
