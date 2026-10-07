@@ -92,16 +92,16 @@ function responseContract(level){
     return {
       watchFor:'接近上緣時，先看是突破後被市場接受，還是碰高後遭拒絕；不要只看瞬間穿越。',
       expectedResponse:'若向上突破有效，價格應維持在價位上方，且買方壓力增加時能繼續向上離開；若只是測試失敗，價格會無法在上方停留並回落。',
-      confirm:'突破確認：站上價位後仍能維持，且買方壓力增加時價格繼續往上離開。',
-      invalidate:'突破失效：買方壓力增加但價格推不動，或穿越後快速跌回價位下方。',
+      confirm:'站上價位後仍能維持，且買方壓力增加時價格繼續往上離開。',
+      invalidate:'買方壓力增加但價格推不動，或穿越後快速跌回價位下方。',
     };
   }
   if(role==='LOWER'){
     return {
       watchFor:'接近下緣時，先看是跌破後被市場接受，還是探低後被承接；不要只看瞬間穿越。',
       expectedResponse:'若向下跌破有效，價格應維持在價位下方，且賣方壓力增加時能繼續向下離開；若只是測試失敗，價格會無法在下方停留並收回。',
-      confirm:'跌破確認：跌到價位下方後仍能維持，且賣方壓力增加時價格繼續往下離開。',
-      invalidate:'跌破失效：賣方壓力增加但價格跌不動，或穿越後快速收回價位上方。',
+      confirm:'跌到價位下方後仍能維持，且賣方壓力增加時價格繼續往下離開。',
+      invalidate:'賣方壓力增加但價格跌不動，或穿越後快速收回價位上方。',
     };
   }
   const base=level.family==='VWAP'
@@ -110,8 +110,8 @@ function responseContract(level){
   return {
     watchFor:base,
     expectedResponse:'有效接受應表現為價格在其中一側站穩，且同方向成交壓力增加時價格能繼續離開該價位。',
-    confirm:'確認：價格在其中一側站穩，且同方向成交壓力出現時能持續離開。',
-    invalidate:'失效：成交壓力增加但價格推不動，或穿越後很快又回到另一側。',
+    confirm:'價格在其中一側站穩，且同方向成交壓力出現時能持續離開。',
+    invalidate:'成交壓力增加但價格推不動，或穿越後很快又回到另一側。',
   };
 }
 function structuralRank(level){
@@ -243,7 +243,7 @@ function basisReasons(level,{band,confluence,reaction,event,flow,participation,z
       const pressureSide=flow.pressure60>0?'買方':flow.pressure60<0?'賣方':'平衡';
       const responseSide=flow.response60>0?'價格上移':flow.response60<0?'價格下移':'價格持平';
       rows.push(`當下成交反應：近60秒為${pressureSide}壓力比 ${flow.pressure60.toFixed(2)}，${responseSide} ${Math.abs(flow.response60).toFixed(1)} 點；品質 ${flow.quality||'未標示'}，僅作反應確認。`);
-    }else rows.push('當下成交反應：Observed Flow 目前不足以作確認依據。');
+    }else rows.push('當下成交反應：盤中成交力道目前不足以作確認依據。');
     if(participation.rvolState==='READY'&&participation.rvolRatio!=null)rows.push(`量能背景：完成 K 的 RVOL ${participation.rvolRatio.toFixed(2)}×${participation.rvolPercentile!=null?`，分位 ${participation.rvolPercentile.toFixed(0)}`:''}；只作參與度背景。`);
     else if(participation.completedBarVolumeRatio!=null)rows.push(`量能背景：最新完成5分K量約為近期12根中位量的 ${participation.completedBarVolumeRatio.toFixed(2)}×。`);
   }
