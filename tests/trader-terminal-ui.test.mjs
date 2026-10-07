@@ -156,7 +156,9 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(terminalSource, /chartContractMonth === snapshotContractMonth/);
   assert.doesNotMatch(terminalSource, /chartContract === snapshotContract/);
   assert.match(terminalSource, /TRADE_DATE_OR_SOURCE_MISMATCH/);
-  assert.match(terminalSource, /DERIVATION_NOT_IMPLEMENTED/);
+  // Live Pulse owns these cells; the shell must not restore legacy placeholders.
+  assert.match(terminalSource, /renderLiveMarketPulse\(state.marketPulse\)/);
+  assert.doesNotMatch(terminalSource, /terminalWrite\('tt-(?:pulse-rvol|pulse-basis|futures-basis|top-basis)'/);
   assert.match(terminalSource, /BREAKDOWN_NOT_IMPLEMENTED/);
   assert.match(terminalSource, /COPY SNAPSHOT · READY/);
   assert.match(terminalSource, /COPY_CONTEXT_UNAVAILABLE/);
