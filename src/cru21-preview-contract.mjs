@@ -10,7 +10,7 @@ export function buildCru21PreviewVersion({ runtimeVersion, branch, dataMode } = 
 }
 
 export function validateCru21PreviewVersionTruth(version, { expectedHead, expectedBaseMain,
-  actualBranch, sourceClean, host, port, inlineEnabled, candidateReadRoot } = {}) {
+  actualBranch, sourceClean, host, port, inlineEnabled, candidateReadRoot, actualDataMode } = {}) {
   const reasons = [];
   const sha = value => /^[0-9a-f]{40}$/.test(value || '');
   if (version?.previewType !== 'CRU21_OWNER_PREVIEW') reasons.push('CRU21_PREVIEW_TYPE_MISMATCH');
@@ -19,6 +19,6 @@ export function validateCru21PreviewVersionTruth(version, { expectedHead, expect
   if (!sha(expectedBaseMain) || version?.baseMainCommit !== expectedBaseMain || version?.approvedMainCommit !== expectedBaseMain) reasons.push('CRU21_BASE_MAIN_MISMATCH');
   if (actualBranch !== 'codex/cru21-chatgpt-plan-preflight-v1' || version?.branch !== actualBranch) reasons.push('CRU21_BRANCH_MISMATCH');
   if (sourceClean !== true) reasons.push('CRU21_SOURCE_NOT_CLEAN');
-  if (version?.dataMode !== 'LIVE' || version?.complete !== false) reasons.push('CRU21_PREVIEW_TRUTH_INVALID');
+  if (actualDataMode !== 'LIVE' || version?.dataMode !== actualDataMode || version?.complete !== false) reasons.push('CRU21_PREVIEW_TRUTH_INVALID');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }

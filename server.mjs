@@ -138,7 +138,7 @@ const cru21IdentityOptions = cru21PreviewEnabled ? {
   actualBranch: execFileSync('git', ['branch', '--show-current'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim(),
   sourceClean: execFileSync('git', ['status', '--porcelain'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim() === '',
   host: config.host, port: config.port, inlineEnabled: process.env.ASK_GPT_INLINE_ENABLED === '1',
-  candidateReadRoot: process.env.ASK_GPT_CANDIDATE_READ_ROOT,
+  candidateReadRoot: process.env.ASK_GPT_CANDIDATE_READ_ROOT, actualDataMode: expectedDataMode.toUpperCase(),
 } : null;
 if (cru21PreviewEnabled && !validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions).ready) throw Error('CRU21_PREVIEW_STARTUP_REJECTED');
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
