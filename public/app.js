@@ -4118,6 +4118,47 @@ function renderNextWatchBasis(rows = []) {
   }));
 }
 
+function scenarioRrText(scenario) {
+  const ratio = finiteNumber(scenario?.rr?.ratio);
+  return scenario?.rr?.state === 'AVAILABLE' && ratio != null ? `R:R ${fmt(ratio, 2)}` : 'R:R —';
+}
+
+function scenarioTargetText(scenario) {
+  const price = finiteNumber(scenario?.target?.price);
+  return scenario?.target && price != null ? `${scenario.target.label} ${fmt(price, 2)}` : '目前無合法目標';
+}
+
+function scenarioDirectionLabel(scenarioWatch, next) {
+  if (scenarioWatch?.directionState === 'BIDIRECTIONAL_TEST') return '雙向測試';
+  if (scenarioWatch?.directionState === 'BIDIRECTIONAL_WATCH') return '雙向觀察';
+  return levelEventLabel(next?.state);
+}
+
+function scenarioTargetWhy(scenario) {
+  if (!scenario?.target) return '目前沒有 evidence-qualified 方向目標。';
+  const reasons = Array.isArray(scenario.target.basisReasons) ? scenario.target.basisReasons.slice(0, 2) : [];
+  return [scenario.target.why, ...reasons].filter(Boolean).join(' ');
+}
+
+function renderScenarioWatch(scenarioWatch) {
+  const long = scenarioWatch?.long || null;
+  const short = scenarioWatch?.short || null;
+  dwText('dw-long-target', scenarioTargetText(long));
+  dwText('dw-short-target', scenarioTargetText(short));
+  dwText('dw-long-rr', scenarioRrText(long));
+  dwText('dw-short-rr', scenarioRrText(short));
+  dwText('dw-long-target-why', scenarioTargetWhy(long));
+  dwText('dw-short-target-why', scenarioTargetWhy(short));
+  dwText('dw-long-confirm', long?.confirm || '等待合法多方確認條件。');
+  dwText('dw-long-invalidate', long?.invalidate || '等待合法多方失效條件。');
+  dwText('dw-short-confirm', short?.confirm || '等待合法空方確認條件。');
+  dwText('dw-short-invalidate', short?.invalidate || '等待合法空方失效條件。');
+  const available = [long, short].some((row) => row?.rr?.state === 'AVAILABLE');
+  dwText('dw-scenario-rr-note', available
+    ? '條件式結構 R:R：確認門檻→合法目標 ÷ 確認門檻→失效門檻；不是勝率、EV、進場或停損指令。'
+    : '目前缺少合法方向目標或結構條件，因此不計算 R:R；不補造價位。');
+}
+
 function renderDecisionLevelWatch(levelWatch) {
   state.levelWatch = levelWatch || null;
   if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
@@ -4129,19 +4170,22 @@ function renderDecisionLevelWatch(levelWatch) {
     dwText('dw-next-watch-distance', '—');
     dwText('dw-next-watch-why', '目前沒有可用價位。');
     renderNextWatchBasis(['等待合法價位與證據。']);
+    renderScenarioWatch(null);
     dwText('dw-next-watch-response', '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
     return;
   }
+  const scenario = levelWatch?.scenarioWatch || null;
   host.dataset.state = next.state || 'MONITORING';
   const distance = finiteNumber(next.distancePoints);
   const distanceText = distance == null ? '距離未知' : distance === 0 ? '正在價位' : `距離 ${fmt(Math.abs(distance), 1)} 點`;
   const qualityText = next.qualityStatus && next.qualityStatus !== 'PASS' ? ' · 資料品質受限' : '';
-  dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${levelEventLabel(next.state)}`);
+  dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${scenarioDirectionLabel(scenario, next)}`);
   dwText('dw-next-watch-distance', `${distanceText}${qualityText}`);
   dwText('dw-next-watch-why', next.why || '由合法價格結構產生。');
   renderNextWatchBasis(next.basisReasons || []);
+  renderScenarioWatch(scenario);
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
   dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
@@ -4194,11 +4238,22 @@ function renderTxChartLevels(chart) {
 
   clearTxChartLevels();
   const watch = state.levelWatch?.state === 'READY' ? state.levelWatch : state.decisionWorkspace?.levelWatch;
+  const scenario = watch?.scenarioWatch || null;
+  const longTargetId = scenario?.long?.target?.id || null;
+  const shortTargetId = scenario?.short?.target?.id || null;
+  const nodeId = scenario?.node?.id || watch?.nextWatch?.id || null;
+  const levelRoleTitle = (entry) => {
+    if (!entry) return '';
+    if (entry.id === nodeId) return `${entry.label} · ${scenarioDirectionLabel(scenario, entry)}`;
+    if (entry.id === longTargetId) return `多方下一關 · ${entry.label}`;
+    if (entry.id === shortTargetId) return `空方下一關 · ${entry.label}`;
+    return `${entry.label} · ${levelEventLabel(entry.state)}`;
+  };
   const vwapWatch = watch?.state === 'READY' && Array.isArray(watch.levels) ? watch.levels.find((entry) => entry.id === 'VWAP') : null;
   const vwapSeriesLabel = chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP';
   if (state.txChartSeries?.vwap?.applyOptions) {
     state.txChartSeries.vwap.applyOptions({
-      title: vwapWatch ? `${vwapSeriesLabel} · ${levelEventLabel(vwapWatch.state)}` : vwapSeriesLabel,
+      title: vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel,
       lastValueVisible: true,
     });
   }
@@ -4213,9 +4268,9 @@ function renderTxChartLevels(chart) {
     for (const entry of watch.levels.slice(0, 3)) {
       if (entry.id === 'VWAP') continue;
       if (!Number.isFinite(Number(entry.price))) continue;
-      const isNext = entry.id === watch.nextWatch?.id;
+      const isNext = entry.id === nodeId;
       const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');
-      addTxChartLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, `${entry.label} · ${levelEventLabel(entry.state)}`, color);
+      addTxChartLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
     }
   } else {
     const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;

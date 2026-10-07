@@ -45,7 +45,18 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
   },
  }:null;
  const safeLevel=r=>({...pick(r,['id','family','label','price','state','side','distancePoints','absoluteDistancePoints','movingToward','zonePoints','sourceId','availableAt','formedAt','qualityStatus','importanceBand']),basisReasons:(r?.basisReasons||[]).slice(0,7).map(smallValue),basis:safeBasis(r?.basis),why:smallValue(r?.why),watchFor:smallValue(r?.watchFor),expectedResponse:smallValue(r?.expectedResponse),confirm:smallValue(r?.confirm),invalidate:smallValue(r?.invalidate)});
- const levelWatch={...pick(watch,['state','reason','currentPrice','zonePoints','zoneMethod','rankingMethod']),levels:(watch.levels||[]).slice(0,3).map(safeLevel),nextWatch:watch.nextWatch?safeLevel(watch.nextWatch):null,observedFlow:pick(watch.observedFlow,['sourceState','quality','pressure60','response60','directionRelation','availableAt']),participation:pick(watch.participation,['completedBarVolumeRatio','rvolState','rvolRatio','rvolPercentile','rvolSampleDays'])};
+ const safeScenario=s=>s?{
+  ...pick(s,['side','state','priceGateState','flowConfirmationState','confirmationThreshold','invalidationThreshold','confirm','invalidate','recommendation']),
+  target:s.target?pick(s.target,['id','family','label','price','importanceBand','sourceId','availableAt','qualityStatus','why','basisReasons']):null,
+  rr:pick(s.rr,['state','ratio','riskPoints','rewardPoints','reason','meaning']),
+ }:null;
+ const scenarioWatch=watch.scenarioWatch?{
+  ...pick(watch.scenarioWatch,['schemaVersion','directionState','rrMeaning','recommendation']),
+  node:watch.scenarioWatch.node?pick(watch.scenarioWatch.node,['id','family','label','price','state','importanceBand','sourceId','availableAt','qualityStatus','why','basisReasons']):null,
+  long:safeScenario(watch.scenarioWatch.long),
+  short:safeScenario(watch.scenarioWatch.short),
+ }:null;
+ const levelWatch={...pick(watch,['state','reason','currentPrice','zonePoints','zoneMethod','rankingMethod']),levels:(watch.levels||[]).slice(0,3).map(safeLevel),nextWatch:watch.nextWatch?safeLevel(watch.nextWatch):null,scenarioWatch,observedFlow:pick(watch.observedFlow,['sourceState','quality','pressure60','response60','directionRelation','availableAt']),participation:pick(watch.participation,['completedBarVolumeRatio','rvolState','rvolRatio','rvolPercentile','rvolSampleDays'])};
  const context={schemaVersion:'ask-gpt-inline-context-v1',...pick(d,['snapshotHash','snapshotTime','tradeDate','contract','session','identityState','identityReason','identitySource','decisionReadiness']),
   selection:'CURRENT_LIVE_WORKSPACE_NOT_LOCKED_OR_REPLAY_SELECTION',
   price:pick(d.price,AVAIL),OR:pick(d.OR,AVAIL),VWAP:pick(d.VWAP,AVAIL),marketPulse,levelWatch,

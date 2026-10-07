@@ -74,3 +74,32 @@ Why drawer 必須揭露：
 - data quality / research-only 限制。
 
 仍維持 formalWeight=0 / researchOnly=true / recommendation=false / executionAuthorized=false / orderRoutesEnabled=false，價位只是反應觀察點，不是已驗證支撐／壓力或策略Edge。
+
+## 2026-10-07 Owner Decision — Scenario Watch + Directional Targets V1
+
+在 Evidence-first Level Watch V2 之上新增雙向 Scenario Watch。核心 nextWatch 仍是唯一 decision node；系統不把「測試中」直接解讀為多或空，而是在 node 旁固定提供 Long / Short 兩個條件情境。
+
+### Deterministic scenario semantics
+- 當 node 位於 observation zone 內或處於 APPROACHING / TESTING / BREAKING，directionState = BIDIRECTIONAL_TEST；否則為 BIDIRECTIONAL_WATCH。
+- Long confirmation threshold = node price + observation zone；Long invalidation threshold = node price - observation zone。
+- Short confirmation threshold = node price - observation zone；Short invalidation threshold = node price + observation zone。
+- 這些 threshold 是觀察／確認邊界，不是 entry / stop order，也不產生交易指令。
+
+### Directional target
+- Long target 必須位於 Long confirmation threshold 上方；Short target 必須位於 Short confirmation threshold 下方。
+- Target 只能來自同一 lawful level universe，且 CONTEXT-only level 不得成為 directional target。
+- Target ranking 仍為 evidence-first：importance band → post-formation reaction → confluence → structural rank → distance tie-break。
+- target 必須保留 id / family / sourceId / availableAt / qualityStatus / why / basisReasons；缺合法 target 就保持 null。
+
+### Conditional structural R:R
+- 若 confirmation / invalidation / lawful target 都存在，系統可計算：reward = confirmation→target，risk = confirmation→invalidation，R:R = reward / risk。
+- R:R 僅表示結構幾何，不是歷史勝率、Expected Value、進場價、停損指令、position sizing 或交易推薦。
+- 任一條件缺失時 state = UNAVAILABLE，不由 GPT 補造 target 或重算。
+
+### UI / GPT
+- Next Watch 第一層顯示核心 node，雙向測試時明寫「雙向測試」。
+- 低調顯示「多方下一關 / 空方下一關」與條件式 R:R；Confirm / Invalidate / target why 收在「為什麼」展開層。
+- K 線最多仍維持 3 個主要 level；角色標籤可顯示 decision node / 多方下一關 / 空方下一關。
+- GPT 只能引用 backend scenarioWatch 的 threshold / target / rr；禁止自創價位、勝率、EV或多空信心分數。
+
+Safety remains formalWeight=0 / researchOnly=true / recommendation=false / systemDirectionalSignal=false / executionAuthorized=false / orderRoutesEnabled=false.

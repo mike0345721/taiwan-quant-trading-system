@@ -225,14 +225,29 @@
                   <strong id="dw-next-watch-label">等待合法關鍵價位</strong>
                   <small id="dw-next-watch-distance">—</small>
                 </div>
+                <div id="dw-scenario-watch" class="dw-scenario-watch" aria-label="多空雙向下一觀察目標">
+                  <div class="dw-scenario-row" data-side="LONG">
+                    <span>多方下一關</span><strong id="dw-long-target">—</strong><small id="dw-long-rr">R:R —</small>
+                  </div>
+                  <div class="dw-scenario-row" data-side="SHORT">
+                    <span>空方下一關</span><strong id="dw-short-target">—</strong><small id="dw-short-rr">R:R —</small>
+                  </div>
+                </div>
                 <details id="dw-next-watch-detail">
                   <summary>為什麼</summary>
                   <div class="dw-next-watch-reason">
                     <p><b>依據</b><span id="dw-next-watch-why">目前沒有可用價位。</span></p>
                     <ul id="dw-next-watch-basis" class="dw-next-watch-basis"><li>等待合法價位與證據。</li></ul>
                     <p><b>到價看什麼</b><span id="dw-next-watch-response">等待合法價位。</span></p>
-                    <p><b>確認</b><span id="dw-next-watch-confirm">—</span></p>
-                    <p><b>失效</b><span id="dw-next-watch-invalidate">—</span></p>
+                    <p><b>多方目標依據</b><span id="dw-long-target-why">—</span></p>
+                    <p><b>多方確認</b><span id="dw-long-confirm">—</span></p>
+                    <p><b>多方失效</b><span id="dw-long-invalidate">—</span></p>
+                    <p><b>空方目標依據</b><span id="dw-short-target-why">—</span></p>
+                    <p><b>空方確認</b><span id="dw-short-confirm">—</span></p>
+                    <p><b>空方失效</b><span id="dw-short-invalidate">—</span></p>
+                    <p><b>R:R 說明</b><span id="dw-scenario-rr-note">條件不足時不計算。</span></p>
+                    <p class="dw-legacy-node-contract"><b>節點確認</b><span id="dw-next-watch-confirm">—</span></p>
+                    <p class="dw-legacy-node-contract"><b>節點失效</b><span id="dw-next-watch-invalidate">—</span></p>
                   </div>
                 </details>
               </div>

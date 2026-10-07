@@ -169,3 +169,49 @@ test('repeated post-formation reactions elevate a static reference without claim
   assert.ok(ref.basis.reaction.meaningfulReactionCount>=1);
   assert.match(ref.basisReasons.join(' '),/不是勝率統計/);
 });
+
+test('scenario watch treats a nearby VWAP as a bidirectional decision node with separate lawful targets',()=>{
+  const c=chart({lastPrice:102});
+  const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:30:00.000Z'});
+  assert.equal(r.schemaVersion,'decision-level-watch-v3');
+  assert.ok(r.scenarioWatch);
+  assert.equal(r.scenarioWatch.directionState,'BIDIRECTIONAL_TEST');
+  assert.equal(r.scenarioWatch.node.id,'VWAP');
+  assert.equal(r.scenarioWatch.long.confirmationThreshold,100+r.zonePoints);
+  assert.equal(r.scenarioWatch.short.confirmationThreshold,100-r.zonePoints);
+  assert.ok(r.scenarioWatch.long.target?.price>r.scenarioWatch.long.confirmationThreshold);
+  assert.ok(r.scenarioWatch.short.target?.price<r.scenarioWatch.short.confirmationThreshold);
+  assert.notEqual(r.scenarioWatch.long.target?.importanceBand,'CONTEXT');
+  assert.notEqual(r.scenarioWatch.short.target?.importanceBand,'CONTEXT');
+  assert.equal(r.scenarioWatch.long.rr.state,'AVAILABLE');
+  assert.equal(r.scenarioWatch.short.rr.state,'AVAILABLE');
+  assert.equal(r.scenarioWatch.long.rr.riskPoints,r.zonePoints*2);
+  assert.equal(r.scenarioWatch.short.rr.riskPoints,r.zonePoints*2);
+  assert.equal(r.scenarioWatch.recommendation,false);
+  assert.equal(r.systemDirectionalSignal,false);
+});
+
+test('conditional structural RR fails closed when there is no evidence-qualified directional target',()=>{
+  const r=buildDecisionLevelWatch({chart:vwapOnly({currentPrice:102}),snapshotTime:'2026-10-05T10:30:00.000Z'});
+  assert.ok(r.scenarioWatch);
+  assert.equal(r.scenarioWatch.long.target,null);
+  assert.equal(r.scenarioWatch.short.target,null);
+  assert.equal(r.scenarioWatch.long.rr.state,'UNAVAILABLE');
+  assert.equal(r.scenarioWatch.short.rr.state,'UNAVAILABLE');
+  assert.equal(r.scenarioWatch.long.rr.reason,'NO_EVIDENCE_QUALIFIED_TARGET');
+  assert.equal(r.scenarioWatch.short.rr.reason,'NO_EVIDENCE_QUALIFIED_TARGET');
+});
+
+test('scenario Flow confirmation remains descriptive and does not become a system direction',()=>{
+  const c=chart({lastPrice:102});
+  c.bars=c.bars.map((bar,i)=>({...bar,volume:100+i*5}));
+  const observedFlow={sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.5},response:{displacementPoints:8}}}};
+  const r=buildDecisionLevelWatch({chart:c,observedFlow,snapshotTime:'2026-10-05T10:30:00.000Z'});
+  assert.equal(r.scenarioWatch.long.flowConfirmationState,'ALIGNED');
+  assert.equal(r.scenarioWatch.short.flowConfirmationState,'CONTRARY');
+  assert.equal(r.scenarioWatch.long.recommendation,false);
+  assert.equal(r.scenarioWatch.short.recommendation,false);
+  assert.equal(r.recommendation,false);
+  assert.equal(r.executionAuthorized,false);
+  assert.equal(r.orderRoutesEnabled,false);
+});

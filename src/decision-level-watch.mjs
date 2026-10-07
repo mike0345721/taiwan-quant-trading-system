@@ -259,9 +259,77 @@ function summaryWhy(level,basis){
   return [level.why,...extra].join('；');
 }
 
+function directionalTarget(levels,node,direction,threshold){
+  const candidates=levels.filter(level=>{
+    if(!level||level.id===node?.id||level.importanceBand==='CONTEXT'||finite(level.price)==null)return false;
+    return direction==='LONG'?level.price>threshold:level.price<threshold;
+  });
+  return [...candidates].sort((a,b)=>
+    bandRank(b.importanceBand)-bandRank(a.importanceBand)
+    ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
+    ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
+    ||structuralRank(b)-structuralRank(a)
+    ||Math.abs(a.price-threshold)-Math.abs(b.price-threshold)
+  )[0]||null;
+}
+function scenarioRr(direction,confirmThreshold,invalidationThreshold,target){
+  const risk=Math.abs(confirmThreshold-invalidationThreshold);
+  const reward=target?direction==='LONG'?target.price-confirmThreshold:confirmThreshold-target.price:null;
+  if(!(risk>0)||!(reward>0))return Object.freeze({
+    state:'UNAVAILABLE',ratio:null,riskPoints:risk>0?risk:null,rewardPoints:reward>0?reward:null,
+    reason:target?'TARGET_NOT_BEYOND_CONFIRMATION':'NO_EVIDENCE_QUALIFIED_TARGET',
+    meaning:'STRUCTURAL_GEOMETRY_ONLY_NOT_PROBABILITY_OR_EV',
+  });
+  return Object.freeze({
+    state:'AVAILABLE',ratio:reward/risk,riskPoints:risk,rewardPoints:reward,
+    reason:null,meaning:'STRUCTURAL_GEOMETRY_ONLY_NOT_PROBABILITY_OR_EV',
+  });
+}
+function scenarioFlowState(direction,flow){
+  if(flow?.sourceState!=='LIVE'||flow?.pressure60==null||flow?.response60==null)return 'UNAVAILABLE';
+  if(flow.quality&&flow.quality!=='PASS'&&flow.quality!=='READY')return 'QUALITY_INSUFFICIENT';
+  const aligned=direction==='LONG'?flow.pressure60>0&&flow.response60>0:flow.pressure60<0&&flow.response60<0;
+  const contrary=direction==='LONG'?flow.pressure60<0&&flow.response60<0:flow.pressure60>0&&flow.response60>0;
+  return aligned?'ALIGNED':contrary?'CONTRARY':'MIXED';
+}
+function buildScenario(direction,node,target,{zone,currentPrice,flow}){
+  const long=direction==='LONG';
+  const confirmThreshold=node.price+(long?zone:-zone);
+  const invalidationThreshold=node.price+(long?-zone:zone);
+  const priceGate=long?currentPrice>=confirmThreshold:currentPrice<=confirmThreshold;
+  const rr=scenarioRr(direction,confirmThreshold,invalidationThreshold,target);
+  const targetPayload=target?Object.freeze({
+    id:target.id,family:target.family,label:target.label,price:target.price,
+    importanceBand:target.importanceBand,sourceId:target.sourceId,availableAt:target.availableAt,
+    qualityStatus:target.qualityStatus,why:target.why,basisReasons:Object.freeze([...(target.basisReasons||[])]),
+  }):null;
+  return Object.freeze({
+    side:direction,
+    state:priceGate?'PRICE_CONFIRMATION_CANDIDATE':'WAIT_CONFIRMATION',
+    priceGateState:priceGate?'MET':'NOT_MET',
+    flowConfirmationState:scenarioFlowState(direction,flow),
+    confirmationThreshold:confirmThreshold,
+    invalidationThreshold,
+    confirm:long
+      ? `價格站上 ${confirmThreshold.toFixed(2)} 並能維持；若買方壓力增加，價格需同步往上離開。`
+      : `價格跌到 ${confirmThreshold.toFixed(2)} 下方並能維持；若賣方壓力增加，價格需同步往下離開。`,
+    invalidate:long
+      ? `價格重新跌到 ${invalidationThreshold.toFixed(2)} 下方，或買方壓力增加但價格無法往上離開。`
+      : `價格重新站上 ${invalidationThreshold.toFixed(2)}，或賣方壓力增加但價格無法往下離開。`,
+    target:targetPayload,
+    rr,
+    recommendation:false,
+  });
+}
+function scenarioDirectionState(node,zone){
+  if(!node)return 'UNAVAILABLE';
+  if(['TESTING','BREAKING','APPROACHING'].includes(node.state)||node.absoluteDistancePoints<=zone)return 'BIDIRECTIONAL_TEST';
+  return 'BIDIRECTIONAL_WATCH';
+}
+
 export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=null,snapshotTime=new Date().toISOString(),maxVisible=3}={}){
   const currentPrice=finite(chart?.lastPrice);
-  if(currentPrice==null)return Object.freeze({schemaVersion:'decision-level-watch-v2',state:'UNAVAILABLE',reason:'CURRENT_PRICE_UNAVAILABLE',levels:Object.freeze([]),nextWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
+  if(currentPrice==null)return Object.freeze({schemaVersion:'decision-level-watch-v3',state:'UNAVAILABLE',reason:'CURRENT_PRICE_UNAVAILABLE',levels:Object.freeze([]),nextWatch:null,scenarioWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
   const bars=completedBars(chart,snapshotTime);
   const ranges=bars.slice(-12).map(b=>finite(b.high)-finite(b.low)).filter(Number.isFinite);
   const med=median(ranges);
@@ -314,18 +382,44 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     ||structuralRank(b)-structuralRank(a)
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   );
-  const selected=decorated.slice(0,Math.max(1,Math.min(3,maxVisible)));
-  const nextPool=selected.filter(x=>x.importanceBand!=='CONTEXT'||x.absoluteDistancePoints<=zone);
-  const next=[...(nextPool.length?nextPool:selected)].sort((a,b)=>
-    (ACTIVE_STATES.has(b.state)?1:0)-(ACTIVE_STATES.has(a.state)?1:0)
+  const nodePool=decorated.filter(x=>x.importanceBand!=='CONTEXT'||x.absoluteDistancePoints<=zone);
+  const next=[...(nodePool.length?nodePool:decorated)].sort((a,b)=>
+    bandRank(b.importanceBand)-bandRank(a.importanceBand)
+    ||structuralRank(b)-structuralRank(a)
+    ||(ACTIVE_STATES.has(b.state)?1:0)-(ACTIVE_STATES.has(a.state)?1:0)
+    ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
+    ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
-    ||bandRank(b.importanceBand)-bandRank(a.importanceBand)
   )[0]||null;
+  const longThreshold=next?next.price+zone:null;
+  const shortThreshold=next?next.price-zone:null;
+  const longTarget=next?directionalTarget(decorated,next,'LONG',longThreshold):null;
+  const shortTarget=next?directionalTarget(decorated,next,'SHORT',shortThreshold):null;
+  const scenarioWatch=next?Object.freeze({
+    schemaVersion:'decision-scenario-watch-v1',
+    directionState:scenarioDirectionState(next,zone),
+    node:Object.freeze({
+      id:next.id,family:next.family,label:next.label,price:next.price,state:next.state,
+      importanceBand:next.importanceBand,sourceId:next.sourceId,availableAt:next.availableAt,
+      qualityStatus:next.qualityStatus,why:next.why,basisReasons:Object.freeze([...(next.basisReasons||[])]),
+    }),
+    long:buildScenario('LONG',next,longTarget,{zone,currentPrice,flow}),
+    short:buildScenario('SHORT',next,shortTarget,{zone,currentPrice,flow}),
+    rrMeaning:'CONDITIONAL_STRUCTURAL_RR_NOT_WIN_RATE_NOT_EV_NOT_ENTRY_ADVICE',
+    recommendation:false,
+  }):null;
+  const displayIds=[];
+  const display=[];
+  for(const level of [next,longTarget,shortTarget,...decorated]){
+    if(!level||displayIds.includes(level.id))continue;
+    displayIds.push(level.id);display.push(level);
+    if(display.length>=Math.max(1,Math.min(3,maxVisible)))break;
+  }
   return Object.freeze({
-    schemaVersion:'decision-level-watch-v2',state:selected.length?'READY':'UNAVAILABLE',reason:selected.length?null:'NO_LAWFUL_LEVELS',
+    schemaVersion:'decision-level-watch-v3',state:display.length?'READY':'UNAVAILABLE',reason:display.length?null:'NO_LAWFUL_LEVELS',
     currentPrice,zonePoints:zone,zoneMethod:'35%_RECENT_COMPLETED_5M_MEDIAN_RANGE_CLAMP_6_30_OBSERVATION_ONLY',
     rankingMethod:'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY',
-    levels:freezeRows(selected),nextWatch:next?Object.freeze({...next}):null,
+    levels:freezeRows(display),nextWatch:next?Object.freeze({...next}):null,scenarioWatch,
     observedFlow:Object.freeze(flow),participation:Object.freeze(participation),
     formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false,
   });
