@@ -213,6 +213,8 @@ export function buildMarketPulseLive({ chart, bridgeLatest, archiveDir, now = ne
   return Object.freeze({
     schemaVersion: 'market-pulse-live-v1',
     generatedAt: now.toISOString(),
+    identity: Object.freeze({ actualContract: chart?.actualContract || null, tradeDate: chart?.tradeDate || null, session: chart?.session || null }),
+    sourceAvailableAt: chart?.availableAt || chart?.bars?.at(-1)?.availableAt || null,
     rvol,
     basis,
     recommendation: false,

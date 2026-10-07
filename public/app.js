@@ -2743,7 +2743,29 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
 }
 
 function renderLiveMarketPulse(pulse) {
-  state.marketPulse = pulse || null;
+  // Full workspace and live polls may complete in either order. Never roll back a newer live payload.
+  const incomingAt = Date.parse(pulse?.generatedAt);
+  const acceptedAt = Date.parse(state.marketPulse?.generatedAt);
+  if (pulse?.schemaVersion === 'market-pulse-live-v1' && Number.isFinite(incomingAt) && incomingAt <= Date.now() + 5_000
+      && (!Number.isFinite(acceptedAt) || incomingAt >= acceptedAt)) {
+    state.marketPulse = pulse;
+  }
+  if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, marketPulse: state.marketPulse };
+  pulse = state.marketPulse;
+  const now = Date.now();
+  const generatedAt = Date.parse(pulse?.generatedAt);
+  const sourceAt = Date.parse(pulse?.sourceAvailableAt);
+  const chart = state.txChartPayload;
+  const identity = pulse?.identity;
+  const identityKeys = ['actualContract', 'tradeDate', 'session'];
+  const reason = !pulse ? 'MARKET_PULSE_NOT_LOADED'
+    : !Number.isFinite(generatedAt) || generatedAt > now + 5_000 ? 'MARKET_PULSE_TIME_INVALID'
+      : now - generatedAt > 120_000 ? 'MARKET_PULSE_STALE'
+        : identityKeys.some(key => !identity?.[key]) ? 'MARKET_PULSE_IDENTITY_MISSING'
+          : chart && (chart.mode !== 'LIVE' || identityKeys.some(key => chart[key] !== identity[key])) ? 'MARKET_PULSE_CHART_IDENTITY_MISMATCH'
+            : (pulse.rvol?.state === 'READY' || ['LIVE', 'SESSION_CLOSED_REFERENCE'].includes(pulse.basis?.state))
+              && (!Number.isFinite(sourceAt) || sourceAt > now + 5_000 || now - sourceAt > 120_000) ? 'MARKET_PULSE_SOURCE_STALE' : null;
+  if (reason) pulse = { rvol: { state: 'UNAVAILABLE', reason }, basis: { state: 'UNAVAILABLE', reason } };
   const rvol = pulse?.rvol || {};
   const ratio = finiteNumber(rvol.ratio);
   const percentile = finiteNumber(rvol.percentile);
@@ -2776,17 +2798,24 @@ function renderLiveMarketPulse(pulse) {
     : (basis.reason || 'BASIS_UNAVAILABLE');
   for (const id of ['tt-top-basis', 'tt-pulse-basis', 'tt-futures-basis']) {
     terminalWrite(id, basisValue, { reason: basis.reason || 'BASIS_UNAVAILABLE', title: basisTitle });
-    if (basisReady) tone(id, points);
+    tone(id, basisReady ? points : 0);
   }
 }
 
 async function loadLiveMarketPulse() {
   if (state.marketPulseLoading || !state.csrfToken) return;
   state.marketPulseLoading = true;
+  renderLiveMarketPulse(state.marketPulse);
   try {
-    const payload = await api('/api/v1/market-pulse', { cache: 'no-store' });
-    if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, marketPulse: payload.data };
+    const payload = await api('/api/v1/market-pulse', { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+    if (payload?.data?.schemaVersion !== 'market-pulse-live-v1' || !Number.isFinite(Date.parse(payload.data.generatedAt))
+        || Date.parse(payload.data.generatedAt) > Date.now() + 5_000) throw new Error('MARKET_PULSE_RESPONSE_INVALID');
     renderLiveMarketPulse(payload.data);
+  } catch {
+    renderLiveMarketPulse({ schemaVersion: 'market-pulse-live-v1', generatedAt: new Date().toISOString(),
+      identity: state.marketPulse?.identity,
+      rvol: { state: 'UNAVAILABLE', reason: 'MARKET_PULSE_REFRESH_FAILED' },
+      basis: { state: 'UNAVAILABLE', reason: 'MARKET_PULSE_REFRESH_FAILED' } });
   } finally {
     state.marketPulseLoading = false;
   }
@@ -3521,10 +3550,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     reason: futuresMarketHealth?.reason || futuresUnavailableReason, title: futuresContext,
   });
   const basis = basisIdentityCompatible ? finiteNumber(derived?.market?.basis) : null;
-  terminalWrite('tt-top-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: basisUnavailableReason, title: basisContext,
-  });
-  tone('tt-top-basis', basis ?? 0);
+  renderLiveMarketPulse(state.marketPulse);
   terminalWrite('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || null, { reason: 'TRADE_DATE_OR_SESSION_UNAVAILABLE' });
   terminalWrite('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
   terminalWrite('tt-top-trust', chart?.qualityStatus || global.dataHealth || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
@@ -3572,17 +3598,10 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   renderTerminalEvidenceCard('global', contract, 'GLOBAL_FX', 'No governed global source is currently available.');
   renderGlobalTiles(dw4FamilyEvidence(contract, 'GLOBAL_FX'));
 
-  dwText('tt-pulse-rvol', terminalUnavailable('DERIVATION_NOT_IMPLEMENTED'));
-  terminalWrite('tt-pulse-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: basisUnavailableReason, title: basisContext,
-  });
   terminalWrite('tt-futures-tx', lastPrice == null ? null : fmt(lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
   const vwapDelta = lastPrice != null && vwap != null ? lastPrice - vwap : null;
   terminalWrite('tt-futures-vwap', vwapDelta == null ? null : `${vwapDelta > 0 ? '上方' : vwapDelta < 0 ? '下方' : '貼近'} ${signed(vwapDelta, ' 點', 2)}`, {
     reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE', title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.vwap?.source || chart?.source }),
-  });
-  terminalWrite('tt-futures-basis', basis == null ? null : `${signed(basis, ' 點', 2)} · ${batchMode(futuresMarketHealth)}`, {
-    reason: basisUnavailableReason, title: basisContext,
   });
   const positioningUsable = snapshot?.futuresInstitutional?.ok === true && terminalHealthUsable(positioningHealth);
   const positioningDate = snapshot?.futuresInstitutional?.dataDate || snapshot?.futuresInstitutional?.sourceDataDate || null;
@@ -3861,7 +3880,7 @@ function renderRuntimeVersion(version = {}) {
   dwText('dw-version-sync', sync);
   const preview = $('cru46-preview-version');
   const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW'
-    || version.previewType === 'CRU44_OWNER_PREVIEW';
+    || version.previewType === 'CRU44_OWNER_PREVIEW' || version.previewType === 'CRU21_OWNER_PREVIEW';
   preview?.classList.toggle('hidden', !isIntegrationPreview);
   if (!isIntegrationPreview) return;
   dwText('cru46-preview-badge', version.previewLabel || 'INTEGRATION OWNER PREVIEW');
@@ -3872,6 +3891,7 @@ function renderRuntimeVersion(version = {}) {
   dwText('cru46-version-base', version.baseMainCommit || 'UNKNOWN');
   dwText('cru46-version-build', version.buildCommit || 'UNKNOWN');
   dwText('cru46-version-runtime', version.runtimeCommit || 'UNKNOWN');
+  for (const id of ['cru46-version-cru43', 'cru46-version-cru45']) $(id)?.parentElement?.classList.toggle('hidden', version.previewType === 'CRU21_OWNER_PREVIEW');
   dwText('cru46-version-cru43', version.includedSources?.cru43 || 'UNKNOWN');
   dwText('cru46-version-cru45', version.includedSources?.cru45 || 'UNKNOWN');
   dwText('cru46-version-pending', Array.isArray(version.pendingCapabilities) ? version.pendingCapabilities.join(' / ') : 'UNKNOWN');
@@ -4630,7 +4650,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 
 async function reportCru46BrowserRuntimeProof() {
   const version = state.decisionWorkspace?.runtimeVersion;
-  if (version?.previewType !== 'INTEGRATION_OWNER_PREVIEW' && version?.previewType !== 'CRU44_OWNER_PREVIEW') return;
+  if (!['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType)) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -4738,7 +4758,6 @@ function renderDecisionWorkspace(workspace) {
   for (const [id, field, fallback] of [
     ['dw-or-state', chart.OR, 'OPENING_RANGE_UNAVAILABLE'],
     ['dw-vwap-state', chart.VWAP, 'VWAP_UNAVAILABLE'],
-    ['dw-rvol-state', chart.RVOL, 'DERIVATION_NOT_IMPLEMENTED'],
   ]) {
     const label = availabilityLabel(field);
     terminalWrite(id, label && label !== 'UNAVAILABLE' ? label : null, { reason: field?.reason || fallback });

@@ -4,7 +4,8 @@ import { createInlineHandler } from './src/ask-gpt-inline-http.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+import { buildCru21PreviewVersion, validateCru21PreviewVersionTruth } from './src/cru21-preview-contract.mjs';
 import { URL } from 'node:url';
 import { config, validateConfig } from './src/config.mjs';
 import { CacheStore } from './src/cache-store.mjs';
@@ -121,13 +122,25 @@ const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
 const baseRuntimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
+const cru21PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW';
 const cru44PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU44_OWNER_PREVIEW';
 const integrationPreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW';
 const previewVersionOptions = { runtimeVersion: baseRuntimeVersion, branch: process.env.DASHBOARD_PREVIEW_BRANCH,
   dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase() };
-const runtimeVersion = cru44PreviewEnabled
+const runtimeVersion = cru21PreviewEnabled
+  ? buildCru21PreviewVersion(previewVersionOptions)
+  : cru44PreviewEnabled
   ? buildCru44PreviewVersion({ ...previewVersionOptions, enabled: true })
   : buildIntegrationPreviewVersion({ ...previewVersionOptions, enabled: integrationPreviewEnabled });
+const cru21IdentityOptions = cru21PreviewEnabled ? {
+  expectedHead: process.env.DASHBOARD_PREVIEW_EXPECTED_HEAD,
+  expectedBaseMain: process.env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN,
+  actualBranch: execFileSync('git', ['branch', '--show-current'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim(),
+  sourceClean: execFileSync('git', ['status', '--porcelain'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim() === '',
+  host: config.host, port: config.port, inlineEnabled: process.env.ASK_GPT_INLINE_ENABLED === '1',
+  candidateReadRoot: process.env.ASK_GPT_CANDIDATE_READ_ROOT,
+} : null;
+if (cru21PreviewEnabled && !validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions).ready) throw Error('CRU21_PREVIEW_STARTUP_REJECTED');
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
 const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
 let lastRefreshError = null;
@@ -168,7 +181,9 @@ async function currentMarketPulse(chart = null) {
 }
 
 function currentCru46RuntimeReadiness() {
-  const identity = cru44PreviewEnabled
+  const identity = cru21PreviewEnabled
+    ? validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions)
+    : cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
     : validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
   const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,

@@ -3,7 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildLiveBasis, buildLiveRvol } from '../src/market-pulse-live.mjs';
+import { buildLiveBasis, buildLiveRvol, buildMarketPulseLive } from '../src/market-pulse-live.mjs';
 
 let root;
 
@@ -207,4 +207,15 @@ test('NIGHT gap also fails closed when the futures source is stale', () => {
   });
   assert.equal(result.state, 'UNAVAILABLE');
   assert.equal(result.reason, 'FUTURES_SOURCE_STALE');
+});
+
+test('pulse retains governed identity and availability without inventing missing values', () => {
+  const chart = { actualContract: 'TXFJ6', tradeDate: '2026-10-08', session: 'NIGHT', availableAt: '2026-10-07T13:00:00Z' };
+  const pulse = buildMarketPulseLive({chart, archiveDir: root, now: new Date('2026-10-07T13:00:01Z')});
+  assert.deepEqual(pulse.identity, {actualContract:'TXFJ6',tradeDate:'2026-10-08',session:'NIGHT'});
+  assert.equal(pulse.sourceAvailableAt, chart.availableAt);
+  const missing = buildMarketPulseLive({archiveDir:root});
+  assert.deepEqual(missing.identity, {actualContract:null,tradeDate:null,session:null});
+  assert.equal(missing.sourceAvailableAt,null);
+  assert.equal(pulse.executionAuthorized,false);
 });

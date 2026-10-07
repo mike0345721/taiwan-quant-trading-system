@@ -63,20 +63,29 @@ export function inspectCru34LiveProducer({ snapshotPath, statusPath, dataRoot, p
     }) : null });
 }
 
+// Windows approved-runtime junctions may name the same governed directory differently.
+// Only a successfully resolved existing alias is equivalent; wrong/missing roots stay rejected.
+function sameGovernedPath(actual, expected) {
+  if (typeof actual !== 'string' || !actual || typeof expected !== 'string' || !expected) return false;
+  if (actual === expected) return true;
+  try { return fs.realpathSync.native(actual) === fs.realpathSync.native(expected); }
+  catch { return false; }
+}
+
 export function validateProducerHeartbeat(status, lock, {
   snapshotPath, statusPath, dataRoot, projectionRoot, now = new Date(), isProcessAlive = processAlive,
   maxHeartbeatAgeMs = 15_000,
 } = {}) {
   const reasons = [];
   if (status?.schemaVersion !== 'cru34-live-worker-status-v1' || status?.status !== 'AVAILABLE') reasons.push('LIVE_PRODUCER_STATUS_NOT_AVAILABLE');
-  if (status?.snapshotPath !== snapshotPath || status?.statusPath !== statusPath
-      || status?.dataRoot !== dataRoot || status?.projectionRoot !== projectionRoot) reasons.push('LIVE_PRODUCER_PATH_MISMATCH');
+  if (!sameGovernedPath(status?.snapshotPath, snapshotPath) || !sameGovernedPath(status?.statusPath, statusPath)
+      || !sameGovernedPath(status?.dataRoot, dataRoot) || !sameGovernedPath(status?.projectionRoot, projectionRoot)) reasons.push('LIVE_PRODUCER_PATH_MISMATCH');
   const observedMs = Date.parse(status?.observedAt);
   const ageMs = now.getTime() - observedMs;
   if (!Number.isFinite(observedMs) || ageMs < -5_000 || ageMs > maxHeartbeatAgeMs) reasons.push('LIVE_PRODUCER_HEARTBEAT_STALE');
   if (!/^[0-9a-f-]{36}$/i.test(status?.workerInstanceId || '')
       || lock?.workerInstanceId !== status?.workerInstanceId || Number(lock?.pid) !== Number(status?.pid)
-      || lock?.dataRoot !== dataRoot || lock?.projectionRoot !== projectionRoot) reasons.push('LIVE_PRODUCER_INSTANCE_MISMATCH');
+      || !sameGovernedPath(lock?.dataRoot, dataRoot) || !sameGovernedPath(lock?.projectionRoot, projectionRoot)) reasons.push('LIVE_PRODUCER_INSTANCE_MISMATCH');
   if (!isProcessAlive(Number(status?.pid))) reasons.push('LIVE_PRODUCER_PROCESS_MISSING');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons),
     heartbeatAgeMs: Number.isFinite(ageMs) ? ageMs : null, workerInstanceId: status?.workerInstanceId || null });
