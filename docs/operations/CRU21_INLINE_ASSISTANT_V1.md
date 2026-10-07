@@ -88,7 +88,7 @@ Why drawer 必須揭露：
 ### Directional target
 - Long target 必須位於 Long confirmation threshold 上方；Short target 必須位於 Short confirmation threshold 下方。
 - Target 只能來自同一 lawful level universe，且 CONTEXT-only level 不得成為 directional target。
-- Target ranking 仍為 evidence-first：importance band → post-formation reaction → confluence → structural rank → distance tie-break。
+- Target eligibility 先要求 lawful / PASS / 非 CONTEXT；ranking 依 Owner 明確順序：structural rank → confluence → post-formation reaction → quality（本版只允許 PASS）→ distance tie-break。即時觸及與距離不能升級 importance。
 - target 必須保留 id / family / sourceId / availableAt / qualityStatus / why / basisReasons；缺合法 target 就保持 null。
 
 ### Conditional structural R:R
@@ -103,3 +103,21 @@ Why drawer 必須揭露：
 - GPT 只能引用 backend scenarioWatch 的 threshold / target / rr；禁止自創價位、勝率、EV或多空信心分數。
 
 Safety remains formalWeight=0 / researchOnly=true / recommendation=false / systemDirectionalSignal=false / executionAuthorized=false / orderRoutesEnabled=false.
+
+## 2026-10-07 Scenario review repairs / runtime acceptance boundary
+
+沿 exact `19015fe13d7cd64ac55832c4b8c0dba265548ab2` 的同一 implementation 修補：
+- 在去重／共振前排除 missing / future availableAt、missing source 與已知 contract/session/date mismatch；prior refs 保留合法前一交易日語意。
+- 局部 pivot 要求三根連續且 PASS 的 completed 5m bars；availableAt 不早於三根輸入的最晚可用時間與 confirming bar 結束。形成中的 K 與形成前反應不能計入 lifecycle / reaction。
+- 沒有合格 completed-bar range 不補預設 zone；node／當前 chart 品質不足時，threshold 保持 null，R:R UNAVAILABLE。目標品質不足不得被 chart PASS 蓋掉；Flow 缺品質、身分或可用時間不得當確認。
+- Next Watch 明示雙向／方向未定；展開層完整列 target provenance / quality / reaction、兩邊 price/Flow confirmation 及幾何風險／報酬。更新失敗清除舊 Scenario；不同 chart identity／replay 不套用即時情境。
+- VWAP 原 series 與 optional references 共用最多三個價位標籤的上限。
+
+本輪交付停在 **READY_FOR_RUNTIME_ACCEPTANCE**；fixture / VM render tests 不是 L3–L5。最新 exact HEAD、focused checks、独立 review 與 CI 以 PR82 查收紀錄為準。
+
+待新 exact candidate 的 runtime acceptance：
+1. **L3**：既有 shared data roots → collector/ledger → CRU34 projection/materializer → server/API，確認 producer、identity、freshness、availableAt；不把 wiring failure 當合法 missing。
+2. **L4**：同一候選的真實 chart / Flow / RVOL / Leadership 與 Scenario API；核对雙向門檻／合法 target／R:R 與 unavailable 狀態。舊 `19015fe`／更早收據不得代替新 HEAD。
+3. **L5**：同一候選、同一 Dashboard 於 1536/1366/720 檢查 K線／量／Flow、三價位上限、展開層、失敗恢復、無裁切或阻擋錯誤；依既有 Owner 模型授權與額外點數確認做真實同頁 completed，驗固定八段與無自創數值。純工程測試不證明模型遵守。
+
+本輪不重啟候選或正式 Runtime、不發真模型請求；PR82保持 Draft / unmerged，formal 8787 / main 保持 `4d8251686bdb4abbdb469bc00ae798717c0fd583`。

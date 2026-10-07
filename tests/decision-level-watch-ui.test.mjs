@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
+import { buildDecisionLevelWatch } from '../src/decision-level-watch.mjs';
+import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs';
+import { buildInlineContext } from '../src/ask-gpt-inline-context.mjs';
+import { ANALYSIS_INSTRUCTIONS } from '../src/chatgpt-plan-inference.mjs';
 
 test('chart keeps one VWAP label by reusing the VWAP series and skipping a duplicate price line',()=>{
   const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
@@ -52,4 +57,96 @@ test('AI contract uses backend scenario targets and RR only, with no invented wi
   assert.match(context,/invalidationThreshold/);
   assert.match(context,/rewardPoints/);
   assert.match(context,/riskPoints/);
+});
+
+// Execute the existing production functions in a minimal DOM/chart host. No live runtime or model calls.
+const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
+function ui(){
+  const nodes=new Map();const text=(id,value)=>{node(id).textContent=value;};
+  const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',dataset:{},classList:{contains:()=>false},replaceChildren(...children){this.children=children;}});return nodes.get(id);};
+  const state={csrfToken:'fixture',levelWatchLoading:false,txChartLevelLines:[],decisionWorkspace:{}};
+  let vwapOptions={};
+  state.txChartSeries={candle:{createPriceLine:options=>options,removePriceLine:()=>{}},vwap:{applyOptions:options=>{vwapOptions=options;}}};
+  const context=vm.createContext({state,$:node,document:{hidden:false,createElement:()=>({textContent:''})},dwText:text,
+    terminalWrite:text,terminalUnavailable:reason=>reason,timeLabel:value=>value,window:{LightweightCharts:{LineStyle:{Dashed:2}}},
+    finiteNumber:value=>value==null?null:Number.isFinite(Number(value))?Number(value):null,fmt:(value,n=0)=>Number(value).toFixed(n),
+    levelValue:level=>level?.availability==='AVAILABLE'?level.value:null,AbortSignal,
+    api:async()=>{throw new Error('OFFLINE_FIXTURE');}});
+  vm.runInContext(app.slice(app.indexOf('function levelEventLabel('),app.indexOf('function renderTxChartLevels(')),context);
+  const start=app.indexOf('function renderTxChartLevels('),end=app.indexOf('\n}\n',start)+3;
+  vm.runInContext(app.slice(start,end),context);
+  return{context,state,node,getVwap:()=>vwapOptions};
+}
+const identity={actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'};
+function displayWatch(){
+  const levels=[['OR_HIGH',120],['SESSION_HIGH',160],['OR_LOW',80]].map(([id,price])=>({id,price,label:id,state:'TESTING',basisReasons:['結構','形成時間','反應','資料品質限制']}));
+  const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
+  return{state:'READY',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
+}
+function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
+test('executed chart render caps all overlays including VWAP and optional references at three',()=>{
+  const h=ui();h.state.levelWatch=displayWatch();h.node('decision-workspace').classList.contains=()=>true;
+  h.context.renderTxChartLevels(displayChart());
+  assert.equal(h.state.txChartLevelLines.length+Number(h.getVwap().lastValueVisible),3);
+  assert.equal(new Set(h.state.txChartLevelLines.map(x=>x.price)).size,h.state.txChartLevelLines.length);
+});
+test('executed poll failure clears scenario targets, RR and old scenario chart labels',async()=>{
+  const h=ui();h.state.txChartPayload=displayChart();h.context.renderDecisionLevelWatch(displayWatch());
+  assert.match(h.node('dw-long-rr').textContent,/2\.00/);
+  await h.context.loadDecisionLevelWatch();
+  assert.equal(h.state.levelWatch.state,'UNAVAILABLE');assert.equal(h.state.decisionWorkspace.levelWatch.state,'UNAVAILABLE');
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+  assert.match(h.node('dw-next-watch-label').textContent,/更新失敗/);
+  assert.equal(h.state.txChartLevelLines.some(x=>/下一關/.test(x.title)),false);
+  assert.equal(h.state.levelWatchLoading,false);
+});
+test('executed render excludes live scenarios from other chart identities and replay',()=>{
+  for(const patch of [{actualContract:'TXFK6'},{tradeDate:'2026-10-06'},{session:'NIGHT'},{mode:'REPLAY'}]){
+    const h=ui();const chart={...displayChart(),...patch};h.state.txChartPayload=chart;
+    h.context.renderDecisionLevelWatch(displayWatch());h.context.renderTxChartLevels(chart);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  }
+});
+test('same-identity unavailable, stale or quality-degraded chart cannot retain an old available RR',()=>{
+  for(const patch of [{status:'UNAVAILABLE',qualityStatus:'UNAVAILABLE'},{status:'STALE'},{qualityStatus:'QUALITY_INSUFFICIENT'}]){
+    const h=ui();const chart={...displayChart(),...patch};h.state.txChartPayload=chart;
+    h.context.renderDecisionLevelWatch(displayWatch());h.context.renderTxChartLevels(chart);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  }
+  const h=ui(),watch=displayWatch();h.state.txChartPayload={...displayChart(),qualityStatus:'QUALITY_INSUFFICIENT'};
+  for(const side of ['long','short'])watch.scenarioWatch[side].rr={state:'UNAVAILABLE',ratio:null,reason:'THRESHOLDS_UNAVAILABLE'};
+  h.context.renderDecisionLevelWatch(watch);
+  assert.match(h.node('dw-next-watch-label').textContent,/雙向/);
+  assert.match(h.node('dw-long-evidence').textContent,/缺乏合格資料/);
+});
+test('executed drawer keeps complete target evidence and distinguishes candidate from confirmation',()=>{
+  const h=ui();h.context.renderDecisionLevelWatch(displayWatch());
+  const why=h.node('dw-long-target-why').textContent;
+  for(const text of ['反應','資料品質限制','SOURCE','2026-10-05T10:29:00Z','PASS'])assert.ok(why.includes(text));
+  assert.match(h.node('dw-next-watch-label').textContent,/雙向測試／方向未定/);
+  assert.match(h.node('dw-long-evidence').textContent,/尚未達確認邊界.*品質不足.*12\.00.*24\.00/);
+});
+test('bounded GPT context preserves exact backend scenarios and unavailable thresholds',()=>{
+  const snapshotTime='2026-10-05T10:30:00Z';
+  for(const qualityStatus of ['PASS','QUALITY_INSUFFICIENT']){
+    const available=value=>({availability:'AVAILABLE',value,availableAt:snapshotTime,source:'GOVERNED_FIXTURE',qualityStatus:'PASS'});
+    const chart={...identity,availableAt:snapshotTime,timeframe:'5m',lastPrice:100,qualityStatus,
+      bars:[{time:'2026-10-05T10:20:00Z',availableAt:'2026-10-05T10:24:59Z',open:100,high:105,low:95,close:100,qualityStatus:'PASS'}],
+      openingRange:{status:'READY'},levels:{vwap:available(100),openingRangeHigh:available(150),openingRangeLow:available(50)}};
+    const levelWatch=buildDecisionLevelWatch({chart,snapshotTime});
+    const snapshot=createDecisionSnapshot({chart,levelWatch,snapshotTime,dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0}});
+    const result=buildInlineContext(snapshot,{now:Date.parse(snapshotTime)+1000});
+    for(const side of ['long','short']){
+      const actual=result.context.levelWatch.scenarioWatch[side],expected=levelWatch.scenarioWatch[side];
+      assert.equal(actual.confirmationThreshold,expected.confirmationThreshold);assert.equal(actual.invalidationThreshold,expected.invalidationThreshold);
+      assert.deepEqual(actual.target,expected.target);assert.deepEqual(actual.rr,expected.rr);
+      assert.equal(actual.rr.state,qualityStatus==='PASS'?'AVAILABLE':'UNAVAILABLE');
+    }
+    assert.ok(result.inputBytes<40000);
+    for(const [key,value]of Object.entries({formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false}))assert.equal(result.context[key],value);
+  }
+  const headings=['現在怎麼看','核心決策節點','多方情境','空方情境','觀望條件','條件式結構 R:R','現在不要做什麼','資料限制'];
+  let previous=-1;for(const heading of headings){const index=ANALYSIS_INSTRUCTIONS.indexOf(`「${heading}」`);assert.ok(index>previous);previous=index;}
 });

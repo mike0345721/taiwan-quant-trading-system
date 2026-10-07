@@ -4129,15 +4129,24 @@ function scenarioTargetText(scenario) {
 }
 
 function scenarioDirectionLabel(scenarioWatch, next) {
-  if (scenarioWatch?.directionState === 'BIDIRECTIONAL_TEST') return '雙向測試';
-  if (scenarioWatch?.directionState === 'BIDIRECTIONAL_WATCH') return '雙向觀察';
-  return levelEventLabel(next?.state);
+  if (scenarioWatch?.directionState === 'BIDIRECTIONAL_TEST') return '雙向測試／方向未定';
+  return '雙向觀察／方向未定';
 }
 
 function scenarioTargetWhy(scenario) {
-  if (!scenario?.target) return '目前沒有 evidence-qualified 方向目標。';
-  const reasons = Array.isArray(scenario.target.basisReasons) ? scenario.target.basisReasons.slice(0, 2) : [];
-  return [scenario.target.why, ...reasons].filter(Boolean).join(' ');
+  if (!scenario?.target) return '目前沒有通過結構與品質檢查的方向目標。';
+  const target = scenario.target;
+  const reasons = Array.isArray(target.basisReasons) ? target.basisReasons : [];
+  return [target.why, ...reasons, `來源：${target.sourceId || '未知'}；可用時間：${target.availableAt || '未知'}；品質：${target.qualityStatus || '未知'}。`].filter(Boolean).join(' ');
+}
+
+function scenarioEvidenceText(scenario) {
+  const price = ({ MET: '價格越過確認邊界，仍待維持', NOT_MET: '價格尚未達確認邊界', UNAVAILABLE: '價格確認條件不可用' })[scenario?.priceGateState] || '價格確認條件不可用';
+  const flow = ({ ALIGNED: '成交壓力與價格反應同向', CONTRARY: '成交壓力與價格反應偏向另一側', MIXED: '成交壓力與價格反應尚未一致', QUALITY_INSUFFICIENT: '成交證據品質不足', UNAVAILABLE: '成交確認不可用' })[scenario?.flowConfirmationState] || '成交確認不可用';
+  const rr = scenario?.rr;
+  const geometry = rr?.state === 'AVAILABLE' ? `結構風險 ${fmt(rr.riskPoints, 2)} 點、報酬 ${fmt(rr.rewardPoints, 2)} 點。`
+    : rr?.reason === 'THRESHOLDS_UNAVAILABLE' ? 'R:R 不可用：確認／失效門檻缺乏合格資料。' : 'R:R 不可用：缺少合法方向目標。';
+  return `${price}；${flow}。${geometry}仍是條件情境，未形成交易訊號。`;
 }
 
 function renderScenarioWatch(scenarioWatch) {
@@ -4153,6 +4162,8 @@ function renderScenarioWatch(scenarioWatch) {
   dwText('dw-long-invalidate', long?.invalidate || '等待合法多方失效條件。');
   dwText('dw-short-confirm', short?.confirm || '等待合法空方確認條件。');
   dwText('dw-short-invalidate', short?.invalidate || '等待合法空方失效條件。');
+  dwText('dw-long-evidence', scenarioEvidenceText(long));
+  dwText('dw-short-evidence', scenarioEvidenceText(short));
   const available = [long, short].some((row) => row?.rr?.state === 'AVAILABLE');
   dwText('dw-scenario-rr-note', available
     ? '條件式結構 R:R：確認門檻→合法目標 ÷ 確認門檻→失效門檻；不是勝率、EV、進場或停損指令。'
@@ -4163,7 +4174,8 @@ function renderDecisionLevelWatch(levelWatch) {
   state.levelWatch = levelWatch || null;
   if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
   const host = $('dw-next-watch');
-  const next = levelWatch?.state === 'READY' ? levelWatch.nextWatch : null;
+  const matchesChart = !state.txChartPayload || levelWatchMatchesChart(levelWatch, state.txChartPayload);
+  const next = levelWatch?.state === 'READY' && matchesChart ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
     dwText('dw-next-watch-label', '等待合法關鍵價位');
@@ -4195,14 +4207,22 @@ async function loadDecisionLevelWatch() {
   if (state.levelWatchLoading || !state.csrfToken || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
   state.levelWatchLoading = true;
   try {
-    const payload = await api('/api/v1/decision-level-watch', { cache: 'no-store' });
+    const payload = await api('/api/v1/decision-level-watch', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     renderDecisionLevelWatch(payload.data);
     if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
   } catch {
-    // Keep the last lawful level watch visible; model and trading paths are never invoked here.
+    renderDecisionLevelWatch({ state: 'UNAVAILABLE', reason: 'LEVEL_WATCH_REFRESH_FAILED' });
+    dwText('dw-next-watch-label', '觀察資料更新失敗，等待重新取得');
+    if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
   } finally {
     state.levelWatchLoading = false;
   }
+}
+function levelWatchMatchesChart(watch, chart) {
+  return watch?.state === 'READY' && chart?.mode !== 'REPLAY'
+    && ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(chart?.status)
+    && (chart?.qualityStatus === 'PASS' || ![watch.scenarioWatch?.long, watch.scenarioWatch?.short].some((side) => side?.rr?.state === 'AVAILABLE'))
+    && ['actualContract', 'tradeDate', 'session'].every((key) => watch.identity?.[key] && watch.identity[key] === chart?.[key]);
 }
 function clearTxChartLevels() {
   if (!state.txChartSeries?.candle) return;
@@ -4237,7 +4257,8 @@ function renderTxChartLevels(chart) {
   terminalWrite('dw-chart-quality', chart?.qualityStatus || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
 
   clearTxChartLevels();
-  const watch = state.levelWatch?.state === 'READY' ? state.levelWatch : state.decisionWorkspace?.levelWatch;
+  const candidate = state.levelWatch || state.decisionWorkspace?.levelWatch;
+  const watch = levelWatchMatchesChart(candidate, chart) ? candidate : null;
   const scenario = watch?.scenarioWatch || null;
   const longTargetId = scenario?.long?.target?.id || null;
   const shortTargetId = scenario?.short?.target?.id || null;
@@ -4254,9 +4275,18 @@ function renderTxChartLevels(chart) {
   if (state.txChartSeries?.vwap?.applyOptions) {
     state.txChartSeries.vwap.applyOptions({
       title: vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel,
-      lastValueVisible: true,
+      lastValueVisible: levelValue(levels.vwap) != null,
     });
   }
+  // The existing VWAP series consumes one label slot; all overlays share the remaining budget.
+  const lineBudget = levelValue(levels.vwap) == null ? 3 : 2;
+  const drawnPrices = new Set();
+  const boundedLevel = (level, title, color) => {
+    const price = levelValue(level);
+    if (price == null || drawnPrices.has(price) || state.txChartLevelLines.length >= lineBudget) return;
+    drawnPrices.add(price);
+    addTxChartLevel(level, title, color);
+  };
   if (watch?.state === 'READY' && Array.isArray(watch.levels)) {
     const familyColor = {
       VWAP: 'rgba(245,200,107,.58)',
@@ -4270,19 +4300,19 @@ function renderTxChartLevels(chart) {
       if (!Number.isFinite(Number(entry.price))) continue;
       const isNext = entry.id === nodeId;
       const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');
-      addTxChartLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
+      boundedLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
     }
   } else {
     const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;
-    addTxChartLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', 'rgba(85,214,190,.44)');
-    addTxChartLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', 'rgba(239,130,147,.44)');
+    boundedLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', 'rgba(85,214,190,.44)');
+    boundedLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', 'rgba(239,130,147,.44)');
   }
   if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
-    addTxChartLevel(levels.openingRangeHigh, 'OR H', 'rgba(138,167,255,.34)');
-    addTxChartLevel(levels.openingRangeLow, 'OR L', 'rgba(138,167,255,.34)');
-    addTxChartLevel(levels.previousDayHigh, '前一日盤高', 'rgba(119,134,156,.28)');
-    addTxChartLevel(levels.previousDayLow, '前一日盤低', 'rgba(119,134,156,.28)');
-    addTxChartLevel(levels.previousClose, '前一日盤收', 'rgba(161,174,192,.28)');
+    boundedLevel(levels.openingRangeHigh, 'OR H', 'rgba(138,167,255,.34)');
+    boundedLevel(levels.openingRangeLow, 'OR L', 'rgba(138,167,255,.34)');
+    boundedLevel(levels.previousDayHigh, '前一日盤高', 'rgba(119,134,156,.28)');
+    boundedLevel(levels.previousDayLow, '前一日盤低', 'rgba(119,134,156,.28)');
+    boundedLevel(levels.previousClose, '前一日盤收', 'rgba(161,174,192,.28)');
   }
 }
 
@@ -4512,6 +4542,7 @@ function renderMarketChangeFeed(feed) {
 
 function renderTxDecisionChart(payload, { fit = false } = {}) {
   state.txChartPayload = payload;
+  renderDecisionLevelWatch(state.levelWatch);
   renderObservedFlow(flowChannel.view());
   const chartReason = payload?.reason || 'TX_CHART_UNAVAILABLE';
   const chartUnavailable = terminalUnavailable(chartReason);

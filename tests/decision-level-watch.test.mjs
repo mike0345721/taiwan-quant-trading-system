@@ -13,7 +13,7 @@ function chart(overrides={}){
     ['10:25',99,110,98,108],
   ].map(([hm,open,high,low,close])=>({time:`2026-10-05T${hm}:00.000Z`,open,high,low,close,availableAt:`2026-10-05T${hm}:59.000Z`,qualityStatus:'PASS'}));
   return {
-    timeframe:'5m',lastPrice:108,availableAt:'2026-10-05T10:29:30.000Z',bars,
+    timeframe:'5m',tradeDate:'2026-10-05',actualContract:'TXFJ6',lastPrice:108,availableAt:'2026-10-05T10:29:30.000Z',bars,
     levels:{
       vwap:available(100),openingRangeHigh:available(115),openingRangeLow:available(85),
       currentDayHigh:available(120),currentDayLow:available(80),
@@ -118,13 +118,14 @@ test('swing pivot becomes available only after the confirming next five-minute b
     {time:'2026-10-05T10:10:00.000Z',open:110,high:112,low:96,close:101,volume:110,availableAt:'2026-10-05T10:14:59.000Z'},
     {time:'2026-10-05T10:15:00.000Z',open:101,high:108,low:98,close:105,volume:90,availableAt:'2026-10-05T10:19:59.000Z'},
   ];
-  const c={timeframe:'5m',lastPrice:105,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
+  const c={timeframe:'5m',availableAt:'2026-10-05T10:19:59.000Z',lastPrice:105,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
     levels:{vwap:unavailable,openingRangeHigh:unavailable,openingRangeLow:unavailable,currentDayHigh:unavailable,currentDayLow:unavailable,nightHigh:unavailable,nightLow:unavailable,previousDayHigh:unavailable,previousDayLow:unavailable,previousClose:unavailable},
     openingRange:{status:'FORMING'}};
+  c.bars=c.bars.map(bar=>({...bar,qualityStatus:'PASS'}));
   const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:20:00.000Z'});
   const swing=r.levels.find(x=>x.id==='SWING_HIGH');assert.ok(swing);
   assert.equal(swing.label,'近期5分K局部高點');
-  assert.equal(swing.availableAt,'2026-10-05T10:14:59.000Z');
+  assert.equal(swing.availableAt,'2026-10-05T10:15:00.000Z');
   assert.equal(swing.importanceBand,'CONTEXT');
 });
 test('nearby swing cannot outrank a lawful structural level only because it is closer',()=>{
@@ -142,7 +143,7 @@ test('nearby swing cannot outrank a lawful structural level only because it is c
 test('current Flow and RVOL are exposed as confirmation basis only when the level is nearby',()=>{
   const c=vwapOnly({currentPrice:102});
   c.bars=c.bars.map((b,i)=>({...b,volume:100+i*10}));
-  const observedFlow={sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.4},response:{displacementPoints:6}}}};
+  const observedFlow={identity:{actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'},sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.4},response:{displacementPoints:6}}}};
   const marketPulse={rvol:{state:'READY',ratio:1.4,percentile:80,sampleDays:20}};
   const r=buildDecisionLevelWatch({chart:c,observedFlow,marketPulse,snapshotTime:'2026-10-05T10:30:00.000Z'});
   const vwap=r.levels.find(x=>x.id==='VWAP');assert.ok(vwap);
@@ -160,9 +161,10 @@ test('repeated post-formation reactions elevate a static reference without claim
     {time:'2026-10-05T10:15:00.000Z',open:101,high:116,low:110,close:114,volume:130,availableAt:'2026-10-05T10:19:59.000Z'},
     {time:'2026-10-05T10:20:00.000Z',open:114,high:115,low:108,close:110,volume:90,availableAt:'2026-10-05T10:24:59.000Z'},
   ];
-  const c={timeframe:'5m',lastPrice:110,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
+  const c={timeframe:'5m',availableAt:'2026-10-05T10:24:59.000Z',lastPrice:110,tradeDate:'2026-10-05',actualContract:'TXFJ6',session:'DAY',qualityStatus:'PASS',bars,
     levels:{vwap:unavailable,openingRangeHigh:unavailable,openingRangeLow:unavailable,currentDayHigh:unavailable,currentDayLow:unavailable,nightHigh:unavailable,nightLow:unavailable,previousDayHigh:unavailable,previousDayLow:unavailable,previousClose:available(100,'2026-10-05T09:55:00.000Z')},
     openingRange:{status:'FORMING'}};
+  c.bars=c.bars.map(bar=>({...bar,qualityStatus:'PASS'}));
   const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:25:00.000Z'});
   const ref=r.levels.find(x=>x.id==='PRIOR_CLOSE');assert.ok(ref);
   assert.ok(ref.basis.reaction.testEpisodes>=2);
@@ -205,7 +207,7 @@ test('conditional structural RR fails closed when there is no evidence-qualified
 test('scenario Flow confirmation remains descriptive and does not become a system direction',()=>{
   const c=chart({lastPrice:102});
   c.bars=c.bars.map((bar,i)=>({...bar,volume:100+i*5}));
-  const observedFlow={sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.5},response:{displacementPoints:8}}}};
+  const observedFlow={identity:{actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'},sourceState:'LIVE',source:{availableAt:'2026-10-05T10:29:30.000Z'},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.5},response:{displacementPoints:8}}}};
   const r=buildDecisionLevelWatch({chart:c,observedFlow,snapshotTime:'2026-10-05T10:30:00.000Z'});
   assert.equal(r.scenarioWatch.long.flowConfirmationState,'ALIGNED');
   assert.equal(r.scenarioWatch.short.flowConfirmationState,'CONTRARY');
@@ -214,4 +216,101 @@ test('scenario Flow confirmation remains descriptive and does not become a syste
   assert.equal(r.recommendation,false);
   assert.equal(r.executionAuthorized,false);
   assert.equal(r.orderRoutesEnabled,false);
+});
+
+const snapshotTime='2026-10-05T10:30:00.000Z';
+const watch=c=>buildDecisionLevelWatch({chart:c,snapshotTime});
+function targetChart(){
+  const c=vwapOnly({currentPrice:102});
+  c.openingRange={status:'READY'};
+  c.levels.openingRangeHigh=available(150);
+  c.levels.openingRangeLow=available(50);
+  return c;
+}
+test('missing, malformed, future and mismatched levels cannot provide targets or confluence',()=>{
+  for(const patch of [{availableAt:null},{availableAt:'bad-time'},{availableAt:'2026-10-05T11:00:00Z'},
+    {actualContract:'TXFK6'},{session:'NIGHT'},{tradeDate:'2026-10-06'},{source:null}]){
+    const c=targetChart();c.levels.openingRangeHigh={...available(150),...patch};
+    const r=watch(c);assert.equal(r.scenarioWatch.long.target,null,JSON.stringify(patch));
+    assert.equal(r.scenarioWatch.long.rr.state,'UNAVAILABLE');
+    assert.equal(r.levels.some(x=>x.id==='OR_HIGH'),false);
+  }
+  const c=targetChart();c.levels.previousDayHigh={...available(160),actualContract:'TXFJ6',tradeDate:'2026-10-02',session:'DAY'};
+  c.levels.openingRangeHigh={availability:'UNAVAILABLE'};
+  assert.equal(watch(c).scenarioWatch.long.target.id,'PRIOR_HIGH');
+});
+test('target importance follows structure before confluence and is independent of alert distance',()=>{
+  const c=targetChart();c.levels.currentDayHigh=available(120);c.levels.previousDayHigh=available(125);
+  const r=watch(c);assert.equal(r.scenarioWatch.long.target.id,'OR_HIGH');
+  assert.equal(r.scenarioWatch.short.target.id,'OR_LOW');
+  c.lastPrice=121;
+  const later=watch(c);assert.equal(later.scenarioWatch.long.target.id,'OR_HIGH');
+  assert.equal(r.scenarioWatch.long.target.importanceBand,later.scenarioWatch.long.target.importanceBand);
+});
+test('unknown or insufficient source quality cannot become a target or hide a nearby clean target',()=>{
+  for(const qualityStatus of ['UNKNOWN','QUALITY_INSUFFICIENT',null]){
+    const c=targetChart();c.levels.openingRangeHigh={...available(150),qualityStatus};
+    let r=watch(c);assert.equal(r.scenarioWatch.long.target,null);
+    c.levels.currentDayHigh=available(152);
+    r=watch(c);assert.equal(r.scenarioWatch.long.target.id,'SESSION_HIGH');
+    assert.equal(r.scenarioWatch.long.target.qualityStatus,'PASS');
+  }
+});
+test('limited node quality preserves unknown thresholds and structural RR',()=>{
+  const r=watch({...targetChart(),qualityStatus:'QUALITY_INSUFFICIENT'});
+  for(const side of ['long','short']){
+    assert.equal(r.scenarioWatch[side].state,'UNAVAILABLE');
+    assert.equal(r.scenarioWatch[side].confirmationThreshold,null);
+    assert.equal(r.scenarioWatch[side].invalidationThreshold,null);
+    assert.equal(r.scenarioWatch[side].rr.state,'UNAVAILABLE');
+    assert.equal(r.scenarioWatch[side].rr.ratio,null);
+    assert.equal(r.scenarioWatch[side].rr.riskPoints,null);
+  }
+  const c={...targetChart(),qualityStatus:'QUALITY_INSUFFICIENT'};
+  c.levels.previousDayHigh=available(160);c.levels.previousDayLow=available(40);
+  const prior=watch(c);assert.equal(prior.nextWatch.qualityStatus,'PASS');
+  assert.equal(prior.scenarioWatch.short.rr.state,'UNAVAILABLE');
+});
+test('missing or non-five-minute range evidence never invents a zone or RR',()=>{
+  for(const patch of [{bars:[]},{timeframe:'1m'},{bars:targetChart().bars.map(b=>({...b,qualityStatus:'UNKNOWN'}))}]){
+    const r=watch({...targetChart(),...patch});
+    assert.equal(r.reason,'OBSERVATION_ZONE_UNAVAILABLE');assert.equal(r.zonePoints,null);assert.equal(r.scenarioWatch,null);
+  }
+});
+test('conditional geometry is symmetric and uses confirmation-to-target distances',()=>{
+  const r=watch(targetChart());
+  for(const side of ['long','short']){
+    const s=r.scenarioWatch[side];
+    assert.equal(s.rr.riskPoints,12);assert.equal(s.rr.rewardPoints,44);
+    assert.equal(s.rr.ratio,44/12);assert.equal(s.rr.state,'AVAILABLE');
+  }
+});
+test('Flow confirmation fails closed on absent quality, identity mismatch or future time',()=>{
+  const source={sourceState:'LIVE',identity:{actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'},source:{availableAt:snapshotTime},researchQuality:{status:'PASS'},windows:{primary60s:{pressure:{pressureRatio:.4},response:{displacementPoints:5}}}};
+  for(const patch of [{researchQuality:null},{identity:{...source.identity,session:'NIGHT'}},{source:{availableAt:'2026-10-05T11:00:00Z'}},{source:{availableAt:null}}]){
+    const r=buildDecisionLevelWatch({chart:targetChart(),snapshotTime,observedFlow:{...source,...patch}});
+    assert.ok(['UNAVAILABLE','QUALITY_INSUFFICIENT'].includes(r.scenarioWatch.long.flowConfirmationState));
+  }
+});
+test('formation bar cannot supply its own post-formation reaction or accepted lifecycle',()=>{
+  const c=vwapOnly({closes:[90,92,94,99,108,109],currentPrice:109});
+  c.openingRange={status:'READY'};c.levels.vwap={availability:'UNAVAILABLE'};c.levels.openingRangeHigh=available(100,'2026-10-05T10:29:59Z');
+  const r=watch(c);
+  assert.equal(r.nextWatch.basis.reaction.testEpisodes,0);
+  assert.equal(r.nextWatch.state,'APPROACHING');
+});
+test('completed pivots require adjacent bars and all three bars to pass quality',()=>{
+  const c=vwapOnly({closes:[90,100,90,90,90,90],currentPrice:100});
+  c.levels.vwap={availability:'UNAVAILABLE'};
+  assert.ok(watch(c).levels.some(x=>x.id==='SWING_HIGH'));
+  c.bars[2].qualityStatus='QUALITY_INSUFFICIENT';
+  assert.equal(watch(c).levels.some(x=>x.id==='SWING_HIGH'),false);
+  c.bars.splice(2,1);
+  assert.equal(watch(c).levels.some(x=>x.id==='SWING_HIGH'),false);
+});
+test('delayed pivot input timestamps and confirmation close both bound availability',()=>{
+  const c=vwapOnly({closes:[90,100,90,90,90,90],currentPrice:100});
+  c.levels.vwap={availability:'UNAVAILABLE'};
+  c.bars[1].availableAt='2026-10-05T10:17:00Z';
+  const r=watch(c);assert.equal(r.levels.find(x=>x.id==='SWING_HIGH').availableAt,'2026-10-05T10:17:00.000Z');
 });
