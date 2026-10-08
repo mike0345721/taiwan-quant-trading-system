@@ -64,7 +64,6 @@ function historicalRvolRows(archiveDir, chart, slot, currentBar) {
     .slice(-MIN_RVOL_SAMPLE_DAYS);
   const session = String(chart.session || '').toLowerCase();
   const values = [];
-  const cumulative = [];
   const dates = [];
   for (const item of catalog) {
     const payload = readJson(path.join(archiveDir, `${item.tradeDate}-${session}.json`));
@@ -74,10 +73,9 @@ function historicalRvolRows(archiveDir, chart, slot, currentBar) {
     const volume = index >= 0 ? finite(bars[index]?.volume) : null;
     if (volume == null) continue;
     values.push(volume);
-    cumulative.push(bars.slice(0, index + 1).reduce((sum, bar) => sum + (finite(bar?.volume) || 0), 0));
     dates.push(item.tradeDate);
   }
-  return { values, cumulative, dates, currentBar };
+  return { values, dates, currentBar };
 }
 
 // A live completed-slot comparison must never borrow an old full bar after reconnect.
@@ -89,18 +87,19 @@ function contiguousCompletedBars(bars) {
   });
 }
 
-function startsAtSessionOpen(chart, bars) {
-  const openingMinute = chart?.session === 'DAY' ? 8 * 60 + 45
-    : chart?.session === 'NIGHT' ? 15 * 60 : null;
-  const firstMs = Date.parse(bars[0]?.time || '');
-  return openingMinute !== null && Number.isFinite(firstMs)
-    && taipeiMinute(new Date(firstMs)) === openingMinute;
-}
-
 export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
+  let currentBar = null;
+  const sourceEvidence = () => ({
+    sourceAvailableAt: chart?.availableAt || chart?.bars?.at(-1)?.availableAt || null,
+    sourceQualityStatus: chart?.qualityStatus || 'UNKNOWN',
+    sourceQualityReasons: chart?.qualityReasons || [],
+    completedBarTime: currentBar?.time || null,
+    completedBarAvailableAt: currentBar?.availableAt || null,
+    completedBarQualityStatus: currentBar?.qualityStatus || 'UNKNOWN',
+  });
   const unavailable = (reason, extra = {}) => Object.freeze({
     state: 'UNAVAILABLE', reason, ratio: null, percentile: null, sampleDays: 0,
-    baselineMedian: null, currentVolume: null, cumulativeRatio: null, ...extra,
+    baselineMedian: null, currentVolume: null, cumulativeRatio: null, ...sourceEvidence(), ...extra,
   });
   if (!chart || chart.timeframe !== '5m') return unavailable('RVOL_REQUIRES_5M_CHART');
   if (!archiveDir || !fs.existsSync(archiveDir)) return unavailable('RVOL_ARCHIVE_MISSING');
@@ -109,7 +108,7 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
   const freshness = liveTimestampState(liveAvailableAt, now);
   if (freshness !== 'LIVE') return unavailable(freshness === 'STALE' ? 'RVOL_SOURCE_STALE' : 'RVOL_SOURCE_TIME_INVALID');
   const completed = completedFiveMinuteBars(chart, now.toISOString());
-  const currentBar = completed.at(-1);
+  currentBar = completed.at(-1);
   if (!currentBar) return unavailable('NO_COMPLETED_5M_BAR');
 
   // Source freshness by itself does not prove the selected completed bar is current.
@@ -132,6 +131,13 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
   if (!contiguousCompletedBars(completed)) {
     return unavailable('RVOL_COMPLETED_SERIES_GAP', { completedBarTime: currentBar.time });
   }
+  if (chart.qualityStatus !== 'PASS' || (chart.qualityReasons?.length || 0) > 0
+      || chart.sequenceGapEventCount > 0 || chart.timeLineageViolationCount > 0) {
+    return unavailable('RVOL_SOURCE_QUALITY_INSUFFICIENT');
+  }
+  if (currentBar.qualityStatus !== 'PASS' || currentBar.sequenceGapCount > 0) {
+    return unavailable('RVOL_COMPLETED_BAR_QUALITY_INSUFFICIENT');
+  }
 
   const slot = String(currentBar.time || '').slice(11, 16);
   if (!/^\d{2}:\d{2}$/.test(slot)) return unavailable('RVOL_SLOT_INVALID');
@@ -143,6 +149,7 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
   });
   if (history.values.length < MIN_RVOL_SAMPLE_DAYS || baselineMedian == null || baselineMedian <= 0) {
     return Object.freeze({
+      ...sourceEvidence(),
       state: 'BASELINE_NOT_READY',
       reason: 'RVOL_BASELINE_NOT_READY',
       ratio: null,
@@ -158,12 +165,11 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
       session: chart.session || null,
     });
   }
-  // A truncated prefix cannot be presented as a full-session cumulative RVOL.
-  const cumulativeEligible = startsAtSessionOpen(chart, completed);
-  const completedCurrent = cumulativeEligible
-    ? completed.reduce((sum, bar) => sum + (finite(bar?.volume) || 0), 0) : null;
-  const cumulativeBaselineMedian = cumulativeEligible ? median(history.cumulative) : null;
+  // Bucket times and first observed ticks do not certify collection from session open.
+  // The current source contract has no full-session capture proof. Keep cumulative
+  // values unknown, including when a rounded first bucket equals the opening time.
   return Object.freeze({
+    ...sourceEvidence(),
     state: 'READY',
     reason: null,
     ratio: currentVolume / baselineMedian,
@@ -173,10 +179,11 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
     currentVolume,
     completedBarTime: currentBar.time,
     completedBarAvailableAt: currentBar.availableAt || null,
-    cumulativeVolume: completedCurrent,
-    cumulativeBaselineMedian,
-    cumulativeRatio: cumulativeBaselineMedian > 0 ? completedCurrent / cumulativeBaselineMedian : null,
-    cumulativeCoverage: cumulativeEligible ? 'CONTIGUOUS_FROM_SESSION_OPEN' : 'SESSION_PREFIX_UNVERIFIED',
+    cumulativeVolume: null,
+    cumulativeBaselineMedian: null,
+    cumulativeRatio: null,
+    cumulativeCoverage: 'SESSION_PREFIX_UNVERIFIED',
+    cumulativeReason: 'RVOL_SESSION_CAPTURE_COVERAGE_UNVERIFIED',
     baselineStartDate: history.dates.at(0) || null,
     baselineEndDate: history.dates.at(-1) || null,
     timeframe: '5m',

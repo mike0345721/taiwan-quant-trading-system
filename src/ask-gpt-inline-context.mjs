@@ -29,7 +29,7 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
  const flow=d.observedFlow||{};
  const fi=flow.identity;const flowMismatch=fi&&d.identityState==='AVAILABLE'&&(fi.actualContract!==d.contract||fi.tradeDate!==d.tradeDate||fi.session!==d.session);
  const marketPulse={
-  rvol:pick(d.marketPulse?.rvol,['state','reason','ratio','percentile','sampleDays','slot','session','tradeDate','actualContract','completedBarAvailableAt','completedBarTime']),
+  rvol:pick(d.marketPulse?.rvol,['state','reason','ratio','percentile','sampleDays','slot','session','tradeDate','actualContract','completedBarAvailableAt','completedBarTime','sourceAvailableAt','sourceQualityStatus','sourceQualityReasons','completedBarQualityStatus','cumulativeCoverage','cumulativeReason']),
   basis:pick(d.marketPulse?.basis,['state','reason','label','points','pct','referenceMode','futuresPrice','spotPrice','futuresAvailableAt','spotAvailableAt','futuresEventTime','spotEventTime','tradeDate','session','actualContract']),
  };
  const watch=d.levelWatch||{};

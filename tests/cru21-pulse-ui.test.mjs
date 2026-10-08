@@ -14,7 +14,7 @@ function ui(){
   let now=epoch;
   const nodes=new Map();
   const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',classList:{toggle(){},add(){}},setAttribute(){},closest(){return null;},querySelector(){return null;}});return nodes.get(id);};
-  const write=(id,value,options={})=>{node(id).textContent=value??`UNAVAILABLE · ${options.reason}`;};
+  const write=(id,value,options={})=>{node(id).textContent=value??`UNAVAILABLE · ${options.reason}`;node(id).title=options.title;};
   const state={csrfToken:'test',marketPulse:null,marketPulseLoading:false,decisionWorkspace:{},txChartPayload:{...identity,mode:'LIVE',levels:{}}};
   class Clock extends Date { constructor(...args){super(...(args.length?args:[now]));} static now(){return now;} }
   const context=vm.createContext({state,$:node,Date:Clock,AbortSignal,document:{querySelector:()=>null},
@@ -47,6 +47,16 @@ test('workspace shell-before-pulse call order preserves its incoming payload on 
     assert.equal(workspace.marketPulse.rvol.ratio,ratio);
     assert.match(h.node('tt-pulse-rvol').textContent,new RegExp(ratio.toFixed(2).replace('.','\\.')));
   }
+});
+test('RVOL evidence title preserves unavailable quality and sample timestamps',()=>{
+  const h=ui();const p=pulse();
+  p.rvol={state:'UNAVAILABLE',reason:'RVOL_SOURCE_QUALITY_INSUFFICIENT',ratio:null,
+    completedBarTime:'2026-10-07T12:50:00Z',completedBarAvailableAt:'2026-10-07T12:54:59Z',
+    sourceQualityStatus:'QUALITY_INSUFFICIENT',sourceQualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']};
+  h.context.renderLiveMarketPulse(p);
+  assert.match(h.node('tt-pulse-rvol').textContent,/RVOL_SOURCE_QUALITY_INSUFFICIENT/);
+  assert.match(h.node('tt-pulse-rvol').title,/12:54:59/);
+  assert.match(h.node('tt-pulse-rvol').title,/TIMESTAMP_LINEAGE_INSUFFICIENT/);
 });
 test('late workspace response cannot overwrite a newer independent pulse poll',()=>{
   const h=ui();h.setNow(epoch+5_000);h.context.renderLiveMarketPulse(pulse(epoch+5_000,2));

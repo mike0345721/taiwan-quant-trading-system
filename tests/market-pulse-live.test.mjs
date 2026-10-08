@@ -42,10 +42,10 @@ test('completed 5m RVOL uses exactly 20 earlier audited same-session same-slot m
     writeDay(`2026-08-${String(index).padStart(2, '0')}`, 90 + index);
   }
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     bars: [
-      { time: '2026-09-30T01:00:00.000Z', volume: 200, availableAt: '2026-09-30T01:04:59.000Z' },
-      { time: '2026-09-30T01:05:00.000Z', volume: 20, availableAt: '2026-09-30T01:06:00.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 200, availableAt: '2026-09-30T01:04:59.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:05:00.000Z', volume: 20, availableAt: '2026-09-30T01:06:00.000Z' },
     ],
   };
   const result = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
@@ -64,8 +64,8 @@ test('forming 5m bar is never compared to a completed historical 5m baseline', (
     writeDay(`2026-08-${String(index).padStart(2, '0')}`, 100);
   }
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
-    bars: [{ time: '2026-09-30T01:05:00.000Z', volume: 500, availableAt: '2026-09-30T01:06:00.000Z' }],
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
+    bars: [{ qualityStatus: 'PASS', time: '2026-09-30T01:05:00.000Z', volume: 500, availableAt: '2026-09-30T01:06:00.000Z' }],
   };
   const result = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
   assert.equal(result.state, 'UNAVAILABLE');
@@ -76,8 +76,8 @@ test('RVOL stays BASELINE_NOT_READY with only 19 audited prior sessions', () => 
     writeDay(`2026-08-${String(index).padStart(2, '0')}`, 100);
   }
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
-    bars: [{ time: '2026-09-30T01:00:00.000Z', volume: 180, availableAt: '2026-09-30T01:04:59.000Z' }],
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
+    bars: [{ qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 180, availableAt: '2026-09-30T01:04:59.000Z' }],
   };
   const result = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
   assert.equal(result.state, 'BASELINE_NOT_READY');
@@ -91,9 +91,9 @@ test('RVOL fails closed when the current chart source is stale', () => {
     writeDay(`2026-08-${String(index).padStart(2, '0')}`, 100);
   }
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     availableAt: '2026-09-30T01:00:00.000Z',
-    bars: [{ time: '2026-09-30T00:55:00.000Z', volume: 180, availableAt: '2026-09-30T00:59:59.000Z' }],
+    bars: [{ qualityStatus: 'PASS', time: '2026-09-30T00:55:00.000Z', volume: 180, availableAt: '2026-09-30T00:59:59.000Z' }],
   };
   const result = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
   assert.equal(result.state, 'UNAVAILABLE');
@@ -102,11 +102,11 @@ test('RVOL fails closed when the current chart source is stale', () => {
 
 test('reconnected fresh chart cannot label an old selected completed bar READY', () => {
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     availableAt: '2026-09-30T02:57:59.792Z',
     bars: [
-      { time: '2026-09-30T01:10:00.000Z', volume: 1, availableAt: '2026-09-30T01:14:57.708Z' },
-      { time: '2026-09-30T02:55:00.000Z', volume: 8, availableAt: '2026-09-30T02:57:59.792Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:10:00.000Z', volume: 1, availableAt: '2026-09-30T01:14:57.708Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T02:55:00.000Z', volume: 8, availableAt: '2026-09-30T02:57:59.792Z' },
     ],
   };
   const rvol = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T02:58:00.678Z') });
@@ -119,12 +119,12 @@ test('reconnected fresh chart cannot label an old selected completed bar READY',
 
 test('RVOL refuses a missing intermediate completed slot after capture gap', () => {
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     availableAt: '2026-09-30T01:15:50.000Z',
     bars: [
-      { time: '2026-09-30T01:00:00.000Z', volume: 180, availableAt: '2026-09-30T01:04:59.000Z' },
-      { time: '2026-09-30T01:10:00.000Z', volume: 120, availableAt: '2026-09-30T01:14:59.000Z' },
-      { time: '2026-09-30T01:15:00.000Z', volume: 10, availableAt: '2026-09-30T01:15:50.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 180, availableAt: '2026-09-30T01:04:59.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:10:00.000Z', volume: 120, availableAt: '2026-09-30T01:14:59.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:15:00.000Z', volume: 10, availableAt: '2026-09-30T01:15:50.000Z' },
     ],
   };
   const rvol = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:16:00.000Z') });
@@ -135,11 +135,11 @@ test('RVOL refuses a missing intermediate completed slot after capture gap', () 
 
 test('RVOL refuses a completed bar with unknown availability despite a live forming bar', () => {
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     availableAt: '2026-09-30T01:06:00.000Z',
     bars: [
-      { time: '2026-09-30T01:00:00.000Z', volume: 180 },
-      { time: '2026-09-30T01:05:00.000Z', volume: 10, availableAt: '2026-09-30T01:06:00.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 180 },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:05:00.000Z', volume: 10, availableAt: '2026-09-30T01:06:00.000Z' },
     ],
   };
   const rvol = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
@@ -150,10 +150,10 @@ test('RVOL refuses a completed bar with unknown availability despite a live form
 test('RVOL with partial observed session prefix never claims a cumulative ratio', () => {
   for (let day = 1; day <= 20; day += 1) writeDay(`2026-08-${String(day).padStart(2, '0')}`, 100);
   const chart = {
-    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY',
+    timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session: 'DAY',
     bars: [
-      { time: '2026-09-30T01:00:00.000Z', volume: 200, availableAt: '2026-09-30T01:04:59.000Z' },
-      { time: '2026-09-30T01:05:00.000Z', volume: 5, availableAt: '2026-09-30T01:06:00.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 200, availableAt: '2026-09-30T01:04:59.000Z' },
+      { qualityStatus: 'PASS', time: '2026-09-30T01:05:00.000Z', volume: 5, availableAt: '2026-09-30T01:06:00.000Z' },
     ],
   };
   const rvol = buildLiveRvol({ chart, archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
@@ -162,6 +162,59 @@ test('RVOL with partial observed session prefix never claims a cumulative ratio'
   assert.equal(rvol.cumulativeRatio, null);
   assert.equal(rvol.cumulativeVolume, null);
   assert.equal(rvol.cumulativeCoverage, 'SESSION_PREFIX_UNVERIFIED');
+});
+
+test('fresh RVOL preserves and rejects bad or unknown source and selected-bar quality', () => {
+  for (let day = 1; day <= 20; day += 1) writeDay(`2026-08-${String(day).padStart(2, '0')}`, 100);
+  const valid = {
+    timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY', qualityStatus: 'PASS',
+    availableAt: '2026-09-30T01:06:00.000Z',
+    bars: [{ time: '2026-09-30T01:00:00.000Z', volume: 200,
+      availableAt: '2026-09-30T01:04:59.000Z', qualityStatus: 'PASS' }],
+  };
+  for (const qualityStatus of ['QUALITY_INSUFFICIENT', 'UNKNOWN', undefined]) {
+    const chart = { ...valid, qualityStatus, qualityReasons: ['TIMESTAMP_LINEAGE_INSUFFICIENT'] };
+    const source = buildLiveRvol({ chart, archiveDir: root, now: new Date(valid.availableAt) });
+    assert.equal(source.state, 'UNAVAILABLE');
+    assert.equal(source.reason, 'RVOL_SOURCE_QUALITY_INSUFFICIENT');
+    assert.equal(source.ratio, null);
+    assert.deepEqual(source.sourceQualityReasons, chart.qualityReasons);
+    assert.equal(source.completedBarAvailableAt, valid.bars[0].availableAt);
+    const selected = buildLiveRvol({ chart: { ...valid, bars: [{ ...valid.bars[0], qualityStatus }] },
+      archiveDir: root, now: new Date(valid.availableAt) });
+    assert.equal(selected.reason, 'RVOL_COMPLETED_BAR_QUALITY_INSUFFICIENT');
+    assert.equal(selected.ratio, null);
+  }
+  const gap = buildLiveRvol({ chart: { ...valid, bars: [{ ...valid.bars[0], sequenceGapCount: 10 }] },
+    archiveDir: root, now: new Date(valid.availableAt) });
+  assert.equal(gap.reason, 'RVOL_COMPLETED_BAR_QUALITY_INSUFFICIENT');
+  const unknownSource = { ...valid }; delete unknownSource.qualityStatus;
+  assert.equal(buildLiveRvol({ chart: unknownSource, archiveDir: root,
+    now: new Date(valid.availableAt) }).reason, 'RVOL_SOURCE_QUALITY_INSUFFICIENT');
+});
+
+test('an opening bucket or unknown earlier volume never certifies cumulative capture', () => {
+  for (let day = 1; day <= 20; day += 1) writeDay(`2026-08-${String(day).padStart(2, '0')}`, 100, { slot: '00:50' });
+  for (const firstVolume of [50, null]) {
+    const chart = {
+      timeframe: '5m', tradeDate: '2026-09-30', session: 'DAY', qualityStatus: 'PASS',
+      availableAt: '2026-09-30T00:56:00.000Z',
+      bars: [
+        { time: '2026-09-30T00:45:00.000Z', firstEventTime: '2026-09-30T00:48:00.000Z',
+          availableAt: '2026-09-30T00:49:59.000Z', volume: firstVolume, qualityStatus: 'PASS' },
+        { time: '2026-09-30T00:50:00.000Z', firstEventTime: '2026-09-30T00:50:00.000Z',
+          availableAt: '2026-09-30T00:54:59.000Z', volume: 100, qualityStatus: 'PASS' },
+      ],
+    };
+    const rvol = buildLiveRvol({ chart, archiveDir: root, now: new Date(chart.availableAt) });
+    assert.equal(rvol.state, 'READY');
+    assert.equal(rvol.ratio, 1);
+    assert.equal(rvol.cumulativeRatio, null);
+    assert.equal(rvol.cumulativeVolume, null);
+    assert.equal(rvol.cumulativeBaselineMedian, null);
+    assert.equal(rvol.cumulativeCoverage, 'SESSION_PREFIX_UNVERIFIED');
+    assert.equal(rvol.cumulativeReason, 'RVOL_SESSION_CAPTURE_COVERAGE_UNVERIFIED');
+  }
 });
 
 test('DAY basis requires same-day fresh TX and IX0001 observations', () => {

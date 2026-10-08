@@ -2778,9 +2778,14 @@ function renderLiveMarketPulse(pulse) {
       cumulativeRatio == null ? null : `累積 ${fmt(cumulativeRatio, 2)}×`,
     ].filter(Boolean).join(' · ')
     : null;
-  const rvolTitle = rvolReady
+  const rvolTitle = [rvolReady
     ? `完成5分K · n=${rvol.sampleDays} · baseline ${rvol.baselineStartDate || '—'}～${rvol.baselineEndDate || '—'} · median ${fmt(rvol.baselineMedian, 0)}`
-    : (rvol.reason || 'RVOL_UNAVAILABLE');
+    : (rvol.reason || 'RVOL_UNAVAILABLE'),
+    rvol.completedBarTime ? `樣本 ${rvol.completedBarTime} · 可用 ${rvol.completedBarAvailableAt || '未知'}` : null,
+    rvol.sourceQualityStatus ? `來源品質 ${rvol.sourceQualityStatus}` : null,
+    ...(rvol.sourceQualityReasons || []),
+    rvolReady && cumulativeRatio == null ? '累積 RVOL 未提供：完整盤初收集範圍未驗證' : null,
+  ].filter(Boolean).join(' · ');
   terminalWrite('tt-pulse-rvol', rvolValue, { reason: rvol.reason || 'RVOL_UNAVAILABLE', title: rvolTitle });
   terminalWrite('dw-rvol-state', rvolValue, { reason: rvol.reason || 'RVOL_UNAVAILABLE', title: rvolTitle });
 

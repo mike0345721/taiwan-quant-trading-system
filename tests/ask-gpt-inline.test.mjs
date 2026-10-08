@@ -19,6 +19,18 @@ const events=rows=>new Response(rows.map(e=>'data: '+JSON.stringify(e)+'\n\n').j
 const done={type:'response.completed',response:{id:'resp_synthetic',status:'completed',model:'test-model',usage:{input_tokens:4,output_tokens:3,total_tokens:7,output_tokens_details:{reasoning_tokens:0}}}};
 const delta=text=>({type:'response.output_text.delta',delta:text});
 
+test('inline context retains unavailable RVOL source quality and sample evidence',()=>{
+ const now=new Date().toISOString();
+ const rvol={state:'UNAVAILABLE',reason:'RVOL_SOURCE_QUALITY_INSUFFICIENT',ratio:null,
+  sourceAvailableAt:now,sourceQualityStatus:'QUALITY_INSUFFICIENT',sourceQualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT'],
+  completedBarTime:now,completedBarAvailableAt:now,completedBarQualityStatus:'PASS'};
+ const s=createDecisionSnapshot({dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0},marketPulse:{rvol,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false}});
+ const actual=buildInlineContext(s).context.marketPulse.rvol;
+ assert.equal(actual.ratio,null);assert.equal(actual.reason,rvol.reason);
+ assert.equal(actual.sourceAvailableAt,now);assert.equal(actual.completedBarAvailableAt,now);
+ assert.deepEqual(actual.sourceQualityReasons,rvol.sourceQualityReasons);
+});
+
 test('protected store merges separate writers and serializes rotating refresh across instances',async t=>{
  const p=temp(t),a=storeAt(p),b=storeAt(p),r=account(),key=a.save(r);b.save({...account(),subject:'second'});a.reload();assert.equal(a.list().length,2);
  let release;const wait=new Promise(r=>release=r),first=a.updateExclusive(key,async old=>{await wait;return{record:{...old,access_token:'rotated'},result:'ok'};});
