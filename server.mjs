@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { resolveDashboardReadDataRoot } from './src/dashboard-source-binding.mjs';
 import { InlineAssistant } from './src/ask-gpt-inline-service.mjs';
 import { createInlineHandler } from './src/ask-gpt-inline-http.mjs';
 import crypto from 'node:crypto';
@@ -87,9 +88,15 @@ const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(con
 const loginLimiter = new LoginRateLimiter();
 const v2Research = new V2ResearchService();
 let dailyUpdateProcess = null;
-// Candidate reads existing governed products while sessions, AI receipts and caches stay local.
-if (process.env.ASK_GPT_CANDIDATE_READ_ROOT && (process.env.ASK_GPT_INLINE_ENABLED !== '1' || config.host !== '127.0.0.1' || [8787,8790,8791].includes(config.port))) throw Error('INLINE_CANDIDATE_READ_ROOT_REJECTED');
-const readDataRoot = cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : process.env.ASK_GPT_CANDIDATE_READ_ROOT ? path.resolve(process.env.ASK_GPT_CANDIDATE_READ_ROOT) : config.dataDir;
+// Explicit source bindings read existing governed products; private writes stay in config.dataDir.
+const readDataRoot = resolveDashboardReadDataRoot({
+  dataDir: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
+  host: config.host, port: config.port, actualDataMode: expectedDataMode.toUpperCase(),
+  previewType: process.env.DASHBOARD_PREVIEW_TYPE, inlineEnabled: process.env.ASK_GPT_INLINE_ENABLED === '1',
+  candidateReadRoot: process.env.ASK_GPT_CANDIDATE_READ_ROOT,
+  formalReadRoot: process.env.DASHBOARD_FORMAL_READ_ROOT,
+  isolatedMode: Boolean(config.cru55Candidate || config.cru55Acceptance),
+});
 const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
 const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');

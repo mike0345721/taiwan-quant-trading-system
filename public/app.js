@@ -3486,6 +3486,23 @@ function renderGlobalTiles(evidence) {
   }
 }
 
+function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace?.globalStatus?.dataHealth) {
+  const sourceTime = Date.parse(chart?.availableAt || '');
+  const sourceTimeKnown = Number.isFinite(sourceTime);
+  const now = Date.now();
+  const warning = chart?.mode !== 'LIVE' ? null
+    : !sourceTimeKnown || sourceTime > now + 5_000 ? '資料時間不可驗證'
+      : now - sourceTime > 120_000 ? '資料過期' : null;
+  const sourceLabel = sourceTimeKnown ? `來源 ${timeLabel(chart.availableAt)}` : '來源時間不明';
+  const quality = chart?.qualityStatus || fallbackQuality || null;
+  terminalWrite('tt-top-updated', sourceTimeKnown ? sourceLabel : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
+  terminalWrite('tt-top-trust', warning ? `${warning} · 品質 ${quality || '未提供'}` : quality, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
+  const topTrust = $('tt-top-trust');
+  if (topTrust) topTrust.className = `dw-status-pill ${warning ? 'is-unavailable' : healthTone(quality || 'UNAVAILABLE')}`;
+  const mode = `${chart?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${chart?.timeframe || state.txChartTimeframe} · READ ONLY`;
+  dwText('dw-chart-mode', warning ? `${warning} · ${sourceLabel} · ${mode}` : mode);
+}
+
 function renderTerminalShell(workspace, chart = state.txChartPayload) {
   if (!$('tt-summary-price')) return;
   const contract = workspace?.evidenceConflict;
@@ -3552,10 +3569,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   const basis = basisIdentityCompatible ? finiteNumber(derived?.market?.basis) : null;
   renderLiveMarketPulse(state.marketPulse);
   terminalWrite('tt-top-session', [chart?.tradeDate, chart?.session].filter(Boolean).join(' · ') || null, { reason: 'TRADE_DATE_OR_SESSION_UNAVAILABLE' });
-  terminalWrite('tt-top-updated', chart?.availableAt ? `更新 ${timeLabel(chart.availableAt)}` : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
-  terminalWrite('tt-top-trust', chart?.qualityStatus || global.dataHealth || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
-  const topTrust = $('tt-top-trust');
-  if (topTrust) topTrust.className = `dw-status-pill ${healthTone(chart?.qualityStatus || global.dataHealth || 'UNAVAILABLE')}`;
+  renderTxChartFreshness(chart, global.dataHealth);
 
   terminalWrite('tt-summary-price', currentFacts.priceStructureFact || null, { reason: 'PRICE_STRUCTURE_FACT_UNAVAILABLE' });
   dwText('tt-summary-strength', 'RESEARCH_PENDING');
@@ -4582,7 +4596,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   const chartUnavailable = terminalUnavailable(chartReason);
   dwText('dw-chart-session', payload?.session || chartUnavailable);
   dwText('dw-chart-contract', payload?.actualContract ? `TX ${payload.actualContract}` : chartUnavailable);
-  dwText('dw-chart-mode', `${payload?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${payload?.timeframe || state.txChartTimeframe} · READ ONLY`);
+  renderTxChartFreshness(payload);
   const chartLastPrice = finiteNumber(payload?.lastPrice);
   dwText('dw-reference-price', chartLastPrice == null ? chartUnavailable : fmt(chartLastPrice), chartUnavailable);
   const chart = ensureTxChart();
@@ -4637,6 +4651,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
+  if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
   if (state.txChartLoading) {
     state.txChartPendingFit = state.txChartPendingFit || fit;
     return;

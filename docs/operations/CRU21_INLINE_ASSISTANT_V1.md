@@ -17,6 +17,14 @@
 - Copy/Open保留為明確標示的人工備援；新的原頁分析API與其分離。
 - 候選測試使用18722、自有狀態與chart cache；ASK_GPT_CANDIDATE_READ_ROOT只把既有intraday／audit／forward等來源讀取對齊governed根目錄，不改private寫入。此參數在8787/8790/8791或非loopback直接拒絕，正式預設路徑不變。既有市場資料唯讀，不給Owner另一個假正式產品。
 
+## Formal read-source activation
+
+正式面板可使用 `DASHBOARD_FORMAL_READ_ROOT` 唯讀既有 governed intraday / audit / forward products；只允許 actual LIVE、127.0.0.1:8787、無 preview、非 CRU55，且來源必須是既存目錄。不得與 candidate read root 同時設定。這只選讀取來源，不改 config.dataDir 的 sessions、AI receipts 與 caches 寫入位置，也不豁免 identity / freshness / quality gates。
+
+部署時逐項核對來源：此 read root、`TX_CHART_DATA_ROOT`、`V2_RESEARCH_DATABASE_PATH`、`V2_BACKTEST_REPORT_PATH` 必須指向實際持續更新的既有產品；CRU34 expected root / status / snapshot 則必須匹配 producer 宣告，不可因共用子目錄就把不同 root 宣稱相等。Data Operations manifest 沿既有批准綁定，不由此參數改寫。
+
+啟用前保留原設定與 whole-version 回復點。正式更新仍需 Owner 授權、exact-tree review、同一 runtime 的 L0–L5；來源綁定本身不是 Product Ready。LIVE 主價格超過 120 秒會明示資料過期，歷史 K 線與原始品質仍保留；Scenario 同時停用過期觀察，不把歷史價格冒充當下判斷。
+
 ## Auth / usage / failure handling
 沿用正式Dashboard真實Session與CSRF，再對新增API要求精確loopback Host/Origin。憑證僅在原app-owned Windows DPAPI store，與既有Codex、瀏覽器、券商憑證分離。
 
