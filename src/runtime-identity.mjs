@@ -41,3 +41,27 @@ export function buildRuntimeVersionStatus({
     syncState,
   });
 }
+
+// Formal identity only. Caller inputs must come from actual Git/config startup evidence,
+// never from the version declaration itself. Producer, browser and safety gates remain separate.
+export function validateFormalRuntimeVersionTruth(version, {
+  expectedRuntimeCommit, expectedApprovedMainCommit, actualDataMode, sourceClean,
+  host, port, previewType, now = new Date(),
+} = {}) {
+  const reasons = [];
+  const sha = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
+  if (previewType || version?.previewType) reasons.push('FORMAL_PREVIEW_NOT_ALLOWED');
+  if (host !== '127.0.0.1' || port !== 8787) reasons.push('FORMAL_RUNTIME_BOUNDARY_REJECTED');
+  if (!sha(expectedRuntimeCommit) || !sha(expectedApprovedMainCommit)
+      || expectedRuntimeCommit !== expectedApprovedMainCommit
+      || version?.runtimeCommit !== expectedRuntimeCommit
+      || version?.approvedMainCommit !== expectedApprovedMainCommit
+      || version?.syncState !== 'SYNCED') reasons.push('FORMAL_APPROVED_MAIN_MISMATCH');
+  const startedMs = typeof version?.runtimeStartedAt === 'string' ? Date.parse(version.runtimeStartedAt) : NaN;
+  const nowMs = now instanceof Date ? now.getTime() : NaN;
+  if (!Number.isFinite(startedMs) || !Number.isFinite(nowMs) || startedMs > nowMs + 5_000)
+    reasons.push('FORMAL_RUNTIME_START_TIME_INVALID');
+  if (actualDataMode !== 'LIVE') reasons.push('FORMAL_LIVE_DATA_REQUIRED');
+  if (sourceClean !== true) reasons.push('FORMAL_SOURCE_NOT_CLEAN');
+  return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
+}

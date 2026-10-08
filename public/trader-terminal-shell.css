@@ -864,3 +864,6 @@
 @media (max-width: 1100px) {
   .tt-primary-grid > .dw-price-region { height: auto; grid-template-rows: auto minmax(260px, 1fr) auto; }
 }
+
+/* Core scenario prices must meet the existing readable typography floor. */
+#dw-next-watch-label, #dw-long-target, #dw-short-target { font-size: 11px !important; }

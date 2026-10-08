@@ -31,7 +31,7 @@ import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-c
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
-import { buildRuntimeVersionStatus, readRuntimeIdentity } from './src/runtime-identity.mjs';
+import { buildRuntimeVersionStatus, readRuntimeIdentity, validateFormalRuntimeVersionTruth } from './src/runtime-identity.mjs';
 import {
   buildCru44PreviewVersion,
   buildIntegrationPreviewVersion,
@@ -121,6 +121,10 @@ const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
+const sourceCleanAtStartup = (() => {
+  try { return execFileSync('git', ['status', '--porcelain'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim() === ''; }
+  catch { return false; }
+})();
 const baseRuntimeVersion = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt });
 const cru21PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW';
 const cru44PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU44_OWNER_PREVIEW';
@@ -185,7 +189,12 @@ function currentCru46RuntimeReadiness() {
     ? validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions)
     : cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
-    : validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit);
+    : integrationPreviewEnabled ? validateIntegrationPreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
+    : validateFormalRuntimeVersionTruth(runtimeVersion, {
+      expectedRuntimeCommit: runtimeIdentity.commit, expectedApprovedMainCommit: approvedMainIdentity.commit,
+      actualDataMode: expectedDataMode.toUpperCase(), sourceClean: sourceCleanAtStartup,
+      host: config.host, port: config.port, previewType: process.env.DASHBOARD_PREVIEW_TYPE,
+    });
   const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
     calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
   const flow = loadDashboardObservedFlow({ liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
@@ -760,6 +769,13 @@ server.headersTimeout = 10_000;
 server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 100;
 
+// Warm immutable ledger normalization before accepting requests so the first chart
+// cannot starve concurrent bridge responses on the HTTP event loop.
+if (!cru55 && !config.cru55Acceptance) {
+  try { loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
+    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' }); }
+  catch (error) { console.error('[chart warmup]', error.message); }
+}
 server.listen(config.port, config.host, async () => {
   console.log(`台股決策雷達 V3.7.3：http://${config.host}:${config.port}`);
   console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);

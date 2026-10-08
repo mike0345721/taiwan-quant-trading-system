@@ -4194,13 +4194,15 @@ function renderDecisionLevelWatch(levelWatch) {
   state.levelWatch = levelWatch || null;
   if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
   const host = $('dw-next-watch');
-  const matchesChart = !state.txChartPayload || levelWatchMatchesChart(levelWatch, state.txChartPayload);
+  const matchesChart = levelWatchIsFresh(levelWatch) && (!state.txChartPayload || levelWatchMatchesChart(levelWatch, state.txChartPayload));
   const next = levelWatch?.state === 'READY' && matchesChart ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
-    dwText('dw-next-watch-label', '等待合法關鍵價位');
+    const expired = levelWatch?.reason === 'CHART_SOURCE_STALE'
+      || (levelWatch?.state === 'READY' && !levelWatchIsFresh(levelWatch, state.txChartPayload));
+    dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得' : '等待合法關鍵價位');
     dwText('dw-next-watch-distance', '—');
-    dwText('dw-next-watch-why', '目前沒有可用價位。');
+    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。' : '目前沒有可用價位。');
     renderNextWatchBasis(['等待合法價位與證據。']);
     renderScenarioWatch(null);
     dwText('dw-next-watch-response', '等待合法價位。');
@@ -4227,6 +4229,9 @@ async function loadDecisionLevelWatch() {
   if (state.levelWatchLoading || !state.csrfToken || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
   state.levelWatchLoading = true;
   try {
+    // Revalidate cached evidence while a new response is in flight.
+    renderDecisionLevelWatch(state.levelWatch);
+    if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
     const payload = await api('/api/v1/decision-level-watch', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     renderDecisionLevelWatch(payload.data);
     if (state.txChartPayload) renderTxChartLevels(state.txChartPayload);
@@ -4238,8 +4243,17 @@ async function loadDecisionLevelWatch() {
     state.levelWatchLoading = false;
   }
 }
+function levelWatchIsFresh(watch, chart = null) {
+  const now = Date.now();
+  const sourceAt = Date.parse(watch?.sourceAvailableAt);
+  const snapshotAt = Date.parse(watch?.snapshotTime);
+  const times = [sourceAt, snapshotAt];
+  if (chart) times.push(Date.parse(chart.availableAt));
+  return times.every(at => Number.isFinite(at) && at <= now + 5_000 && now - at <= 120_000)
+    && sourceAt <= snapshotAt;
+}
 function levelWatchMatchesChart(watch, chart) {
-  return watch?.state === 'READY' && chart?.mode !== 'REPLAY'
+  return watch?.state === 'READY' && levelWatchIsFresh(watch, chart) && chart?.mode !== 'REPLAY'
     && ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(chart?.status)
     && (chart?.qualityStatus === 'PASS' || ![watch.scenarioWatch?.long, watch.scenarioWatch?.short].some((side) => side?.rr?.state === 'AVAILABLE'))
     && ['actualContract', 'tradeDate', 'session'].every((key) => watch.identity?.[key] && watch.identity[key] === chart?.[key]);

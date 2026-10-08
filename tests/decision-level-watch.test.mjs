@@ -314,3 +314,19 @@ test('delayed pivot input timestamps and confirmation close both bound availabil
   c.bars[1].availableAt='2026-10-05T10:17:00Z';
   const r=watch(c);assert.equal(r.levels.find(x=>x.id==='SWING_HIGH').availableAt,'2026-10-05T10:17:00.000Z');
 });
+
+
+test('current scenario expires after 120 seconds even when the unchanged chart remains READY and PASS',()=>{
+  const c=chart({mode:'LIVE',status:'READY'});
+  const sourceAt=Date.parse(c.availableAt);
+  const fresh=buildDecisionLevelWatch({chart:c,snapshotTime:new Date(sourceAt+120000).toISOString()});
+  assert.equal(fresh.state,'READY');assert.equal(fresh.scenarioWatch.long.rr.state,'AVAILABLE');
+  assert.equal(fresh.sourceAvailableAt,c.availableAt);
+  for(const elapsed of [120001,3630000]){
+    const stale=buildDecisionLevelWatch({chart:c,snapshotTime:new Date(sourceAt+elapsed).toISOString()});
+    assert.equal(stale.state,'UNAVAILABLE');assert.equal(stale.reason,'CHART_SOURCE_STALE');
+    assert.equal(stale.sourceAvailableAt,c.availableAt);assert.equal(stale.scenarioWatch,null);
+    assert.equal(stale.nextWatch,null);assert.deepEqual(stale.levels,[]);
+    assert.equal(stale.executionAuthorized,false);assert.equal(stale.orderRoutesEnabled,false);
+  }
+});

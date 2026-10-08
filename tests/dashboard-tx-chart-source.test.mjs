@@ -115,3 +115,34 @@ test('1D source reads governed previous NIGHT plus current DAY ledgers without c
     assert.equal(five.bars[0].time, '2026-08-12T00:45:00.000Z');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('restored immutable ledger stays resident and adjusted lineage remains exact across cutoffs and appends', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dw2-lineage-cache-'));
+  try {
+    const ledgerDir = path.join(root, 'live-events'); fs.mkdirSync(ledgerDir);
+    const ledger = path.join(ledgerDir, '2026-08-12.ndjson');
+    const tick = record('2026-08-12T08:45:01.000', 100, 2);
+    tick.receivedAt = '2026-08-12T08:45:00.900+08:00';
+    fs.writeFileSync(ledger, JSON.stringify(tick) + '\n');
+    const options = {dataRoot:root, cacheRoot:path.join(root,'cache'), calendar, timeframe:'5m', tradeDate:'2026-08-12', session:'DAY', asOf:'2026-08-12T09:00:00+08:00'};
+    const first = loadTxDecisionChart(options);
+    clearTxChartLedgerCache();
+    const restored = readTxLiveEventLedger(ledger,{cacheRoot:options.cacheRoot});
+    assert.equal(restored[0], readTxLiveEventLedger(ledger,{cacheRoot:options.cacheRoot})[0]);
+    assert.deepEqual(loadTxDecisionChart(options), first);
+    assert.equal(first.timeLineageViolationCount, 1);
+    assert.equal(first.qualityStatus, 'QUALITY_INSUFFICIENT');
+    const earlier = {...options, asOf:'2026-08-12T08:45:00+08:00'};
+    assert.equal(loadTxDecisionChart(earlier).sourceEventCount, 0);
+    const next = record('2026-08-12T08:46:01.000', 101, 3);
+    next.receivedAt = '2026-08-12T08:46:00.900+08:00';
+    fs.appendFileSync(ledger, JSON.stringify(next) + '\n');
+    const warm = loadTxDecisionChart(options);
+    clearTxChartLedgerCache();
+    assert.deepEqual(loadTxDecisionChart(options), warm);
+    assert.equal(warm.sourceEventCount, 2);
+    assert.equal(warm.timeLineageViolationCount, 2);
+    assert.equal(warm.bars[0].volume, 5);
+    assert.deepEqual(loadTxDecisionChart({...options,calendar:structuredClone(calendar)}),warm);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});

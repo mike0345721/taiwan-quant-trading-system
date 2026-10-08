@@ -146,7 +146,7 @@ export function buildIndexLeadership(raw = {}, {
   const futureViolation = ageMs < -1_000;
   const live = hasLiveData && !futureViolation && marketOpen && sourceTradeDate === clock.tradeDate
     && ageMs <= LIVE_FRESHNESS_MS;
-  const state = live ? 'LIVE' : hasLiveData && !futureViolation ? 'SESSION_CLOSED' : 'UNAVAILABLE';
+  const state = live ? 'LIVE' : hasLiveData && !futureViolation && (!marketOpen || sourceTradeDate !== clock.tradeDate) ? 'SESSION_CLOSED' : 'UNAVAILABLE';
   const sourceMode = live ? 'LIVE_RAW' : state === 'SESSION_CLOSED' ? 'EOD_CONTEXT' : 'UNAVAILABLE';
   const topPositive = rankRows(positiveSource.filter((row) => (row.points ?? 0) > 0), 'positive').slice(0, 10);
   const topNegative = rankRows(negativeSource.filter((row) => (row.points ?? 0) < 0), 'negative').slice(0, 10);
@@ -165,6 +165,7 @@ export function buildIndexLeadership(raw = {}, {
     freshnessState: state === 'LIVE' ? 'LIVE' : state === 'SESSION_CLOSED' ? 'SESSION_CLOSED' : 'UNAVAILABLE',
     quality, reasonCode: futureViolation ? 'IX0001_FUTURE_DATA_VIOLATION'
       : !hasLiveData ? 'LIVE_DAY_EVENT_ACCEPTANCE_PENDING'
+        : marketOpen && sourceTradeDate === clock.tradeDate && !live ? 'IX0001_LIVE_SOURCE_STALE'
         : state === 'SESSION_CLOSED' ? 'CURRENT_SESSION_NOT_TWSE_DAY' : null,
     indexLeadership: Object.freeze({ rankings: Object.freeze(rankings), topPositive, topNegative, topAbsolute,
       positivePointsSum: pointsSum(topPositive), negativePointsSum: pointsSum(topNegative), absolutePointsSum: pointsSum(topAbsolute) }),

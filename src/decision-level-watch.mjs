@@ -2,6 +2,7 @@ const finite = value => value == null || value === '' || typeof value === 'boole
 const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
 const iso = value => { const n=Date.parse(value); return Number.isFinite(n)?new Date(n).toISOString():null; };
 const freezeRows = rows => Object.freeze(rows.map(row=>Object.freeze(row)));
+const LIVE_SOURCE_FRESHNESS_MS = 120_000;
 
 function availableLevel(level){
   return level?.availability==='AVAILABLE' && finite(level.value)!=null;
@@ -338,11 +339,13 @@ function scenarioDirectionState(node,zone){
 
 export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=null,snapshotTime=new Date().toISOString(),maxVisible=3}={}){
   const currentPrice=finite(chart?.lastPrice);
+  const sourceAvailableAt=iso(chart?.availableAt);
   const identity=Object.freeze({actualContract:chart?.actualContract||null,tradeDate:chart?.tradeDate||null,session:chart?.session||null});
-  const unavailable=reason=>Object.freeze({schemaVersion:'decision-level-watch-v3',state:'UNAVAILABLE',reason,snapshotTime:iso(snapshotTime),identity,levels:Object.freeze([]),nextWatch:null,scenarioWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
+  const unavailable=reason=>Object.freeze({schemaVersion:'decision-level-watch-v3',state:'UNAVAILABLE',reason,snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,levels:Object.freeze([]),nextWatch:null,scenarioWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
   if(currentPrice==null)return unavailable('CURRENT_PRICE_UNAVAILABLE');
   if(!iso(snapshotTime)||!Object.values(identity).every(Boolean))return unavailable('CHART_IDENTITY_OR_TIME_UNAVAILABLE');
-  if(!iso(chart?.availableAt)||Date.parse(chart.availableAt)>Date.parse(snapshotTime))return unavailable('CHART_AVAILABLE_AT_INVALID');
+  if(!sourceAvailableAt||Date.parse(sourceAvailableAt)>Date.parse(snapshotTime))return unavailable('CHART_AVAILABLE_AT_INVALID');
+  if(Date.parse(snapshotTime)-Date.parse(sourceAvailableAt)>LIVE_SOURCE_FRESHNESS_MS)return unavailable('CHART_SOURCE_STALE');
   const bars=completedBars(chart,snapshotTime);
   const ranges=bars.slice(-12).filter(b=>b.qualityStatus==='PASS').map(b=>finite(b.high)-finite(b.low)).filter(Number.isFinite);
   const med=median(ranges);
@@ -435,7 +438,7 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     if(display.length>=Math.max(1,Math.min(3,maxVisible)))break;
   }
   return Object.freeze({
-    schemaVersion:'decision-level-watch-v3',state:display.length?'READY':'UNAVAILABLE',reason:display.length?null:'NO_LAWFUL_LEVELS',snapshotTime:iso(snapshotTime),identity,
+    schemaVersion:'decision-level-watch-v3',state:display.length?'READY':'UNAVAILABLE',reason:display.length?null:'NO_LAWFUL_LEVELS',snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,
     currentPrice,zonePoints:zone,zoneMethod:'35%_RECENT_COMPLETED_5M_MEDIAN_RANGE_CLAMP_6_30_OBSERVATION_ONLY',
     rankingMethod:'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY',
     levels:freezeRows(display),nextWatch:next?Object.freeze({...next}):null,scenarioWatch,

@@ -151,3 +151,12 @@ test('copy allowlist contains only descriptive Leadership contracts and explicit
   assert.equal(copy.NOT_A_TRADING_SIGNAL, true);
   assert.doesNotMatch(JSON.stringify(copy), /BUY|SELL|confidence|directionalSignal/i);
 });
+
+test('stalled current DAY leadership is unavailable, never described as a closed session', () => {
+  const result = buildIndexLeadership(fixture(), { now: new Date('2026-08-24T01:05:00.000Z') });
+  assert.equal(result.state, 'UNAVAILABLE');
+  assert.equal(result.reasonCode, 'IX0001_LIVE_SOURCE_STALE');
+  assert.equal(result.sourceMode, 'UNAVAILABLE');
+  assert.equal(result.sourceTradeDate, '2026-08-24');
+  assert.equal(result.executionAuthorized, false);
+});

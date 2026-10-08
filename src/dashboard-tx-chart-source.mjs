@@ -6,6 +6,7 @@ import { resolveGovernedTradingDay } from './market-state-forward-shadow-calenda
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
 
 const ledgerCache = new Map();
+let timestampLineageCache = new WeakMap();
 const TAIPEI_OFFSET = '+08:00';
 const PERSISTENT_CACHE_CHECKPOINT_BYTES = 64 * 1024 * 1024;
 
@@ -198,6 +199,8 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
     persistedSourceOffset: 0,
     forceRewrite: true,
   };
+  // Remember a restored checkpoint even when no new suffix has arrived.
+  ledgerCache.set(absolute, cached);
   if (stat.size === cached.offset) return Object.freeze([...cached.records]);
   const fd = fs.openSync(absolute, 'r');
   const decoder = new StringDecoder('utf8');
@@ -236,7 +239,14 @@ function chartTimestampMs(value) {
 
 function normalizeTimestampLineageForChart(records, calendar) {
   const violations = [];
+  let byRecord = timestampLineageCache.get(calendar);
+  if (!byRecord) { byRecord = new WeakMap(); timestampLineageCache.set(calendar, byRecord); }
   const normalizedRecords = (records || []).map((record) => {
+    const cached = record && byRecord.get(record);
+    if (cached) {
+      if (cached.violation) violations.push(cached.violation);
+      return cached.normalized;
+    }
     if (record?.kind !== 'futures_tick' || record?.duplicate === true) return record;
     const payload = record.payload || {};
     const exchangeTimestamp = String(payload.datetime || record.exchangeTimestamp || '');
@@ -247,7 +257,7 @@ function normalizeTimestampLineageForChart(records, calendar) {
     let context;
     try { context = classifyTxChartSession(exchangeTimestamp, calendar); } catch { return record; }
     const effectiveAvailableAt = new Date(exchangeMs).toISOString();
-    violations.push(Object.freeze({
+    const violation = Object.freeze({
       eventId: record.eventId || null,
       actualContract: String(payload._target_code || record.product || payload.code || ''),
       exchangeTimestamp: new Date(exchangeMs).toISOString(),
@@ -255,13 +265,16 @@ function normalizeTimestampLineageForChart(records, calendar) {
       effectiveAvailableAt,
       deltaMs: receivedMs - exchangeMs,
       ...context,
-    }));
-    return Object.freeze({
+    });
+    violations.push(violation);
+    const normalized = Object.freeze({
       ...record,
       receivedAt: effectiveAvailableAt,
       timestampLineageAdjusted: true,
       rawReceivedAt: receivedAt,
     });
+    byRecord.set(record, { normalized, violation });
+    return normalized;
   });
   return Object.freeze({ records: Object.freeze(normalizedRecords), violations: Object.freeze(violations) });
 }
@@ -413,4 +426,5 @@ export function loadTxDecisionChart({
 
 export function clearTxChartLedgerCache() {
   ledgerCache.clear();
+  timestampLineageCache = new WeakMap();
 }

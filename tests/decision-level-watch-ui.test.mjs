@@ -62,12 +62,14 @@ test('AI contract uses backend scenario targets and RR only, with no invented wi
 // Execute the existing production functions in a minimal DOM/chart host. No live runtime or model calls.
 const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 function ui(){
+  let now=Date.parse('2026-10-05T10:30:00Z');
+  class Clock extends Date { constructor(...args){super(...(args.length?args:[now]));} static now(){return now;} }
   const nodes=new Map();const text=(id,value)=>{node(id).textContent=value;};
   const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',dataset:{},classList:{contains:()=>false},replaceChildren(...children){this.children=children;}});return nodes.get(id);};
   const state={csrfToken:'fixture',levelWatchLoading:false,txChartLevelLines:[],decisionWorkspace:{}};
   let vwapOptions={};
   state.txChartSeries={candle:{createPriceLine:options=>options,removePriceLine:()=>{}},vwap:{applyOptions:options=>{vwapOptions=options;}}};
-  const context=vm.createContext({state,$:node,document:{hidden:false,createElement:()=>({textContent:''})},dwText:text,
+  const context=vm.createContext({state,$:node,Date:Clock,document:{hidden:false,createElement:()=>({textContent:''})},dwText:text,
     terminalWrite:text,terminalUnavailable:reason=>reason,timeLabel:value=>value,window:{LightweightCharts:{LineStyle:{Dashed:2}}},
     finiteNumber:value=>value==null?null:Number.isFinite(Number(value))?Number(value):null,fmt:(value,n=0)=>Number(value).toFixed(n),
     levelValue:level=>level?.availability==='AVAILABLE'?level.value:null,AbortSignal,
@@ -75,15 +77,15 @@ function ui(){
   vm.runInContext(app.slice(app.indexOf('function levelEventLabel('),app.indexOf('function renderTxChartLevels(')),context);
   const start=app.indexOf('function renderTxChartLevels('),end=app.indexOf('\n}\n',start)+3;
   vm.runInContext(app.slice(start,end),context);
-  return{context,state,node,getVwap:()=>vwapOptions};
+  return{context,state,node,getVwap:()=>vwapOptions,setNow:value=>{now=value;}};
 }
 const identity={actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'};
 function displayWatch(){
   const levels=[['OR_HIGH',120],['SESSION_HIGH',160],['OR_LOW',80]].map(([id,price])=>({id,price,label:id,state:'TESTING',basisReasons:['結構','形成時間','反應','資料品質限制']}));
   const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
-  return{state:'READY',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
+  return{state:'READY',snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
 }
-function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
+function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',availableAt:'2026-10-05T10:29:30Z',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
 test('executed chart render caps all overlays including VWAP and optional references at three',()=>{
   const h=ui();h.state.levelWatch=displayWatch();h.node('decision-workspace').classList.contains=()=>true;
   h.context.renderTxChartLevels(displayChart());
@@ -149,4 +151,44 @@ test('bounded GPT context preserves exact backend scenarios and unavailable thre
   }
   const headings=['現在怎麼看','核心決策節點','多方情境','空方情境','觀望條件','條件式結構 R:R','現在不要做什麼','資料限制'];
   let previous=-1;for(const heading of headings){const index=ANALYSIS_INSTRUCTIONS.indexOf(`「${heading}」`);assert.ok(index>previous);previous=index;}
+});
+
+
+test('same-identity READY charts cannot display an expired or unverifiable scenario',()=>{
+  const now=Date.parse('2026-10-05T10:30:00Z');
+  for(const patch of [{snapshotTime:new Date(now-121000).toISOString(),sourceAvailableAt:new Date(now-121001).toISOString()},
+    {sourceAvailableAt:new Date(now-120001).toISOString()},{sourceAvailableAt:null},{snapshotTime:null},
+    {snapshotTime:new Date(now+6000).toISOString()},{sourceAvailableAt:'not-a-time'},
+    {sourceAvailableAt:new Date(now+1000).toISOString()}]){
+    const h=ui();h.state.txChartPayload=displayChart();
+    h.context.renderDecisionLevelWatch({...displayWatch(),...patch});h.context.renderTxChartLevels(h.state.txChartPayload);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —');assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+    assert.match(h.node('dw-next-watch-label').textContent,/非最新/);
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  }
+  const h=ui();h.state.txChartPayload={...displayChart(),availableAt:new Date(now-120001).toISOString()};
+  h.context.renderDecisionLevelWatch(displayWatch());assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+});
+
+test('in-flight polls expire the current scenario before a replacement response arrives',async()=>{
+  const h=ui();h.state.txChartPayload=displayChart();h.context.renderDecisionLevelWatch(displayWatch());
+  assert.match(h.node('dw-long-rr').textContent,/2\.00/);
+  h.setNow(Date.parse('2026-10-05T10:32:01Z'));
+  let finish;h.context.api=()=>new Promise(resolve=>{finish=resolve;});
+  const pending=h.context.loadDecisionLevelWatch();
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');assert.match(h.node('dw-next-watch-label').textContent,/非最新/);
+  finish({data:{state:'UNAVAILABLE',reason:'CHART_SOURCE_STALE'}});await pending;
+  assert.equal(h.node('dw-short-rr').textContent,'R:R —');assert.equal(h.state.levelWatchLoading,false);
+});
+
+test('a freshly generated AI snapshot keeps stale market source time and cannot revive scenario conditions',()=>{
+  const snapshotTime='2026-10-05T10:30:00Z',sourceAvailableAt='2026-10-05T10:20:00Z';
+  const chart={...displayChart(),timeframe:'5m',lastPrice:100,availableAt:sourceAvailableAt};
+  const levelWatch=buildDecisionLevelWatch({chart,snapshotTime});
+  assert.equal(levelWatch.reason,'CHART_SOURCE_STALE');
+  const snapshot=createDecisionSnapshot({chart,levelWatch,snapshotTime,dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:1}});
+  const result=buildInlineContext(snapshot,{now:Date.parse(snapshotTime)+1000});
+  assert.equal(result.context.levelWatch.state,'UNAVAILABLE');assert.equal(result.context.levelWatch.reason,'CHART_SOURCE_STALE');
+  assert.equal(result.context.levelWatch.sourceAvailableAt,new Date(sourceAvailableAt).toISOString());
+  assert.equal(result.context.levelWatch.scenarioWatch,null);assert.equal(result.context.levelWatch.nextWatch,null);
 });
