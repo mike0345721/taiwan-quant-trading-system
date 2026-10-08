@@ -80,6 +80,23 @@ function historicalRvolRows(archiveDir, chart, slot, currentBar) {
   return { values, cumulative, dates, currentBar };
 }
 
+// A live completed-slot comparison must never borrow an old full bar after reconnect.
+function contiguousCompletedBars(bars) {
+  return bars.every((bar, index) => {
+    const ms = Date.parse(bar?.time || '');
+    if (!Number.isFinite(ms)) return false;
+    return index === 0 || ms - Date.parse(bars[index - 1]?.time || '') === FIVE_MINUTES_MS;
+  });
+}
+
+function startsAtSessionOpen(chart, bars) {
+  const openingMinute = chart?.session === 'DAY' ? 8 * 60 + 45
+    : chart?.session === 'NIGHT' ? 15 * 60 : null;
+  const firstMs = Date.parse(bars[0]?.time || '');
+  return openingMinute !== null && Number.isFinite(firstMs)
+    && taipeiMinute(new Date(firstMs)) === openingMinute;
+}
+
 export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
   const unavailable = (reason, extra = {}) => Object.freeze({
     state: 'UNAVAILABLE', reason, ratio: null, percentile: null, sampleDays: 0,
@@ -88,13 +105,34 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
   if (!chart || chart.timeframe !== '5m') return unavailable('RVOL_REQUIRES_5M_CHART');
   if (!archiveDir || !fs.existsSync(archiveDir)) return unavailable('RVOL_ARCHIVE_MISSING');
   const liveAvailableAt = chart.availableAt || chart.bars?.at(-1)?.availableAt || null;
-  if (liveAvailableAt) {
-    const freshness = liveTimestampState(liveAvailableAt, now);
-    if (freshness !== 'LIVE') return unavailable(freshness === 'STALE' ? 'RVOL_SOURCE_STALE' : 'RVOL_SOURCE_TIME_INVALID');
-  }
+  if (!liveAvailableAt) return unavailable('RVOL_SOURCE_AVAILABILITY_MISSING');
+  const freshness = liveTimestampState(liveAvailableAt, now);
+  if (freshness !== 'LIVE') return unavailable(freshness === 'STALE' ? 'RVOL_SOURCE_STALE' : 'RVOL_SOURCE_TIME_INVALID');
   const completed = completedFiveMinuteBars(chart, now.toISOString());
   const currentBar = completed.at(-1);
   if (!currentBar) return unavailable('NO_COMPLETED_5M_BAR');
+
+  // Source freshness by itself does not prove the selected completed bar is current.
+  const expectedStartMs = Math.floor(now.getTime() / FIVE_MINUTES_MS) * FIVE_MINUTES_MS - FIVE_MINUTES_MS;
+  const selectedStartMs = Date.parse(currentBar.time || '');
+  if (!Number.isFinite(selectedStartMs) || selectedStartMs !== expectedStartMs) {
+    return unavailable('RVOL_COMPLETED_SLOT_NOT_CURRENT', {
+      completedBarTime: currentBar.time || null,
+      completedBarAvailableAt: currentBar.availableAt || null,
+      expectedCompletedBarTime: new Date(expectedStartMs).toISOString(),
+    });
+  }
+  const selectedAvailableAtMs = Date.parse(currentBar.availableAt || '');
+  if (!Number.isFinite(selectedAvailableAtMs)) {
+    return unavailable('RVOL_COMPLETED_BAR_AVAILABILITY_MISSING', { completedBarTime: currentBar.time });
+  }
+  if (selectedAvailableAtMs < selectedStartMs - 5_000 || selectedAvailableAtMs > now.getTime() + 5_000) {
+    return unavailable('RVOL_COMPLETED_BAR_TIME_INVALID', { completedBarTime: currentBar.time });
+  }
+  if (!contiguousCompletedBars(completed)) {
+    return unavailable('RVOL_COMPLETED_SERIES_GAP', { completedBarTime: currentBar.time });
+  }
+
   const slot = String(currentBar.time || '').slice(11, 16);
   if (!/^\d{2}:\d{2}$/.test(slot)) return unavailable('RVOL_SLOT_INVALID');
   const history = historicalRvolRows(archiveDir, chart, slot, currentBar);
@@ -120,8 +158,11 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
       session: chart.session || null,
     });
   }
-  const completedCurrent = completed.reduce((sum, bar) => sum + (finite(bar?.volume) || 0), 0);
-  const cumulativeBaselineMedian = median(history.cumulative);
+  // A truncated prefix cannot be presented as a full-session cumulative RVOL.
+  const cumulativeEligible = startsAtSessionOpen(chart, completed);
+  const completedCurrent = cumulativeEligible
+    ? completed.reduce((sum, bar) => sum + (finite(bar?.volume) || 0), 0) : null;
+  const cumulativeBaselineMedian = cumulativeEligible ? median(history.cumulative) : null;
   return Object.freeze({
     state: 'READY',
     reason: null,
@@ -135,6 +176,7 @@ export function buildLiveRvol({ chart, archiveDir, now = new Date() } = {}) {
     cumulativeVolume: completedCurrent,
     cumulativeBaselineMedian,
     cumulativeRatio: cumulativeBaselineMedian > 0 ? completedCurrent / cumulativeBaselineMedian : null,
+    cumulativeCoverage: cumulativeEligible ? 'CONTIGUOUS_FROM_SESSION_OPEN' : 'SESSION_PREFIX_UNVERIFIED',
     baselineStartDate: history.dates.at(0) || null,
     baselineEndDate: history.dates.at(-1) || null,
     timeframe: '5m',

@@ -1,6 +1,8 @@
-# 台股／台指市場情報與量化交易系統
+# 勢衡｜Market Decision Intelligence
 
-> Taiwan Market Intelligence & Quantitative Trading System
+> 台指期／台指選擇權市場決策情報系統（原「台股／台指市場情報與量化交易系統」）
+
+「勢」代表成交與委託壓力、量價變化及實際價格反應；「衡」代表 Data Truth、Expected vs Actual 的證據衡量與風險否決。本階段為**研究與人工決策輔助**，不是已驗證獲利策略或已啟用自動交易。
 
 本專案以台指期／台指選擇權為核心，建立一套 **Data Truth → Market Intelligence → Forward Validation → Validated Strategy → Risk-first Operations** 的本機量化研究與決策系統。
 
