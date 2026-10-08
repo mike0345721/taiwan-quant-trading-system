@@ -4664,7 +4664,12 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 
 async function reportCru46BrowserRuntimeProof() {
   const version = state.decisionWorkspace?.runtimeVersion;
-  if (!['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType)) return;
+  const isPreview = ['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType);
+  const isFormalRuntime = !version?.previewType && version?.syncState === 'SYNCED'
+    && /^[0-9a-f]{40}$/.test(version?.runtimeCommit || '')
+    && version.runtimeCommit === version.approvedMainCommit
+    && window.location?.hostname === '127.0.0.1' && window.location?.port === '8787';
+  if (!isPreview && !isFormalRuntime) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
