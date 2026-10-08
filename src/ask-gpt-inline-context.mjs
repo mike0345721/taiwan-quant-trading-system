@@ -67,7 +67,7 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
   leadership:{topPositive:(d.indexLeadership?.topPositive||[]).slice(0,5).map(row),topNegative:(d.indexLeadership?.topNegative||[]).slice(0,5).map(row),industry:(d.industryLeadership?.rows||[]).slice(0,5).map(row),coverage:'BOUNDED_PROVIDER_RANKINGS_NOT_FULL_MARKET',displayedLimitPerGroup:5},
   evidence: { ...pick(d.evidenceConflict,['conflictState','coverageState','dataTrustState']),families:evidence},
   dataHealthWarnings:(d.dataHealthWarnings||[]).slice(0,30).map(r=>pick(r,['sourceId','freshness','quality','availableAt','reasonCode','readiness'])),
-  governedMarketChanges:(d.governedMarketChanges||[]).slice(0,5).map(r=>pick(r,['eventId','eventType','observedAt','summary','dataTrust'])),
+  governedMarketChanges:(d.governedMarketChanges||[]).slice(0,5).map(r=>pick(r,['eventId','eventType','observedAt','availableAt','sourceIds','summary','qualityStatus','qualityReasons','dataTrust'])),
   formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false,NOT_PROMOTED:true,NOT_A_TRADING_SIGNAL:true,
  };
  validateTree(context);const input=JSON.stringify(context);

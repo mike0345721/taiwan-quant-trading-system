@@ -3702,10 +3702,18 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
       : 'The dashboard copy context has not loaded; no direct GPT API is connected.',
   });
 
-  const health = global.dataHealth && global.dataHealth !== 'UNAVAILABLE' ? global.dataHealth : null;
-  terminalWrite('tt-health-main', health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health || 'UNAVAILABLE'}` });
-  if (health) terminalWrite('tt-health-ring-value', health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: `overall=${health}` });
-  else {
+  const health = global.dataHealth || null;
+  if (health) {
+    for (const id of ['tt-health-main', 'tt-health-ring-value']) {
+      const node = $(id);
+      if (!node) continue;
+      node.textContent = health;
+      node.title = `overall=${health}`;
+      node.setAttribute('aria-label', node.title);
+      node.classList.toggle('is-unavailable', health === 'UNAVAILABLE');
+    }
+  } else {
+    terminalWrite('tt-health-main', health, { reason: 'DATA_HEALTH_UNAVAILABLE', title: 'overall=UNAVAILABLE' });
     dwText('tt-health-ring-value', 'N/A');
     const healthRingValue = $('tt-health-ring-value');
     healthRingValue?.setAttribute('title', 'DATA_HEALTH_UNAVAILABLE');

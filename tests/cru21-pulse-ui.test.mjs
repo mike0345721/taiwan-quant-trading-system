@@ -26,7 +26,7 @@ function ui(){
     dw4FamilyEvidence:()=>null,updateTerminalSummaryDisclosure(){},renderTerminalEvidenceCard(){},renderGlobalTiles(){},
     terminalBreadthCounts:()=>null,terminalHealthSummary:()=>({value:null}),
     api:async()=>{throw Error('OFFLINE_TEST');}});
-  vm.runInContext(source('renderTxChartFreshness')+'\n'+source('renderLiveMarketPulse')+'\nasync '+source('loadLiveMarketPulse')+'\n'+source('renderTerminalShell'),context);
+  vm.runInContext(source('terminalWrite')+'\n'+source('renderTxChartFreshness')+'\n'+source('renderLiveMarketPulse')+'\nasync '+source('loadLiveMarketPulse')+'\n'+source('renderTerminalShell'),context);
   return {state,node,context,setNow:v=>{now=v;}};
 }
 test('chart shell rerenders never replace the live RVOL/basis with EOD placeholders',()=>{
@@ -58,6 +58,17 @@ test('RVOL evidence title preserves unavailable quality and sample timestamps',(
   assert.match(h.node('tt-pulse-rvol').title,/12:54:59/);
   assert.match(h.node('tt-pulse-rvol').title,/TIMESTAMP_LINEAGE_INSUFFICIENT/);
 });
+test('explicit unavailable aggregate health is shown as evidence, not missing payload',()=>{
+  const h=ui();
+  h.context.renderTerminalShell({globalStatus:{dataHealth:'UNAVAILABLE'}},h.state.txChartPayload);
+  assert.equal(h.node('tt-health-main').textContent,'UNAVAILABLE');
+  assert.equal(h.node('tt-health-ring-value').textContent,'UNAVAILABLE');
+  assert.equal(h.node('tt-health-main').title,'overall=UNAVAILABLE');
+  h.context.renderTerminalShell({},h.state.txChartPayload);
+  assert.match(h.node('tt-health-main').textContent,/DATA_HEALTH_UNAVAILABLE/);
+  assert.equal(h.node('tt-health-ring-value').textContent,'N/A');
+});
+
 test('late workspace response cannot overwrite a newer independent pulse poll',()=>{
   const h=ui();h.setNow(epoch+5_000);h.context.renderLiveMarketPulse(pulse(epoch+5_000,2));
   const workspace={marketPulse:pulse(epoch,1)};h.state.decisionWorkspace=workspace;

@@ -28,6 +28,8 @@
 ## Auth / usage / failure handling
 RVOL 僅使用最新已完成 5 分鐘時段，並驗證來源時間、完成棒可用時間、連續性及來源／樣本品質；未知或不足不輸出數值。不可用時保留原來源時間與品質原因。現有 chart 的首棒時間是向下取整的時間桶，不能證明從開盤完整採集；V1 因缺少完整 session capture 證據，累積 RVOL 保持 null，UI 證據提示明示原因，不以缺量補零。
 
+Market Change 每筆事件的 availableAt、sourceIds、qualityStatus／qualityReasons 需經 canonical snapshot 原樣傳入 bounded context；不以整體 chart 警告取代事件證據。缺少事件品質時保持 UNKNOWN。Data Health 已知總體 UNAVAILABLE 是有效彙總結果，不等同沒有 payload；只有缺少彙總欄位才顯示 missing fallback。
+
 沿用正式Dashboard真實Session與CSRF，再對新增API要求精確loopback Host/Origin。憑證僅在原app-owned Windows DPAPI store，與既有Codex、瀏覽器、券商憑證分離。
 
 OAuth access將到期時，在使用者請求內同步更新，跨程序exclusive lease序列化rotating refresh；新token一組原子保存。暫時网络錯誤不清空憑證；供應商明確的terminal refresh error清除不可用token並要求選原帳號重新授權。JWT簽章／issuer／aud／subject仍檢查；refresh省略nonce只在已驗subject綁定下容許。登入flow仍要求nonce。未識別credential lock不自動刪除。

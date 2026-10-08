@@ -31,6 +31,21 @@ test('inline context retains unavailable RVOL source quality and sample evidence
  assert.deepEqual(actual.sourceQualityReasons,rvol.sourceQualityReasons);
 });
 
+test('canonical market changes retain real producer quality and availability in bounded context',()=>{
+ const now=new Date().toISOString();
+ const event={eventId:'test-only-event',eventType:'VWAP_CROSS_UP',observedAt:now,availableAt:now,
+  sourceIds:['TX_COMPLETED_5M','SESSION_EXACT_TX_TICK_VWAP'],summary:'TEST ONLY',
+  qualityStatus:'QUALITY_INSUFFICIENT',qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']};
+ const make=e=>createDecisionSnapshot({dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0},marketChangeFeed:{latestFirst:[e]},snapshotTime:now});
+ const s=make(event);const actual=buildInlineContext(s).context.governedMarketChanges[0];
+ assert.equal(actual.availableAt,now);assert.deepEqual(actual.sourceIds,event.sourceIds);
+ assert.equal(actual.qualityStatus,'QUALITY_INSUFFICIENT');assert.deepEqual(actual.qualityReasons,event.qualityReasons);
+ assert.deepEqual(actual.dataTrust,{status:event.qualityStatus,reasons:event.qualityReasons});
+ assert.deepEqual(actual,s.governedMarketChanges[0]);
+ const missing=buildInlineContext(make({eventId:'missing-quality'})).context.governedMarketChanges[0];
+ assert.equal(missing.qualityStatus,'UNKNOWN');assert.equal(missing.dataTrust.status,'UNKNOWN');assert.equal(missing.availableAt,null);
+});
+
 test('protected store merges separate writers and serializes rotating refresh across instances',async t=>{
  const p=temp(t),a=storeAt(p),b=storeAt(p),r=account(),key=a.save(r);b.save({...account(),subject:'second'});a.reload();assert.equal(a.list().length,2);
  let release;const wait=new Promise(r=>release=r),first=a.updateExclusive(key,async old=>{await wait;return{record:{...old,access_token:'rotated'},result:'ok'};});
