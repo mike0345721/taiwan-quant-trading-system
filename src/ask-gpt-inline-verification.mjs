@@ -50,8 +50,12 @@ function fields(context) {
     if (!labels.has(value)) fail('CONTEXT_UNSUPPORTED');
     rows.set(field, { label, labels, value });
   };
-  number('price.value', '快照價格', 'price', context.price?.availability === 'AVAILABLE');
-  number('VWAP.value', 'VWAP', 'price', context.VWAP?.availability === 'AVAILABLE');
+  // Snapshot creation is not proof of quote freshness: live price and moving VWAP
+  // must be available within the bounded source-time window of that snapshot.
+  number('price.value', '快照價格', 'price', context.price?.availability === 'AVAILABLE'
+    && context.price?.availableAt != null && currentAt(context, context.price.availableAt));
+  number('VWAP.value', 'VWAP', 'price', context.VWAP?.availability === 'AVAILABLE'
+    && context.VWAP?.availableAt != null && currentAt(context, context.VWAP.availableAt));
   for (const [key, label] of [['high', '開盤區間上緣'], ['low', '開盤區間下緣']]) {
     number('OR.value.' + key, label, 'price', context.OR?.availability === 'AVAILABLE');
   }
@@ -145,8 +149,13 @@ function renderDecision(context, catalog, direction, nodeState, comparisons) {
       + (catalog.get(prefix + '.target.price').value !== null ? `下一關理由：${reasons(s.target)}。` : '尚無合格下一關，不外推目標。');
   };
   const warnings = (context.dataHealthWarnings || []).map(w => `資料警示：新鮮度 ${qualityText(w.freshness)}／品質 ${qualityText(w.quality)}；原因 ${explanation(w.reasonCode)}；availableAt ${timeText(w.availableAt)}。`);
+  const rvolValue = catalog.get('marketPulse.rvol.ratio').value;
+  const rvolText = rvolValue == null ? '完成 K 相對量能：未知／不可用。'
+    : `完成 K 相對量能（RVOL）：${display(rvolValue)}×；僅供參與度觀察。`;
+  const priceFresh = catalog.get('price.value').value !== null && catalog.get('VWAP.value').value !== null;
+  const freshnessText = priceFresh ? '' : '來源時間過期或不可驗證時，當前價格與 VWAP 的比較不可用。';
   const bodies = [
-    `${ready ? directionLabels.get(direction) : '方向狀態不可用'}。節點狀態：${ready ? nodeLabels.get(nodeState) : '不可用'}。不確定性：單一快照不能證明持續接受或多空確認。${flowSummary}\n${fact('price.value')}${fact('VWAP.value')}${comparisons.join('\n')}`,
+    `${ready ? directionLabels.get(direction) : '方向狀態不可用'}。節點狀態：${ready ? nodeLabels.get(nodeState) : '不可用'}。不確定性：單一快照不能證明持續接受或多空確認。${flowSummary}\n${fact('price.value')}${fact('VWAP.value')}${freshnessText}${comparisons.join('\n')}\n${rvolText}`,
     `${fact('levelWatch.scenarioWatch.node.price')}節點品質：${qualityText(node?.qualityStatus)}。為什麼重要（後端受控理由）：${nodeUsable ? reasons(node) : '不可用'}。\n預期價格反應 Expected：${nodeUsable ? explanation(node?.expectedResponse ?? detail?.expectedResponse) : '不可用'}。實際反應 Actual：${flowSummary}\n${fact('levelWatch.nextWatch.price')}下一觀察理由：${nextUsable ? next?.id != null && next.id === node?.id && next.price === node.price ? '與核心節點相同，理由見上' : reasons(next) : '不可用'}。`,
     sideText('long', 'Long 多方'), sideText('short', 'Short 空方'),
     '確認與失效條件須連同價格能否維持、壓力與價格反應一起觀察。Flow 品質不足、反應混合或門檻未知時，維持觀望；未達條件不能稱為方向確認。',

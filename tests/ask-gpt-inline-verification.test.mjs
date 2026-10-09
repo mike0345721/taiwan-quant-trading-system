@@ -441,3 +441,44 @@ test('browser receipt/recovery requires the verification marker; legacy text eve
   vm.runInNewContext(source.slice(lineStart, lineEnd) + '\nline(JSON.stringify({type:"text",requestId:"test",text:"unsafe stream"}));', sandbox);
   assert.equal(node('ai-answer').textContent, 'verified text');
 });
+
+
+test('independent review P2: old or unverified current price and VWAP never pass as fresh', () => {
+  const stale = new Date(now - 120001).toISOString();
+  const c = decisionContext();
+  c.price.availableAt = stale;
+  c.VWAP.availableAt = stale;
+  const rows = analysisContentContract(c).fields;
+  assert.equal(rows.find(r => r.field === 'price.value').expected, null);
+  assert.equal(rows.find(r => r.field === 'VWAP.value').expected, null);
+  assert.throws(() => verify(answer(c), c), /CONTENT_FACT_MISMATCH/);
+  const valid = { ...answer(c), facts: [
+    { field: 'price.value', value: null }, { field: 'VWAP.value', value: null },
+  ], comparisons: [] };
+  const { text } = verify(valid, c);
+  assert.match(text, /快照價格：未知／不可用/);
+  assert.match(text, /VWAP：未知／不可用/);
+  assert.match(text, /來源時間過期或不可驗證/);
+  assert.doesNotMatch(text, /快照價格 105 高於 VWAP 100/);
+
+  const absent = structuredClone(decisionContext());
+  absent.price.availableAt = null;
+  assert.equal(analysisContentContract(absent).fields.find(r => r.field === 'price.value').expected, null);
+  assert.throws(() => verify(answer(absent), absent), /CONTENT_FACT_MISMATCH/);
+});
+
+test('independent review P2: eligible RVOL survives canonical answer even if model omits its fact', () => {
+  const c = decisionContext();
+  c.marketPulse.rvol = { state: 'READY', ratio: 1.75, sourceQualityStatus: 'PASS', sourceAvailableAt: stamp };
+  const base = answer(c);
+  const text = verify(base, c).text;
+  assert.match(text, /完成 K 相對量能（RVOL）：1\.75×/);
+  const supplied = { ...base, facts: [...base.facts, { field: 'marketPulse.rvol.ratio', value: 1.75 }] };
+  assert.equal(verify(supplied, c).text, text);
+
+  const unavailable = structuredClone(c);
+  unavailable.marketPulse.rvol.state = 'UNAVAILABLE';
+  const result = verify(answer(unavailable), unavailable).text;
+  assert.match(result, /完成 K 相對量能：未知／不可用/);
+  assert.doesNotMatch(result, /RVOL）：1\.75×/);
+});
