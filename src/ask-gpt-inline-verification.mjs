@@ -114,7 +114,7 @@ const qualityText = value => qualityLabels.get(value) || '未知／不可用';
 const timeText = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)
   && Number.isFinite(Date.parse(value)) ? value : '未知／不可用';
 
-function renderDecision(context, catalog, direction, nodeState, comparisons) {
+function renderDecision(context, catalog, direction, nodeState, comparisons, { legacy = false } = {}) {
   const watch = context.levelWatch, scenario = watch?.scenarioWatch;
   const ready = watchReady(context);
   const node = scenario?.node;
@@ -153,9 +153,10 @@ function renderDecision(context, catalog, direction, nodeState, comparisons) {
   const rvolText = rvolValue == null ? '完成 K 相對量能：未知／不可用。'
     : `完成 K 相對量能（RVOL）：${display(rvolValue)}×；僅供參與度觀察。`;
   const priceFresh = catalog.get('price.value').value !== null && catalog.get('VWAP.value').value !== null;
-  const freshnessText = priceFresh ? '' : '來源時間過期或不可驗證時，當前價格與 VWAP 的比較不可用。';
+  const freshnessText = legacy || priceFresh ? '' : '來源時間過期或不可驗證時，當前價格與 VWAP 的比較不可用。';
+  const rvolLine = legacy ? '' : `\n${rvolText}`;
   const bodies = [
-    `${ready ? directionLabels.get(direction) : '方向狀態不可用'}。節點狀態：${ready ? nodeLabels.get(nodeState) : '不可用'}。不確定性：單一快照不能證明持續接受或多空確認。${flowSummary}\n${fact('price.value')}${fact('VWAP.value')}${freshnessText}${comparisons.join('\n')}\n${rvolText}`,
+    `${ready ? directionLabels.get(direction) : '方向狀態不可用'}。節點狀態：${ready ? nodeLabels.get(nodeState) : '不可用'}。不確定性：單一快照不能證明持續接受或多空確認。${flowSummary}\n${fact('price.value')}${fact('VWAP.value')}${freshnessText}${comparisons.join('\n')}${rvolLine}`,
     `${fact('levelWatch.scenarioWatch.node.price')}節點品質：${qualityText(node?.qualityStatus)}。為什麼重要（後端受控理由）：${nodeUsable ? reasons(node) : '不可用'}。\n預期價格反應 Expected：${nodeUsable ? explanation(node?.expectedResponse ?? detail?.expectedResponse) : '不可用'}。實際反應 Actual：${flowSummary}\n${fact('levelWatch.nextWatch.price')}下一觀察理由：${nextUsable ? next?.id != null && next.id === node?.id && next.price === node.price ? '與核心節點相同，理由見上' : reasons(next) : '不可用'}。`,
     sideText('long', 'Long 多方'), sideText('short', 'Short 空方'),
     '確認與失效條件須連同價格能否維持、壓力與價格反應一起觀察。Flow 品質不足、反應混合或門檻未知時，維持觀望；未達條件不能稱為方向確認。',
@@ -181,7 +182,8 @@ export function analysisContentContract(context) {
   };
 }
 
-export function verifyAnalysisContent(raw, context) {
+export function verifyAnalysisContent(raw, context, { renderVersion = 'v2' } = {}) {
+  if (!['v1', 'v2'].includes(renderVersion)) fail('UNSUPPORTED_RENDER_VERSION');
   if (!context || context.schemaVersion !== 'ask-gpt-inline-context-v1') fail('CONTEXT_UNSUPPORTED');
   if (typeof raw !== 'string' || !raw.trim() || raw.length > 12000) fail('FORMAT_INVALID');
   let answer;
@@ -230,16 +232,23 @@ export function verifyAnalysisContent(raw, context) {
     const precise = rounded(left.value) === rounded(right.value) && left.value !== right.value;
     lines.push(`${left.label} ${precise ? left.value : display(left.value)} ${relations.get(expected)} ${right.label} ${precise ? right.value : display(right.value)}（僅本次快照的數值關係）。`);
   }
-  const text = renderDecision(context, catalog, direction, node, lines);
-  return { text, claims: answer, verification: { schema: CONTENT_SCHEMA, status: 'PASSED', contextHash: digest(JSON.stringify(context)), textHash: digest(text), scope: 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1' } };
+  const text = renderDecision(context, catalog, direction, node, lines, { legacy: renderVersion === 'v1' });
+  const scope = renderVersion === 'v1' ? 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1' : 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2';
+  return { text, claims: answer, verification: { schema: CONTENT_SCHEMA, status: 'PASSED', contextHash: digest(JSON.stringify(context)), textHash: digest(text), scope } };
 }
 
 // Recovery also checks content, rather than trusting a saved COMPLETED or PASSED
 // marker. Legacy/unverified receipts are suppressed without rewriting old evidence.
 export function verifiedReceiptText(receipt) {
   if (!receipt.contentVerification || !receipt.validatedClaims) fail('UNVERIFIED_RECEIPT');
-  const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context);
-  const expected = result.verification, saved = receipt.contentVerification;
+  const saved = receipt.contentVerification;
+  // Preserve genuinely verified V1 receipts with their original deterministic
+  // rendering, while applying today's stricter source-freshness claim rules.
+  // Older free-text/unverified receipts remain rejected.
+  const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2' };
+  if (!Object.hasOwn(versions, saved.scope)) fail('UNVERIFIED_RECEIPT');
+  const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context, { renderVersion: versions[saved.scope] });
+  const expected = result.verification;
   if (receipt.contextHash !== expected.contextHash || receipt.text !== result.text
     || saved.schema !== expected.schema || saved.status !== 'PASSED'
     || saved.scope !== expected.scope || saved.contextHash !== expected.contextHash || saved.textHash !== expected.textHash) fail('UNVERIFIED_RECEIPT');

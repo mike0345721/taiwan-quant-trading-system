@@ -482,3 +482,23 @@ test('independent review P2: eligible RVOL survives canonical answer even if mod
   assert.match(result, /完成 K 相對量能：未知／不可用/);
   assert.doesNotMatch(result, /RVOL）：1\.75×/);
 });
+
+
+test('second independent review P2: V1 verified receipts recover without reviving stale source claims', () => {
+  const c = decisionContext(), claims = answer(c);
+  const legacy = verifyAnalysisContent(JSON.stringify(claims), c, { renderVersion: 'v1' });
+  const updated = verify(claims, c);
+  assert.equal(legacy.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1');
+  assert.equal(updated.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2');
+  assert.notEqual(legacy.text, updated.text, 'new renderer adds RVOL availability');
+  const receipt = {
+    context: c, contextHash: legacy.verification.contextHash, text: legacy.text,
+    validatedClaims: claims, contentVerification: legacy.verification,
+  };
+  assert.equal(verifiedReceiptText(receipt), legacy.text);
+  assert.throws(() => verifiedReceiptText({ ...receipt, text: legacy.text + ' manipulated' }), /CONTENT_UNVERIFIED_RECEIPT/);
+  assert.throws(() => verifiedReceiptText({ ...receipt, contentVerification: { ...legacy.verification, scope: 'CLOSED_FIELD_CLAIMS_ONLY' } }), /CONTENT_UNVERIFIED_RECEIPT/);
+  const stale = structuredClone(c);
+  stale.price.availableAt = new Date(now - 120001).toISOString();
+  assert.throws(() => verifiedReceiptText({ ...receipt, context: stale }), /CONTENT_FACT_MISMATCH/);
+});
