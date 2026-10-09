@@ -576,3 +576,33 @@ test('final review P2: preserve V2 READY-flow receipts under V2 field eligibilit
   assert.throws(()=>verifyAnalysisContent(JSON.stringify(illegal),c,{renderVersion:'v2'}),/CONTENT_FACT_MISMATCH/);
   assert.match(verify(illegal,c).text,/當下成交壓力比：0\.47/);
 });
+
+
+test('cross-version V2: preserve receipts from both published READY-flow rule variants', () => {
+  const c = decisionContext();
+  Object.assign(c.levelWatch.observedFlow, { sourceState: 'LIVE', quality: 'READY',
+    pressure60: 0.47, response60: 8, availableAt: stamp });
+  c.observedFlow.quality.status = 'READY';
+  const claims = answer(c);
+  // First V2 revision (pre-CRU34 READY acceptance): Flow numbers unavailable.
+  const oldV2 = verifyAnalysisContent(JSON.stringify(claims), c,
+    { renderVersion: 'v2', flowRule: 'v2' });
+  // Second V2 revision (4352873): READY accepted but still V2 scope.
+  const readyV2 = verifyAnalysisContent(JSON.stringify(claims), c,
+    { renderVersion: 'v2', flowRule: 'v3' });
+  assert.equal(oldV2.verification.scope, readyV2.verification.scope);
+  assert.notEqual(oldV2.verification.textHash, readyV2.verification.textHash);
+  assert.match(readyV2.text, /當下成交壓力比：0\.47/);
+  for (const result of [oldV2, readyV2]) {
+    const receipt = { context: c, contextHash: result.verification.contextHash,
+      text: result.text, validatedClaims: claims, contentVerification: result.verification };
+    assert.equal(verifiedReceiptText(receipt), result.text);
+    assert.throws(() => verifiedReceiptText({...receipt, text: 'TAMPER'}), /CONTENT_UNVERIFIED_RECEIPT/);
+  }
+  const oldReadyFact = { ...claims, facts: [...claims.facts,
+    {field: 'levelWatch.observedFlow.pressure60', value: 0.47}] };
+  const priorReadyV2 = verifyAnalysisContent(JSON.stringify(oldReadyFact), c,
+    { renderVersion: 'v2', flowRule: 'v3' });
+  assert.equal(verifiedReceiptText({context:c,contextHash:priorReadyV2.verification.contextHash,
+    text:priorReadyV2.text,validatedClaims:oldReadyFact,contentVerification:priorReadyV2.verification}), priorReadyV2.text);
+});

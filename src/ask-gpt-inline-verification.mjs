@@ -187,8 +187,9 @@ export function analysisContentContract(context) {
   };
 }
 
-export function verifyAnalysisContent(raw, context, { renderVersion = 'v3' } = {}) {
-  if (!['v1', 'v2', 'v3'].includes(renderVersion)) fail('UNSUPPORTED_RENDER_VERSION');
+export function verifyAnalysisContent(raw, context, { renderVersion = 'v3', flowRule = renderVersion } = {}) {
+  if (!['v1', 'v2', 'v3'].includes(renderVersion)
+    || (flowRule !== renderVersion && !(renderVersion === 'v2' && flowRule === 'v3'))) fail('UNSUPPORTED_RENDER_VERSION');
   if (!context || context.schemaVersion !== 'ask-gpt-inline-context-v1') fail('CONTEXT_UNSUPPORTED');
   if (typeof raw !== 'string' || !raw.trim() || raw.length > 12000) fail('FORMAT_INVALID');
   let answer;
@@ -216,7 +217,7 @@ export function verifyAnalysisContent(raw, context, { renderVersion = 'v3' } = {
     || !Array.isArray(answer.comparisons) || answer.comparisons.length > 8) fail('FORMAT_INVALID');
   // Verified receipts preserve their original field eligibility under their
   // immutable render scope; new answers use the updated governed READY rule.
-  const catalog = fields(context, { flowRule: renderVersion }), seen = new Set(), lines = [];
+  const catalog = fields(context, { flowRule }), seen = new Set(), lines = [];
   for (const fact of answer.facts) {
     if (!exactKeys(fact, ['field', 'value']) || typeof fact.field !== 'string' || !catalog.has(fact.field) || seen.has(fact.field)) fail('FIELD_AMBIGUOUS');
     seen.add(fact.field);
@@ -254,10 +255,23 @@ export function verifiedReceiptText(receipt) {
   // Older free-text/unverified receipts remain rejected.
   const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3: 'v3' };
   if (!Object.hasOwn(versions, saved.scope)) fail('UNVERIFIED_RECEIPT');
-  const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context, { renderVersion: versions[saved.scope] });
-  const expected = result.verification;
-  if (receipt.contextHash !== expected.contextHash || receipt.text !== result.text
-    || saved.schema !== expected.schema || saved.status !== 'PASSED'
-    || saved.scope !== expected.scope || saved.contextHash !== expected.contextHash || saved.textHash !== expected.textHash) fail('UNVERIFIED_RECEIPT');
-  return result.text;
+  // V2 was briefly published with two distinct governed Flow eligibility rules
+  // under the same signed scope. Both versions are verified against immutable
+  // claims/context; only an exact text+hash match is recoverable. Do not silently
+  // upgrade V2 to V3, and do not accept other render/flow combinations.
+  const renderVersion = versions[saved.scope];
+  const eligibleFlowRules = renderVersion === 'v2' ? ['v2', 'v3'] : [renderVersion];
+  let firstError = null;
+  for (const flowRule of eligibleFlowRules) {
+    try {
+      const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context,
+        { renderVersion, flowRule });
+      const expected = result.verification;
+      if (receipt.contextHash === expected.contextHash && receipt.text === result.text
+        && saved.schema === expected.schema && saved.status === 'PASSED'
+        && saved.scope === expected.scope && saved.contextHash === expected.contextHash && saved.textHash === expected.textHash) return result.text;
+    } catch (error) { if (!firstError) firstError = error; }
+  }
+  if (eligibleFlowRules.length === 1 && firstError) throw firstError;
+  fail('UNVERIFIED_RECEIPT');
 }
