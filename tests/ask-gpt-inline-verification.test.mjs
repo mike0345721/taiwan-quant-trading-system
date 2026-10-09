@@ -490,7 +490,7 @@ test('second independent review P2: V1 verified receipts recover without revivin
   const legacy = verifyAnalysisContent(JSON.stringify(claims), c, { renderVersion: 'v1' });
   const updated = verify(claims, c);
   assert.equal(legacy.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1');
-  assert.equal(updated.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2');
+  assert.equal(updated.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3');
   assert.notEqual(legacy.text, updated.text, 'new renderer adds RVOL availability');
   const receipt = {
     context: c, contextHash: legacy.verification.contextHash, text: legacy.text,
@@ -550,4 +550,29 @@ test('final review P2: a genuine CRU34 READY flow is eligible only when live, id
   const downgraded=structuredClone(c);
   downgraded.observedFlow.quality.status='QUALITY_INSUFFICIENT';
   assert.equal(analysisContentContract(downgraded).fields.find(x=>x.field==='levelWatch.observedFlow.response60').expected,null);
+});
+
+
+test('final review P2: preserve V2 READY-flow receipts under V2 field eligibility', () => {
+  const c = decisionContext();
+  c.levelWatch.observedFlow.sourceState = 'LIVE';
+  c.levelWatch.observedFlow.quality = 'READY';
+  c.levelWatch.observedFlow.pressure60 = 0.47;
+  c.levelWatch.observedFlow.response60 = 8;
+  c.levelWatch.observedFlow.availableAt = stamp;
+  c.observedFlow.quality.status = 'READY';
+  const claims = answer(c);
+  const v2 = verifyAnalysisContent(JSON.stringify(claims), c, {renderVersion:'v2'});
+  const v3 = verifyAnalysisContent(JSON.stringify(claims), c);
+  assert.equal(v2.verification.scope,'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2');
+  assert.equal(v3.verification.scope,'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3');
+  assert.doesNotMatch(v2.text,/當下成交壓力比：0\.47/);
+  assert.match(v3.text,/當下成交壓力比：0\.47/);
+  assert.equal(verifiedReceiptText({context:c,contextHash:v2.verification.contextHash,
+    text:v2.text,validatedClaims:claims,contentVerification:v2.verification}),v2.text);
+  assert.equal(verifiedReceiptText({context:c,contextHash:v3.verification.contextHash,
+    text:v3.text,validatedClaims:claims,contentVerification:v3.verification}),v3.text);
+  const illegal = {...claims,facts:[...claims.facts,{field:'levelWatch.observedFlow.pressure60',value:0.47}]};
+  assert.throws(()=>verifyAnalysisContent(JSON.stringify(illegal),c,{renderVersion:'v2'}),/CONTENT_FACT_MISMATCH/);
+  assert.match(verify(illegal,c).text,/當下成交壓力比：0\.47/);
 });

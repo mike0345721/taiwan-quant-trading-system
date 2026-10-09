@@ -39,7 +39,7 @@ const currentAt = (context, at) => at == null || (Number.isFinite(Date.parse(at)
   && Date.parse(context.snapshotTime) - Date.parse(at) <= 120000);
 const watchReady = context => context.levelWatch?.state === 'READY' && currentAt(context, context.levelWatch.sourceAvailableAt);
 
-function fields(context) {
+function fields(context, { flowRule = 'v3' } = {}) {
   const rows = new Map();
   const number = (field, label, unit, usable) => {
     const raw = get(context, field);
@@ -84,7 +84,7 @@ function fields(context) {
   // PASS is also accepted for deterministic fixture contracts. Cross-check the
   // parent quality before treating READY as usable, never infer from LIVE alone.
   const flowQualified = flow?.quality === 'PASS'
-    || (flow?.quality === 'READY' && context.observedFlow?.quality?.status === 'READY');
+    || (flowRule === 'v3' && flow?.quality === 'READY' && context.observedFlow?.quality?.status === 'READY');
   const flowUsable = ready && flow?.sourceState === 'LIVE' && flowQualified
     && flow.availableAt != null && currentAt(context, flow.availableAt);
   number('levelWatch.observedFlow.pressure60', '當下成交壓力比', 'ratio', flowUsable);
@@ -187,8 +187,8 @@ export function analysisContentContract(context) {
   };
 }
 
-export function verifyAnalysisContent(raw, context, { renderVersion = 'v2' } = {}) {
-  if (!['v1', 'v2'].includes(renderVersion)) fail('UNSUPPORTED_RENDER_VERSION');
+export function verifyAnalysisContent(raw, context, { renderVersion = 'v3' } = {}) {
+  if (!['v1', 'v2', 'v3'].includes(renderVersion)) fail('UNSUPPORTED_RENDER_VERSION');
   if (!context || context.schemaVersion !== 'ask-gpt-inline-context-v1') fail('CONTEXT_UNSUPPORTED');
   if (typeof raw !== 'string' || !raw.trim() || raw.length > 12000) fail('FORMAT_INVALID');
   let answer;
@@ -214,7 +214,9 @@ export function verifyAnalysisContent(raw, context, { renderVersion = 'v2' } = {
   if (answer.directionState !== direction || answer.nodeState !== node) fail('STATE_MISMATCH');
   if (!Array.isArray(answer.facts) || answer.facts.length < 2 || answer.facts.length > 30
     || !Array.isArray(answer.comparisons) || answer.comparisons.length > 8) fail('FORMAT_INVALID');
-  const catalog = fields(context), seen = new Set(), lines = [];
+  // Verified receipts preserve their original field eligibility under their
+  // immutable render scope; new answers use the updated governed READY rule.
+  const catalog = fields(context, { flowRule: renderVersion }), seen = new Set(), lines = [];
   for (const fact of answer.facts) {
     if (!exactKeys(fact, ['field', 'value']) || typeof fact.field !== 'string' || !catalog.has(fact.field) || seen.has(fact.field)) fail('FIELD_AMBIGUOUS');
     seen.add(fact.field);
@@ -238,7 +240,7 @@ export function verifyAnalysisContent(raw, context, { renderVersion = 'v2' } = {
     lines.push(`${left.label} ${precise ? left.value : display(left.value)} ${relations.get(expected)} ${right.label} ${precise ? right.value : display(right.value)}（僅本次快照的數值關係）。`);
   }
   const text = renderDecision(context, catalog, direction, node, lines, { legacy: renderVersion === 'v1' });
-  const scope = renderVersion === 'v1' ? 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1' : 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2';
+  const scope = 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_' + renderVersion.toUpperCase();
   return { text, claims: answer, verification: { schema: CONTENT_SCHEMA, status: 'PASSED', contextHash: digest(JSON.stringify(context)), textHash: digest(text), scope } };
 }
 
@@ -250,7 +252,7 @@ export function verifiedReceiptText(receipt) {
   // Preserve genuinely verified V1 receipts with their original deterministic
   // rendering, while applying today's stricter source-freshness claim rules.
   // Older free-text/unverified receipts remain rejected.
-  const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2' };
+  const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3: 'v3' };
   if (!Object.hasOwn(versions, saved.scope)) fail('UNVERIFIED_RECEIPT');
   const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context, { renderVersion: versions[saved.scope] });
   const expected = result.verification;
