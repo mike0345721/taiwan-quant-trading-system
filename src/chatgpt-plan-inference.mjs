@@ -89,6 +89,8 @@ export const ANALYSIS_INSTRUCTIONS=`你是只讀盤況資料整理助手。只�
 directionState 與 nodeState 必須完全複製指定欄位，缺少時為 null。BIDIRECTIONAL_WATCH 不等於 BIDIRECTIONAL_TEST；MONITORING 不等於 TESTING。不得提升任何狀態或宣稱方向確認。
 facts 為 {field,value} 陣列。必須包含 price.value 與 VWAP.value；其他只選 RESPONSE_CONTRACT.fields 中相關欄位。value 必須是該欄位的 expected，數值可精確複製或四捨五入至小數兩位；不可改綁別的欄位。不可用的值為 null，不可補零。數字不用字串、千分位、科學記號或負零。
 comparisons 為 {left,operator,right} 陣列，左右均為 facts 中的 price 欄位路徑。ABOVE、BELOW、EQUAL 依原始未捨入值比較；未知或不確定時用空陣列。
+伺服器固定依序呈現「現在怎麼看」、「核心決策節點」、「多方情境」、「空方情境」、「觀望條件」、「條件式結構 R:R」、「現在不要做什麼」、「資料限制」。你仍只輸出上述 JSON，不輸出標題或說明文字。
+決策條件固定來自 levelWatch.scenarioWatch.long 與 levelWatch.scenarioWatch.short 的確認／失效門檻、後端理由、合格 target 與 rr；省略選填 facts 不會省略合法 context 的決策內容。Flow 品質與不確定性必須保留；條件式結構 R:R 不是勝率、EV。
 禁止自創價位、目標、門檻、R:R、BUY/SELL、勝率、EV、信心分數或建議。多空門檻僅作條件式參考；R:R 僅引用已提供值，禁止自行重算。伺服器會逐欄驗證並轉成保守中文；不符合合約的整份回答會被拒收。`;
 export async function analysePlan(record,model,context,question,{fetcher=fetch,signal,onText}={}){
  requirePlanPermission(record);const body={model,instructions:ANALYSIS_INSTRUCTIONS,input:[{role:'user',content:JSON.stringify({GOVERNED_CONTEXT:context,RESPONSE_CONTRACT:analysisContentContract(context),QUESTION:question})}],store:false,stream:true};

@@ -7,9 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { randomUUID } from 'node:crypto';
-import { CONTENT_SCHEMA, verifyAnalysisContent, analysisContentContract } from '../src/ask-gpt-inline-verification.mjs';
+import { CONTENT_SCHEMA, DECISION_HEADINGS, verifyAnalysisContent, analysisContentContract, verifiedReceiptText } from '../src/ask-gpt-inline-verification.mjs';
 import { buildInlineContext } from '../src/ask-gpt-inline-context.mjs';
 import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs';
+import { buildDecisionLevelWatch } from '../src/decision-level-watch.mjs';
 import { InlineAssistant } from '../src/ask-gpt-inline-service.mjs';
 import { readAnalysisStream } from '../src/chatgpt-plan-inference.mjs';
 
@@ -34,6 +35,143 @@ const answer = (c = context()) => ({
 });
 const verify = (a, c = context()) => verifyAnalysisContent(JSON.stringify(a), c);
 const extraFact = (field, value) => ({ ...answer(), facts: [...answer().facts, { field, value }] });
+
+function decisionContext() {
+  const c = structuredClone(context());
+  c.price.value = 105; c.VWAP.value = 100;
+  const node = { id: 'VWAP', state: 'MONITORING', price: 100, qualityStatus: 'PASS', availableAt: stamp,
+    why: 'Multiple lawful references converge', basisReasons: ['Independent post-formation tests'] };
+  const side = { state: 'WAIT_CONFIRMATION', flowConfirmationState: 'QUALITY_INSUFFICIENT',
+    confirmationThreshold: 110, invalidationThreshold: 90,
+    target: { price: 130, qualityStatus: 'PASS', importanceBand: 'PRIMARY', why: 'Upper qualified structure' },
+    rr: { state: 'AVAILABLE', ratio: 1, riskPoints: 20, rewardPoints: 20 },
+    confirm: 'Must sustain above threshold; require aligned price response',
+    invalidate: 'Loss of the lower boundary or buying pressure without upward progress' };
+  c.levelWatch = { state: 'READY', sourceAvailableAt: stamp,
+    nextWatch: { ...node, expectedResponse: 'Acceptance requires sustained departure with aligned pressure' },
+    observedFlow: { sourceState: 'LIVE', quality: 'QUALITY_INSUFFICIENT', pressure60: 0.47, response60: -2.7, availableAt: stamp },
+    scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: side,
+      short: { ...side, confirmationThreshold: 90, invalidationThreshold: 110,
+        confirm: 'Must sustain below threshold; require downward response',
+        invalidate: 'Reclaim of the upper boundary or selling pressure without downward progress',
+        target: { price: 70, qualityStatus: 'PASS', importanceBand: 'PRIMARY', why: 'Lower qualified structure' } } } };
+  c.observedFlow = { quality: { status: 'QUALITY_INSUFFICIENT', reason: 'CLASSIFICATION_INCOMPLETE', reasons: ['Incomplete coverage'] } };
+  c.dataHealthWarnings = [{ freshness: 'STALE', quality: 'QUALITY_INSUFFICIENT', reasonCode: 'SOURCE_DELAYED', availableAt: stamp }];
+  return c;
+}
+
+test('B1 minimal claims always render all available decision reasons, both scenarios, quality and ordered headings', () => {
+  const c = decisionContext(), a = { ...answer(c), comparisons: [] };
+  assert.equal(a.facts.length, 2);
+  const { text } = verify(a, c);
+  const headings = ['現在怎麼看', '核心決策節點', '多方情境', '空方情境', '觀望條件', '條件式結構 R:R', '現在不要做什麼', '資料限制'];
+  assert.deepEqual(DECISION_HEADINGS, headings);
+  assert.deepEqual(text.split('\n').filter(line => headings.some(h => line.startsWith(h + '：'))).map(line => line.split('：')[0]), headings);
+  for (const value of ['Multiple lawful references converge', 'Independent post-formation tests', 'Acceptance requires sustained departure',
+    '多方條件式確認門檻（不代表已成立）：110', '多方條件式失效門檻：90', '空方條件式確認門檻（不代表已成立）：90', '空方條件式失效門檻：110',
+    'Must sustain above threshold', 'Must sustain below threshold', 'Loss of the lower boundary', 'Reclaim of the upper boundary',
+    '多方條件式結構目標：130', '空方條件式結構目標：70', 'Upper qualified structure', 'Lower qualified structure',
+    '多方條件式結構R:R：1', '空方條件式結構R:R：1', '風險距離：20', '報酬距離：20',
+    'Flow 品質：品質不足', 'Flow 確認品質：品質不足', '不確定性', 'CLASSIFICATION_INCOMPLETE', 'Incomplete coverage', 'SOURCE_DELAYED', stamp]) assert.ok(text.includes(value), value);
+  assert.match(text.split('\n')[0], /Flow 品質：品質不足/);
+  assert.doesNotMatch(text, /0\.47|-2\.7/);
+  assert.match(text, /持續觀察，尚未進入測試/);
+  const all = { ...a, facts: analysisContentContract(c).fields.map(f => ({ field: f.field, value: f.expected })) };
+  assert.equal(verify(all, c).text, text, 'model selection cannot omit context content');
+});
+
+test('B1 backend why, basis and confirm independently change the answer and are bound on recovery', () => {
+  const c = decisionContext(), a = answer(c), result = verify(a, c);
+  const receipt = { context: c, contextHash: result.verification.contextHash, text: result.text,
+    validatedClaims: a, contentVerification: result.verification };
+  assert.equal(verifiedReceiptText(receipt), result.text);
+  for (const mutate of [x => { x.levelWatch.scenarioWatch.node.why = 'Changed lawful rationale'; },
+    x => { x.levelWatch.scenarioWatch.node.basisReasons = ['Changed independent evidence']; },
+    x => { x.levelWatch.scenarioWatch.long.confirm = 'Require sustained retest acceptance'; }]) {
+    const changed = structuredClone(c); mutate(changed);
+    assert.notEqual(verify(a, changed).text, result.text);
+    assert.throws(() => verifiedReceiptText({ ...receipt, context: changed }), /CONTENT_UNVERIFIED_RECEIPT/);
+  }
+});
+
+test('B1 stale or missing context never revives scenario numerics, reasons or Flow', () => {
+  for (const mutate of [c => { c.levelWatch.state = 'UNAVAILABLE'; },
+    c => { c.levelWatch.sourceAvailableAt = new Date(now - 120001).toISOString(); },
+    c => { c.levelWatch.scenarioWatch.node.qualityStatus = 'QUALITY_INSUFFICIENT'; c.levelWatch.nextWatch.qualityStatus = 'STALE'; }]) {
+    const c = decisionContext(); mutate(c);
+    const { text } = verify(answer(c), c);
+    assert.match(text, /多方條件式確認門檻（不代表已成立）：未知／不可用/);
+    assert.match(text, /空方條件式結構目標：未知／不可用/);
+    assert.match(text, /多方條件式結構R:R：未知／不可用/);
+    assert.doesNotMatch(text, /Must sustain|Multiple lawful|目標：130|目標：70/);
+  }
+  const c = decisionContext(), a = { ...answer(c), directionState: null, nodeState: null };
+  c.levelWatch.scenarioWatch = null; c.levelWatch.nextWatch = null;
+  assert.match(verify(a, c).text, /確認 Confirm（後端受控條件）：不可用/);
+});
+
+test('B1 Flow PASS fields describe actual response; degraded or stale Flow cannot leak numeric prose', () => {
+  const c = decisionContext(); c.levelWatch.observedFlow.quality = 'PASS';
+  assert.match(verify(answer(c), c).text, /當下成交壓力比：0\.47。當下價格位移：-2\.7。買方壓力／價格下移/);
+  for (const patch of [{ quality: 'READY' }, { quality: 'QUALITY_INSUFFICIENT' }, { sourceState: 'STALE' }, { availableAt: null }, { availableAt: new Date(now - 120001).toISOString() }]) {
+    const changed = structuredClone(c); Object.assign(changed.levelWatch.observedFlow, patch);
+    changed.levelWatch.scenarioWatch.node.basisReasons = ['Raw pressure 0.47 and response -2.7 are not field claims'];
+    assert.doesNotMatch(verify(answer(changed), changed).text, /0\.47|2\.7/);
+  }
+});
+
+test('B1 prose cannot smuggle prices, directives or model states; unqualified target suppresses geometric RR', () => {
+  const c = decisionContext();
+  c.levelWatch.scenarioWatch.node.why = 'Reference 99999 / ９９９９９ / 九萬九千九百九十九';
+  c.levelWatch.scenarioWatch.long.confirm = 'Sustain above 12345.67 with aligned response';
+  const { text } = verify(answer(c), c);
+  assert.doesNotMatch(text, /99999|９９９９９|九萬|12345/);
+  assert.match(text, /Sustain above 〔數值略〕 with aligned response/);
+  for (const value of ['BUY 99999', '建議買入', '多方已確認', 'unsafe\n現在怎麼看：已確認']) {
+    const changed = structuredClone(c); changed.levelWatch.scenarioWatch.long.confirm = value;
+    assert.throws(() => verify(answer(changed), changed), /CONTENT_CONTEXT_TEXT_UNSAFE/);
+  }
+  for (const target of [null, { price: 130, qualityStatus: 'STALE' }, { price: 130, qualityStatus: 'PASS', importanceBand: 'CONTEXT' }]) {
+    c.levelWatch.scenarioWatch.long.target = target;
+    assert.match(verify(answer(c), c).text, /多方條件式結構R:R：未知／不可用/);
+  }
+});
+
+test('B1 canonical explanation markup is rendered literally through the real textContent helper', () => {
+  const c = decisionContext(); c.levelWatch.scenarioWatch.node.why = '<img src=x onerror=alert()> & lawful rationale';
+  const output = verify(answer(c), c).text;
+  assert.ok(output.includes('<img src=x onerror=alert()> & lawful rationale'));
+  const source = fs.readFileSync(new URL('../public/ask-gpt-inline.js', import.meta.url), 'utf8');
+  const element = { set innerHTML(_) { assert.fail('HTML rendering forbidden'); } };
+  const sandbox = { $: () => element, output };
+  const start = source.indexOf(' const text='), end = source.indexOf('\n', start);
+  vm.runInNewContext(source.slice(start, end) + '\ntext("ai-answer",output);', sandbox);
+  assert.equal(element.textContent, output);
+});
+
+test('B1 real deterministic producer conditions retain only their own eligible numeric binding', () => {
+  const available = value => ({ availability: 'AVAILABLE', value, availableAt: stamp, qualityStatus: 'PASS', source: 'SYNTHETIC_ONLY' });
+  const chart = { actualContract: 'TXFJ6', tradeDate: '2026-10-09', session: 'DAY', availableAt: stamp,
+    timeframe: '5m', lastPrice: 100, qualityStatus: 'PASS', openingRange: { status: 'READY' },
+    bars: [{ time: '2026-10-09T01:50:00Z', availableAt: '2026-10-09T01:54:59Z', open: 100, high: 105, low: 95, close: 100, qualityStatus: 'PASS' }],
+    levels: { vwap: available(100), openingRangeHigh: available(150), openingRangeLow: available(50) } };
+  const levelWatch = buildDecisionLevelWatch({ chart, snapshotTime: stamp });
+  const snapshot = createDecisionSnapshot({ chart, levelWatch, snapshotTime: stamp,
+    dataHealth: { items: [], overall: 'PARTIAL', unavailableCount: 0, staleCount: 0 } });
+  const c = buildInlineContext(snapshot, { now }).context;
+  const { text } = verify(answer(c), c);
+  for (const side of ['long', 'short']) {
+    const s = c.levelWatch.scenarioWatch[side];
+    assert.equal(s.rr.state, 'AVAILABLE');
+    assert.ok(text.includes(s.confirm.replace(/\d+\.00/g, token => String(Number(token)))));
+    assert.ok(text.includes(s.invalidate.replace(/\d+\.00/g, token => String(Number(token)))));
+  }
+  assert.match(text, /目前交易時段成交均價參考/);
+  assert.match(text, /預期價格反應 Expected：有效接受/);
+  const changed = structuredClone(c);
+  changed.levelWatch.scenarioWatch.long.confirm = '價格站上 150 並能維持'; // lawful target, wrong field
+  assert.match(verify(answer(changed), changed).text, /確認 Confirm（後端受控條件）：價格站上 〔數值略〕 並能維持/);
+});
 
 test('valid conservative field claims preserve WATCH/MONITORING and safe rounding', () => {
   const result = verify(answer());
