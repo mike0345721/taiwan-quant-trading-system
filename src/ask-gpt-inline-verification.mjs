@@ -80,7 +80,12 @@ function fields(context) {
     }
   }
   const flow = watch?.observedFlow;
-  const flowUsable = ready && flow?.sourceState === 'LIVE' && flow.quality === 'PASS'
+  // Governed CRU34 reports READY for a qualified live observed-flow window;
+  // PASS is also accepted for deterministic fixture contracts. Cross-check the
+  // parent quality before treating READY as usable, never infer from LIVE alone.
+  const flowQualified = flow?.quality === 'PASS'
+    || (flow?.quality === 'READY' && context.observedFlow?.quality?.status === 'READY');
+  const flowUsable = ready && flow?.sourceState === 'LIVE' && flowQualified
     && flow.availableAt != null && currentAt(context, flow.availableAt);
   number('levelWatch.observedFlow.pressure60', '當下成交壓力比', 'ratio', flowUsable);
   number('levelWatch.observedFlow.response60', '當下價格位移', 'points', flowUsable);

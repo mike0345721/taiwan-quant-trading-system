@@ -11,6 +11,7 @@ import { CONTENT_SCHEMA, DECISION_HEADINGS, verifyAnalysisContent, analysisConte
 import { buildInlineContext } from '../src/ask-gpt-inline-context.mjs';
 import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs';
 import { buildDecisionLevelWatch } from '../src/decision-level-watch.mjs';
+import { buildDashboardObservedFlow } from '../src/dashboard-observed-flow.mjs';
 import { InlineAssistant } from '../src/ask-gpt-inline-service.mjs';
 import { readAnalysisStream } from '../src/chatgpt-plan-inference.mjs';
 
@@ -501,4 +502,52 @@ test('second independent review P2: V1 verified receipts recover without revivin
   const stale = structuredClone(c);
   stale.price.availableAt = new Date(now - 120001).toISOString();
   assert.throws(() => verifiedReceiptText({ ...receipt, context: stale }), /CONTENT_FACT_MISMATCH/);
+});
+
+
+test('final review P2: a genuine CRU34 READY flow is eligible only when live, identity-bound and fresh', () => {
+  const qualifiedWindow = {
+    status: 'READY', pressure: { status: 'READY', pressureRatio: 0.47 },
+    response: { status: 'READY', displacementPoints: 8 },
+    pathEfficiency: { status: 'READY', value: 0.5 },
+  };
+  const observedFlow = buildDashboardObservedFlow({
+    truthState: 'LIVE',
+    operational: { checkpointIdentity: 'a'.repeat(64), validUntil: new Date(now + 30000).toISOString() },
+    snapshot: { sourceMode: 'LIVE', actualContract: 'TXFJ6', tradeDate: '2026-10-09', session: 'DAY',
+      availableAt: stamp, primary60s: qualifiedWindow, context300s: qualifiedWindow,
+      quality: { status: 'READY', reasons: [] } },
+  });
+  const chart = { actualContract: 'TXFJ6', tradeDate: '2026-10-09', session: 'DAY', availableAt: stamp,
+    timeframe: '5m', lastPrice: 100, qualityStatus: 'PASS',
+    bars: [{ time: '2026-10-09T01:50:00Z', availableAt: '2026-10-09T01:54:59Z',
+      open: 100, high: 105, low: 95, close: 100, qualityStatus: 'PASS' }],
+    levels: { vwap: { availability: 'AVAILABLE', value: 100, availableAt: stamp,
+      source: 'SYNTHETIC_ONLY', qualityStatus: 'PASS' } } };
+  const levelWatch = buildDecisionLevelWatch({ chart, observedFlow, snapshotTime: stamp });
+  const c = buildInlineContext(createDecisionSnapshot({ chart, observedFlow, levelWatch, snapshotTime: stamp,
+    dataHealth: { items: [] } }), { now }).context;
+  assert.equal(c.levelWatch.observedFlow.quality, 'READY');
+  assert.equal(c.observedFlow.quality.status, 'READY');
+  const fields = analysisContentContract(c).fields;
+  assert.equal(fields.find(x => x.field === 'levelWatch.observedFlow.pressure60').expected, 0.47);
+  assert.equal(fields.find(x => x.field === 'levelWatch.observedFlow.response60').expected, 8);
+  const claims = { schema: CONTENT_SCHEMA,
+    directionState: c.levelWatch.scenarioWatch?.directionState ?? null,
+    nodeState: c.levelWatch.scenarioWatch?.node?.state ?? null,
+    facts: fields.slice(0, 2).map(x => ({ field: x.field, value: x.expected })), comparisons: [] };
+  const text = verify(claims, c).text;
+  assert.match(text, /當下成交壓力比：0\.47/);
+  assert.match(text, /當下價格位移：8/);
+  assert.doesNotMatch(text, /實際成交／價格反應不可用/);
+  for (const patch of [{sourceState:'STALE'}, {quality:'QUALITY_INSUFFICIENT'},
+    {availableAt:new Date(now - 120001).toISOString()}]) {
+    const x=structuredClone(c);
+    Object.assign(x.levelWatch.observedFlow, patch);
+    const xs=analysisContentContract(x).fields;
+    assert.equal(xs.find(f=>f.field==='levelWatch.observedFlow.pressure60').expected,null);
+  }
+  const downgraded=structuredClone(c);
+  downgraded.observedFlow.quality.status='QUALITY_INSUFFICIENT';
+  assert.equal(analysisContentContract(downgraded).fields.find(x=>x.field==='levelWatch.observedFlow.response60').expected,null);
 });
