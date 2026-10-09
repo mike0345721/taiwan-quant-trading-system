@@ -1,3 +1,4 @@
+import { needsIsolatedTest, runIsolatedTest } from './isolated-git-test-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,16 +12,10 @@ import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
 import { SAFETY, stableJson, digest } from '../src/cvd-observation-core.mjs';
 import { prepareCvdChart, loadCvdChart } from '../src/cvd-chart-artifact.mjs';
 
-const bootstrap = process.env.GITHUB_ACTIONS === 'true' && fs.lstatSync(path.join(REPO, '.git')).isDirectory();
+const bootstrap = needsIsolatedTest(REPO, BRANCH, 'cvd-chart-artifact.test.mjs');
 if (bootstrap) {
-  test('chart artifact CI exercises a real independent isolated worktree', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru54-chart-ci-')), clone = path.join(root, 'primary'), candidate = path.join(root, 'candidate');
-    // Separate common Git directory avoids racing the existing Phase A suite's branch lock.
-    for (const args of [['clone', '--no-hardlinks', '--no-checkout', REPO, clone], ['-C', clone, 'worktree', 'add', '-b', BRANCH, candidate, 'HEAD']]) {
-      const result = spawnSync('git', args, { encoding: 'utf8', timeout: 30_000, windowsHide: true }); assert.equal(result.status, 0, result.stderr);
-    }
-    const run = spawnSync(process.execPath, ['--test', 'tests/cvd-chart-artifact.test.mjs'], { cwd: candidate, encoding: 'utf8', timeout: 300_000, windowsHide: true });
-    assert.equal(run.status, 0, run.stdout + run.stderr); process.stdout.write(run.stdout);
+  test('synthetic cases exercise real guards in an independent worktree', () => {
+    runIsolatedTest(REPO, BRANCH, 'cvd-chart-artifact.test.mjs');
   });
 } else {
   test('real isolated artifact: same-prefix price context, load parity, raw corruption, atomic failure/retry, integrity refusal', () => {

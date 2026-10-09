@@ -1,3 +1,4 @@
+import { needsIsolatedTest, runIsolatedTest } from './isolated-git-test-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,16 +13,10 @@ import { materializeCvdBatch, readCvdGeneration } from '../src/cvd-observation-m
 
 // The existing CI checkout is a shallow primary checkout. Exercise the real guard in a fresh
 // Git worktree; no fixture bypass, changed CI lane or skipped I/O assertion.
-const ciBootstrap = process.env.GITHUB_ACTIONS === 'true' && fs.lstatSync(path.join(REPO, '.git')).isDirectory();
+const ciBootstrap = needsIsolatedTest(REPO, BRANCH, 'cvd-observation-materializer.test.mjs');
 if (ciBootstrap) {
-  test('CI materializer cases run through the same real isolated-worktree guard', () => {
-    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'cru54-ci-')), candidate = path.join(parent, 'candidate');
-    const setup = spawnSync('git', ['worktree', 'add', '-b', BRANCH, candidate, 'HEAD'], { cwd: REPO, encoding: 'utf8', timeout: 30_000 });
-    assert.equal(setup.status, 0, setup.stderr);
-    const run = spawnSync(process.execPath, ['--test', 'tests/cvd-observation-materializer.test.mjs'],
-      { cwd: candidate, encoding: 'utf8', timeout: 300_000, windowsHide: true });
-    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
-    process.stdout.write(run.stdout);
+  test('synthetic cases exercise real guards in an independent worktree', () => {
+    runIsolatedTest(REPO, BRANCH, 'cvd-observation-materializer.test.mjs');
   });
 }
 

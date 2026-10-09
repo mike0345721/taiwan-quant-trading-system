@@ -490,7 +490,7 @@ test('second independent review P2: V1 verified receipts recover without revivin
   const legacy = verifyAnalysisContent(JSON.stringify(claims), c, { renderVersion: 'v1' });
   const updated = verify(claims, c);
   assert.equal(legacy.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1');
-  assert.equal(updated.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3');
+  assert.equal(updated.verification.scope, 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V4');
   assert.notEqual(legacy.text, updated.text, 'new renderer adds RVOL availability');
   const receipt = {
     context: c, contextHash: legacy.verification.contextHash, text: legacy.text,
@@ -565,7 +565,7 @@ test('final review P2: preserve V2 READY-flow receipts under V2 field eligibilit
   const v2 = verifyAnalysisContent(JSON.stringify(claims), c, {renderVersion:'v2'});
   const v3 = verifyAnalysisContent(JSON.stringify(claims), c);
   assert.equal(v2.verification.scope,'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2');
-  assert.equal(v3.verification.scope,'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3');
+  assert.equal(v3.verification.scope,'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V4');
   assert.doesNotMatch(v2.text,/當下成交壓力比：0\.47/);
   assert.match(v3.text,/當下成交壓力比：0\.47/);
   assert.equal(verifiedReceiptText({context:c,contextHash:v2.verification.contextHash,
@@ -605,4 +605,44 @@ test('cross-version V2: preserve receipts from both published READY-flow rule va
     { renderVersion: 'v2', flowRule: 'v3' });
   assert.equal(verifiedReceiptText({context:c,contextHash:priorReadyV2.verification.contextHash,
     text:priorReadyV2.text,validatedClaims:oldReadyFact,contentVerification:priorReadyV2.verification}), priorReadyV2.text);
+});
+
+
+test('unqualified producer Flow cannot reappear as confirmation in canonical reasons', () => {
+  const qualifiedWindow = {
+    status: 'QUALITY_INSUFFICIENT', pressure: { status: 'QUALITY_INSUFFICIENT', pressureRatio: 0.47 },
+    response: { status: 'QUALITY_INSUFFICIENT', displacementPoints: 8 },
+    pathEfficiency: { status: 'QUALITY_INSUFFICIENT', value: 0.5 },
+  };
+  const observedFlow = buildDashboardObservedFlow({
+    truthState: 'LIVE',
+    operational: { checkpointIdentity: 'a'.repeat(64), validUntil: new Date(now + 30000).toISOString() },
+    snapshot: { sourceMode: 'LIVE', actualContract: 'TXFJ6', tradeDate: '2026-10-09', session: 'DAY',
+      availableAt: stamp, primary60s: qualifiedWindow, context300s: qualifiedWindow,
+      quality: { status: 'QUALITY_INSUFFICIENT', reasons: [] } },
+  });
+  const chart = { actualContract: 'TXFJ6', tradeDate: '2026-10-09', session: 'DAY', availableAt: stamp,
+    timeframe: '5m', lastPrice: 100, qualityStatus: 'PASS',
+    bars: [{ time: '2026-10-09T01:50:00Z', availableAt: '2026-10-09T01:54:59Z',
+      open: 100, high: 105, low: 95, close: 100, qualityStatus: 'PASS' }],
+    levels: { vwap: { availability: 'AVAILABLE', value: 100, availableAt: stamp,
+      source: 'SYNTHETIC_ONLY', qualityStatus: 'PASS' } } };
+  const levelWatch = buildDecisionLevelWatch({ chart, observedFlow, snapshotTime: stamp });
+  const c = buildInlineContext(createDecisionSnapshot({ chart, observedFlow, levelWatch, snapshotTime: stamp,
+    dataHealth: { items: [] } }), { now }).context;
+  const fields = analysisContentContract(c).fields;
+  const claims = {schema:CONTENT_SCHEMA,directionState:c.levelWatch.scenarioWatch.directionState,nodeState:c.levelWatch.scenarioWatch.node.state,facts:fields.slice(0,2).map(x=>({field:x.field,value:x.expected})),comparisons:[]};
+  const text=verify(claims,c).text;
+  assert.match(text,/資料不合格或過期，不可作確認依據/);
+  assert.match(text,/為什麼重要/);
+  assert.doesNotMatch(text,/品質 QUALITY_INSUFFICIENT，僅作反應確認/);
+  const old=verifyAnalysisContent(JSON.stringify(claims),c,{renderVersion:'v3'});
+  assert.throws(()=>verifiedReceiptText({context:c,contextHash:old.verification.contextHash,text:old.text,validatedClaims:claims,contentVerification:old.verification}),/CONTENT_CONTEXT_FLOW_UNQUALIFIED/);
+});
+
+test('published V1 RVOL receipt recovers exactly and tampering still fails',()=>{
+ const receipt=JSON.parse(fs.readFileSync(new URL('./fixtures/verified-v1-rvol-synthetic.json',import.meta.url),'utf8'));
+ assert.equal(receipt.sourceCommit,'20eb89b28a3692a8be803a3d2632d05752249ae8');
+ assert.match(verifiedReceiptText(receipt),/RVOL）：1\.75×/);
+ assert.throws(()=>verifiedReceiptText({...receipt,text:receipt.text+' changed'}),/CONTENT_UNVERIFIED_RECEIPT/);
 });

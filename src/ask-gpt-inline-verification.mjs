@@ -84,7 +84,7 @@ function fields(context, { flowRule = 'v3' } = {}) {
   // PASS is also accepted for deterministic fixture contracts. Cross-check the
   // parent quality before treating READY as usable, never infer from LIVE alone.
   const flowQualified = flow?.quality === 'PASS'
-    || (flowRule === 'v3' && flow?.quality === 'READY' && context.observedFlow?.quality?.status === 'READY');
+    || (['v3', 'v4'].includes(flowRule) && flow?.quality === 'READY' && context.observedFlow?.quality?.status === 'READY');
   const flowUsable = ready && flow?.sourceState === 'LIVE' && flowQualified
     && flow.availableAt != null && currentAt(context, flow.availableAt);
   number('levelWatch.observedFlow.pressure60', '當下成交壓力比', 'ratio', flowUsable);
@@ -119,7 +119,7 @@ const qualityText = value => qualityLabels.get(value) || '未知／不可用';
 const timeText = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)
   && Number.isFinite(Date.parse(value)) ? value : '未知／不可用';
 
-function renderDecision(context, catalog, direction, nodeState, comparisons, { legacy = false } = {}) {
+function renderDecision(context, catalog, direction, nodeState, comparisons, { legacy = false, qualifiedReasons = true } = {}) {
   const watch = context.levelWatch, scenario = watch?.scenarioWatch;
   const ready = watchReady(context);
   const node = scenario?.node;
@@ -134,7 +134,8 @@ function renderDecision(context, catalog, direction, nodeState, comparisons, { l
   };
   const reasons = level => [explanation(level?.why), ...(level?.basisReasons || [])
     .filter(value => typeof value !== 'string' || !value.startsWith('形成／可用時間：'))
-    .map(value => explanation(value))].join('；');
+    .map(value => qualifiedReasons && !flowKnown && typeof value === 'string' && value.startsWith('當下成交反應：')
+      ? '當下成交反應：資料不合格或過期，不可作確認依據' : explanation(value))].join('；');
   const flow = watch?.observedFlow;
   const flowKnown = catalog.get('levelWatch.observedFlow.pressure60').value !== null && catalog.get('levelWatch.observedFlow.response60').value !== null;
   const flowSummary = `Flow 品質：${qualityText(flow?.quality)}；來源：${qualityText(flow?.sourceState)}。`
@@ -187,8 +188,8 @@ export function analysisContentContract(context) {
   };
 }
 
-export function verifyAnalysisContent(raw, context, { renderVersion = 'v3', flowRule = renderVersion } = {}) {
-  if (!['v1', 'v2', 'v3'].includes(renderVersion)
+export function verifyAnalysisContent(raw, context, { renderVersion = 'v4', flowRule = renderVersion, v1Rvol = false } = {}) {
+  if (!['v1', 'v2', 'v3', 'v4'].includes(renderVersion) || (v1Rvol && renderVersion !== 'v1')
     || (flowRule !== renderVersion && !(renderVersion === 'v2' && flowRule === 'v3'))) fail('UNSUPPORTED_RENDER_VERSION');
   if (!context || context.schemaVersion !== 'ask-gpt-inline-context-v1') fail('CONTEXT_UNSUPPORTED');
   if (typeof raw !== 'string' || !raw.trim() || raw.length > 12000) fail('FORMAT_INVALID');
@@ -240,7 +241,8 @@ export function verifyAnalysisContent(raw, context, { renderVersion = 'v3', flow
     const precise = rounded(left.value) === rounded(right.value) && left.value !== right.value;
     lines.push(`${left.label} ${precise ? left.value : display(left.value)} ${relations.get(expected)} ${right.label} ${precise ? right.value : display(right.value)}（僅本次快照的數值關係）。`);
   }
-  const text = renderDecision(context, catalog, direction, node, lines, { legacy: renderVersion === 'v1' });
+  const text = renderDecision(context, catalog, direction, node, lines,
+    { legacy: renderVersion === 'v1' && !v1Rvol, qualifiedReasons: renderVersion === 'v4' });
   const scope = 'CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_' + renderVersion.toUpperCase();
   return { text, claims: answer, verification: { schema: CONTENT_SCHEMA, status: 'PASSED', contextHash: digest(JSON.stringify(context)), textHash: digest(text), scope } };
 }
@@ -253,7 +255,7 @@ export function verifiedReceiptText(receipt) {
   // Preserve genuinely verified V1 receipts with their original deterministic
   // rendering, while applying today's stricter source-freshness claim rules.
   // Older free-text/unverified receipts remain rejected.
-  const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3: 'v3' };
+  const versions = { CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1: 'v1', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V2: 'v2', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V3: 'v3', CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V4: 'v4' };
   if (!Object.hasOwn(versions, saved.scope)) fail('UNVERIFIED_RECEIPT');
   // V2 was briefly published with two distinct governed Flow eligibility rules
   // under the same signed scope. Both versions are verified against immutable
@@ -262,14 +264,24 @@ export function verifiedReceiptText(receipt) {
   const renderVersion = versions[saved.scope];
   const eligibleFlowRules = renderVersion === 'v2' ? ['v2', 'v3'] : [renderVersion];
   let firstError = null;
-  for (const flowRule of eligibleFlowRules) {
+  const variants = eligibleFlowRules.flatMap(flowRule => (renderVersion === 'v1' ? [false, true] : [false])
+    .map(v1Rvol => ({ renderVersion, flowRule, v1Rvol })));
+  for (const variant of variants) {
     try {
       const result = verifyAnalysisContent(JSON.stringify(receipt.validatedClaims), receipt.context,
-        { renderVersion, flowRule });
+        variant);
       const expected = result.verification;
       if (receipt.contextHash === expected.contextHash && receipt.text === result.text
         && saved.schema === expected.schema && saved.status === 'PASSED'
-        && saved.scope === expected.scope && saved.contextHash === expected.contextHash && saved.textHash === expected.textHash) return result.text;
+        && saved.scope === expected.scope && saved.contextHash === expected.contextHash && saved.textHash === expected.textHash) {
+        // Preserve old receipts, but never resurface a now-proven unqualified
+        // Flow confirmation. Historical bytes remain immutable on disk.
+        const catalog = fields(receipt.context);
+        const flowKnown = catalog.get('levelWatch.observedFlow.pressure60').value !== null
+          && catalog.get('levelWatch.observedFlow.response60').value !== null;
+        if (!flowKnown && /當下成交反應：[^\n]*僅作反應確認/.test(result.text)) fail('CONTEXT_FLOW_UNQUALIFIED');
+        return result.text;
+      }
     } catch (error) { if (!firstError) firstError = error; }
   }
   if (eligibleFlowRules.length === 1 && firstError) throw firstError;

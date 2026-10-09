@@ -1,3 +1,4 @@
+import { needsIsolatedTest, runIsolatedTest } from './isolated-git-test-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,21 +12,10 @@ import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
 import { SAFETY, stableJson } from '../src/cvd-observation-core.mjs';
 import { prepareCvdChart } from '../src/cvd-chart-artifact.mjs';
 import { prepareCvdRelationship, loadCvdRelationship } from '../src/cvd-relationship-artifact.mjs';
-const bootstrap = process.env.GITHUB_ACTIONS === 'true' && fs.lstatSync(path.join(REPO, '.git')).isDirectory();
+const bootstrap = needsIsolatedTest(REPO, BRANCH, 'cvd-relationship-artifact.test.mjs');
 if (bootstrap) {
-  test('relationship artifact CI uses an independent real isolated worktree', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(),'cru54-relationship-ci-')), clone = path.join(root,'primary'), candidate = path.join(root,'candidate');
-    for (const args of [['clone','--no-hardlinks','--no-checkout',REPO,clone],['-C',clone,'checkout','--detach','HEAD']]) {
-      const r=spawnSync('git',args,{encoding:'utf8',windowsHide:true,timeout:30000}); assert.equal(r.status,0,r.stderr);
-    }
-    // A preceding CI suite can leave the source on BRANCH, which clone inherits.
-    // Detach the private clone and reuse its branch if present; never mutate the source.
-    const exists=spawnSync('git',['-C',clone,'show-ref','--verify','--quiet','refs/heads/'+BRANCH],{encoding:'utf8',windowsHide:true,timeout:30000});
-    assert.ok([0,1].includes(exists.status),exists.stderr);
-    const args=exists.status===0?['-C',clone,'worktree','add',candidate,BRANCH]:['-C',clone,'worktree','add','-b',BRANCH,candidate,'HEAD'];
-    const added=spawnSync('git',args,{encoding:'utf8',windowsHide:true,timeout:30000});assert.equal(added.status,0,added.stderr);
-    const r=spawnSync(process.execPath,['--test','tests/cvd-relationship-artifact.test.mjs'],{cwd:candidate,encoding:'utf8',windowsHide:true,timeout:300000});
-    assert.equal(r.status,0,r.stdout+r.stderr); process.stdout.write(r.stdout);
+  test('synthetic cases exercise real guards in an independent worktree', () => {
+    runIsolatedTest(REPO, BRANCH, 'cvd-relationship-artifact.test.mjs');
   });
 } else {
   test('isolated relationship preparation: exact source, A/B binding, atomic partial-write retry and startup never reads raw', () => {

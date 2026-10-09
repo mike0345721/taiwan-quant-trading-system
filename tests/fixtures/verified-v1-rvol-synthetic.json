@@ -1,0 +1,52 @@
+{
+  "sourceCommit": "20eb89b28a3692a8be803a3d2632d05752249ae8",
+  "evidenceKind": "SYNTHETIC_FIXTURE",
+  "context": {
+    "schemaVersion": "ask-gpt-inline-context-v1",
+    "snapshotTime": "2026-10-09T02:00:00.000Z",
+    "price": {
+      "availability": "AVAILABLE",
+      "value": 105,
+      "availableAt": "2026-10-09T02:00:00.000Z"
+    },
+    "VWAP": {
+      "availability": "AVAILABLE",
+      "value": 100,
+      "availableAt": "2026-10-09T02:00:00.000Z"
+    },
+    "levelWatch": {
+      "state": "UNAVAILABLE"
+    },
+    "marketPulse": {
+      "rvol": {
+        "state": "READY",
+        "ratio": 1.75
+      }
+    }
+  },
+  "contextHash": "9041279e94a07b90a155613ea98112ad8742f3fc9421a233e48ad38a07508a99",
+  "text": "現在怎麼看：方向狀態不可用。節點狀態：不可用。不確定性：單一快照不能證明持續接受或多空確認。Flow 品質：未知／不可用；來源：未知／不可用。實際成交／價格反應不可用，不可作方向確認。\n快照價格：105。VWAP：100。\n完成 K 相對量能（RVOL）：1.75×；僅供參與度觀察。\n核心決策節點：情境觀察節點：未知／不可用。節點品質：未知／不可用。為什麼重要（後端受控理由）：不可用。\n預期價格反應 Expected：不可用。實際反應 Actual：Flow 品質：未知／不可用；來源：未知／不可用。實際成交／價格反應不可用，不可作方向確認。\n下一觀察節點：未知／不可用。下一觀察理由：不可用。\n多方情境：Long 多方：不可用；Flow 確認品質：不可用。多方條件式確認門檻（不代表已成立）：未知／不可用。確認 Confirm（後端受控條件）：不可用。多方條件式失效門檻：未知／不可用。失效 Invalidate（後端受控條件）：不可用。多方條件式結構目標：未知／不可用。尚無合格下一關，不外推目標。\n空方情境：Short 空方：不可用；Flow 確認品質：不可用。空方條件式確認門檻（不代表已成立）：未知／不可用。確認 Confirm（後端受控條件）：不可用。空方條件式失效門檻：未知／不可用。失效 Invalidate（後端受控條件）：不可用。空方條件式結構目標：未知／不可用。尚無合格下一關，不外推目標。\n觀望條件：確認與失效條件須連同價格能否維持、壓力與價格反應一起觀察。Flow 品質不足、反應混合或門檻未知時，維持觀望；未達條件不能稱為方向確認。\n條件式結構 R:R：多方條件式結構R:R：未知／不可用。多方條件式結構風險距離：未知／不可用。多方條件式結構報酬距離：未知／不可用。\n空方條件式結構R:R：未知／不可用。空方條件式結構風險距離：未知／不可用。空方條件式結構報酬距離：未知／不可用。僅引用後端條件式幾何距離與比例，不是勝率、EV、進場價或停損指令。\n現在不要做什麼：不要把觀察當測試、價格候選當多空確認、結構目標當必達價位；不要以缺值補零或自行推算目標。不提供買賣建議。\n資料限制：未知保持未知。後端受控說明不是模型自由文字；未綁定欄位的說明數字省略，數值只依合格欄位呈現。節點 availableAt：未知／不可用；Flow availableAt：未知／不可用。\n整體 Flow 品質：未知／不可用；原因：未提供／不可驗證。",
+  "validatedClaims": {
+    "schema": "ask-gpt-verified-claims-v1",
+    "directionState": null,
+    "nodeState": null,
+    "facts": [
+      {
+        "field": "price.value",
+        "value": 105
+      },
+      {
+        "field": "VWAP.value",
+        "value": 100
+      }
+    ],
+    "comparisons": []
+  },
+  "contentVerification": {
+    "schema": "ask-gpt-verified-claims-v1",
+    "status": "PASSED",
+    "contextHash": "9041279e94a07b90a155613ea98112ad8742f3fc9421a233e48ad38a07508a99",
+    "textHash": "e12cd802519c68e26d335bedba7fcf3fd76435482eb9965af82012cd84444786",
+    "scope": "CLOSED_FIELD_CLAIMS_AND_CANONICAL_DECISION_V1"
+  }
+}

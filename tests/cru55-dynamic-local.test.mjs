@@ -1,11 +1,18 @@
+import { needsIsolatedTest, runIsolatedTest } from './isolated-git-test-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { sessionFixture } from './cvd-session-context-fixture.mjs';
 import { materializeCvdBatch } from '../src/cru55-dynamic-materializer.mjs';
-import { PRIVATE_ROOT,isolatedRunRoot } from '../src/cru55-dynamic-isolation.mjs';
+import { REPO,PRIVATE_ROOT,isolatedRunRoot } from '../src/cru55-dynamic-isolation.mjs';
 
+const bootstrap = needsIsolatedTest(REPO, 'codex/cru55-formal-entry-recovery-v1', 'cru55-dynamic-local.test.mjs');
+if (bootstrap) {
+  test('dynamic checkpoint exercises real isolation in an independent worktree', () => {
+    runIsolatedTest(REPO, 'codex/cru55-formal-entry-recovery-v1', 'cru55-dynamic-local.test.mjs');
+  });
+} else {
 test('bounded candidate checkpoint continues exactly, ignores replay and rejects changed physical prefix',()=>{
   const id='test-'+process.pid+'-'+Date.now(),root=isolatedRunRoot(id),file=path.join(PRIVATE_ROOT,'fixtures',id+'.ndjson');
   fs.mkdirSync(path.dirname(file),{recursive:true});const f=sessionFixture({count:5});
@@ -26,3 +33,5 @@ test('bounded candidate checkpoint continues exactly, ignores replay and rejects
   }
 });
 
+
+}
