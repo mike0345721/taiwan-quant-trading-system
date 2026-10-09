@@ -8,6 +8,7 @@ Keep the plan, backups and receipts under a private, gitignored directory. Do no
 
 - `primary`, `formal`: existing, distinct runtime roots; `base`: running baseline SHA; `head`: reviewed candidate SHA; `tree`: reviewed candidate tree hash.
 - `formalPid`: currently verified dashboard PID; `producerPid`: existing authorized producer PID.
+- `oldProcess`: original dashboard fingerprint (`pid`, `creationDate` in UTC ISO format, `executable`, `commandLine`) from the freshly verified OS process. Confirm its source/auth root is `primary`; a generic launcher command alone is insufficient. Rechecked immediately before stopping.
 - `primaryEnvHash`, `formalEnvHash`, `targetEnvHash`: SHA-256 of private `primary-original.env`, `formal-original.env`, `formal-target.env` beside the plan.
 - `dirtyReportPath`, `dirtyReportHash`: preserved primary report path and SHA-256, with identical backup `primary-dirty-report.md`.
 

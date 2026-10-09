@@ -80,7 +80,7 @@ test('Windows real starters and runner contend through the same lock protocol', 
       if(Date.now()>end) process.exit(2);
       await new Promise(r=>setTimeout(r,10));
     }
-    const record={pid:process.pid,workerInstanceId:id,dataRoot,projectionRoot:projection};
+    const record={pid:process.pid,workerInstanceId:id,workerStartedAt:new Date().toISOString(),dataRoot,projectionRoot:projection};
     const result=acquire({lockPath:path.join(projection,'worker.lock'),record});
     fs.writeFileSync(path.join(root,'result-'+process.pid),JSON.stringify({...result,...record}));
     if(!result.acquired) process.exit(0);

@@ -30,6 +30,17 @@ function Test-SamePath([string]$Left, [string]$Right) {
   } catch { return $false }
 }
 
+function Test-Cru34ProcessIdentity($Status, $Lock, $Process) {
+  if (-not $Status -or -not $Lock -or -not $Process -or
+      $Process.ExecutablePath -ne $node -or
+      $Process.CommandLine -notmatch '(?i)(^|[\s"\\/])run-cru34-live-projection\.mjs("|\s|$)' -or
+      $Status.workerStartedAt -ne $Lock.workerStartedAt) { return $false }
+  $started = [datetime]::MinValue
+  if (-not [datetime]::TryParse([string]$Lock.workerStartedAt, [ref]$started) -or -not $Process.CreationDate) { return $false }
+  $age = ($started.ToUniversalTime() - ([datetime]$Process.CreationDate).ToUniversalTime()).TotalSeconds
+  return [int]$Process.ProcessId -eq [int]$Lock.pid -and $age -ge 0 -and $age -le 30
+}
+
 function Test-Cru34ProducerMatch($Status, $Lock, [datetime]$Now = (Get-Date)) {
   if (-not $Status -or -not $Lock) { return $false }
   $observedAt = [datetime]::MinValue
@@ -65,12 +76,17 @@ if (Test-Path -LiteralPath $lockPath) {
   $incumbent = if ($incumbentPid -gt 0) { Get-Process -Id $incumbentPid -ErrorAction SilentlyContinue } else { $null }
   if ($incumbent) {
     $status = Read-JsonFile $statusPath
+    $identity = Get-CimInstance Win32_Process -Filter "ProcessId = $incumbentPid"
+    if (-not (Test-Cru34ProcessIdentity $status $lock $identity)) { throw 'CRU34_LIVE_PRODUCER_PROCESS_IDENTITY_UNVERIFIED' }
     if (Test-Cru34ProducerMatch $status $lock) { exit 0 }
     $verifiedOwnedInstance = $status -and ($status.schemaVersion -eq 'cru34-live-worker-status-v1') -and
       ([int]$status.pid -eq $incumbentPid) -and ($status.workerInstanceId -eq $lock.workerInstanceId) -and
       ($status.executionAuthorized -eq $false) -and ($status.orderRoutesEnabled -eq $false)
     if (-not $RestartMismatched) { throw 'CRU34_LIVE_PRODUCER_MISMATCH' }
     if (-not $verifiedOwnedInstance) { throw 'CRU34_LIVE_PRODUCER_INCUMBENT_UNVERIFIED' }
+    $identityAgain = Get-CimInstance Win32_Process -Filter "ProcessId = $incumbentPid"
+    if (-not (Test-Cru34ProcessIdentity $status $lock $identityAgain) -or
+        $identityAgain.CreationDate -ne $identity.CreationDate) { throw 'CRU34_LIVE_PRODUCER_PROCESS_IDENTITY_UNVERIFIED' }
     Stop-Process -Id $incumbentPid
     foreach ($attempt in 1..20) {
       Start-Sleep -Milliseconds 250
@@ -108,6 +124,6 @@ foreach ($attempt in 1..120) {
   $status = Read-JsonFile $statusPath
   $lock = Read-JsonFile $lockPath
   if ((Test-Cru34ProducerMatch $status $lock) -and
-      (Get-Process -Id ([int]$status.pid) -ErrorAction SilentlyContinue)) { exit 0 }
+      (Test-Cru34ProcessIdentity $status $lock (Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$status.pid)"))) { exit 0 }
 }
 throw 'CRU34_LIVE_PRODUCER_NOT_READY'

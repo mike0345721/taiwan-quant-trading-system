@@ -96,3 +96,54 @@ test('historical blocked plans cannot execute the revised rollout helper', windo
     assert.notEqual(r.status, 0); assert.match(r.stderr, /Fresh v2 plan required/);
   } finally { assert.equal(path.dirname(root), path.resolve(path.dirname(script), '../data')); fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('original dashboard fingerprint rejects reused PID before cutover', windows, () => {
+  const ps = `
+$ErrorActionPreference='Stop'
+$ast=[Management.Automation.Language.Parser]::ParseFile(${q(script)},[ref]$null,[ref]$null)
+foreach($name in @('Process-Identity','Assert-OldDashboard')) {
+ $definition=$ast.Find({param($x) $x -is [Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $name},$true)
+ Invoke-Expression $definition.Extent.Text
+}
+$node='C:\\Program Files\\nodejs\\node.exe'
+$proc=[pscustomobject]@{ProcessId=43210;ExecutablePath=$node;CommandLine='node launcher.mjs';CreationDate=[datetime]'2026-10-09T00:00:00Z'}
+$plan=@{base=('a'*40);formalPid=43210;oldProcess=(Process-Identity $proc)}
+function Invoke-RestMethod {param($Uri,$TimeoutSec) [pscustomobject]@{runtimeCommit=('a'*40);runtimeIdentityStatus='VERIFIED'}}
+function Get-NetTCPConnection {param($LocalPort,$State) [pscustomobject]@{OwningProcess=43210}}
+function Get-CimInstance {param($ClassName,$Filter) $proc}
+Assert-OldDashboard|Out-Null
+$proc.CreationDate=$proc.CreationDate.AddSeconds(1)
+try { Assert-OldDashboard|Out-Null; throw 'Reused PID accepted' } catch { if($_.Exception.Message -ne 'Original process identity mismatch'){throw} }
+$plan.oldProcess=$null
+try { Assert-OldDashboard|Out-Null; throw 'Missing identity accepted' } catch { if($_.Exception.Message -ne 'Original process identity mismatch'){throw} }
+Write-Output 'IDENTITY_GUARDS_PASS'
+`;
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding:'utf8', windowsHide:true, env:childEnv, timeout:30_000 });
+  assert.equal(r.status,0,r.stderr || r.stdout); assert.match(r.stdout,/IDENTITY_GUARDS_PASS/);
+});
+
+test('producer restart refuses a reused foreign PID without stopping or launching', windows, () => {
+  const starter = path.join(path.dirname(script),'start-cru34-live-projection-hidden.ps1');
+  const root = fs.mkdtempSync(path.join(path.dirname(script),'../data/producer-identity-test-'));
+  const projection = path.join(root,'projection'); fs.mkdirSync(projection);
+  const status={schemaVersion:'cru34-live-worker-status-v1',pid:43210,workerInstanceId:'00000000-0000-4000-8000-000000000000',workerStartedAt:'2026-10-07T04:40:00.466Z',executionAuthorized:false,orderRoutesEnabled:false};
+  fs.writeFileSync(path.join(projection,'worker.lock'),JSON.stringify(status));
+  fs.writeFileSync(path.join(projection,'status.json'),JSON.stringify(status));
+  const ps=`
+$ErrorActionPreference='Stop'
+$actions=[Collections.Generic.List[string]]::new()
+function Get-Process {param($Id,$ErrorAction) [pscustomobject]@{Id=43210}}
+function Get-CimInstance {param($ClassName,$Filter) [pscustomobject]@{ProcessId=43210;ExecutablePath='C:\\Windows\\System32\\conhost.exe';CommandLine='conhost';CreationDate=[datetime]'2026-10-09T12:38:33Z'}}
+function Stop-Process {param($Id) $actions.Add('stop')}
+function Start-Process { $actions.Add('start') }
+try { & ([ScriptBlock]::Create([IO.File]::ReadAllText(${q(starter)}))) -WorkingRoot ${q(root)} -ProjectionRoot ${q(projection)} -RestartMismatched; throw 'Foreign PID accepted' }
+catch { if($_.Exception.Message -ne 'CRU34_LIVE_PRODUCER_PROCESS_IDENTITY_UNVERIFIED'){throw} }
+if($actions.Count){throw 'Foreign PID mutation'}
+Write-Output 'FOREIGN_PROCESS_PRESERVED'
+`;
+  try {
+    const r=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',ps],{encoding:'utf8',windowsHide:true,env:childEnv,timeout:30_000});
+    assert.equal(r.status,0,r.stderr || r.stdout); assert.match(r.stdout,/FOREIGN_PROCESS_PRESERVED/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(projection,'worker.lock'),'utf8')),status);
+  } finally { assert.equal(path.dirname(root),path.resolve(path.dirname(script),'../data'));fs.rmSync(root,{recursive:true,force:true}); }
+});

@@ -59,7 +59,11 @@ if (lane === 'ci' && assigned.size > 0) {
   }
 }
 
-const result = spawnSync(process.execPath, ['--test', ...selected.map((file) => path.join('tests', file))], {
+// Large Windows machines otherwise start one process per available CPU and
+// starve real Git/PowerShell probes with bounded production identity deadlines.
+// Keep those deadlines unchanged; bound only this test runner's fan-out.
+const concurrency = process.platform === 'win32' ? ['--test-concurrency=4'] : [];
+const result = spawnSync(process.execPath, ['--test', ...concurrency, ...selected.map((file) => path.join('tests', file))], {
   cwd: root,
   stdio: 'inherit',
 });

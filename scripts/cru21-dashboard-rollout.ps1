@@ -51,7 +51,9 @@ function Assert-OldDashboard {
  $listeners=@(Get-NetTCPConnection -LocalPort 8787 -State Listen)
  if($h.runtimeCommit -ne $plan.base -or $h.runtimeIdentityStatus -ne 'VERIFIED' -or $listeners.Count -ne 1 -or $listeners[0].OwningProcess -ne $plan.formalPid){throw 'Original dashboard changed'}
  $p=Get-CimInstance Win32_Process -Filter "ProcessId = $($plan.formalPid)"
- if($p.ExecutablePath -ne $node -or $p.CommandLine.Trim() -ne '"C:\Program Files\nodejs\node.exe" launcher.mjs'){throw 'Original process identity mismatch'}
+ $actual=Process-Identity $p
+ $expected=$plan.oldProcess
+ if(-not $expected -or $actual.pid -ne $expected.pid -or $actual.creationDate -ne $expected.creationDate -or $actual.executable -ne $expected.executable -or $actual.commandLine -cne $expected.commandLine -or $actual.executable -ne $node){throw 'Original process identity mismatch'}
  return $h
 }
 function Assert-SourceBaseline {
@@ -100,6 +102,7 @@ if($Mode -eq 'Deploy'){
  $state=@{expectedMain=$ExpectedMain;oldPid=$plan.formalPid;newPid=$null;startedAt=[DateTime]::UtcNow.ToString('o');phase='PREFLIGHT_PASSED'}
  $state|ConvertTo-Json|Set-Content -LiteralPath $statePath -Encoding UTF8
  Record 'before-cutover' @{oldHealth=$old;producer=$worker;expectedMain=$ExpectedMain}
+ Assert-OldDashboard | Out-Null
  Stop-Process -Id $plan.formalPid
  Wait-Process -Id $plan.formalPid -Timeout 10 -ErrorAction SilentlyContinue
  if(@(Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue).Count){throw '8787 still occupied'}
