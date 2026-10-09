@@ -7,6 +7,7 @@ import {ISSUER,RESOURCE,DIRECT_SCOPE,PlanError,validateIdToken} from '../src/cha
 import {freshPlanRecord,planCatalog,readAnalysisStream,analysePlan} from '../src/chatgpt-plan-inference.mjs';
 import {createDecisionSnapshot,decisionDigest} from '../src/dashboard-decision-workspace.mjs';
 import {buildInlineContext} from '../src/ask-gpt-inline-context.mjs';
+import {CONTENT_SCHEMA} from '../src/ask-gpt-inline-verification.mjs';
 import {InlineAssistant} from '../src/ask-gpt-inline-service.mjs';import{createInlineHandler}from'../src/ask-gpt-inline-http.mjs';
 const temp=t=>{const p=fs.mkdtempSync(path.join(os.tmpdir(),'cru21-inline-test-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p;};
 const scopes=[DIRECT_SCOPE,'resource.invoke'];
@@ -18,6 +19,7 @@ function createJwt(payload){const{publicKey,privateKey}=generateKeyPairSync('rsa
 const events=rows=>new Response(rows.map(e=>'data: '+JSON.stringify(e)+'\n\n').join('')).body;
 const done={type:'response.completed',response:{id:'resp_synthetic',status:'completed',model:'test-model',usage:{input_tokens:4,output_tokens:3,total_tokens:7,output_tokens_details:{reasoning_tokens:0}}}};
 const delta=text=>({type:'response.output_text.delta',delta:text});
+const conservative=c=>JSON.stringify({schema:CONTENT_SCHEMA,directionState:c.levelWatch?.scenarioWatch?.directionState??null,nodeState:c.levelWatch?.scenarioWatch?.node?.state??null,facts:[{field:'price.value',value:c.price.value},{field:'VWAP.value',value:c.VWAP.value}],comparisons:[]});
 
 test('inline context retains unavailable RVOL source quality and sample evidence',()=>{
  const now=new Date().toISOString();
@@ -109,7 +111,7 @@ test('midstream quota, incomplete, refusal and tool-call events cannot be succes
  for(const e of [{type:'response.incomplete'},{type:'response.refusal.delta'},{type:'response.output_item.added',item:{type:'function_call'}}])await assert.rejects(readAnalysisStream(events([e,done])));
 });
 test('analysis requests use only supported public subscription fields and no automatic fallback',async()=>{
- let calls=0;const r=await analysePlan(account(),'test-model',{price:null},'what?',{fetcher:async(url,o)=>{calls++;assert.equal(url,RESOURCE+'/responses');const b=JSON.parse(o.body);assert.deepEqual(Object.keys(b).sort(),['input','instructions','model','store','stream']);assert.equal(b.store,false);assert.equal(b.stream,true);assert.ok(Array.isArray(b.input));return new Response(events([delta('analysis'),done]));}});assert.equal(calls,1);assert.equal(r.text,'analysis');
+ let calls=0;const r=await analysePlan(account(),'test-model',{price:null},'what?',{fetcher:async(url,o)=>{calls++;assert.equal(url,RESOURCE+'/responses');const b=JSON.parse(o.body);assert.deepEqual(Object.keys(b).sort(),['input','instructions','model','store','stream']);assert.equal(b.store,false);assert.equal(b.stream,true);assert.ok(Array.isArray(b.input));const input=JSON.parse(b.input[0].content);assert.equal(input.RESPONSE_CONTRACT.schema,CONTENT_SCHEMA);assert.deepEqual(input.GOVERNED_CONTEXT,{price:null});assert.match(b.instructions,/BIDIRECTIONAL_WATCH 不等於 BIDIRECTIONAL_TEST/);return new Response(events([delta('analysis'),done]));}});assert.equal(calls,1);assert.equal(r.text,'analysis');
 });
 test('HTTP model rejection keeps safe provider code and never returns secret message',async()=>{
  await assert.rejects(analysePlan(account(),'test-model',{},'q',{fetcher:async()=>response({error:{code:'subscription_sharing_usage_limit_exceeded',message:'secret-diagnostic'}},429)}),e=>e.code==='PLAN_USAGE_LIMIT_REACHED'&&!e.message.includes('secret'));
@@ -134,7 +136,7 @@ test('invalid snapshot hash, future dispatch and client secret-shaped fields fai
 });
 async function fixture(t,ops={},settings={}){
  const root=temp(t),r=account(),key=registrationKey(r);const counters={analyse:0,refresh:0,catalog:0};const store={get:k=>k===key?r:null,list:()=>[{key,label:'Test account',expiresAt:r.expiresAt}],reload:()=>{}};
- const assistant=new InlineAssistant({enabled:true,root,runtimeCommit:'a'.repeat(40),snapshotProvider:async()=>({snapshot:snap()}),storeFactory:()=>store,configureTransport:()=>{},minIntervalMs:0,operations:{freshPlanRecord:async()=>{counters.refresh++;return r;},planCatalog:async()=>{counters.catalog++;return[{slug:'test-model',display_name:'Test'}];},analysePlan:async(a,m,c,q,{onText})=>{counters.analyse++;onText('partial');return{text:'已知事實：測試',terminal:'response.completed',model:m,requestId:'resp_test',usage:{input_tokens:5,output_tokens:3,total_tokens:8}};},...ops},...settings});
+ const assistant=new InlineAssistant({enabled:true,root,runtimeCommit:'a'.repeat(40),snapshotProvider:async()=>({snapshot:snap()}),storeFactory:()=>store,configureTransport:()=>{},minIntervalMs:0,operations:{freshPlanRecord:async()=>{counters.refresh++;return r;},planCatalog:async()=>{counters.catalog++;return[{slug:'test-model',display_name:'Test'}];},analysePlan:async(a,m,c,q,{onText})=>{counters.analyse++;onText('partial');return{text:conservative(c),terminal:'response.completed',model:m,requestId:'resp_test',usage:{input_tokens:5,output_tokens:3,total_tokens:8}};},...ops},...settings});
  t.after(()=>assistant.close());return{assistant,root,key,counters,configuration:{storeFactory:()=>store,configureTransport:()=>{},snapshotProvider:async()=>({snapshot:snap()}),operations:assistant.ops},body:()=>({requestId:randomUUID(),account:key,model:'test-model',question:'目前盤況？',creditsDisabledConfirmed:true})};
 }
 test('disabled assistant never opens credential store, changes TLS or calls models',()=>{
@@ -151,8 +153,8 @@ test('same request id is idempotent and repeated click never issues a second mod
 test('no credits confirmation, forged model, or client snapshot can trigger inference',async t=>{
  const s=await fixture(t);await assert.rejects(s.assistant.run({...s.body(),creditsDisabledConfirmed:false},'owner'),/CREDITS/);await assert.rejects(s.assistant.run({...s.body(),snapshot:{}},'owner'),/INVALID/);const r=await s.assistant.run({...s.body(),model:'invented'},'owner');assert.equal(r.phase,'FAILED');assert.equal(s.counters.analyse,0);
 });
-test('provider failure leaves partial text labelled FAILED, with no retry',async t=>{
- let calls=0;const s=await fixture(t,{analysePlan:async(a,m,c,q,{onText})=>{calls++;onText('partial');throw new PlanError('PLAN_USAGE_LIMIT_REACHED');}});const r=await s.assistant.run(s.body(),'owner');assert.equal(r.phase,'FAILED');assert.equal(r.error.code,'PLAN_USAGE_LIMIT_REACHED');assert.equal(r.text,'partial');assert.equal(calls,1);
+test('provider failure withholds partial text and is labelled FAILED, with no retry',async t=>{
+ let calls=0;const s=await fixture(t,{analysePlan:async(a,m,c,q,{onText})=>{calls++;onText('partial');throw new PlanError('PLAN_USAGE_LIMIT_REACHED');}});const r=await s.assistant.run(s.body(),'owner');assert.equal(r.phase,'FAILED');assert.equal(r.error.code,'PLAN_USAGE_LIMIT_REACHED');assert.equal(r.text,'');assert.equal(r.usable,false);assert.equal(calls,1);
 });
 test('cancelled and timed out requests persist terminal status and release single-flight lock',async t=>{
  const waits=async(a,m,c,q,{signal})=>new Promise((resolve,reject)=>{signal.addEventListener('abort',()=>reject(new Error('cancel')),{once:true});});

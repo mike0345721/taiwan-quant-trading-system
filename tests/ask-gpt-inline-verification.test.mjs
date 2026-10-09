@@ -1,0 +1,305 @@
+// Sanitized synthetic evidence only. All inference/transport/store operations are
+// injected; no credentials, raw ledger, running dashboard or model requests.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import vm from 'node:vm';
+import { randomUUID } from 'node:crypto';
+import { CONTENT_SCHEMA, verifyAnalysisContent, analysisContentContract } from '../src/ask-gpt-inline-verification.mjs';
+import { buildInlineContext } from '../src/ask-gpt-inline-context.mjs';
+import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs';
+import { InlineAssistant } from '../src/ask-gpt-inline-service.mjs';
+import { readAnalysisStream } from '../src/chatgpt-plan-inference.mjs';
+
+test.before(() => { globalThis.fetch = () => { throw Error('REAL_NETWORK_FORBIDDEN'); }; });
+const now = Date.parse('2026-10-09T02:00:00Z');
+const stamp = new Date(now).toISOString();
+function snapshot(price = 49046, vwap = 48981.43164262448) {
+  const node = { id: 'VWAP', family: 'VWAP', price: vwap, state: 'MONITORING', qualityStatus: 'PASS', availableAt: stamp };
+  const side = { state: 'WAIT_CONFIRMATION', flowConfirmationState: 'UNAVAILABLE', confirmationThreshold: null, invalidationThreshold: null, target: null, rr: { state: 'UNAVAILABLE', ratio: null, riskPoints: null, rewardPoints: null } };
+  return createDecisionSnapshot({
+    snapshotTime: stamp, dataHealth: { items: [], overall: 'PARTIAL', unavailableCount: 0, staleCount: 0 },
+    chart: { lastPrice: price, source: 'SYNTHETIC_ONLY', availableAt: stamp, tradeDate: '2026-10-09', actualContract: 'TXFJ6', session: 'DAY', bars: [], levels: { vwap: { availability: 'AVAILABLE', value: vwap, availableAt: stamp, source: 'SYNTHETIC_ONLY' } } },
+    levelWatch: { state: 'READY', currentPrice: price, nextWatch: node, levels: [node], scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: { ...side }, short: { ...side } }, formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false, executionAuthorized: false, orderRoutesEnabled: false },
+  });
+}
+const context = () => buildInlineContext(snapshot(), { now }).context;
+const answer = (c = context()) => ({
+  schema: CONTENT_SCHEMA, directionState: c.levelWatch.scenarioWatch.directionState,
+  nodeState: c.levelWatch.scenarioWatch.node.state,
+  facts: [{ field: 'price.value', value: c.price.value }, { field: 'VWAP.value', value: Number(c.VWAP.value.toFixed(2)) }],
+  comparisons: [{ left: 'price.value', operator: c.price.value > c.VWAP.value ? 'ABOVE' : c.price.value < c.VWAP.value ? 'BELOW' : 'EQUAL', right: 'VWAP.value' }],
+});
+const verify = (a, c = context()) => verifyAnalysisContent(JSON.stringify(a), c);
+const extraFact = (field, value) => ({ ...answer(), facts: [...answer().facts, { field, value }] });
+
+test('valid conservative field claims preserve WATCH/MONITORING and safe rounding', () => {
+  const result = verify(answer());
+  assert.match(result.text, /VWAP：48981\.43/);
+  assert.match(result.text, /快照價格 49046 高於 VWAP 48981\.43/);
+  assert.match(result.text, /雙向觀察，方向未定/);
+  assert.match(result.text, /持續觀察，尚未進入測試/);
+  assert.match(result.text, /不提供買賣建議/);
+  assert.equal(result.verification.status, 'PASSED');
+  const c = context();
+  assert.equal(result.verification.contextHash, buildInlineContext(snapshot(), { now }).contextHash);
+  assert.equal(verify({ ...answer(), facts: [{ field: 'price.value', value: 49046 }, { field: 'VWAP.value', value: c.VWAP.value }] }).verification.status, 'PASSED');
+  const pretty = JSON.stringify(answer(), null, 2).replace('49046', '49046.00').replace('48981.43', '48981.4300');
+  assert.equal(verifyAnalysisContent(pretty, c).text, result.text);
+});
+
+test('sanitized original wrong VWAP, contradictory comparison and state promotion all fail', () => {
+  const prose = 'VWAP=49981.43。49046 高於 49981.43。VWAP=49981.43。目前為 active bidirectional TEST，已確認多方。';
+  assert.throws(() => verifyAnalysisContent(prose, context()), /CONTENT_FORMAT_INVALID/);
+  const bad = answer(); bad.facts[1].value = 49981.43;
+  assert.throws(() => verify(bad), /CONTENT_FACT_MISMATCH/);
+  const wrongComparison = answer(); wrongComparison.comparisons[0].operator = 'BELOW';
+  assert.throws(() => verify(wrongComparison), /CONTENT_COMPARISON_MISMATCH/);
+  for (const patch of [{ directionState: 'BIDIRECTIONAL_TEST' }, { nodeState: 'TESTING' }, { directionState: 'LONG_CONFIRMED' }, { directionState: 'SHORT_CONFIRMED' }]) {
+    assert.throws(() => verify({ ...answer(), ...patch }), /CONTENT_STATE_MISMATCH/);
+  }
+  assert.throws(() => verify({ ...bad, directionState: 'BIDIRECTIONAL_TEST', nodeState: 'TESTING' }), /CONTENT_STATE_MISMATCH/);
+});
+
+test('numbers are checked by field, never by membership in the context', () => {
+  const c = structuredClone(context()); c.OR = { availability: 'AVAILABLE', value: { high: 49981.43, low: 48000 } };
+  const bad = answer(c); bad.facts[1].value = 49981.43;
+  assert.throws(() => verify(bad, c), /CONTENT_FACT_MISMATCH/);
+  const swapped = answer(); [swapped.facts[0].value, swapped.facts[1].value] = [swapped.facts[1].value, swapped.facts[0].value];
+  assert.throws(() => verify(swapped), /CONTENT_FACT_MISMATCH/);
+});
+
+test('generalized price values, rounding boundaries and exact comparisons do not depend on incident prices', () => {
+  for (const [price, vwap] of [[112, 101.23456], [58, 61.9988], [777, 777], [0.001, 0.004], [-15, -12.349], [123456.78, 123000.1234]]) {
+    const c = buildInlineContext(snapshot(price, vwap), { now }).context;
+    assert.equal(verify(answer(c), c).verification.status, 'PASSED');
+    for (const offset of [0.01, -0.01, 1000]) {
+      const wrong = answer(c); wrong.facts[1].value = Number((wrong.facts[1].value + offset).toFixed(2));
+      assert.throws(() => verify(wrong, c), /CONTENT_FACT_MISMATCH/);
+    }
+    const wrong = answer(c); wrong.comparisons[0].operator = wrong.comparisons[0].operator === 'ABOVE' ? 'BELOW' : 'ABOVE';
+    assert.throws(() => verify(wrong, c), /CONTENT_COMPARISON_MISMATCH/);
+  }
+  const c = buildInlineContext(snapshot(100.003, 100.004), { now }).context;
+  assert.match(verify(answer(c), c).text, /100\.003 低於 VWAP 100\.004/);
+  const equal = answer(c); equal.comparisons[0].operator = 'EQUAL';
+  assert.throws(() => verify(equal, c), /CONTENT_COMPARISON_MISMATCH/);
+});
+
+test('unknown/stale facts cannot become zero, thresholds, targets or recomputed R:R', () => {
+  const c = structuredClone(context()); c.VWAP.availability = 'STALE';
+  const unknown = answer(c); unknown.facts[1].value = null; unknown.comparisons = [];
+  assert.match(verify(unknown, c).text, /VWAP：未知／不可用/);
+  for (const value of [0, c.VWAP.value]) {
+    unknown.facts[1].value = value;
+    assert.throws(() => verify(unknown, c), /CONTENT_FACT_MISMATCH/);
+  }
+  for (const field of ['confirmationThreshold', 'invalidationThreshold', 'target.price', 'rr.ratio', 'rr.riskPoints', 'rr.rewardPoints']) {
+    const name = 'levelWatch.scenarioWatch.long.' + field;
+    assert.throws(() => verify(extraFact(name, 100)), /CONTENT_FACT_MISMATCH/);
+    assert.match(verify(extraFact(name, null)).text, /未知／不可用/);
+  }
+  assert.throws(() => verify(extraFact('levelWatch.scenarioWatch.long.state', 'CONFIRMED')), /CONTENT_STATE_MISMATCH/);
+  assert.throws(() => verify(extraFact('levelWatch.scenarioWatch.long.flowConfirmationState', 'ALIGNED')), /CONTENT_STATE_MISMATCH/);
+});
+
+test('available thresholds/target/R:R keep side attribution and conditional language', () => {
+  const c = structuredClone(context());
+  Object.assign(c.levelWatch.scenarioWatch.long, { confirmationThreshold: 50000, invalidationThreshold: 49000, target: { price: 51000, qualityStatus: 'PASS', importanceBand: 'STRUCTURAL' }, rr: { state: 'AVAILABLE', ratio: 1, riskPoints: 1000, rewardPoints: 1000 } });
+  const a = answer(c);
+  for (const [field, value] of [['confirmationThreshold', 50000], ['invalidationThreshold', 49000], ['target.price', 51000], ['rr.ratio', 1]]) a.facts.push({ field: 'levelWatch.scenarioWatch.long.' + field, value });
+  assert.match(verify(a, c).text, /多方條件式確認門檻（不代表已成立）：50000/);
+  a.facts[2].field = 'levelWatch.scenarioWatch.short.confirmationThreshold';
+  assert.throws(() => verify(a, c), /CONTENT_FACT_MISMATCH/);
+  c.levelWatch.scenarioWatch.long.rr.state = 'UNAVAILABLE';
+  assert.throws(() => verify(extraFact('levelWatch.scenarioWatch.long.rr.ratio', 1), c), /CONTENT_FACT_MISMATCH/);
+});
+
+test('ambiguous numbers, free prose, recommendations and unsupported fields are rejected as a whole', () => {
+  for (const value of ['48,981.43', '４８９８１．４３', '四萬八千九百八十一', '4.898143e4', 'about 48981', '48981–48982', '48981.43 BUY', true, {}, []]) {
+    const a = answer(); a.facts[1].value = value;
+    assert.throws(() => verify(a), /CONTENT_FACT_MISMATCH/);
+  }
+  for (const field of ['VWAP', 'target', 'BUY', 'SELL', 'confidence', '__proto__', 'options.value.callWall']) {
+    assert.throws(() => verify(extraFact(field, 49046)), /CONTENT_FIELD_AMBIGUOUS/);
+  }
+  for (const text of ['BUY', 'SELL', '建議買入', '空方已確認', '若突破 99999 就進場']) {
+    assert.throws(() => verify({ ...answer(), explanation: text }), /CONTENT_FORMAT_INVALID/);
+    assert.throws(() => verifyAnalysisContent(JSON.stringify(answer()) + '\n' + text, context()), /CONTENT_FORMAT_INVALID/);
+  }
+  const duplicate = answer(); duplicate.facts.push({ ...duplicate.facts[1] });
+  assert.throws(() => verify(duplicate), /CONTENT_FIELD_AMBIGUOUS/);
+  assert.throws(() => verify({ ...answer(), facts: answer().facts.slice(0, 1) }), /CONTENT_FORMAT_INVALID/);
+  const raw = JSON.stringify(answer());
+  assert.throws(() => verifyAnalysisContent(raw.replace('"nodeState":', '"nodeState":"TESTING","nodeState":'), context()), /CONTENT_AMBIGUOUS_ENCODING/);
+  assert.throws(() => verifyAnalysisContent(raw.replace('49046', '4.9046e4'), context()), /CONTENT_AMBIGUOUS_ENCODING/);
+  assert.throws(() => verifyAnalysisContent(raw.replace('49046', '49046.0000000000001'), context()), /CONTENT_AMBIGUOUS_ENCODING/);
+  assert.throws(() => verifyAnalysisContent(raw.replace('"VWAP.value"', '"\\u0056WAP.value"'), context()), /CONTENT_AMBIGUOUS_ENCODING/);
+});
+
+test('comparisons require known price fields and never accept naked numbers or unit mixing', () => {
+  for (const comparison of [
+    { left: 49046, operator: 'ABOVE', right: 49981.43 },
+    { left: 'price.value', operator: '高於', right: 'VWAP.value' },
+    { left: 'price.value', operator: 'ABOVE', right: 'target' },
+    { left: 'price.value', operator: 'ABOVE', right: 'price.value' },
+  ]) assert.throws(() => verify({ ...answer(), comparisons: [comparison] }), /CONTENT_COMPARISON_AMBIGUOUS/);
+  const a = extraFact('levelWatch.scenarioWatch.long.rr.ratio', null);
+  a.comparisons = [{ left: 'price.value', operator: 'ABOVE', right: 'levelWatch.scenarioWatch.long.rr.ratio' }];
+  assert.throws(() => verify(a), /CONTENT_COMPARISON_AMBIGUOUS/);
+});
+
+test('exact TESTING context can be described without directional confirmation; unknown stays unknown', () => {
+  const c = structuredClone(context()); c.levelWatch.scenarioWatch.directionState = 'BIDIRECTIONAL_TEST'; c.levelWatch.scenarioWatch.node.state = 'TESTING';
+  assert.match(verify(answer(c), c).text, /雙向測試，方向未定/);
+  c.levelWatch.scenarioWatch = null;
+  assert.match(verify({ ...answer(), directionState: null, nodeState: null }, c).text, /方向狀態未知/);
+});
+
+test('bounded context is deeply frozen and response contract uses only known fields', () => {
+  const c = context();
+  assert.throws(() => { c.VWAP.value = 49981.43; }, TypeError);
+  assert.throws(() => { c.levelWatch.scenarioWatch.node.state = 'TESTING'; }, TypeError);
+  const contract = analysisContentContract(c);
+  assert.equal(contract.fields.find(f => f.field === 'VWAP.value').expected, c.VWAP.value);
+  assert.equal(contract.fields.some(f => /options|cvd|order/i.test(f.field)), false);
+});
+
+function fixture(t, output, mode = 'completed') {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-content-test-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let calls = 0;
+  const config = { enabled: true, root, runtimeCommit: 'f80a8f9f596fd560883727f2ddbc6d9cf7e7c75b', now: () => now,
+    snapshotProvider: async () => ({ snapshot: snapshot() }), storeFactory: () => ({}), configureTransport: () => {}, minIntervalMs: 0,
+    operations: { freshPlanRecord: async () => ({}), planCatalog: async () => [{ slug: 'synthetic' }], analysePlan: async (_a, _m, c, _q, { onText, signal }) => {
+      calls++; assert.ok(Object.isFrozen(c.VWAP)); onText('unsafe partial: VWAP 49981.43 BUY');
+      if (mode === 'failure') throw Error('unsafe provider message');
+      if (mode === 'wait') return new Promise((_, reject) => signal.addEventListener('abort', () => reject(Error('aborted')), { once: true }));
+      return { text: output, terminal: 'response.completed', model: 'synthetic-actual', requestId: 'resp_synthetic', usage: { total_tokens: 11 } };
+    } },
+  };
+  const assistant = new InlineAssistant(config);
+  t.after(() => assistant.close());
+  const body = { requestId: randomUUID(), account: 'a'.repeat(64), model: 'synthetic', question: 'synthetic only', creditsDisabledConfirmed: true };
+  return { assistant, config, body, calls: () => calls };
+}
+
+test('completed invalid answer fails truthfully, keeps metadata, leaks no text through events/disk/recovery/idempotency', async t => {
+  const bad = answer(); bad.facts[1].value = 49981.43;
+  const s = fixture(t, JSON.stringify(bad)), events = [];
+  const r = await s.assistant.run(s.body, 'test-owner', { onEvent: e => events.push(e) });
+  assert.equal(r.phase, 'FAILED'); assert.equal(r.error.code, 'CONTENT_FACT_MISMATCH');
+  assert.equal(r.text, ''); assert.equal(r.usable, false);
+  assert.equal(r.actualModel, 'synthetic-actual'); assert.equal(r.usage.total_tokens, 11);
+  assert.equal(r.terminal, 'response.completed');
+  assert.ok(events.every(e => e.type === 'receipt' && e.data.text === '' && e.data.usable === false));
+  const disk = fs.readFileSync(s.assistant.file(s.body.requestId), 'utf8');
+  assert.doesNotMatch(disk, /49981\.43|unsafe partial|unsafe provider/);
+  const recovered = new InlineAssistant(s.config).read(s.body.requestId, 'test-owner');
+  assert.equal(recovered.phase, 'FAILED'); assert.equal(recovered.text, '');
+  assert.equal((await s.assistant.run(s.body, 'test-owner')).text, ''); assert.equal(s.calls(), 1);
+});
+
+test('valid output is published only after verification and survives verified recovery', async t => {
+  const s = fixture(t, JSON.stringify(answer())), events = [];
+  const r = await s.assistant.run(s.body, 'test-owner', { onEvent: e => events.push(e) });
+  assert.equal(r.phase, 'COMPLETED'); assert.equal(r.usable, true);
+  assert.equal(r.contentVerification.status, 'PASSED'); assert.equal(r.validatedClaims, undefined);
+  assert.ok(events.slice(0, -1).every(e => e.data.text === '' && !e.data.usable));
+  assert.equal(events.at(-2).data.phase, 'VERIFYING_CONTENT');
+  assert.equal(events.at(-1).data.text, r.text);
+  assert.equal(new InlineAssistant(s.config).read(s.body.requestId, 'test-owner').text, r.text);
+});
+
+test('every completed semantic failure is persisted as FAILED before it can become usable', async t => {
+  const price = answer(); price.facts[1].value = 49981.43;
+  const comparison = answer(); comparison.comparisons[0].operator = 'BELOW';
+  const state = { ...answer(), directionState: 'BIDIRECTIONAL_TEST', nodeState: 'TESTING' };
+  for (const [raw, code] of [
+    [JSON.stringify(price), 'CONTENT_FACT_MISMATCH'],
+    [JSON.stringify(comparison), 'CONTENT_COMPARISON_MISMATCH'],
+    [JSON.stringify(state), 'CONTENT_STATE_MISMATCH'],
+    ['VWAP=49981.43。49046 高於 49981.43。VWAP=49981.43。active bidirectional TEST。', 'CONTENT_FORMAT_INVALID'],
+  ]) {
+    const s = fixture(t, raw), events = [];
+    const result = await s.assistant.run(s.body, 'test-owner', { onEvent: e => events.push(e) });
+    assert.equal(result.phase, 'FAILED'); assert.equal(result.error.code, code);
+    assert.ok(events.every(e => e.data.phase !== 'COMPLETED' && e.data.text === ''));
+    const saved = JSON.parse(fs.readFileSync(s.assistant.file(s.body.requestId), 'utf8'));
+    assert.equal(saved.phase, 'FAILED'); assert.equal(saved.error.code, code);
+    assert.equal(saved.actualModel, 'synthetic-actual'); assert.equal(saved.usage.total_tokens, 11);
+    assert.equal(saved.text, ''); assert.equal(saved.validatedClaims, undefined);
+  }
+});
+
+test('legacy or altered COMPLETED receipts never recover accepted unsafe text', async t => {
+  const s = fixture(t, JSON.stringify(answer()));
+  await s.assistant.run(s.body, 'test-owner');
+  const file = s.assistant.file(s.body.requestId), original = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const change of [
+    r => { delete r.contentVerification; delete r.validatedClaims; r.text = 'unsafe legacy'; },
+    r => { r.text += '\nBUY 49981.43'; },
+    r => { r.context.VWAP.value = 49981.43; },
+    r => { r.validatedClaims.nodeState = 'TESTING'; },
+    r => { r.contentVerification.contextHash = '0'.repeat(64); },
+    r => { r.contentVerification.textHash = '0'.repeat(64); },
+    r => { r.contentVerification.scope = 'GENERAL_SEMANTIC_CORRECTNESS'; },
+  ]) {
+    const changed = structuredClone(original); change(changed); fs.writeFileSync(file, JSON.stringify(changed));
+    const before = fs.readFileSync(file, 'utf8');
+    const r = new InlineAssistant(s.config).read(s.body.requestId, 'test-owner');
+    assert.equal(r.phase, 'FAILED'); assert.equal(r.error.code, 'CONTENT_UNVERIFIED_RECEIPT');
+    assert.equal(r.text, ''); assert.equal(r.usable, false);
+    assert.equal(fs.readFileSync(file, 'utf8'), before, 'old receipt evidence must not be rewritten');
+  }
+  for (const phase of ['FAILED', 'CANCELLED', 'TIMED_OUT', 'INTERRUPTED', 'ANALYSING']) {
+    const changed = { ...original, phase, text: 'unsafe legacy partial' };
+    fs.writeFileSync(file, JSON.stringify(changed));
+    const recovered = new InlineAssistant(s.config).read(s.body.requestId, 'test-owner');
+    assert.equal(recovered.text, ''); assert.equal(recovered.usable, false);
+  }
+});
+
+test('failure and cancellation discard partial text even if a provider invokes onText with content', async t => {
+  for (const mode of ['failure', 'wait']) {
+    const s = fixture(t, '', mode), events = [], controller = new AbortController();
+    const task = s.assistant.run(s.body, 'test-owner', { signal: controller.signal, onEvent: e => events.push(e) });
+    if (mode === 'wait') { await new Promise(resolve => setImmediate(resolve)); controller.abort(); }
+    const r = await task;
+    assert.equal(r.phase, mode === 'wait' ? 'CANCELLED' : 'FAILED');
+    assert.equal(r.text, ''); assert.ok(events.every(e => e.data.text === ''));
+    assert.doesNotMatch(fs.readFileSync(s.assistant.file(s.body.requestId), 'utf8'), /unsafe partial|unsafe provider/);
+  }
+});
+
+test('inference onText is progress-only; completion still returns private raw data for verification', async () => {
+  const observed = [], raw = 'unsafe raw model text';
+  const stream = new Response([
+    { type: 'response.output_text.delta', delta: raw },
+    { type: 'response.completed', response: { status: 'completed', model: 'synthetic', id: 'resp_synthetic' } },
+  ].map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('')).body;
+  const r = await readAnalysisStream(stream, { onText: (...args) => observed.push(args) });
+  assert.deepEqual(observed, [[]]); assert.equal(r.text, raw);
+});
+
+test('browser receipt/recovery requires the verification marker; legacy text events cannot render', () => {
+  const source = fs.readFileSync(new URL('../public/ask-gpt-inline.js', import.meta.url), 'utf8');
+  const nodes = new Map(), node = id => { if (!nodes.has(id)) nodes.set(id, { dataset: {} }); return nodes.get(id); };
+  const sandbox = { $: node, text: (id, value) => { node(id).textContent = value; }, feedback() {}, phases: {}, reasonText: x => x, requestId: 'test', finished: false };
+  const start = source.indexOf(' function receipt(r){'), end = source.indexOf(' async function recover()', start);
+  vm.runInNewContext(source.slice(start, end) + '\nthis.receive=receipt;', sandbox);
+  for (const r of [
+    { phase: 'ANALYSING' }, { phase: 'FAILED' }, { phase: 'COMPLETED' },
+    { phase: 'COMPLETED', usable: true, contentVerification: { status: 'PASSED' } },
+  ]) {
+    sandbox.receive({ ...r, requestId: 'test', text: 'unsafe text' });
+    assert.doesNotMatch(node('ai-answer').textContent, /unsafe/); assert.equal(node('ai-answer').dataset.complete, 'false');
+  }
+  sandbox.receive({ requestId: 'test', phase: 'COMPLETED', usable: true, contentVerification: { schema: CONTENT_SCHEMA, status: 'PASSED' }, text: 'verified text' });
+  assert.equal(node('ai-answer').textContent, 'verified text');
+  const lineStart = source.indexOf('  function line(s){'), lineEnd = source.indexOf('\n', lineStart);
+  vm.runInNewContext(source.slice(lineStart, lineEnd) + '\nline(JSON.stringify({type:"text",requestId:"test",text:"unsafe stream"}));', sandbox);
+  assert.equal(node('ai-answer').textContent, 'verified text');
+});

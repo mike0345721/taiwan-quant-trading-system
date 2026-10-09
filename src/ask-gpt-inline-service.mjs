@@ -7,6 +7,7 @@ import { configurePlanTransport } from './chatgpt-plan-transport.mjs';
 import { startPlanSetup } from './chatgpt-plan-setup.mjs';
 import { freshPlanRecord, planCatalog, analysePlan, analysisError } from './chatgpt-plan-inference.mjs';
 import { buildInlineContext } from './ask-gpt-inline-context.mjs';
+import { verifyAnalysisContent, verifiedReceiptText } from './ask-gpt-inline-verification.mjs';
 const terminal=new Set(['COMPLETED','FAILED','TIMED_OUT','CANCELLED','INTERRUPTED']);
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ownerHash=s=>createHash('sha256').update(s).digest('hex');
@@ -60,7 +61,15 @@ export class InlineAssistant {
   if(!terminal.has(r.phase)&&r.instance!==this.instance)return this.public({...r,phase:'INTERRUPTED',error:{code:'PREVIOUS_REQUEST_STATE_UNVERIFIED'}});
   return this.public(r);
  }
- public(r){const{ownerHash:ignored,instance:ignoredInstance,account:ignoredAccount,accountFingerprint:ignoredFingerprint,...out}=r;return structuredClone({...out,finished:terminal.has(r.phase)});}
+ public(r){
+  const{ownerHash:ignored,instance:ignoredInstance,account:ignoredAccount,accountFingerprint:ignoredFingerprint,validatedClaims:ignoredClaims,...out}=r;
+  out.text='';out.usable=false;
+  if(r.phase==='COMPLETED'){
+   try{out.text=verifiedReceiptText(r);out.usable=true;}
+   catch{out.phase='FAILED';out.error={code:'CONTENT_UNVERIFIED_RECEIPT'};out.contentVerification={status:'FAILED',reason:'CONTENT_UNVERIFIED_RECEIPT'};}
+  }
+  return structuredClone({...out,finished:terminal.has(out.phase)});
+ }
  persist(r){
   r.updatedAt=new Date(this.now()).toISOString();const file=this.file(r.requestId),tmp=file+'.'+randomUUID()+'.tmp';
   try{const json=JSON.stringify(r);if(Buffer.byteLength(json)>262144)reject('ANALYSIS_RECEIPT_LIMIT');fs.writeFileSync(tmp,json,{flag:'wx',mode:0o600});fs.renameSync(tmp,file);}
@@ -86,7 +95,7 @@ export class InlineAssistant {
   const controller=new AbortController(),abort=()=>controller.abort(signal.reason||'CANCELLED');
   if(signal?.aborted){releaseLock();reject('REQUEST_CANCELLED');}signal?.addEventListener('abort',abort,{once:true});
   const r={schema:'ask-gpt-inline-receipt-v1',requestId:body.requestId,instance:this.instance,ownerHash:ownerHash(owner),account:body.account,accountFingerprint:accountFingerprint(body.account),question:body.question.trim(),requestedModel:body.model,actualModel:null,runtimeCommit:this.runtimeCommit,phase:'PREPARING_SNAPSHOT',createdAt:new Date(this.now()).toISOString(),updatedAt:new Date(this.now()).toISOString(),snapshotHash:null,snapshotTime:null,contextHash:null,context:null,text:'',error:null,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false,creditsConfirmation:'EXPLICIT_REQUEST_CONFIRMED_NOT_BILLING_API_AUDIT',researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
-  const job={record:r,controller};this.active=job;let lastTextEvent=0,ownsReceipt=false;
+  const job={record:r,controller};this.active=job;let ownsReceipt=false;
   const notify=event=>{try{onEvent(event);}catch{controller.abort('CONNECTION_CLOSED');}};
   const emit=()=>notify({type:'receipt',data:this.public(r)});
   const update=phase=>{r.phase=phase;this.persist(r);emit();};
@@ -100,13 +109,22 @@ export class InlineAssistant {
    const models=await this.ops.planCatalog(record,{signal:controller.signal});check();
    if(!models.some(m=>m.slug===body.model))reject('MODEL_NOT_IN_ACCOUNT_CATALOG');
    r.localUsage=this.reserveAttempt(r.requestId);update('ANALYSING');
-   const result=await this.ops.analysePlan(record,body.model,r.context,r.question,{signal:controller.signal,onText:text=>{check();r.text=text;if(this.now()-lastTextEvent>200){lastTextEvent=this.now();notify({type:'text',requestId:r.requestId,text});}}});
+   // Raw output remains private to inference until the complete claim document is
+   // verified. Even injected providers cannot leak deltas into receipts or events.
+   const result=await this.ops.analysePlan(record,body.model,r.context,r.question,{signal:controller.signal,onText:()=>check()});
    check();if(result.terminal!=='response.completed'||!result.text?.trim())reject('STREAM_INTERRUPTED');
-   r.text=result.text;r.actualModel=result.model;r.providerRequestId=result.requestId;r.usage=result.usage;r.terminal=result.terminal;update('COMPLETED');
+   r.actualModel=result.model;r.providerRequestId=result.requestId;r.usage=result.usage;r.terminal=result.terminal;
+   update('VERIFYING_CONTENT');check();
+   const verified=verifyAnalysisContent(result.text,r.context);
+   if(verified.verification.contextHash!==r.contextHash)reject('CONTENT_CONTEXT_MISMATCH');
+   r.text=verified.text;r.validatedClaims=verified.claims;r.contentVerification=verified.verification;
+   update('COMPLETED');
   }catch(e){
    if(!ownsReceipt)throw new PlanError('REQUEST_ID_COLLISION');
    const timed=controller.signal.reason==='TIMED_OUT';const cancelled=controller.signal.aborted&&!timed;const derived=analysisError(e);const componentTimed=derived.code==='REQUEST_TIMED_OUT';
    r.phase=cancelled?'CANCELLED':(timed||componentTimed)?'TIMED_OUT':'FAILED';r.error=cancelled?{code:'REQUEST_CANCELLED'}:(timed||componentTimed)?{...derived,code:'REQUEST_TIMED_OUT'}:derived;
+   r.text='';delete r.validatedClaims;
+   r.contentVerification={status:'FAILED',reason:r.error.code};
    controller.abort(r.phase);
    try{this.persist(r);}catch{r.error={code:'ANALYSIS_RECEIPT_WRITE_FAILED'};}
    emit();

@@ -6,6 +6,10 @@ const hash=s=>createHash('sha256').update(s).digest('hex');
 const pick=(value,keys)=>Object.fromEntries(keys.map(k=>[k,value?.[k]??null]));
 const AVAIL=['availability','value','sourceId','availableAt','reason'];
 const row=r=>pick(r,['name','categoryName','points']);
+function freezeTree(value){
+ if(value&&typeof value==='object'){for(const child of Object.values(value))freezeTree(child);Object.freeze(value);}
+ return value;
+}
 const smallValue=v=>{
  if(v==null||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v)))return v;
  if(typeof v==='string'&&v.length<=1000)return v;
@@ -72,5 +76,5 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
  };
  validateTree(context);const input=JSON.stringify(context);
  if(Buffer.byteLength(input)>40000)throw new PlanError('CONTEXT_SIZE_LIMIT');
- return{context:JSON.parse(input),contextHash:hash(input),inputBytes:Buffer.byteLength(input),snapshotHash:d.snapshotHash,snapshotTime:d.snapshotTime};
+ return{context:freezeTree(JSON.parse(input)),contextHash:hash(input),inputBytes:Buffer.byteLength(input),snapshotHash:d.snapshotHash,snapshotTime:d.snapshotTime};
 }
