@@ -3089,10 +3089,12 @@ function observedFlowPressureSide(pressure, sourceState = 'LIVE') {
     || '方向判定受限';
 }
 
-function observedFlowRelation(response) {
-  return ({ SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
+function observedFlowRelation(response, sourceState = 'LIVE') {
+  const label = ({ SAME_DIRECTION: '同方向反應', OPPOSITE_DIRECTION: '反方向反應',
     FLAT_PRICE: '價格持平', PRESSURE_UNAVAILABLE: '成交力道不可判定' })[response?.directionRelation]
     || '成交力道不可判定';
+  return sourceState !== 'LIVE' && label !== '成交力道不可判定'
+    ? `快照：${label}（非目前盤勢）` : label;
 }
 
 function observedFlowSelectedSummary(value, definition, window, available, reason) {
@@ -3103,8 +3105,8 @@ function observedFlowSelectedSummary(value, definition, window, available, reaso
   if (window?.truthState === 'WARMING_UP') {
     return `成交壓力暖機中；價格反應暖機中；路徑效率暖機中；完整 ${definition.label} 歷史尚未累積完成。`;
   }
-  if (!available) {
-    const unavailable = dwHumanize(reason);
+  if (!available || window?.truthState === 'UNAVAILABLE' || window?.status === 'UNAVAILABLE') {
+    const unavailable = dwHumanize(window?.unavailableReason || reason);
     return `成交壓力不可用；價格反應不可用；路徑效率不可用；可判定成交占比與 Data Trust 不可用（${unavailable}）。`;
   }
   const pressure = window?.pressure || {};
@@ -3115,7 +3117,7 @@ function observedFlowSelectedSummary(value, definition, window, available, reaso
     : `成交壓力 ${observedFlowMetric(ratio, { signedValue: true, digits: 3 })}（${side}）`;
   const displacement = window?.response?.displacementPoints;
   const responseText = displacement !== null && displacement !== undefined && Number.isFinite(Number(displacement))
-    ? `價格反應 ${observedFlowMetric(displacement, { signedValue: true, suffix: ' 點', digits: 0 })}（${observedFlowRelation(window?.response)}）`
+    ? `價格反應 ${observedFlowMetric(displacement, { signedValue: true, suffix: ' 點', digits: 0 })}（${observedFlowRelation(window?.response, value.sourceState)}）`
     : '價格反應不可用';
   const path = window?.pathEfficiency?.value;
   const pathText = path !== null && path !== undefined && Number.isFinite(Number(path))
@@ -3134,7 +3136,7 @@ function renderObservedFlowPressure(window, suffix, available, reason, sourceSta
     ? observedFlowMetric(ratio, { signedValue: true, digits: 3 }) : null,
   { reason: legal ? (pressure.unavailableReason || 'FIELD_UNAVAILABLE') : reason });
   dwText(`dw-observed-flow-pressure-side-${suffix}`, legal ? observedFlowPressureSide(pressure, sourceState) : '不可判定');
-  dwText(`dw-observed-flow-relation-${suffix}`, available ? observedFlowRelation(window?.response) : '不可判定');
+  dwText(`dw-observed-flow-relation-${suffix}`, available ? observedFlowRelation(window?.response, sourceState) : '不可判定');
 }
 
 function renderObservedFlowStrip(value, available) {
@@ -3215,7 +3217,7 @@ function renderObservedFlowSelected(value, available, reason) {
     return;
   }
   const windowAvailable = available && window?.truthState !== 'WARMING_UP'
-    && window?.truthState !== 'UNAVAILABLE';
+    && window?.truthState !== 'UNAVAILABLE' && window?.status !== 'UNAVAILABLE';
   const pressure = window?.pressure || {};
   const ratio = windowAvailable ? observedFlowRatio(pressure) : null;
   const coverage = pressure.classifiedCoverage;
@@ -3231,7 +3233,7 @@ function renderObservedFlowSelected(value, available, reason) {
     && Number.isFinite(responsePoints);
   dwText('dw-flow-selected-response', responseReady
     ? observedFlowMetric(responsePoints, { signedValue: true, suffix: ' 點', digits: 0 }) : '不可用');
-  dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response) : '成交力道不可判定');
+  dwText('dw-flow-selected-relation', windowAvailable ? observedFlowRelation(window?.response, value.sourceState) : '成交力道不可判定');
   renderObservedFlowEnergy($('dw-flow-response-energy'), responseReady ? responsePoints : null, {
     range: 50, limited, inactive: value.sourceState !== 'LIVE',
   });
@@ -3258,10 +3260,19 @@ function renderObservedFlowSelected(value, available, reason) {
         : !pathReady
           ? (window?.pathEfficiency?.unavailableReason || 'PATH_EFFICIENCY_UNAVAILABLE')
           : null;
+  // Freshness and classification are separate limits. Never invent incomplete
+  // coverage merely because an otherwise complete snapshot is no longer live.
+  const limitationCode = value.sourceState !== 'LIVE' ? (value.sourceState || 'UNAVAILABLE')
+    : coverage !== 1 ? 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE'
+      : pressure.status !== 'READY' ? (pressure.unavailableReason || 'PRESSURE_UNAVAILABLE') : null;
+  const limitationLabel = ({ STALE: '資料過舊，僅供快照參考',
+    HISTORICAL: '歷史資料，非目前盤勢', WARMING_UP: '資料暖機中',
+    PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE: '分類覆蓋尚未完整',
+  })[limitationCode] || dwHumanize(limitationCode);
   dwText('dw-flow-selected-reason', selectedReasonCode
     ? `不可用｜${dwHumanize(selectedReasonCode)}`
-    : limited ? '有限制｜分類覆蓋尚未完整' : '資料可用');
-  dwText('dw-flow-selected-reason-code', selectedReasonCode || (limited ? 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE' : 'READY'));
+    : limitationCode ? `有限制｜${limitationLabel}` : '資料可用');
+  dwText('dw-flow-selected-reason-code', selectedReasonCode || limitationCode || 'READY');
   dwText('dw-flow-selected-lineage', value?.lineage?.cutoffLedgerOrdinal != null
     ? `ordinal ${value.lineage.cutoffLedgerOrdinal}` : '請由完整證據查看');
   const qualityLabel = ({ READY: '正常', PARTIAL: '有限制', QUALITY_INSUFFICIENT: '有限制', UNAVAILABLE: '不可用' })[window?.status || value.researchQuality?.status] || '不可用';
