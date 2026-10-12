@@ -19,7 +19,7 @@ function makeFixture(t) {
   fs.writeFileSync(path.join(root, 'scripts', 'run-test-lane.mjs'), `
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
-await sleep(process.argv[2] === 'ci' ? 600 : 250);
+await sleep(process.argv[2] === 'ci' ? 2000 : 250);
 if (process.argv[2] === 'ci') { console.log('synthetic ci pass'); process.exit(0); }
 console.error('synthetic windows fail'); process.exit(7);
 `);
@@ -128,4 +128,44 @@ test('if checked-out code changes during execution, a zero test exit is not acce
   const done = await until(() => f.invoke('status', started.runId), r => r.phase === 'SOURCE_CHANGED');
   assert.equal(done.needsManualReview, true);
   assert.equal(done.reason, 'WORKTREE_CHANGED_DURING_RUN');
+});
+
+
+test('active lease prevents a second launch, preserving the original run and releasing only after completion', async t => {
+  const f = makeFixture(t);
+  const started = f.invoke('start', 'ci', f.sha);
+  await until(() => f.invoke('status', started.runId), r => r.phase === 'RUNNING');
+  const exe = path.join(f.root, 'scripts', 'cru21-recorded-test-runner.mjs');
+  let code = '';
+  try {
+    execFileSync(process.execPath, [exe, 'start', 'windows', f.sha], {
+      cwd: f.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000,
+    });
+    assert.fail('Concurrent test should refuse to launch');
+  } catch (error) {
+    code = error.stderr?.toString() ?? '';
+  }
+  assert.match(code, /ACTIVE_RUN_EXISTS/);
+  assert.equal(fs.readdirSync(f.receiptDir).filter(file => file.endsWith('.json')).length, 1);
+  assert.equal(fs.existsSync(path.join(f.receiptDir, 'active-run.lock')), true);
+  const first = await until(() => f.invoke('status', started.runId), r => r.phase === 'PASSED');
+  assert.equal(first.exitCode, 0);
+  assert.equal(fs.existsSync(path.join(f.receiptDir, 'active-run.lock')), false);
+  const next = f.invoke('start', 'windows', f.sha);
+  const done = await until(() => f.invoke('status', next.runId), r => r.phase === 'FAILED');
+  assert.equal(done.exitCode, 7);
+  assert.equal(fs.existsSync(path.join(f.receiptDir, 'active-run.lock')), false);
+});
+
+test('stale or unknown active run lease is not automatically stolen or retried', t => {
+  const f = makeFixture(t);
+  fs.mkdirSync(f.receiptDir, { recursive: true });
+  const lease = '{"schema":"cru21-active-test-run-v1","runId":"00000000-0000-4000-8000-000000000001","expectedSha":"' + f.sha + '"}\n';
+  fs.writeFileSync(path.join(f.receiptDir, 'active-run.lock'), lease);
+  const exe = path.join(f.root, 'scripts', 'cru21-recorded-test-runner.mjs');
+  assert.throws(() => execFileSync(process.execPath, [exe, 'start', 'ci', f.sha], {
+    cwd: f.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000,
+  }), /ACTIVE_RUN_EXISTS/);
+  assert.equal(fs.readFileSync(path.join(f.receiptDir, 'active-run.lock'), 'utf8'), lease);
+  assert.equal(fs.readdirSync(f.receiptDir).filter(file => file.endsWith('.json')).length, 0);
 });

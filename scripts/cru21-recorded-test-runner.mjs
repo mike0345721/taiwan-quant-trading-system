@@ -19,6 +19,7 @@ import { execFileSync, spawn } from 'node:child_process';
 
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const receiptsRoot = path.join(projectRoot, 'data', 'cru21-recorded-test-runs');
+const activeLockPath = path.join(receiptsRoot, 'active-run.lock');
 const lanes = Object.freeze({
   ci: ['scripts/run-test-lane.mjs', 'ci'],
   windows: ['scripts/run-test-lane.mjs', 'windows'],
@@ -56,6 +57,32 @@ function ensurePrivateRoot() {
   if (fs.lstatSync(receiptsRoot).isSymbolicLink()) fail('RECEIPT_ROOT_SYMLINK');
   const rel = path.relative(projectRoot, fs.realpathSync(receiptsRoot));
   if (rel.startsWith('..') || path.isAbsolute(rel)) fail('RECEIPT_ROOT_OUTSIDE_REPO');
+}
+// A persistent exclusive lease prevents duplicate remote starts and two test
+// suites racing over Windows fixture branches. Unknown/stale leases are never
+// silently reclaimed: an operator must verify the associated run/process first.
+function reserveRun(record) {
+  const lease = { schema: 'cru21-active-test-run-v1', runId: record.runId, expectedSha: record.expectedSha };
+  try { fs.writeFileSync(activeLockPath, JSON.stringify(lease) + '\n', { flag: 'wx', mode: 0o600 }); }
+  catch (error) {
+    if (error?.code === 'EEXIST') fail('ACTIVE_RUN_EXISTS');
+    throw error;
+  }
+}
+function activeLeaseMatches(id) {
+  try {
+    if (fs.lstatSync(activeLockPath).isSymbolicLink()) return false;
+    const lease = JSON.parse(fs.readFileSync(activeLockPath, 'utf8'));
+    return lease.schema === 'cru21-active-test-run-v1' && lease.runId === id;
+  } catch { return false; }
+}
+function releaseRun(id) {
+  if (!activeLeaseMatches(id)) return false;
+  try {
+    if (!activeLeaseMatches(id)) return false;
+    fs.unlinkSync(activeLockPath);
+    return true;
+  } catch { return false; }
 }
 function recordPath(id) {
   assertRunId(id);
@@ -124,17 +151,20 @@ function start(lane, expectedSha) {
     finishedAt: null, workerPid: null, exitCode: null, signal: null,
     reason: null, log: `data/cru21-recorded-test-runs/${id}.log`,
   };
-  save(record, true);
+  reserveRun(record);
+  try { save(record, true); } catch (error) { releaseRun(id); throw error; }
   try {
     const subprocess = spawn(process.execPath, [fileURLToPath(import.meta.url), 'worker', id], {
       cwd: projectRoot, env: childEnv(), stdio: 'ignore', detached: true, windowsHide: true,
     });
     subprocess.on('error', () => { // A failed launch remains visible in the receipt.
       save({ ...record, phase: 'WORKER_ERROR', reason: 'WORKER_SPAWN_FAILED', finishedAt: now() });
+      releaseRun(id);
     });
     subprocess.unref();
   } catch {
     save({ ...record, phase: 'WORKER_ERROR', reason: 'WORKER_SPAWN_FAILED', finishedAt: now() });
+    releaseRun(id);
     fail('WORKER_SPAWN_FAILED');
   }
   return publicStatus(record);
@@ -142,6 +172,7 @@ function start(lane, expectedSha) {
 async function worker(id) {
   const record = load(id);
   if (record.phase !== 'STARTING') fail('WORKER_ALREADY_STARTED');
+  if (!activeLeaseMatches(id)) fail('ACTIVE_RUN_LEASE_MISMATCH');
   let heartbeatTimer;
   const update = changes => { Object.assign(record, changes); record.heartbeatAt = now(); save(record); };
   try {
@@ -167,6 +198,7 @@ async function worker(id) {
         reason = 'WORKTREE_CHANGED_DURING_RUN';
       }
       update({ phase, exitCode: Number.isInteger(code) ? code : null, signal: signal ?? null, reason, finishedAt: now() });
+      releaseRun(id);
     };
     child.once('error', () => finish(null, null, 'TEST_PROCESS_SPAWN_FAILED'));
     child.once('close', (code, signal) => finish(code, signal, code === 0 ? null : 'TEST_EXIT_NONZERO'));
@@ -175,6 +207,7 @@ async function worker(id) {
   } catch {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     update({ phase: 'WORKER_ERROR', reason: 'WORKER_SETUP_FAILED', finishedAt: now() });
+    releaseRun(id);
   }
 }
 function list() {
