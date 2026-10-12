@@ -1,3 +1,5 @@
+import { explainScenarioTarget, observationOnlyGuidance } from './scenario-target-diagnostics.mjs';
+
 const finite = value => value == null || value === '' || typeof value === 'boolean' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
 const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
 const iso = value => { const n=Date.parse(value); return Number.isFinite(n)?new Date(n).toISOString():null; };
@@ -301,13 +303,14 @@ function scenarioFlowState(direction,flow){
   const contrary=direction==='LONG'?flow.pressure60<0&&flow.response60<0:flow.pressure60>0&&flow.response60>0;
   return aligned?'ALIGNED':contrary?'CONTRARY':'MIXED';
 }
-function buildScenario(direction,node,target,{zone,currentPrice,flow}){
+function buildScenario(direction,node,target,{zone,currentPrice,flow,levels,chartQuality}){
   const long=direction==='LONG';
   const thresholdsAvailable=node.qualityStatus==='PASS'&&finite(zone)>0;
   const confirmThreshold=thresholdsAvailable?node.price+(long?zone:-zone):null;
   const invalidationThreshold=thresholdsAvailable?node.price+(long?-zone:zone):null;
   const priceGate=thresholdsAvailable&&(long?currentPrice>=confirmThreshold:currentPrice<=confirmThreshold);
   const rr=scenarioRr(direction,confirmThreshold,invalidationThreshold,target);
+  const targetDiagnostics=explainScenarioTarget({side:direction,node,levels,target,threshold:confirmThreshold,chartQuality});
   const targetPayload=target?Object.freeze({
     id:target.id,family:target.family,label:target.label,price:target.price,
     importanceBand:target.importanceBand,sourceId:target.sourceId,availableAt:target.availableAt,
@@ -327,6 +330,7 @@ function buildScenario(direction,node,target,{zone,currentPrice,flow}){
       ? `價格重新跌到 ${invalidationThreshold.toFixed(2)} 下方，或買方壓力增加但價格無法往上離開。`
       : `價格重新站上 ${invalidationThreshold.toFixed(2)}，或賣方壓力增加但價格無法往下離開。`,
     target:targetPayload,
+    targetDiagnostics,
     rr,
     recommendation:false,
   });
@@ -425,11 +429,19 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
       importanceBand:next.importanceBand,sourceId:next.sourceId,availableAt:next.availableAt,
       qualityStatus:next.qualityStatus,why:next.why,basisReasons:Object.freeze([...(next.basisReasons||[])]),
     }),
-    long:buildScenario('LONG',next,longTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow}),
-    short:buildScenario('SHORT',next,shortTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow}),
+    long:buildScenario('LONG',next,longTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality}),
+    short:buildScenario('SHORT',next,shortTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality}),
     rrMeaning:'CONDITIONAL_STRUCTURAL_RR_NOT_WIN_RATE_NOT_EV_NOT_ENTRY_ADVICE',
     recommendation:false,
   }):null;
+  // Preserve the selected node/targets/thresholds. Explain absence on the existing
+  // Next Watch surface so a blank target is not the entire decision explanation.
+  const observationGuidance=observationOnlyGuidance(next,scenarioWatch);
+  const explainedNext=next&&observationGuidance?{...next,
+    why:[observationGuidance.summary,observationGuidance.explanation,next.why].filter(Boolean).join(' '),
+    watchFor:observationGuidance.watchFor,
+    basisReasons:[...observationGuidance.basisReasons,...(next.basisReasons||[])],
+  }:next;
   const displayIds=[];
   const display=[];
   for(const level of [next,longTarget,shortTarget,...decorated]){
@@ -441,7 +453,7 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     schemaVersion:'decision-level-watch-v3',state:display.length?'READY':'UNAVAILABLE',reason:display.length?null:'NO_LAWFUL_LEVELS',snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,
     currentPrice,zonePoints:zone,zoneMethod:'35%_RECENT_COMPLETED_5M_MEDIAN_RANGE_CLAMP_6_30_OBSERVATION_ONLY',
     rankingMethod:'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY',
-    levels:freezeRows(display),nextWatch:next?Object.freeze({...next}):null,scenarioWatch,
+    levels:freezeRows(display),nextWatch:explainedNext?Object.freeze({...explainedNext}):null,scenarioWatch,observationGuidance,
     observedFlow:Object.freeze(flow),participation:Object.freeze(participation),
     formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false,
   });
