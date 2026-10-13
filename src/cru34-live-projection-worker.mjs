@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 import {
   buildCru34LiveCheckpoint,
   cru34LiveCanonicalJson,
@@ -9,6 +8,7 @@ import {
   writeCru34LiveCheckpoint,
 } from './cru34-live-checkpoint.mjs';
 import { buildCru34SemanticPayload, CRU34_SOURCE_MODE_LIVE } from './cru34-snapshot-artifact.mjs';
+import { publishCru34Snapshot } from './cru34-snapshot-publisher.mjs';
 import { buildTxIntradayResearchSnapshot, CONTEXT_WINDOW_MS } from './tx-intraday-research-snapshot.mjs';
 import {
   evaluateBestQuoteEligibility,
@@ -218,23 +218,6 @@ function warmupFor(events, cutoff) {
   });
 }
 
-function atomicWriteJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const temp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  const fd = fs.openSync(temp, 'wx');
-  try {
-    fs.writeFileSync(fd, `${cru34LiveCanonicalJson(value)}\n`, 'utf8');
-    fs.fsyncSync(fd);
-  } finally { fs.closeSync(fd); }
-  fs.renameSync(temp, filePath);
-  try {
-    const directoryFd = fs.openSync(path.dirname(filePath), 'r');
-    try { fs.fsyncSync(directoryFd); } finally { fs.closeSync(directoryFd); }
-  } catch (error) {
-    if (!['EINVAL', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
-  }
-}
-
 export function projectCru34LiveBatch({
   ledgerPath,
   checkpointPath,
@@ -246,6 +229,7 @@ export function projectCru34LiveBatch({
   maxLedgerBytes = null,
   staleAfterMs = DEFAULT_STALE_AFTER_MS,
   now = new Date(),
+  publishSnapshot = publishCru34Snapshot,
 } = {}) {
   if (!ledgerPath || !checkpointPath || !snapshotPath || !fs.existsSync(ledgerPath)) {
     throw new Error('CRU43_LIVE_PROJECTION_CONFIG_INVALID');
@@ -335,7 +319,6 @@ export function projectCru34LiveBatch({
     ...checkpoint,
     lastEmittedSemanticHash: semanticContentHash,
   });
-  writeCru34LiveCheckpoint(checkpointPath, nextCheckpoint);
   const operational = {
     schemaVersion: CRU34_LIVE_SNAPSHOT_VERSION,
     truthState,
@@ -358,6 +341,10 @@ export function projectCru34LiveBatch({
     orderRoutesEnabled: false,
   };
   const liveSnapshot = Object.freeze({ ...operational, snapshotHash: cru34LiveHash(operational) });
-  atomicWriteJson(snapshotPath, liveSnapshot);
+  publishSnapshot({ targetPath: snapshotPath, document: liveSnapshot });
+  // Commit progress only after publication. If publication fails, even an idle
+  // ledger can replay this suffix. A crash here replays verified input; it never
+  // skips an unpublished suffix or appends anything to the source ledger.
+  writeCru34LiveCheckpoint(checkpointPath, nextCheckpoint);
   return Object.freeze({ status: truthState, checkpoint: nextCheckpoint, snapshot: liveSnapshot });
 }

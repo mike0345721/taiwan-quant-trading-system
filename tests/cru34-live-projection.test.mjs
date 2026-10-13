@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { cru34LiveCanonicalJson, cru34LiveHash } from '../src/cru34-live-checkpoint.mjs';
 import { projectCru34LiveBatch } from '../src/cru34-live-projection-worker.mjs';
+import { publishCru34Snapshot } from '../src/cru34-snapshot-publisher.mjs';
 import { buildCru34SemanticPayload } from '../src/cru34-snapshot-artifact.mjs';
 import { buildTxIntradayResearchSnapshot } from '../src/tx-intraday-research-snapshot.mjs';
 import { readCru34LiveSnapshot } from '../src/dashboard-observed-flow.mjs';
@@ -78,6 +79,90 @@ test('idle NO_COMPLETE_SUFFIX preserves checkpoint and published snapshot bytes'
   assert.equal(idle.snapshot, null);
   assert.deepEqual(fs.readFileSync(value.checkpointPath), checkpointBefore);
   assert.deepEqual(fs.readFileSync(value.snapshotPath), snapshotBefore);
+});
+
+test('failed snapshot publication preserves checkpoint and recovers without another ledger append', () => {
+  const all = records();
+  const value = fixture(all.slice(0, 12));
+  const options = { ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024,
+    maxBatchRecords: 1000, now: new Date('2026-09-07T01:05:35Z') };
+  projectCru34LiveBatch(options);
+  const oldCheckpoint = fs.readFileSync(value.checkpointPath);
+  const oldSnapshot = fs.readFileSync(value.snapshotPath);
+  fs.appendFileSync(value.ledgerPath, `${all.slice(12).map(JSON.stringify).join('\n')}\n`);
+  const ledgerBefore = fs.readFileSync(value.ledgerPath);
+  const publishSnapshot = (args) => publishCru34Snapshot({ ...args, sleep: () => {},
+    io: { ...fs, renameSync() { throw Object.assign(new Error('synthetic rename denial'), { code: 'EPERM' }); } } });
+  assert.throws(() => projectCru34LiveBatch({ ...options, publishSnapshot }), (error) => error.code === 'EPERM');
+  assert.deepEqual(fs.readFileSync(value.snapshotPath), oldSnapshot);
+  assert.deepEqual(fs.readFileSync(value.checkpointPath), oldCheckpoint);
+  assert.equal(fs.readdirSync(value.root).some((name) => name.startsWith('latest.json.') && name.endsWith('.tmp')), false);
+
+  const recovered = projectCru34LiveBatch(options);
+  assert.equal(recovered.status, 'LIVE');
+  assert.equal(recovered.checkpoint.lastVerifiedLedgerOrdinal, all.length);
+  assert.equal(recovered.snapshot.checkpointOrdinal, all.length);
+  assert.equal(recovered.snapshot.checkpointIdentity, recovered.checkpoint.checkpointHash);
+  assert.equal(readCru34LiveSnapshot({ snapshotPath: value.snapshotPath, now: options.now }).truthState, 'LIVE');
+  assert.deepEqual(fs.readFileSync(value.ledgerPath), ledgerBefore);
+  const idle = projectCru34LiveBatch(options);
+  assert.equal(idle.status, 'NO_COMPLETE_SUFFIX');
+  assert.equal(idle.checkpoint.lastVerifiedLedgerOrdinal, all.length);
+});
+
+test('checkpoint commit failure after snapshot publication replays the suffix exactly once on restart', (t) => {
+  const all = records();
+  const value = fixture(all.slice(0, 12));
+  const options = { ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024,
+    maxBatchRecords: 1000, now: new Date('2026-09-07T01:05:35Z') };
+  projectCru34LiveBatch(options);
+  const oldCheckpoint = fs.readFileSync(value.checkpointPath);
+  fs.appendFileSync(value.ledgerPath, `${all.slice(12).map(JSON.stringify).join('\n')}\n`);
+  const ledgerBefore = fs.readFileSync(value.ledgerPath);
+  const rename = fs.renameSync;
+  const denial = t.mock.method(fs, 'renameSync', (from, to) => {
+    if (to === value.checkpointPath) throw Object.assign(new Error('synthetic checkpoint commit failure'), { code: 'ENOSPC' });
+    return rename(from, to);
+  });
+  assert.throws(() => projectCru34LiveBatch(options), (error) => error.code === 'ENOSPC');
+  denial.mock.restore();
+  assert.deepEqual(fs.readFileSync(value.checkpointPath), oldCheckpoint);
+  const published = JSON.parse(fs.readFileSync(value.snapshotPath, 'utf8'));
+  assert.equal(published.checkpointOrdinal, all.length);
+
+  const restarted = projectCru34LiveBatch(options);
+  assert.equal(restarted.checkpoint.lastVerifiedLedgerOrdinal, all.length);
+  assert.equal(restarted.snapshot.snapshotHash, published.snapshotHash);
+  const full = buildTxIntradayResearchSnapshot(all, {
+    sourceLedgerIdentity: restarted.checkpoint.sourceLedgerIdentity, instrumentProfile: profile,
+  });
+  assert.deepEqual(restarted.snapshot.semanticPayload,
+    buildCru34SemanticPayload(full, { tickSize: 1, sourceMode: 'LIVE' }));
+  assert.deepEqual(fs.readFileSync(value.ledgerPath), ledgerBefore);
+  assert.equal(projectCru34LiveBatch(options).status, 'NO_COMPLETE_SUFFIX');
+});
+
+test('successive synthetic ledger appends continuously publish matching snapshot and checkpoint identities', () => {
+  const all = records({ seconds: 1500 });
+  const value = fixture(all.slice(0, 2));
+  let previousHash = null;
+  let publications = 0;
+  for (let end = 2; end <= all.length; end += 2) {
+    if (end > 2) fs.appendFileSync(value.ledgerPath, `${all.slice(end - 2, end).map(JSON.stringify).join('\n')}\n`);
+    const now = new Date(Date.parse(all[end - 1].receivedAt) + 1000);
+    const result = projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+      maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000, now });
+    const persisted = JSON.parse(fs.readFileSync(value.snapshotPath, 'utf8'));
+    assert.equal(persisted.snapshotHash, result.snapshot.snapshotHash);
+    assert.notEqual(persisted.snapshotHash, previousHash);
+    assert.equal(persisted.checkpointOrdinal, end);
+    assert.equal(persisted.checkpointIdentity, result.checkpoint.checkpointHash);
+    assert.notEqual(readCru34LiveSnapshot({ snapshotPath: value.snapshotPath, now }).truthState, 'UNAVAILABLE');
+    previousHash = persisted.snapshotHash;
+    publications += 1;
+  }
+  assert.equal(publications, 51);
+  assert.equal(projectCru34LiveBatch({ ...value, instrumentProfile: profile }).status, 'NO_COMPLETE_SUFFIX');
 });
 
 test('checkpoint restart consumes only appended suffix and corrupt checkpoint fails closed', () => {
