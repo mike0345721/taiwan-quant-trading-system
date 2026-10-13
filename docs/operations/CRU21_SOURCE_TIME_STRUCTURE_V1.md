@@ -41,6 +41,12 @@ LIVE-current 5m eligibility requires:
   both source and raw receipt timestamps, closed execution flags and no recorded
   sequence gap. Payload and envelope agree at sub-ms precision; source time never
   goes backward (ties allowed). Input count and latest price/time match the chart.
+  Latest-price correspondence uses the chart's existing deterministic ordering
+  (event milliseconds, effective availability milliseconds, then event ID),
+  including its fallback ID when absent. Physical input order still supplies the
+  independent sub-ms regression and raw-receipt freshness audit. Equal-time
+  records do not establish physical trade order; this rule only verifies that
+  the unchanged chart and its capability refer to the same selected input.
 - Included effective availability is at/before cutoff. Both latest source time
   and **raw receipt** meet the existing 120-second freshness limit. Effective
   availability alone cannot hide stale receipt; this is not clock synchronization.

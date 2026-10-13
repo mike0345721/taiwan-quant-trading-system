@@ -117,6 +117,91 @@ test('source regressions are rejected while equal source timestamps are permitte
   assert.equal(apply(equal).structureEligibility.state, 'ELIGIBLE');
 });
 
+function loadLatestTieFixture(t, records) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-latest-tie-'));
+  fs.mkdirSync(path.join(root, 'live-events'));
+  const file = path.join(root, 'live-events', '2026-10-13.ndjson');
+  const bytes = Buffer.from(records.map(JSON.stringify).join('\n') + '\n');
+  fs.writeFileSync(file, bytes);
+  t.after(() => {
+    assert.deepEqual(fs.readFileSync(file), bytes);
+    fs.rmSync(root, { recursive: true, force: true });
+    clearTxChartLedgerCache();
+  });
+  const cutoff = iso(start + 2000);
+  return { records, cutoff, chart: loadTxDecisionChart({ dataRoot: root, calendar, now: new Date(cutoff) }) };
+}
+
+function tiedTicks() {
+  // Same ordering pattern observed in the real 00:02:42.184 sample; synthetic
+  // IDs/prices avoid committing raw Ledger records into the test repository.
+  return [['z-earlier', 100, '143550'], ['a-later', 101, '143920']].map(([eventId, price, receipt]) => {
+    const record = tick(start + 184, price);
+    record.eventId = eventId;
+    record.exchangeTimestamp = record.payload.datetime = '2026-10-13T15:00:00.184000';
+    record.receivedAt = `2026-10-13T15:00:00.${receipt}+08:00`;
+    return record;
+  });
+}
+
+test('live loader preserves chart event-ID selection for equal source time and effective availability', t => {
+  const value = loadLatestTieFixture(t, tiedTicks());
+  assert.equal(value.chart.lastPrice, 100);
+  assert.equal(value.records.at(-1).payload.close, 101);
+  assert.equal(value.chart.structureEligibility.state, 'ELIGIBLE');
+  assert.equal(value.chart.qualityStatus, 'QUALITY_INSUFFICIENT');
+  assert.equal(value.chart.timeLineageViolationCount, 2);
+  assert.equal(value.chart.structureEligibility.audit.priceConfirmationEligible, false);
+});
+
+test('latest-source correspondence rejects a different tied price and a changed last-event time', t => {
+  const value = loadLatestTieFixture(t, tiedTicks());
+  for (const patch of [{ lastPrice: 101 }, { lastEventTime: iso(start + 185) }]) {
+    const result = apply({ ...value, chart: { ...value.chart, ...patch } });
+    assert.equal(result.structureEligibility.state, 'BLOCKED');
+    assert.ok(reasons(result).includes('LATEST_SOURCE_MISMATCH'));
+  }
+});
+
+test('latest-source correspondence shares fallback ID provenance for negative and nonnegative receipt delta', t => {
+  for (const negativeDelta of [true, false]) {
+    const records = tiedTicks();
+    for (const record of records) {
+      delete record.eventId;
+      if (!negativeDelta) record.receivedAt = '2026-10-13T15:00:00.300550+08:00';
+    }
+    const value = loadLatestTieFixture(t, records);
+    assert.equal(value.chart.structureEligibility.state, 'ELIGIBLE', negativeDelta ? 'adjusted ISO availability' : 'original receipt spelling');
+    assert.ok([100, 101].includes(value.chart.lastPrice));
+    const otherPrice = value.chart.lastPrice === 100 ? 101 : 100;
+    assert.ok(reasons(apply({ ...value, chart: { ...value.chart, lastPrice: otherPrice } })).includes('LATEST_SOURCE_MISMATCH'));
+  }
+});
+
+test('latest-source correspondence keeps receipt ordering ahead of event-ID and physical ordering', t => {
+  const records = tiedTicks();
+  records[0].eventId = 'a-earlier-physical';
+  records[0].receivedAt = '2026-10-13T15:00:00.400000+08:00';
+  records[1].eventId = 'z-later-physical';
+  records[1].receivedAt = '2026-10-13T15:00:00.300000+08:00';
+  const value = loadLatestTieFixture(t, records);
+  assert.equal(value.chart.lastPrice, 100);
+  assert.equal(value.chart.structureEligibility.state, 'ELIGIBLE');
+  assert.equal(value.chart.qualityStatus, 'PASS');
+});
+
+test('positive sub-millisecond source progression retains existing chart millisecond tie ordering', t => {
+  const records = tiedTicks();
+  records[0].exchangeTimestamp = records[0].payload.datetime = '2026-10-13T15:00:00.184100';
+  records[1].exchangeTimestamp = records[1].payload.datetime = '2026-10-13T15:00:00.184200';
+  const value = loadLatestTieFixture(t, records);
+  assert.equal(value.chart.lastPrice, 100);
+  assert.equal(value.chart.lastEventTime, iso(start + 184));
+  assert.equal(value.chart.structureEligibility.state, 'ELIGIBLE');
+  const reversed = { ...value, records: [...records].reverse() };
+  assert.ok(reasons(apply(reversed)).includes('SOURCE_EVENT_TIME_REGRESSION'));
+});
+
 test('sub-millisecond disagreement and regressions remain observable', () => {
   const value = sample();
   value.records[0] = { ...value.records[0], exchangeTimestamp: '2026-10-13T07:00:00.000002Z',

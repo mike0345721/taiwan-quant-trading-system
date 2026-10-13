@@ -1,4 +1,4 @@
-import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
+import { classifyTxChartSession, compareTxChartTicks, txChartTickOrderKey } from './dashboard-tx-chart.mjs';
 
 const FIVE_MINUTES = 300_000;
 const FRESH_MS = 120_000;
@@ -96,13 +96,23 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
     if (record.sequenceGap !== 0) reasons.push('RAW_SEQUENCE_GAP_OR_UNKNOWN');
     if (previousSourceOrder != null && event.order < previousSourceOrder) reasons.push('SOURCE_EVENT_TIME_REGRESSION');
     previousSourceOrder = event.order;
-    inputs.push({ eventMs: event.ms, receivedMs: received.ms, effectiveMs, price: Number(payload.close), volume: Number(payload.volume) });
+    // The chart loader changes availability text only for a negative delta.
+    // Preserve that exact provenance for fallback event IDs, and preserve the
+    // original physical input order separately for the chronology audit.
+    const chartOrderKey = txChartTickOrderKey({ eventId: record.eventId, actualContract: chart.actualContract,
+      exchangeTimestamp: payload.datetime, availableAt: received.ms < event.ms ? iso(event.ms) : record.receivedAt,
+      price: Number(payload.close), volume: Number(payload.volume) });
+    inputs.push({ eventMs: event.ms, receivedMs: received.ms, effectiveMs, price: Number(payload.close), volume: Number(payload.volume), chartOrderKey });
   }
   if (!inputs.length || inputs.length !== chart.sourceEventCount) reasons.push('SOURCE_INPUT_COUNT_MISMATCH');
   const last = inputs.at(-1);
   if (!last || !Number.isFinite(at) || last.eventMs > at || last.receivedMs > at
     || at - last.eventMs > FRESH_MS || at - last.receivedMs > FRESH_MS) reasons.push('SOURCE_EVENT_OR_RECEIPT_STALE');
-  if (!last || timestamp(chart.lastEventTime)?.ms !== last.eventMs || Number(chart.lastPrice) !== last.price) reasons.push('LATEST_SOURCE_MISMATCH');
+  // Chart ordering has a deterministic event-ID tie-break; it does not claim
+  // that equal source times establish physical ordering. Compare to its exact
+  // selected tick rather than accepting any price within the tied timestamp.
+  const selected = inputs.reduce((latest, input) => !latest || compareTxChartTicks(input.chartOrderKey, latest.chartOrderKey) >= 0 ? input : latest, null);
+  if (!selected || timestamp(chart.lastEventTime)?.ms !== selected.eventMs || Number(chart.lastPrice) !== selected.price) reasons.push('LATEST_SOURCE_MISMATCH');
   const maxAvailable = inputs.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
   if (timestamp(chart.availableAt)?.ms !== maxAvailable) reasons.push('CHART_AVAILABILITY_MISMATCH');
   const audit = Object.freeze({ scopedRecordCount, includedInputCount: inputs.length, duplicateExcludedCount, futureExcludedCount,

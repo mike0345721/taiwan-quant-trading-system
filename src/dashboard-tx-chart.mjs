@@ -39,6 +39,16 @@ function digest(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+// Shared chart ordering provenance. Callers supply the same availability text
+// that the chart normalizer sees; its spelling is part of fallback event IDs.
+export function txChartTickOrderKey({ eventId, actualContract, exchangeTimestamp, availableAt, price, volume }) {
+  return {
+    eventId: eventId || digest([actualContract, exchangeTimestamp, availableAt, price, volume]),
+    exchangeMs: timestampMs(exchangeTimestamp),
+    availableMs: timestampMs(availableAt),
+  };
+}
+
 function finite(value) {
   if (value == null || value === '') return null;
   const parsed = Number(value);
@@ -173,11 +183,9 @@ function normalizeTick(record, calendar) {
   }
   if (exchangeMs < Date.parse(context.sessionStart) || exchangeMs > Date.parse(context.sessionEnd)) return null;
   return remember(Object.freeze({
-    eventId: record.eventId || digest([actualContract, exchangeTimestamp, availableAt, price, volume]),
+    ...txChartTickOrderKey({ eventId: record.eventId, actualContract, exchangeTimestamp, availableAt, price, volume }),
     exchangeTimestamp: new Date(exchangeMs).toISOString(),
-    exchangeMs,
     availableAt: new Date(availableMs).toISOString(),
-    availableMs,
     price,
     volume,
     actualContract,
@@ -192,6 +200,8 @@ function tickOrder(left, right) {
     || left.availableMs - right.availableMs
     || left.eventId.localeCompare(right.eventId);
 }
+
+export { tickOrder as compareTxChartTicks };
 
 function bucketStartMs(tick, widthMinutes) {
   const sessionStartMs = Date.parse(tick.sessionStart);
