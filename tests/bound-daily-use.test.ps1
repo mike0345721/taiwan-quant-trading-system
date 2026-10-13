@@ -167,12 +167,19 @@ try {
     & $module {
       function script:Get-BoundHealth([int]$Port) {
         if ($Port -eq 8790) { return [pscustomobject]@{ok=$true;mode='market_data_only';formalWeight=0;researchOnly=$true;executionAuthorized=$false;orderRoutesEnabled=$false} }
-        $script:testRuntime.health.runtimeEvidence.producer.reasons = $(if ($script:testRuntime.ownerPresent) {@()} else {@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE')})
+        $script:testRuntime.health.runtimeEvidence.producer.reasons = $(if ($script:testRuntime.ownerPresent) {@()} else {@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE','LIVE_PRODUCER_INSTANCE_MISMATCH')})
+        $script:testRuntime.health.runtimeEvidence.producer.lock = $(if ($script:testRuntime.ownerPresent) {$script:testRuntime.lock} else {$null})
         return $script:testRuntime.health
       }
     }
     & $module {param($b) Invoke-BoundStart $b -NoBrowser} $plan | Out-Null
     Check ($runtime.starts.Count -eq 1 -and $runtime.starts[0].role -ceq 'producer') 'Must recover only the pinned producer'
+  }
+  Case 'a live status PID without an ownership lock refuses startup' {
+    $module=Load-Module; $runtime=New-Runtime $plan; Mock-Runtime $module $runtime
+    & $module { function script:Read-BoundJson([string]$Path) { if ($Path.EndsWith('worker.lock')) { return $null }; return $script:testRuntime.worker } }
+    Must-Throw { & $module {param($b) Invoke-BoundStart $b -NoBrowser} $plan } 'LIVE_STATUS_WITHOUT_OWNER_LOCK'
+    Check ($runtime.starts.Count -eq 0) 'Missing lock with live PID caused a launch'
   }
   foreach ($reason in @('LIVE_PRODUCER_PATH_MISMATCH','LIVE_PRODUCER_INSTANCE_MISMATCH')) {
     Case "dashboard $reason cannot report bound readiness" {

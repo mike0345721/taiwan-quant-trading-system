@@ -93,6 +93,11 @@ function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) 
   Assert-Bound ($Health.ok -eq $true -and $Health.service -ceq 'tw-chip-dashboard-v1' -and $Health.runtimeCommit -ceq $b.dashboard.commit -and $Health.approvedMainCommit -ceq $b.dashboard.commit -and $Health.runtimeIdentityStatus -ceq 'VERIFIED' -and $Health.syncState -ceq 'SYNCED') 'DASHBOARD_VERSION'
   $producer = $Health.runtimeEvidence.producer
   $refused=@('LIVE_PRODUCER_PATH_MISMATCH','LIVE_PRODUCER_INSTANCE_MISMATCH')
+  # A clean worker exit removes its lock. Permit only that proven-dead case;
+  # a real mismatched lock/instance or a live PID without a lock still fails.
+  if ($MissingProducer -and $null -eq $producer.lock -and $null -ne $producer.worker -and
+    $producer.worker.schemaVersion -ceq 'cru34-live-worker-status-v1' -and $producer.worker.pid -gt 0 -and
+    $null -eq (Get-BoundProcess ([int]$producer.worker.pid))) { $refused=@('LIVE_PRODUCER_PATH_MISMATCH') }
   if (-not $MissingProducer) { $refused+=@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE') }
   Assert-Bound (@($producer.reasons | Where-Object { $_ -in $refused }).Count -eq 0) 'DASHBOARD_IDENTITY_REJECTED'
   Assert-Bound ($producer.snapshot.path -ceq (Join-Path $b.projectionRoot 'latest.json') -and $producer.statusFile.path -ceq (Join-Path $b.projectionRoot 'status.json')) 'DASHBOARD_PATHS'
@@ -116,11 +121,16 @@ function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoo
 function Invoke-BoundStart($b,[switch]$NoBrowser) {
   # All incumbent checks precede any runtime change. No process is ever stopped here.
   $lock = Read-BoundJson (Join-Path $b.projectionRoot 'worker.lock')
+  $status = Read-BoundJson (Join-Path $b.projectionRoot 'status.json')
   $owner = $null
   if ($lock) {
     Assert-Bound ($lock.pid -gt 0 -and $lock.workerInstanceId -cmatch '^[0-9a-f-]{36}$') 'LOCK_UNVERIFIED'
     $owner = Get-BoundProcess ([int]$lock.pid)
-    if ($owner) { Assert-BoundWorker $b (Read-BoundJson (Join-Path $b.projectionRoot 'status.json')) $lock $owner }
+    if ($owner) { Assert-BoundWorker $b $status $lock $owner }
+  }
+  if (-not $owner -and $status) {
+    Assert-Bound ($status.schemaVersion -ceq 'cru34-live-worker-status-v1' -and $status.pid -gt 0) 'STATUS_UNVERIFIED'
+    Assert-Bound ($null -eq (Get-BoundProcess ([int]$status.pid))) 'LIVE_STATUS_WITHOUT_OWNER_LOCK'
   }
   $dashboard = Get-BoundListener 8787
   if ($dashboard) { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard -MissingProducer:($null -eq $owner) }
