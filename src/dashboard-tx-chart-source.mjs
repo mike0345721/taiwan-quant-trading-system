@@ -4,6 +4,7 @@ import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
+import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
 
 const ledgerCache = new Map();
 let timestampLineageCache = new WeakMap();
@@ -317,7 +318,7 @@ function attachTimestampLineageQuality(chart, violations, { timeframe, tradeDate
     });
     if (hasEvidence && chart.windowState === 'CLOSED' && chart.status === 'READY') next.status = 'QUALITY_INSUFFICIENT';
   }
-  return Object.freeze(next);
+  return attachTimestampDependencyQuality(Object.freeze(next), scoped, { cutoff });
 }
 
 function readPriorDayLevel(archiveDir, calendar, tradeDate, selectedContract, contractMonth) {
