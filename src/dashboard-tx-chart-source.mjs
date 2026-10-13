@@ -25,7 +25,9 @@ function compactTickRecord(record) {
     exchangeTimestamp: record.exchangeTimestamp,
     eventId: record.eventId,
     duplicate: record.duplicate === true,
-    sequenceGap: Number(record.sequenceGap) || 0,
+    // Preserve unknown/malformed raw evidence for capability checks. Consumers
+    // may not infer an explicit zero from an absent field.
+    sequenceGap: record.sequenceGap,
     executionAuthorized: record.executionAuthorized,
     orderRoutesEnabled: record.orderRoutesEnabled,
     payload: {
@@ -56,7 +58,7 @@ function readPersistentCache(sourcePath, sourceStat, cacheRoot) {
   try {
     const metadata = JSON.parse(fs.readFileSync(files.metadata, 'utf8'));
     const bytes = fs.readFileSync(files.records);
-    if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v1'
+    if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v2'
       || metadata.sourcePath !== path.resolve(sourcePath)
       || !Number.isInteger(metadata.sourceOffset)
       || metadata.sourceOffset < 0
@@ -96,7 +98,7 @@ function writePersistentCache(sourcePath, cached, cacheRoot) {
   const bytes = fs.existsSync(files.records) ? fs.readFileSync(files.records) : Buffer.alloc(0);
   const metadataTemp = `${files.metadata}.${process.pid}.tmp`;
   const metadata = {
-    schemaVersion: 'dw2-tx-tick-cache-v1',
+    schemaVersion: 'dw2-tx-tick-cache-v2',
     sourcePath: path.resolve(sourcePath),
     sourceOffset: cached.offset,
     recordCount: cached.records.length,

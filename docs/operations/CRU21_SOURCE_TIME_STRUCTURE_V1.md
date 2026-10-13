@@ -56,6 +56,11 @@ per-value behavior stays unchanged. The cache does not certify a durable histori
 knowledge-prefix cutoff. Feed completeness remains `UNKNOWN_NO_NATIVE_SEQUENCE`;
 local gap=0 does not prove complete exchange capture.
 
+Derived tick cache v2 preserves raw `sequenceGap` rather than coercing unknown
+to zero. Legacy v1 caches are rebuilt from the untouched ledger before the new
+capability can rely on them. This affects only derived caches in the selected
+runtime's cacheRoot; it never rewrites raw Ledger or Producer checkpoints.
+
 ## Consumer impact and limits
 
 Ranges, three-bar pivots, post-formation reactions, confluence, nodes and targets

@@ -61,8 +61,8 @@ function recentSwings(bars){
     if(Date.parse(b.time)-Date.parse(a.time)!==300000||Date.parse(c.time)-Date.parse(b.time)!==300000)continue;
     if([a,b,c].some(bar=>!isStructureEligible(bar)))continue;
     const confirmedAt=new Date(Math.max(...[a,b,c].map(bar=>Date.parse(barAvailableAt(bar))))).toISOString();
-    if(finite(b.high)>finite(a.high)&&finite(b.high)>=finite(c.high)) high={bar:b,confirmBar:c,price:finite(b.high),confirmedAt};
-    if(finite(b.low)<finite(a.low)&&finite(b.low)<=finite(c.low)) low={bar:b,confirmBar:c,price:finite(b.low),confirmedAt};
+    if(finite(b.high)>finite(a.high)&&finite(b.high)>=finite(c.high)) high={bar:b,inputBars:[a,b,c],confirmBar:c,price:finite(b.high),confirmedAt};
+    if(finite(b.low)<finite(a.low)&&finite(b.low)<=finite(c.low)) low={bar:b,inputBars:[a,b,c],confirmBar:c,price:finite(b.low),confirmedAt};
   }
   return {high,low};
 }
@@ -404,10 +404,21 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
   push(levelRow(day?L.currentDayHigh:L.nightHigh,{id:'SESSION_HIGH',family:'SESSION_EXTREME',label:day?'DAY High':'NIGHT High',priority:91,qualityStatus:inheritedQuality,why:'目前交易時段已形成高點；再次接近時觀察突破是否有價格延伸。'}));
   push(levelRow(day?L.currentDayLow:L.nightLow,{id:'SESSION_LOW',family:'SESSION_EXTREME',label:day?'DAY Low':'NIGHT Low',priority:91,qualityStatus:inheritedQuality,why:'目前交易時段已形成低點；再次接近時觀察跌破是否有價格延伸。'}));
   const swings=recentSwings(bars);
-  const swingQuality=bar=>!sourceGeometry&&currentQuality!=='PASS'?currentQuality:(bar?.qualityStatus||currentQuality);
-  const swingProof=swing=>sourceGeometry?{qualityReasons:swing.bar.qualityReasons||[],structureEligibility:{...swing.bar.structureEligibility,availableAt:swing.confirmedAt}}:{};
-  if(swings.high)push({id:'SWING_HIGH',family:'RECENT_SWING',label:'近期5分K局部高點',price:swings.high.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.high.confirmedAt,formedAt:swings.high.confirmedAt,qualityStatus:swingQuality(swings.high.bar),...swingProof(swings.high),why:'已完成5分K形成的局部高點；只有出現共振或形成後有效反應時才提高優先級。'});
-  if(swings.low)push({id:'SWING_LOW',family:'RECENT_SWING',label:'近期5分K局部低點',price:swings.low.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.low.confirmedAt,formedAt:swings.low.confirmedAt,qualityStatus:swingQuality(swings.low.bar),...swingProof(swings.low),why:'已完成5分K形成的局部低點；只有出現共振或形成後有效反應時才提高優先級。'});
+  const swingQuality=swing=>!sourceGeometry&&currentQuality!=='PASS'?currentQuality
+    :swing.inputBars.every(b=>b.qualityStatus==='PASS')?'PASS':'QUALITY_INSUFFICIENT';
+  const swingProof=swing=>sourceGeometry?{
+    qualityReasons:[...new Set(swing.inputBars.flatMap(b=>b.qualityReasons||[]))],
+    timeLineageViolationCount:swing.inputBars.reduce((n,b)=>n+(b.timeLineageViolationCount||0),0),
+    structureEligibility:{...swing.bar.structureEligibility,availableAt:swing.confirmedAt,
+      completionAvailableAt:swing.confirmedAt,
+      completionSourceEventTime:swing.confirmBar.structureEligibility?.completionSourceEventTime||null,
+      inputBarTimes:swing.inputBars.map(b=>b.time),
+      inputCompletions:swing.inputBars.map(b=>({time:b.time,
+        availableAt:b.structureEligibility?.completionAvailableAt||null,
+        sourceEventTime:b.structureEligibility?.completionSourceEventTime||null}))},
+  }:{};
+  if(swings.high)push({id:'SWING_HIGH',family:'RECENT_SWING',label:'近期5分K局部高點',price:swings.high.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.high.confirmedAt,formedAt:swings.high.confirmedAt,qualityStatus:swingQuality(swings.high),...swingProof(swings.high),why:'已完成5分K形成的局部高點；只有出現共振或形成後有效反應時才提高優先級。'});
+  if(swings.low)push({id:'SWING_LOW',family:'RECENT_SWING',label:'近期5分K局部低點',price:swings.low.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.low.confirmedAt,formedAt:swings.low.confirmedAt,qualityStatus:swingQuality(swings.low),...swingProof(swings.low),why:'已完成5分K形成的局部低點；只有出現共振或形成後有效反應時才提高優先級。'});
   push(levelRow(L.previousDayHigh,{id:'PRIOR_HIGH',family:'PRIOR_REFERENCE',label:'前一日盤高',priority:70,why:'前一交易日合法高點參考；優先級低於當前時段已驗證結構。'}));
   push(levelRow(L.previousDayLow,{id:'PRIOR_LOW',family:'PRIOR_REFERENCE',label:'前一日盤低',priority:70,why:'前一交易日合法低點參考；優先級低於當前時段已驗證結構。'}));
   push(levelRow(L.previousClose,{id:'PRIOR_CLOSE',family:'PRIOR_REFERENCE',label:'前一日盤收',priority:40,why:'前一交易日收盤參考；不等同即時支撐或壓力。'}));

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { buildTxDecisionChart } from '../src/dashboard-tx-chart.mjs';
 import { loadTxDecisionChart, clearTxChartLedgerCache } from '../src/dashboard-tx-chart-source.mjs';
@@ -196,4 +197,33 @@ test('loader attaches capability only to current LIVE calls and leaves ledger by
   assert.equal(live.qualityStatus, 'QUALITY_INSUFFICIENT');
   assert.equal(loadTxDecisionChart({ ...args, asOf: value.cutoff }).structureEligibility.state, 'BLOCKED');
   assert.equal(loadTxDecisionChart({ ...args, mode: 'REPLAY' }).structureEligibility.state, 'BLOCKED');
+});
+
+test('loader and restored caches preserve unknown raw sequence evidence and reject legacy coercion', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-raw-sequence-'));
+  t.after(() => { fs.rmSync(root, { recursive: true, force: true }); clearTxChartLedgerCache(); });
+  for (const [index, gap] of [undefined, null, '', 'invalid'].entries()) {
+    const value = sample(), dataRoot = path.join(root, String(index)), cacheRoot = path.join(dataRoot, 'cache');
+    fs.mkdirSync(path.join(dataRoot, 'live-events'), { recursive: true });
+    value.records[0].sequenceGap = gap;
+    fs.writeFileSync(path.join(dataRoot, 'live-events', '2026-10-13.ndjson'), value.records.map(JSON.stringify).join('\n')+'\n');
+    const args = { dataRoot, cacheRoot, calendar, now:new Date(value.cutoff) };
+    assert.ok(reasons(loadTxDecisionChart(args)).includes('RAW_SEQUENCE_GAP_OR_UNKNOWN'));
+    clearTxChartLedgerCache();
+    assert.ok(reasons(loadTxDecisionChart(args)).includes('RAW_SEQUENCE_GAP_OR_UNKNOWN'));
+    // A valid-hash legacy cache falsely contains explicit zero. It must be
+    // invalidated and rebuilt from raw evidence, not accepted for eligibility.
+    const metadataPath=path.join(cacheRoot,fs.readdirSync(cacheRoot).find(n=>n.endsWith('.meta.json')));
+    const recordsPath=path.join(cacheRoot,fs.readdirSync(cacheRoot).find(n=>n.endsWith('.ndjson')));
+    const metadata=JSON.parse(fs.readFileSync(metadataPath));
+    const oldRecords=fs.readFileSync(recordsPath,'utf8').trim().split('\n').map(JSON.parse);
+    oldRecords[0].sequenceGap=0;
+    const bytes=Buffer.from(oldRecords.map(JSON.stringify).join('\n')+'\n');
+    fs.writeFileSync(recordsPath,bytes);
+    fs.writeFileSync(metadataPath,JSON.stringify({...metadata,schemaVersion:'dw2-tx-tick-cache-v1',
+      cacheSize:bytes.length,cacheHash:crypto.createHash('sha256').update(bytes).digest('hex')}));
+    clearTxChartLedgerCache();
+    assert.ok(reasons(loadTxDecisionChart(args)).includes('RAW_SEQUENCE_GAP_OR_UNKNOWN'));
+    assert.equal(JSON.parse(fs.readFileSync(metadataPath)).schemaVersion,'dw2-tx-tick-cache-v2');
+  }
 });

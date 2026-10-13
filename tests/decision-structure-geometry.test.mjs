@@ -5,16 +5,16 @@ import {buildDecisionLevelWatch} from '../src/decision-level-watch.mjs';
 const at='2026-10-13T14:30:01.000Z';
 const proof=(availableAt=at)=>({schemaVersion:'source-time-structure-v1',state:'ELIGIBLE',
   basis:'REPORTED_SOURCE_TIME_GEOMETRY',scope:'LIVE_DESCRIPTIVE_ONLY',availableAt,executionAuthorized:false});
-const restricted={qualityStatus:'QUALITY_INSUFFICIENT',qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']};
+const restricted=()=>({qualityStatus:'QUALITY_INSUFFICIENT',qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT']});
 function fixture(){
   const identity={actualContract:'TXFJ6',tradeDate:'2026-10-14',session:'NIGHT'};
-  const level=value=>({...identity,...restricted,value,availability:'AVAILABLE',source:'ACTUAL_TX_TICK_STREAM',
+  const level=value=>({...identity,...restricted(),value,availability:'AVAILABLE',source:'ACTUAL_TX_TICK_STREAM',
     availableAt:at,structureEligibility:proof(),timeLineageViolationCount:20});
-  return {...identity,...restricted,timeframe:'5m',mode:'LIVE',availableAt:at,lastPrice:140,
+  return {...identity,...restricted(),timeframe:'5m',mode:'LIVE',availableAt:at,lastPrice:140,
     timeLineageViolationCount:20,structureEligibility:proof(),
     bars:Array.from({length:6},(_,i)=>{const start=Date.parse('2026-10-13T14:00:00Z')+i*300000;
       const completion=new Date(start+300001).toISOString();
-      return {...identity,...restricted,time:new Date(start).toISOString(),availableAt:new Date(start+299999).toISOString(),
+      return {...identity,...restricted(),time:new Date(start).toISOString(),availableAt:new Date(start+299999).toISOString(),
         open:100,close:100,high:110,low:90,volume:10,
         structureEligibility:{...proof(completion),completionAvailableAt:completion}};
     }),
@@ -72,4 +72,16 @@ test('watermark receipt time bounds pivot completion and prevents future confirm
   chart.bars[4].structureEligibility.completionAvailableAt='2026-10-13T14:40:00Z';
   const r=buildDecisionLevelWatch({chart,snapshotTime:at});
   assert.equal(r.levels.some(x=>x.id==='SWING_HIGH'),false);
+});
+
+test('a clean pivot center retains restrictions from both neighboring dependency bars',()=>{
+  const chart=fixture();chart.levels={};chart.bars[3].high=160;
+  chart.bars[3].qualityStatus='PASS';chart.bars[3].qualityReasons=[];
+  chart.bars[2].timeLineageViolationCount=2;chart.bars[4].timeLineageViolationCount=3;
+  const r=buildDecisionLevelWatch({chart,snapshotTime:at});
+  assert.equal(r.nextWatch.id,'SWING_HIGH');
+  assert.equal(r.nextWatch.qualityStatus,'QUALITY_INSUFFICIENT');
+  assert.deepEqual(r.nextWatch.qualityReasons,['TIMESTAMP_LINEAGE_INSUFFICIENT']);
+  assert.equal(r.nextWatch.timeLineageViolationCount,5);
+  assert.equal(r.nextWatch.structureEligibility.inputBarTimes.length,3);
 });
