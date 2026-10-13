@@ -104,6 +104,22 @@ try {
   $bindingPath=Join-Path $fixtureRoot 'binding.json'
   Save-Json $bindingPath $plan
   $module=Load-Module
+  Case 'verified Windows console child is distinct from a collector' {
+    $parent=[pscustomobject]@{createdAt=[datetime]::UtcNow.AddSeconds(-2).ToString('o')}
+    $console=Join-Path $env:WINDIR 'System32\conhost.exe'
+    $child=[pscustomobject]@{ExecutablePath=$console;CommandLine=('\??\'+$console+' 0x4');CreationDate=[datetime]::Parse($parent.createdAt).AddMilliseconds(15)}
+    & $module {param($p,$c) Assert-BoundConsoleChildren $p @($c)} $parent $child
+  }
+  Case 'application child blocks consumer cutover' {
+    $parent=[pscustomobject]@{createdAt=[datetime]::UtcNow.AddSeconds(-2).ToString('o')}
+    $child=[pscustomobject]@{ExecutablePath='D:\Python\python.exe';CommandLine='python bridge.py';CreationDate=[datetime]::Parse($parent.createdAt).AddMilliseconds(15)}
+    Must-Throw { & $module {param($p,$c) Assert-BoundConsoleChildren $p @($c)} $parent $child } 'DASHBOARD_HAS_APPLICATION_CHILDREN'
+  }
+  Case 'lookalike console from a foreign path is rejected' {
+    $parent=[pscustomobject]@{createdAt=[datetime]::UtcNow.AddSeconds(-2).ToString('o')}
+    $child=[pscustomobject]@{ExecutablePath='D:\foreign\conhost.exe';CommandLine='\??\D:\foreign\conhost.exe 0x4';CreationDate=[datetime]::Parse($parent.createdAt).AddMilliseconds(15)}
+    Must-Throw { & $module {param($p,$c) Assert-BoundConsoleChildren $p @($c)} $parent $child } 'DASHBOARD_HAS_APPLICATION_CHILDREN'
+  }
   Case 'real clean source pins and complete plan pass' { $actual=& $module {param($f,$r) Read-BoundPlan $f $r} $bindingPath $launcher.root; Check ($actual.producer.commit -ceq $producer.commit) 'wrong source' }
   Case 'wrong source SHA fails closed' { $bad=Copy-Object $producer; $bad.commit='0'*40; Must-Throw { & $module {param($s) Assert-BoundSource $s} $bad } 'SOURCE_SHA_MISMATCH' }
   Case 'relative source root fails closed' { $bad=Copy-Object $producer; $bad.root='relative'; Must-Throw { & $module {param($s) Assert-BoundSource $s} $bad } 'SOURCE_PIN_REQUIRED' }

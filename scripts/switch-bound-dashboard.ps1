@@ -22,9 +22,12 @@ function Assert-SameProcess($Expected,$Actual) {
 function Assert-OldDashboard($Process,$Health) {
   Assert-Bound ($null -ne $Process -and $Process.executable -ieq $b.node -and $Process.command.Trim() -ceq ('"'+$b.node+'" launcher.mjs')) 'OLD_DASHBOARD_SOURCE'
   Assert-Bound ($null -ne $Health -and $Health.ok -eq $true -and $Health.service -ceq 'tw-chip-dashboard-v1' -and $Health.runtimeCommit -ceq $b.dashboard.commit -and $Health.approvedMainCommit -ceq $b.dashboard.commit -and $Health.syncState -ceq 'SYNCED') 'OLD_DASHBOARD_VERSION'
-  # Refuse a launcher that owns any child: exit must not terminate a collector it spawned.
+  # Refuse application children; permit only the precisely identified OS console host.
   $children=@(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($Process.pid)")
-  Assert-Bound ($children.Count -eq 0) 'DASHBOARD_HAS_CHILDREN'
+  Assert-BoundConsoleChildren $Process $children
+  foreach ($child in $children) {
+    Assert-Bound (@(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($child.ProcessId)").Count -eq 0) 'CONSOLE_HAS_CHILDREN'
+  }
 }
 if ($Mode -eq 'Prepare') {
   Assert-Bound (-not (Test-Path -LiteralPath $receiptPath)) 'RECEIPT_ALREADY_EXISTS'

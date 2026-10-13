@@ -22,6 +22,15 @@ function Get-BoundListener([int]$Port) {
 function Get-BoundHealth([int]$Port) {
   try { return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/$(if ($Port -eq 8790) {'health'} else {'healthz'})" -TimeoutSec 20 } catch { return $null }
 }
+function Assert-BoundConsoleChildren($Dashboard, $Children) {
+  $console=Join-Path $env:WINDIR 'System32\conhost.exe'
+  foreach ($child in $Children) {
+    # Windows creates this OS console host with a hidden console process.
+    # Do not confuse it with an application child (Bridge/research/collector).
+    $age=($child.CreationDate.ToUniversalTime()-[datetime]::Parse($Dashboard.createdAt).ToUniversalTime()).TotalSeconds
+    Assert-Bound ($child.ExecutablePath -ieq $console -and $child.CommandLine -ieq ('\??\'+$console+' 0x4') -and $age -ge 0 -and $age -lt 1) 'DASHBOARD_HAS_APPLICATION_CHILDREN'
+  }
+}
 function Assert-BoundSource($Source, [string[]]$AllowedDirty = @()) {
   Assert-Bound ([IO.Path]::IsPathRooted($Source.root) -and $Source.commit -cmatch '^[0-9a-f]{40}$') 'SOURCE_PIN_REQUIRED'
   $actual = & git -C $Source.root rev-parse HEAD
