@@ -163,6 +163,29 @@ test('latest-source correspondence rejects a different tied price and a changed 
   }
 });
 
+test('chart-selected source keeps its own raw receipt freshness when the physical last tick is fresh', t => {
+  for (const selectedReceiptAge of [122000, 120000]) {
+    const records = tiedTicks();
+    for (const record of records) record.exchangeTimestamp = record.payload.datetime = iso(start + 1000);
+    records[0].receivedAt = iso(start + 2000 - selectedReceiptAge);
+    records[1].receivedAt = iso(start + 980);
+    const value = loadLatestTieFixture(t, records);
+    assert.equal(value.chart.lastPrice, 100);
+    assert.equal(value.chart.structureEligibility.audit.sourceReceiptAt, records[1].receivedAt);
+    assert.equal(value.chart.structureEligibility.audit.selectedSourceReceiptAt, records[0].receivedAt);
+    assert.equal(value.chart.structureEligibility.audit.selectedSourceEventTime, records[0].exchangeTimestamp);
+    assert.equal(value.chart.structureEligibility.audit.selectedSourceEventId, 'z-earlier');
+    assert.equal(reasons(value.chart).includes('SOURCE_EVENT_OR_RECEIPT_STALE'), false);
+    if (selectedReceiptAge > 120000) {
+      assert.equal(value.chart.structureEligibility.state, 'BLOCKED');
+      assert.ok(reasons(value.chart).includes('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE'));
+    } else {
+      assert.equal(value.chart.structureEligibility.state, 'ELIGIBLE');
+      assert.ok(reasons(apply({ ...value, chart: { ...value.chart, lastPrice: 101 } })).includes('LATEST_SOURCE_MISMATCH'));
+    }
+  }
+});
+
 test('latest-source correspondence shares fallback ID provenance for negative and nonnegative receipt delta', t => {
   for (const negativeDelta of [true, false]) {
     const records = tiedTicks();

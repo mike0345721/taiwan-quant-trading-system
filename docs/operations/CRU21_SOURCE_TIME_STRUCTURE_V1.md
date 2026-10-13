@@ -50,6 +50,8 @@ LIVE-current 5m eligibility requires:
 - Included effective availability is at/before cutoff. Both latest source time
   and **raw receipt** meet the existing 120-second freshness limit. Effective
   availability alone cannot hide stale receipt; this is not clock synchronization.
+  Both the physical-last input and the chart-selected latest-price input must
+  pass this check; one input's fresh receipt cannot certify the other input.
 - A completed bar has a real same-source event at/after its end, already received.
   `completionAvailableAt` binds that witness's effective availability. Pivots use
   all three completion witnesses; missing/forming bars cannot supply a pivot.

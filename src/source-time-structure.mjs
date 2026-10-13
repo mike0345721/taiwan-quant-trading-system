@@ -112,11 +112,15 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
   // that equal source times establish physical ordering. Compare to its exact
   // selected tick rather than accepting any price within the tied timestamp.
   const selected = inputs.reduce((latest, input) => !latest || compareTxChartTicks(input.chartOrderKey, latest.chartOrderKey) >= 0 ? input : latest, null);
+  if (!selected || !Number.isFinite(at) || selected.eventMs > at || selected.receivedMs > at
+    || at - selected.eventMs > FRESH_MS || at - selected.receivedMs > FRESH_MS) reasons.push('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE');
   if (!selected || timestamp(chart.lastEventTime)?.ms !== selected.eventMs || Number(chart.lastPrice) !== selected.price) reasons.push('LATEST_SOURCE_MISMATCH');
   const maxAvailable = inputs.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
   if (timestamp(chart.availableAt)?.ms !== maxAvailable) reasons.push('CHART_AVAILABILITY_MISMATCH');
   const audit = Object.freeze({ scopedRecordCount, includedInputCount: inputs.length, duplicateExcludedCount, futureExcludedCount,
     sourceEventWatermark: iso(last?.eventMs), sourceReceiptAt: iso(last?.receivedMs), effectiveAvailableAt: iso(maxAvailable),
+    selectedSourceEventTime: iso(selected?.eventMs), selectedSourceReceiptAt: iso(selected?.receivedMs),
+    selectedSourceEventId: selected?.chartOrderKey.eventId ?? null,
     chronologyQualityPreserved: true, feedCompleteness: 'UNKNOWN_NO_NATIVE_SEQUENCE', replayEligible: false,
     priceConfirmationEligible: false, flowConfirmationEligible: false });
   const top = eligibility(reasons, iso(maxAvailable), { audit });
