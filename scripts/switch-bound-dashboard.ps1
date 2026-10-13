@@ -41,7 +41,7 @@ $before=Read-BoundJson $receiptPath
 Assert-Bound ($null -ne $before -and $before.bindingHash -ceq (Get-FileHash $BindingPath).Hash) 'PREPARATION_CHANGED'
 $attemptPath=Join-Path $ReceiptDirectory 'consumer-apply-attempt.json'
 Assert-Bound (-not (Test-Path -LiteralPath $attemptPath)) 'APPLY_ALREADY_ATTEMPTED'
-$mutex=New-Object Threading.Mutex($false,'Local\TwChipBoundDailyUseV1')
+$mutex=New-Object Threading.Mutex($false,'Global\TwChipBoundDailyUseV1')
 $owned=$false
 try {
   try { $owned=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned=$true }
@@ -58,7 +58,9 @@ try {
   Assert-Bound ($before.protected.workerInstanceId -ceq $protected.workerInstanceId) 'PRODUCER_CHANGED'
   $process=Get-Process -Id $dashboard.pid
   $null=$process.Handle # hold this process object, rather than terminating a later recycled PID
-  Assert-Bound ($process.StartTime.ToUniversalTime().ToString('o') -ceq $dashboard.createdAt) 'DASHBOARD_PID_RECYCLED'
+  # CIM rounds FILETIME to microseconds; .NET retains 100ns precision.
+  Assert-Bound ([Math]::Abs(($process.StartTime.ToUniversalTime()-[datetime]::Parse($dashboard.createdAt).ToUniversalTime()).TotalMilliseconds) -lt 1) 'DASHBOARD_PID_RECYCLED'
+  Assert-SameProcess $dashboard (Get-BoundProcess $dashboard.pid)
   @{ at=[datetime]::UtcNow.ToString('o'); stopping=$dashboard; protected=$protected } | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $attemptPath -Encoding UTF8
   Stop-Process -InputObject $process -ErrorAction Stop
   Assert-Bound ($process.WaitForExit(10000)) 'DASHBOARD_STOP_TIMEOUT'

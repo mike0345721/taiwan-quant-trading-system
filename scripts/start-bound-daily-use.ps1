@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'bound-daily-use.psm1') -Force
 # A machine-wide startup name serializes every installed entry, even path aliases.
 # Windows releases the mutex if the launching process crashes; no stale file deletion.
-$mutex = New-Object Threading.Mutex($false, 'Local\TwChipBoundDailyUseV1')
+$mutex = New-Object Threading.Mutex($false, 'Global\TwChipBoundDailyUseV1')
 $owned = $false
 try {
   try { $owned = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned=$true }

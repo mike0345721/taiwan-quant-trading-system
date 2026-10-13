@@ -85,16 +85,18 @@ function Assert-BoundWorker($b, $Status, $Lock, $Process) {
   $created = [datetime]::Parse($Process.createdAt).ToUniversalTime()
   Assert-Bound ($age -ge -5 -and $age -le 15 -and ($started - $created).TotalSeconds -ge 0 -and ($started - $created).TotalSeconds -le 10 -and $Status.workerStartedAt -ceq $Lock.workerStartedAt) 'OWNER_LIFETIME'
 }
-function Assert-BoundDashboard($b, $Health, $Process) {
+function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) {
   Assert-Bound ($null -ne $Health -and $null -ne $Process) 'DASHBOARD_UNVERIFIED'
   $server = Join-Path $b.dashboard.root 'server.mjs'
   $expected = '"' + $b.node + '" --env-file="' + $b.envFile + '" "' + $server + '"'
   Assert-Bound ($Process.executable -ieq $b.node -and $Process.command.Trim() -ceq $expected) 'DASHBOARD_SOURCE'
   Assert-Bound ($Health.ok -eq $true -and $Health.service -ceq 'tw-chip-dashboard-v1' -and $Health.runtimeCommit -ceq $b.dashboard.commit -and $Health.approvedMainCommit -ceq $b.dashboard.commit -and $Health.runtimeIdentityStatus -ceq 'VERIFIED' -and $Health.syncState -ceq 'SYNCED') 'DASHBOARD_VERSION'
   $producer = $Health.runtimeEvidence.producer
-  Assert-Bound (@($producer.reasons | Where-Object { $_ -in @('LIVE_PRODUCER_PATH_MISMATCH','LIVE_PRODUCER_INSTANCE_MISMATCH','LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE') }).Count -eq 0) 'DASHBOARD_IDENTITY_REJECTED'
+  $refused=@('LIVE_PRODUCER_PATH_MISMATCH','LIVE_PRODUCER_INSTANCE_MISMATCH')
+  if (-not $MissingProducer) { $refused+=@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE') }
+  Assert-Bound (@($producer.reasons | Where-Object { $_ -in $refused }).Count -eq 0) 'DASHBOARD_IDENTITY_REJECTED'
   Assert-Bound ($producer.snapshot.path -ceq (Join-Path $b.projectionRoot 'latest.json') -and $producer.statusFile.path -ceq (Join-Path $b.projectionRoot 'status.json')) 'DASHBOARD_PATHS'
-  Assert-BoundWorker $b $producer.worker $producer.lock (Get-BoundProcess ([int]$producer.pid))
+  if (-not $MissingProducer) { Assert-BoundWorker $b $producer.worker $producer.lock (Get-BoundProcess ([int]$producer.pid)) }
   # Market quality/readiness is reported as-is; no predicate or quality threshold is weakened.
 }
 function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoot) {
@@ -121,7 +123,7 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
     if ($owner) { Assert-BoundWorker $b (Read-BoundJson (Join-Path $b.projectionRoot 'status.json')) $lock $owner }
   }
   $dashboard = Get-BoundListener 8787
-  if ($dashboard) { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard }
+  if ($dashboard) { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard -MissingProducer:($null -eq $owner) }
   $bridge = Get-BoundListener 8790
   if ($bridge) {
     $health = Get-BoundHealth 8790

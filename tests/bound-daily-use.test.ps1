@@ -162,6 +162,18 @@ try {
     Check ($runtime.starts[1].role -ceq 'dashboard' -and $runtime.starts[1].workingRoot -ceq $plan.dashboard.root -and $runtime.starts[1].arguments -ceq ('--env-file="'+$plan.envFile+'" "'+(Join-Path $plan.dashboard.root 'server.mjs')+'"')) 'Dashboard source or env changed'
     Check ($env:CRU34_LIVE_DATA_ROOT -ceq $plan.dataRoot -and $env:CRU34_LIVE_SNAPSHOT_PATH -ceq (Join-Path $plan.projectionRoot 'latest.json')) 'Reader binding was not applied'
   }
+  Case 'missing producer recovers while the correctly bound dashboard stays alive' {
+    $module=Load-Module; $runtime=New-Runtime $plan; $runtime.ownerPresent=$false; Mock-Runtime $module $runtime
+    & $module {
+      function script:Get-BoundHealth([int]$Port) {
+        if ($Port -eq 8790) { return [pscustomobject]@{ok=$true;mode='market_data_only';formalWeight=0;researchOnly=$true;executionAuthorized=$false;orderRoutesEnabled=$false} }
+        $script:testRuntime.health.runtimeEvidence.producer.reasons = $(if ($script:testRuntime.ownerPresent) {@()} else {@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE')})
+        return $script:testRuntime.health
+      }
+    }
+    & $module {param($b) Invoke-BoundStart $b -NoBrowser} $plan | Out-Null
+    Check ($runtime.starts.Count -eq 1 -and $runtime.starts[0].role -ceq 'producer') 'Must recover only the pinned producer'
+  }
   foreach ($reason in @('LIVE_PRODUCER_PATH_MISMATCH','LIVE_PRODUCER_INSTANCE_MISMATCH')) {
     Case "dashboard $reason cannot report bound readiness" {
       $module=Load-Module; $runtime=New-Runtime $plan; $runtime.health.runtimeEvidence.producer.ready=$false; $runtime.health.runtimeEvidence.producer.reasons=@($reason); Mock-Runtime $module $runtime
@@ -183,7 +195,7 @@ try {
     Check ($runtime.starts.Count -eq 0) 'Unsafe bridge caused a launch'
   }
   Case 'Windows named mutex serializes a second actual entry process' {
-    $mutex=New-Object Threading.Mutex($false,'Local\TwChipBoundDailyUseV1'); $owned=$false
+    $mutex=New-Object Threading.Mutex($false,'Global\TwChipBoundDailyUseV1'); $owned=$false
     try {
       try { $owned=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned=$true }
       Check $owned 'Another real startup is active; contention test did not acquire mutex'
