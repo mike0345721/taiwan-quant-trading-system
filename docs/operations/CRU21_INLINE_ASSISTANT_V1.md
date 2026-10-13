@@ -118,6 +118,10 @@ Safety remains formalWeight=0 / researchOnly=true / recommendation=false / syste
 
 ## 2026-10-07 Scenario review repairs / runtime acceptance boundary
 
+後續時間品質工作包的限定修訂見 [source-time structure contract](CRU21_SOURCE_TIME_STRUCTURE_V1.md)：
+LIVE 幾何可使用獨立來源時間計算資格，原品質不改標 PASS；價格／Flow 確認不隨之放行。
+下列原始 gate 與 REPLAY 語意保留，只有新契約明列的描述性計算例外適用。
+
 沿 exact `19015fe13d7cd64ac55832c4b8c0dba265548ab2` 的同一 implementation 修補：
 - 在去重／共振前排除 missing / future availableAt、missing source 與已知 contract/session/date mismatch；prior refs 保留合法前一交易日語意。
 - 局部 pivot 要求三根連續且 PASS 的 completed 5m bars；availableAt 不早於三根輸入的最晚可用時間與 confirming bar 結束。形成中的 K 與形成前反應不能計入 lifecycle / reaction。

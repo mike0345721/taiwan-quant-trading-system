@@ -123,6 +123,86 @@ test('same-identity unavailable, stale or quality-degraded chart cannot retain a
   assert.match(h.node('dw-next-watch-label').textContent,/雙向/);
   assert.match(h.node('dw-long-evidence').textContent,/缺乏合格資料/);
 });
+function sourceTimeFixture(){
+  const eligibility={schemaVersion:'source-time-structure-v1',state:'ELIGIBLE',basis:'REPORTED_SOURCE_TIME_GEOMETRY',scope:'LIVE_DESCRIPTIVE_ONLY'};
+  const watch=displayWatch(),chart={...displayChart(),qualityStatus:'QUALITY_INSUFFICIENT',qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT'],structureEligibility:{...eligibility}};
+  watch.structureEligibility={...eligibility};watch.currentPriceQualityStatus='QUALITY_INSUFFICIENT';
+  watch.nextWatch.qualityStatus='QUALITY_INSUFFICIENT';
+  for(const side of ['long','short']){
+    watch.scenarioWatch[side].target.qualityStatus='QUALITY_INSUFFICIENT';
+    watch.scenarioWatch[side].target.qualityReasons=['TIMESTAMP_LINEAGE_INSUFFICIENT'];
+    watch.scenarioWatch[side].priceGateState='UNAVAILABLE';
+  }
+  return{watch,chart};
+}
+test('source-time structural RR needs matching chart and watch contracts and visibly retains raw quality restrictions',()=>{
+  const h=ui(),{watch,chart}=sourceTimeFixture(),before=JSON.stringify({watch,chart});
+  h.state.txChartPayload=chart;h.context.renderDecisionLevelWatch(watch);h.context.renderTxChartLevels(chart);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R 2.00');
+  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+  assert.match(h.node('dw-next-watch-label').textContent,/來源時間結構/);
+  assert.match(h.node('dw-next-watch-distance').textContent,/跨時計品質受限／不等於可交易/);
+  for(const id of ['dw-next-watch-why','dw-long-target-why','dw-short-target-why','dw-long-evidence','dw-short-evidence','dw-scenario-rr-note']){
+    assert.match(h.node(id).textContent,/來源所報時間.*跨時計品質受限.*不等於可交易/,id);
+  }
+  assert.match(h.node('dw-long-target-why').textContent,/QUALITY_INSUFFICIENT（TIMESTAMP_LINEAGE_INSUFFICIENT）/);
+  assert.match(h.node('dw-long-evidence').textContent,/價格確認條件不可用/);
+  assert.equal(JSON.stringify({watch,chart}),before);
+  h.state.txChartPayload={...chart,qualityStatus:'PASS'};h.context.renderDecisionLevelWatch(watch);
+  assert.match(h.node('dw-next-watch-distance').textContent,/跨時計品質受限／不等於可交易/,'a newer PASS chart does not relabel the restricted watch');
+  delete h.state.txChartPayload.structureEligibility;h.context.renderDecisionLevelWatch(watch);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+});
+test('missing, malformed or ineligible structure contracts cannot bypass the old degraded-chart guard',()=>{
+  for(const side of ['watch','chart'])for(const change of [null,{schemaVersion:'old'},{state:'INELIGIBLE'},{basis:'CLOCK_CORRECTED'},{scope:'TRADING'}]){
+    const h=ui(),fixture=sourceTimeFixture();
+    fixture[side].structureEligibility=change===null?null:{...fixture[side].structureEligibility,...change};
+    h.state.txChartPayload=fixture.chart;h.context.renderDecisionLevelWatch(fixture.watch);h.context.renderTxChartLevels(fixture.chart);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —',side+JSON.stringify(change));
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  }
+  const h=ui();h.context.renderDecisionLevelWatch(sourceTimeFixture().watch);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —','chart contract must be present for restricted source-time geometry');
+});
+test('source-time eligibility does not bypass identity, replay, status or freshness guards',()=>{
+  for(const patch of [{actualContract:'TXFK6'},{tradeDate:'2026-10-06'},{session:'NIGHT'},{mode:'REPLAY'},
+    {status:'UNAVAILABLE'},{status:'STALE'},{availableAt:'2026-10-05T10:20:00Z'},{availableAt:'2026-10-05T10:31:00Z'}]){
+    const h=ui(),{watch,chart}=sourceTimeFixture();h.state.txChartPayload={...chart,...patch};
+    h.context.renderDecisionLevelWatch(watch);h.context.renderTxChartLevels(h.state.txChartPayload);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —',JSON.stringify(patch));
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  }
+});
+test('an unavailable watch explains source dependencies on both target drawers without manufacturing values',()=>{
+  const h=ui();h.state.txChartPayload=displayChart();
+  const watch={...displayWatch(),state:'UNAVAILABLE',reason:'OBSERVATION_ZONE_UNAVAILABLE',nextWatch:null,scenarioWatch:null,levels:[],
+    unavailabilityDiagnostics:{summary:'近期完成 5 分 K 的結構依賴未通過，不能建立觀察區。',reasonCodes:['OBSERVATION_ZONE_UNAVAILABLE','TIMESTAMP_LINEAGE_INSUFFICIENT'],
+      dependencies:{completedBarCount:92,recentRangeBarCount:12,eligibleRangeBarCount:0,restrictedRangeBarCount:12},
+      sources:[{id:'OR_HIGH',availability:'UNAVAILABLE',qualityStatus:null,reason:'NIGHT_OPENING_RANGE_NOT_FROZEN'},
+        {id:'PRIOR_HIGH',availability:'UNAVAILABLE',qualityStatus:null,reason:'PRIOR_DAY_SOURCE_UNAVAILABLE'}]}};
+  h.context.renderDecisionLevelWatch(watch);
+  for(const side of ['long','short']){
+    assert.equal(h.node(`dw-${side}-target`).textContent,'目前無合法目標');
+    assert.equal(h.node(`dw-${side}-rr`).textContent,'R:R —');
+    assert.match(h.node(`dw-${side}-target-why`).textContent,/完成 5 分 K 92 根.*range 輸入 12 根.*結構合格 0 根.*原品質受限 12 根/);
+    assert.match(h.node(`dw-${side}-target-why`).textContent,/NIGHT_OPENING_RANGE_NOT_FROZEN.*PRIOR_DAY_SOURCE_UNAVAILABLE/);
+  }
+  assert.match(h.node('dw-next-watch-why').textContent,/10:29:30Z.*TIMESTAMP_LINEAGE_INSUFFICIENT/);
+  delete watch.unavailabilityDiagnostics.dependencies.eligibleRangeBarCount;
+  h.context.renderDecisionLevelWatch(watch);
+  assert.match(h.node('dw-next-watch-why').textContent,/結構合格 未知 根/);
+  h.state.txChartPayload={...displayChart(),session:'NIGHT'};h.context.renderDecisionLevelWatch(watch);
+  assert.doesNotMatch(h.node('dw-next-watch-why').textContent,/92 根|range 輸入/);
+});
+test('an absent side target reuses its specific backend exclusion and wait reason',()=>{
+  const h=ui(),watch=displayWatch();
+  watch.scenarioWatch.long={...watch.scenarioWatch.long,target:null,rr:{state:'UNAVAILABLE',ratio:null},
+    targetDiagnostics:{summary:'多方：確認邊界外僅有低優先級背景結構。',waitFor:'等待形成後有效反應，不外推目標。'}};
+  h.state.txChartPayload=displayChart();h.context.renderDecisionLevelWatch(watch);
+  assert.equal(h.node('dw-long-target').textContent,'目前無合法目標');assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+  assert.match(h.node('dw-long-target-why').textContent,/低優先級背景結構.*等待形成後有效反應/);
+  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+});
 test('executed drawer keeps complete target evidence and distinguishes candidate from confirmation',()=>{
   const h=ui();h.context.renderDecisionLevelWatch(displayWatch());
   const why=h.node('dw-long-target-why').textContent;

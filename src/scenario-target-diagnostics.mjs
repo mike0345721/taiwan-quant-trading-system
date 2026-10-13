@@ -1,3 +1,4 @@
+import { hasSourceTimeGeometry, isStructureEligible } from './structural-eligibility.mjs';
 // Explanations only. This module never selects/promotes a target, invents a price,
 // changes a threshold, or decides whether a transaction should be placed.
 const knownNumber = value => typeof value === 'number' && Number.isFinite(value);
@@ -6,7 +7,7 @@ const freeze = value => Object.freeze(value);
 /** Describe exclusions in the *already validated and deduplicated* level universe.
  * Counts deliberately do not describe unreceived/unvalidated upstream references.
  */
-export function explainScenarioTarget({ side, node, levels, target, threshold, chartQuality } = {}) {
+export function explainScenarioTarget({ side, node, levels, target, threshold, chartQuality, structureEligibility } = {}) {
   if (!['LONG', 'SHORT'].includes(side)) throw Error('SCENARIO_DIAGNOSTIC_SIDE_REQUIRED');
   const label = side === 'LONG' ? '多方' : '空方';
   const beyond = price => side === 'LONG' ? price > threshold : price < threshold;
@@ -14,16 +15,17 @@ export function explainScenarioTarget({ side, node, levels, target, threshold, c
   const reasons = [];
   const messages = [];
   const add = (code, text) => { reasons.push(code); messages.push(text); };
-  const thresholdReady = knownNumber(threshold) && node?.qualityStatus === 'PASS' && chartQuality === 'PASS';
+  const geometryReady=chartQuality==='PASS'||hasSourceTimeGeometry({qualityStatus:chartQuality,qualityReasons:['TIMESTAMP_LINEAGE_INSUFFICIENT'],structureEligibility});
+  const thresholdReady = knownNumber(threshold) && isStructureEligible(node) && geometryReady;
   let directional = null, qualityRejected = null, contextRejected = null, eligible = null;
 
   if (!thresholdReady) {
-    if (chartQuality !== 'PASS') add('CHART_QUALITY_INSUFFICIENT', '目前圖表資料品質未通過，無法建立可驗證的確認／失效門檻。');
-    if (node?.qualityStatus !== 'PASS') add('NODE_QUALITY_INSUFFICIENT', '目前觀察價位的品質未通過，不能當作已驗證的結構節點。');
+    if (!geometryReady) add('CHART_QUALITY_INSUFFICIENT', '目前圖表資料品質未通過，無法建立可驗證的確認／失效門檻。');
+    if (!isStructureEligible(node)) add('NODE_QUALITY_INSUFFICIENT', '目前觀察價位的品質未通過，不能當作已驗證的結構節點。');
     if (!reasons.length) add('THRESHOLD_UNAVAILABLE', '確認邊界尚不可用，不能判斷哪個價位符合方向目標。');
   } else {
     const outside = rows.filter(row => beyond(row.price));
-    const goodQuality = outside.filter(row => row.qualityStatus === 'PASS');
+    const goodQuality = outside.filter(row => isStructureEligible(row));
     const qualified = goodQuality.filter(row => row.importanceBand !== 'CONTEXT');
     directional = outside.length;
     qualityRejected = outside.length - goodQuality.length;

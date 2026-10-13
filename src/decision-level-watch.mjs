@@ -1,3 +1,4 @@
+import { hasSourceTimeGeometry, isStructureEligible } from './structural-eligibility.mjs';
 import { explainScenarioTarget, observationOnlyGuidance } from './scenario-target-diagnostics.mjs';
 
 const finite = value => value == null || value === '' || typeof value === 'boolean' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -11,13 +12,19 @@ function availableLevel(level){
 }
 function levelRow(level,{id,family,label,priority,why,qualityStatus=null,formedAt=null}){
   if(!availableLevel(level)||!(level.source||level.sourceId))return null;
+  const originalAvailableAt=iso(level.availableAt);
+  const availableAt=hasSourceTimeGeometry(level)&&originalAvailableAt
+    ? new Date(Math.max(Date.parse(originalAvailableAt),Date.parse(level.structureEligibility.availableAt))).toISOString()
+    : originalAvailableAt;
   return {
     id,family,label,price:finite(level.value),priority,
     sourceId:level.source||level.sourceId,
     actualContract:level.actualContract||null,tradeDate:level.tradeDate||null,session:level.session||null,
-    availableAt:iso(level.availableAt),
-    formedAt:iso(formedAt||level.availableAt),
+    availableAt,
+    formedAt:iso(formedAt||availableAt),
     qualityStatus:qualityStatus&&qualityStatus!=='PASS'?qualityStatus:level.qualityStatus||'UNKNOWN',
+    qualityReasons:level.qualityReasons||[],
+    structureEligibility:level.structureEligibility||null,
     why,
   };
 }
@@ -30,7 +37,8 @@ function median(values){
 function barAvailableAt(bar){
   const start=Date.parse(bar?.time);
   const received=Date.parse(bar?.availableAt);
-  return Number.isFinite(start)&&Number.isFinite(received)?new Date(Math.max(start+5*60_000,received)).toISOString():null;
+  const completion=Date.parse(bar?.structureEligibility?.completionAvailableAt);
+  return Number.isFinite(start)&&Number.isFinite(received)?new Date(Math.max(start+5*60_000,received,Number.isFinite(completion)?completion:-Infinity)).toISOString():null;
 }
 function completedBars(chart,asOf){
   if(chart?.timeframe!=='5m')return [];
@@ -51,7 +59,7 @@ function recentSwings(bars){
   for(let i=1;i<recent.length-1;i++){
     const a=recent[i-1],b=recent[i],c=recent[i+1];
     if(Date.parse(b.time)-Date.parse(a.time)!==300000||Date.parse(c.time)-Date.parse(b.time)!==300000)continue;
-    if([a,b,c].some(bar=>bar.qualityStatus!=='PASS'))continue;
+    if([a,b,c].some(bar=>!isStructureEligible(bar)))continue;
     const confirmedAt=new Date(Math.max(...[a,b,c].map(bar=>Date.parse(barAvailableAt(bar))))).toISOString();
     if(finite(b.high)>finite(a.high)&&finite(b.high)>=finite(c.high)) high={bar:b,confirmBar:c,price:finite(b.high),confirmedAt};
     if(finite(b.low)<finite(a.low)&&finite(b.low)<=finite(c.low)) low={bar:b,confirmBar:c,price:finite(b.low),confirmedAt};
@@ -59,7 +67,7 @@ function recentSwings(bars){
   return {high,low};
 }
 function eventState(level,bars,currentPrice,zone){
-  bars=bars.filter(bar=>bar.qualityStatus==='PASS'&&Date.parse(bar.time)>=Date.parse(level.formedAt));
+  bars=bars.filter(bar=>isStructureEligible(bar)&&Date.parse(bar.time)>=Date.parse(level.formedAt));
   const closes=bars.slice(-4).map(b=>finite(b.close)).filter(v=>v!=null);
   const last=bars.at(-1), prior=bars.at(-2), two=bars.at(-3);
   const price=level.price, distance=currentPrice-price;
@@ -138,7 +146,7 @@ function sourceExplanation(level){
   return 'governed 前一交易日高／低參考';
 }
 function dedupe(rows,tolerance){
-  const ordered=[...rows].sort((a,b)=>Number(b.qualityStatus==='PASS')-Number(a.qualityStatus==='PASS')||structuralRank(b)-structuralRank(a)||b.priority-a.priority);
+  const ordered=[...rows].sort((a,b)=>Number(isStructureEligible(b))-Number(isStructureEligible(a))||structuralRank(b)-structuralRank(a)||b.priority-a.priority);
   const out=[];
   for(const row of ordered){
     const hit=out.find(x=>Math.abs(x.price-row.price)<=tolerance);
@@ -157,7 +165,7 @@ function reactionHistory(level,bars,zone){
     method:'FORMATION_TIME_UNAVAILABLE',testEpisodes:null,meaningfulReactionCount:null,
     meaningfulThresholdPoints:zone*2,lastTouchAt:null,maxDeparturePoints:null,medianDeparturePoints:null,
   };
-  const eligible=bars.filter(bar=>bar.qualityStatus==='PASS'&&Date.parse(bar.time)>=formedMs);
+  const eligible=bars.filter(bar=>isStructureEligible(bar)&&Date.parse(bar.time)>=formedMs);
   let inside=false;const departures=[];let lastTouchAt=null;
   for(let i=0;i<eligible.length;i++){
     const bar=eligible[i];
@@ -182,7 +190,7 @@ function reactionHistory(level,bars,zone){
   };
 }
 function confluenceEvidence(level,rows,zone){
-  const nearby=rows.filter(x=>x.id!==level.id&&x.qualityStatus==='PASS'&&Math.abs(x.price-level.price)<=zone);
+  const nearby=rows.filter(x=>x.id!==level.id&&isStructureEligible(x)&&Math.abs(x.price-level.price)<=zone);
   return {
     count:1+nearby.length,
     labels:nearby.map(x=>x.label).slice(0,5),
@@ -230,7 +238,7 @@ function flowContext(observedFlow,chart,snapshotTime){
 }
 function importanceBand(level,reaction,confluence){
   const core=['VWAP','OPENING_RANGE','SESSION_EXTREME'].includes(level.family);
-  if(level.qualityStatus!=='PASS')return 'CONTEXT';
+  if(!isStructureEligible(level))return 'CONTEXT';
   const repeatedReaction=(reaction?.testEpisodes||0)>=2&&(reaction?.meaningfulReactionCount||0)>=1;
   const strongReaction=(reaction?.meaningfulReactionCount||0)>=2;
   if(confluence.count>=2||strongReaction||repeatedReaction)return 'PRIMARY';
@@ -257,6 +265,7 @@ function basisReasons(level,{band,confluence,reaction,event,flow,participation,z
   }
   if(level.family==='RECENT_SWING'&&band==='CONTEXT')rows.push('重要性限制：目前沒有共振或形成後有效反應的額外證據，只列低優先級局部結構。');
   if(level.qualityStatus&&level.qualityStatus!=='PASS')rows.push(`資料限制：${level.qualityStatus}，不能把此價位稱為已驗證支撐／壓力。`);
+  if(hasSourceTimeGeometry(level)&&level.qualityStatus!=='PASS')rows.push('僅依來源所報時間計算結構幾何；跨時計品質仍受限，不代表可交易或成交確認。');
   return rows;
 }
 function summaryWhy(level,basis){
@@ -269,7 +278,7 @@ function summaryWhy(level,basis){
 
 function directionalTarget(levels,node,direction,threshold){
   const candidates=levels.filter(level=>{
-    if(!level||level.id===node?.id||level.importanceBand==='CONTEXT'||level.qualityStatus!=='PASS'||finite(level.price)==null)return false;
+    if(!level||level.id===node?.id||level.importanceBand==='CONTEXT'||!isStructureEligible(level)||finite(level.price)==null)return false;
     return direction==='LONG'?level.price>threshold:level.price<threshold;
   });
   return [...candidates].sort((a,b)=>
@@ -303,23 +312,25 @@ function scenarioFlowState(direction,flow){
   const contrary=direction==='LONG'?flow.pressure60<0&&flow.response60<0:flow.pressure60>0&&flow.response60>0;
   return aligned?'ALIGNED':contrary?'CONTRARY':'MIXED';
 }
-function buildScenario(direction,node,target,{zone,currentPrice,flow,levels,chartQuality}){
+function buildScenario(direction,node,target,{zone,currentPrice,flow,levels,chartQuality,structureEligibility}){
   const long=direction==='LONG';
-  const thresholdsAvailable=node.qualityStatus==='PASS'&&finite(zone)>0;
+  const thresholdsAvailable=isStructureEligible(node)&&finite(zone)>0;
   const confirmThreshold=thresholdsAvailable?node.price+(long?zone:-zone):null;
   const invalidationThreshold=thresholdsAvailable?node.price+(long?-zone:zone):null;
-  const priceGate=thresholdsAvailable&&(long?currentPrice>=confirmThreshold:currentPrice<=confirmThreshold);
+  const priceQualityReady=chartQuality==='PASS';
+  const priceGate=thresholdsAvailable&&priceQualityReady&&(long?currentPrice>=confirmThreshold:currentPrice<=confirmThreshold);
   const rr=scenarioRr(direction,confirmThreshold,invalidationThreshold,target);
-  const targetDiagnostics=explainScenarioTarget({side:direction,node,levels,target,threshold:confirmThreshold,chartQuality});
+  const targetDiagnostics=explainScenarioTarget({side:direction,node,levels,target,threshold:confirmThreshold,chartQuality,structureEligibility});
   const targetPayload=target?Object.freeze({
     id:target.id,family:target.family,label:target.label,price:target.price,
     importanceBand:target.importanceBand,sourceId:target.sourceId,availableAt:target.availableAt,
-    qualityStatus:target.qualityStatus,why:target.why,basisReasons:Object.freeze([...(target.basisReasons||[])]),
+    qualityStatus:target.qualityStatus,qualityReasons:target.qualityReasons||[],structureEligibility:target.structureEligibility||null,why:target.why,basisReasons:Object.freeze([...(target.basisReasons||[])]),
   }):null;
   return Object.freeze({
     side:direction,
-    state:!thresholdsAvailable?'UNAVAILABLE':priceGate?'PRICE_CONFIRMATION_CANDIDATE':'WAIT_CONFIRMATION',
-    priceGateState:!thresholdsAvailable?'UNAVAILABLE':priceGate?'MET':'NOT_MET',
+    state:!thresholdsAvailable?'UNAVAILABLE':!priceQualityReady?'PRICE_QUALITY_INSUFFICIENT':priceGate?'PRICE_CONFIRMATION_CANDIDATE':'WAIT_CONFIRMATION',
+    priceGateState:!thresholdsAvailable||!priceQualityReady?'UNAVAILABLE':priceGate?'MET':'NOT_MET',
+    priceGateReason:!priceQualityReady?'CROSS_CLOCK_QUALITY_NOT_VERIFIED':null,
     flowConfirmationState:scenarioFlowState(direction,flow),
     confirmationThreshold:confirmThreshold,
     invalidationThreshold,
@@ -341,21 +352,41 @@ function scenarioDirectionState(node,zone){
   return 'BIDIRECTIONAL_WATCH';
 }
 
+function unavailabilityDiagnostics(chart,reason,snapshotTime){
+  const completed=completedBars(chart,snapshotTime), recent=completed.slice(-12);
+  const eligible=recent.filter(isStructureEligible);
+  const reasonCodes=[...new Set([reason,...(chart?.qualityReasons||[]),...(chart?.structureEligibility?.reasonCodes||[])])];
+  return Object.freeze({
+    summary:`結構不可用：${reasonCodes.join('、')}。最近 ${recent.length} 根完成5分K中，${eligible.length} 根具計算資格；目標與風報比保持空值。`,
+    reasonCodes,sourceAvailableAt:chart?.availableAt||null,
+    dependencies:{completedBarCount:completed.length,recentRangeBarCount:recent.length,
+      eligibleRangeBarCount:eligible.length,restrictedRangeBarCount:recent.filter(b=>b.qualityStatus!=='PASS').length},
+    sources:Object.entries(chart?.levels||{}).map(([id,value])=>({id,availability:value?.availability||'UNAVAILABLE',
+      qualityStatus:value?.qualityStatus||null,reason:value?.reason||null,qualityReasons:value?.qualityReasons||[],
+      structureEligibility:value?.structureEligibility||null})),
+  });
+}
+
 export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=null,snapshotTime=new Date().toISOString(),maxVisible=3}={}){
   const currentPrice=finite(chart?.lastPrice);
   const sourceAvailableAt=iso(chart?.availableAt);
+  const sourceGeometry=hasSourceTimeGeometry(chart)&&chart.mode==='LIVE'
+    &&Date.parse(chart.structureEligibility.availableAt)<=Date.parse(snapshotTime);
+  const structureEligibility=sourceGeometry?chart.structureEligibility:null;
   const identity=Object.freeze({actualContract:chart?.actualContract||null,tradeDate:chart?.tradeDate||null,session:chart?.session||null});
-  const unavailable=reason=>Object.freeze({schemaVersion:'decision-level-watch-v3',state:'UNAVAILABLE',reason,snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,levels:Object.freeze([]),nextWatch:null,scenarioWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
+  const unavailable=reason=>Object.freeze({schemaVersion:'decision-level-watch-v3',state:'UNAVAILABLE',reason,structureEligibility,unavailabilityDiagnostics:unavailabilityDiagnostics(chart,reason,snapshotTime),snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,levels:Object.freeze([]),nextWatch:null,scenarioWatch:null,zonePoints:null,formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false});
   if(currentPrice==null)return unavailable('CURRENT_PRICE_UNAVAILABLE');
   if(!iso(snapshotTime)||!Object.values(identity).every(Boolean))return unavailable('CHART_IDENTITY_OR_TIME_UNAVAILABLE');
   if(!sourceAvailableAt||Date.parse(sourceAvailableAt)>Date.parse(snapshotTime))return unavailable('CHART_AVAILABLE_AT_INVALID');
   if(Date.parse(snapshotTime)-Date.parse(sourceAvailableAt)>LIVE_SOURCE_FRESHNESS_MS)return unavailable('CHART_SOURCE_STALE');
   const bars=completedBars(chart,snapshotTime);
-  const ranges=bars.slice(-12).filter(b=>b.qualityStatus==='PASS').map(b=>finite(b.high)-finite(b.low)).filter(Number.isFinite);
+  const ranges=bars.slice(-12).filter(b=>isStructureEligible(b)).map(b=>finite(b.high)-finite(b.low)).filter(Number.isFinite);
   const med=median(ranges);
   if(!(med>0))return unavailable('OBSERVATION_ZONE_UNAVAILABLE');
   const zone=clamp(Math.round(med*.35),6,30);
   const L=chart?.levels||{};const rows=[];const currentQuality=chart?.qualityStatus||'UNKNOWN';
+  const geometryReady=currentQuality==='PASS'||sourceGeometry;
+  const inheritedQuality=sourceGeometry?null:currentQuality;
   const push=x=>{
     if(!x||!x.availableAt||Date.parse(x.availableAt)>Date.parse(snapshotTime))return;
     if(x.actualContract&&x.actualContract!==identity.actualContract)return;
@@ -364,18 +395,19 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     }else if((x.tradeDate&&x.tradeDate!==identity.tradeDate)||(x.session&&x.session!==identity.session))return;
     rows.push(x);
   };
-  push(levelRow(L.vwap,{id:'VWAP',family:'VWAP',label:(chart?.vwapSession||chart?.session||'Session')+' VWAP',priority:100,qualityStatus:currentQuality,why:'目前交易時段成交均價參考；重要的是測試後市場是否真正接受，而不是單純穿越。'}));
-  if(chart?.openingRange?.status==='READY'){
-    push(levelRow(L.openingRangeHigh,{id:'OR_HIGH',family:'OPENING_RANGE',label:'OR High',priority:96,qualityStatus:currentQuality,why:'已凍結的開盤區間上緣；觀察突破後是否被市場接受。'}));
-    push(levelRow(L.openingRangeLow,{id:'OR_LOW',family:'OPENING_RANGE',label:'OR Low',priority:96,qualityStatus:currentQuality,why:'已凍結的開盤區間下緣；觀察跌破後是否被市場接受。'}));
+  push(levelRow(L.vwap,{id:'VWAP',family:'VWAP',label:(chart?.vwapSession||chart?.session||'Session')+' VWAP',priority:100,qualityStatus:inheritedQuality,why:'目前交易時段成交均價參考；重要的是測試後市場是否真正接受，而不是單純穿越。'}));
+  if(chart?.openingRange?.status==='READY'||(sourceGeometry&&hasSourceTimeGeometry(chart?.openingRange))){
+    push(levelRow(L.openingRangeHigh,{id:'OR_HIGH',family:'OPENING_RANGE',label:'OR High',priority:96,qualityStatus:inheritedQuality,why:'已凍結的開盤區間上緣；觀察突破後是否被市場接受。'}));
+    push(levelRow(L.openingRangeLow,{id:'OR_LOW',family:'OPENING_RANGE',label:'OR Low',priority:96,qualityStatus:inheritedQuality,why:'已凍結的開盤區間下緣；觀察跌破後是否被市場接受。'}));
   }
   const day=chart?.session==='DAY';
-  push(levelRow(day?L.currentDayHigh:L.nightHigh,{id:'SESSION_HIGH',family:'SESSION_EXTREME',label:day?'DAY High':'NIGHT High',priority:91,qualityStatus:currentQuality,why:'目前交易時段已形成高點；再次接近時觀察突破是否有價格延伸。'}));
-  push(levelRow(day?L.currentDayLow:L.nightLow,{id:'SESSION_LOW',family:'SESSION_EXTREME',label:day?'DAY Low':'NIGHT Low',priority:91,qualityStatus:currentQuality,why:'目前交易時段已形成低點；再次接近時觀察跌破是否有價格延伸。'}));
+  push(levelRow(day?L.currentDayHigh:L.nightHigh,{id:'SESSION_HIGH',family:'SESSION_EXTREME',label:day?'DAY High':'NIGHT High',priority:91,qualityStatus:inheritedQuality,why:'目前交易時段已形成高點；再次接近時觀察突破是否有價格延伸。'}));
+  push(levelRow(day?L.currentDayLow:L.nightLow,{id:'SESSION_LOW',family:'SESSION_EXTREME',label:day?'DAY Low':'NIGHT Low',priority:91,qualityStatus:inheritedQuality,why:'目前交易時段已形成低點；再次接近時觀察跌破是否有價格延伸。'}));
   const swings=recentSwings(bars);
-  const swingQuality=bar=>currentQuality!=='PASS'?currentQuality:(bar?.qualityStatus||currentQuality);
-  if(swings.high)push({id:'SWING_HIGH',family:'RECENT_SWING',label:'近期5分K局部高點',price:swings.high.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.high.confirmedAt,formedAt:swings.high.confirmedAt,qualityStatus:swingQuality(swings.high.bar),why:'已完成5分K形成的局部高點；只有出現共振或形成後有效反應時才提高優先級。'});
-  if(swings.low)push({id:'SWING_LOW',family:'RECENT_SWING',label:'近期5分K局部低點',price:swings.low.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.low.confirmedAt,formedAt:swings.low.confirmedAt,qualityStatus:swingQuality(swings.low.bar),why:'已完成5分K形成的局部低點；只有出現共振或形成後有效反應時才提高優先級。'});
+  const swingQuality=bar=>!sourceGeometry&&currentQuality!=='PASS'?currentQuality:(bar?.qualityStatus||currentQuality);
+  const swingProof=swing=>sourceGeometry?{qualityReasons:swing.bar.qualityReasons||[],structureEligibility:{...swing.bar.structureEligibility,availableAt:swing.confirmedAt}}:{};
+  if(swings.high)push({id:'SWING_HIGH',family:'RECENT_SWING',label:'近期5分K局部高點',price:swings.high.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.high.confirmedAt,formedAt:swings.high.confirmedAt,qualityStatus:swingQuality(swings.high.bar),...swingProof(swings.high),why:'已完成5分K形成的局部高點；只有出現共振或形成後有效反應時才提高優先級。'});
+  if(swings.low)push({id:'SWING_LOW',family:'RECENT_SWING',label:'近期5分K局部低點',price:swings.low.price,priority:50,sourceId:'COMPLETED_5M_LOCAL_PIVOT',availableAt:swings.low.confirmedAt,formedAt:swings.low.confirmedAt,qualityStatus:swingQuality(swings.low.bar),...swingProof(swings.low),why:'已完成5分K形成的局部低點；只有出現共振或形成後有效反應時才提高優先級。'});
   push(levelRow(L.previousDayHigh,{id:'PRIOR_HIGH',family:'PRIOR_REFERENCE',label:'前一日盤高',priority:70,why:'前一交易日合法高點參考；優先級低於當前時段已驗證結構。'}));
   push(levelRow(L.previousDayLow,{id:'PRIOR_LOW',family:'PRIOR_REFERENCE',label:'前一日盤低',priority:70,why:'前一交易日合法低點參考；優先級低於當前時段已驗證結構。'}));
   push(levelRow(L.previousClose,{id:'PRIOR_CLOSE',family:'PRIOR_REFERENCE',label:'前一日盤收',priority:40,why:'前一交易日收盤參考；不等同即時支撐或壓力。'}));
@@ -406,31 +438,31 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     structuralRank(b)-structuralRank(a)
     ||b.basis.confluence.count-a.basis.confluence.count
     ||(b.basis.reaction.meaningfulReactionCount||0)-(a.basis.reaction.meaningfulReactionCount||0)
-    ||Number(b.qualityStatus==='PASS')-Number(a.qualityStatus==='PASS')
+    ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   );
-  const nodePool=decorated.filter(x=>x.qualityStatus==='PASS'&&x.importanceBand!=='CONTEXT');
+  const nodePool=decorated.filter(x=>isStructureEligible(x)&&x.importanceBand!=='CONTEXT');
   const next=[...(nodePool.length?nodePool:decorated)].sort((a,b)=>
     structuralRank(b)-structuralRank(a)
     ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
     ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
-    ||Number(b.qualityStatus==='PASS')-Number(a.qualityStatus==='PASS')
+    ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   )[0]||null;
   const longThreshold=next?next.price+zone:null;
   const shortThreshold=next?next.price-zone:null;
-  const longTarget=next?directionalTarget(decorated,next,'LONG',longThreshold):null;
-  const shortTarget=next?directionalTarget(decorated,next,'SHORT',shortThreshold):null;
+  const longTarget=next&&geometryReady&&isStructureEligible(next)?directionalTarget(decorated,next,'LONG',longThreshold):null;
+  const shortTarget=next&&geometryReady&&isStructureEligible(next)?directionalTarget(decorated,next,'SHORT',shortThreshold):null;
   const scenarioWatch=next?Object.freeze({
     schemaVersion:'decision-scenario-watch-v1',
     directionState:scenarioDirectionState(next,zone),
     node:Object.freeze({
       id:next.id,family:next.family,label:next.label,price:next.price,state:next.state,
       importanceBand:next.importanceBand,sourceId:next.sourceId,availableAt:next.availableAt,
-      qualityStatus:next.qualityStatus,why:next.why,basisReasons:Object.freeze([...(next.basisReasons||[])]),
+      qualityStatus:next.qualityStatus,qualityReasons:next.qualityReasons||[],structureEligibility:next.structureEligibility||null,why:next.why,basisReasons:Object.freeze([...(next.basisReasons||[])]),
     }),
-    long:buildScenario('LONG',next,longTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality}),
-    short:buildScenario('SHORT',next,shortTarget,{zone:currentQuality==='PASS'?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality}),
+    long:buildScenario('LONG',next,longTarget,{zone:geometryReady?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality,structureEligibility}),
+    short:buildScenario('SHORT',next,shortTarget,{zone:geometryReady?zone:null,currentPrice,flow,levels:decorated,chartQuality:currentQuality,structureEligibility}),
     rrMeaning:'CONDITIONAL_STRUCTURAL_RR_NOT_WIN_RATE_NOT_EV_NOT_ENTRY_ADVICE',
     recommendation:false,
   }):null;
@@ -451,6 +483,7 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
   }
   return Object.freeze({
     schemaVersion:'decision-level-watch-v3',state:display.length?'READY':'UNAVAILABLE',reason:display.length?null:'NO_LAWFUL_LEVELS',snapshotTime:iso(snapshotTime),sourceAvailableAt,identity,
+    structureEligibility,currentPriceQualityStatus:currentQuality,
     currentPrice,zonePoints:zone,zoneMethod:'35%_RECENT_COMPLETED_5M_MEDIAN_RANGE_CLAMP_6_30_OBSERVATION_ONLY',
     rankingMethod:'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY',
     levels:freezeRows(display),nextWatch:explainedNext?Object.freeze({...explainedNext}):null,scenarioWatch,observationGuidance,

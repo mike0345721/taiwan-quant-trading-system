@@ -1,5 +1,10 @@
 # CRU-21 timestamp dependency quality V1
 
+The subsequent Owner-scoped [source-time structure contract](CRU21_SOURCE_TIME_STRUCTURE_V1.md)
+adds a separate LIVE descriptive calculation capability. All quality restrictions
+and the `restoresTargets=false` meaning of this module's clean-window observation
+remain unchanged; that observation alone never grants the new capability.
+
 Scope: repair inconsistent per-value quality after the existing timestamp-lineage
 session gate has restricted a chart. This is NOT a new trading rule, clock
 correction, acceptable-skew tolerance, or permission to promote a session.

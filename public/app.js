@@ -4192,10 +4192,12 @@ function scenarioDirectionLabel(scenarioWatch, next) {
 }
 
 function scenarioTargetWhy(scenario) {
-  if (!scenario?.target) return '目前沒有通過結構與品質檢查的方向目標。';
+  if (!scenario?.target) return [scenario?.targetDiagnostics?.summary, scenario?.targetDiagnostics?.waitFor].filter(Boolean).join(' ')
+    || '目前沒有通過結構與品質檢查的方向目標。';
   const target = scenario.target;
   const reasons = Array.isArray(target.basisReasons) ? target.basisReasons : [];
-  return [target.why, ...reasons, `來源：${target.sourceId || '未知'}；可用時間：${target.availableAt || '未知'}；品質：${target.qualityStatus || '未知'}。`].filter(Boolean).join(' ');
+  const qualityReasons = Array.isArray(target.qualityReasons) && target.qualityReasons.length ? `（${target.qualityReasons.join('、')}）` : '';
+  return [target.why, ...reasons, `來源：${target.sourceId || '未知'}；可用時間：${target.availableAt || '未知'}；品質：${target.qualityStatus || '未知'}${qualityReasons}。`].filter(Boolean).join(' ');
 }
 
 function scenarioEvidenceText(scenario) {
@@ -4207,43 +4209,64 @@ function scenarioEvidenceText(scenario) {
   return `${price}；${flow}。${geometry}仍是條件情境，未形成交易訊號。`;
 }
 
-function renderScenarioWatch(scenarioWatch) {
+function renderScenarioWatch(scenarioWatch, { restrictionText = '', unavailableText = '' } = {}) {
   const long = scenarioWatch?.long || null;
   const short = scenarioWatch?.short || null;
   dwText('dw-long-target', scenarioTargetText(long));
   dwText('dw-short-target', scenarioTargetText(short));
   dwText('dw-long-rr', scenarioRrText(long));
   dwText('dw-short-rr', scenarioRrText(short));
-  dwText('dw-long-target-why', scenarioTargetWhy(long));
-  dwText('dw-short-target-why', scenarioTargetWhy(short));
+  dwText('dw-long-target-why', [restrictionText, unavailableText || scenarioTargetWhy(long)].filter(Boolean).join(' '));
+  dwText('dw-short-target-why', [restrictionText, unavailableText || scenarioTargetWhy(short)].filter(Boolean).join(' '));
   dwText('dw-long-confirm', long?.confirm || '等待合法多方確認條件。');
   dwText('dw-long-invalidate', long?.invalidate || '等待合法多方失效條件。');
   dwText('dw-short-confirm', short?.confirm || '等待合法空方確認條件。');
   dwText('dw-short-invalidate', short?.invalidate || '等待合法空方失效條件。');
-  dwText('dw-long-evidence', scenarioEvidenceText(long));
-  dwText('dw-short-evidence', scenarioEvidenceText(short));
+  dwText('dw-long-evidence', [restrictionText, unavailableText || scenarioEvidenceText(long)].filter(Boolean).join(' '));
+  dwText('dw-short-evidence', [restrictionText, unavailableText || scenarioEvidenceText(short)].filter(Boolean).join(' '));
   const available = [long, short].some((row) => row?.rr?.state === 'AVAILABLE');
-  dwText('dw-scenario-rr-note', available
+  dwText('dw-scenario-rr-note', [restrictionText, available
     ? '條件式結構 R:R：確認門檻→合法目標 ÷ 確認門檻→失效門檻；不是勝率、EV、進場或停損指令。'
-    : '目前缺少合法方向目標或結構條件，因此不計算 R:R；不補造價位。');
+    : '目前缺少合法方向目標或結構條件，因此不計算 R:R；不補造價位。'].filter(Boolean).join(' '));
+}
+
+function levelWatchUnavailableExplanation(watch) {
+  const diagnostic = watch?.unavailabilityDiagnostics;
+  if (!diagnostic) return null;
+  const dependencies = diagnostic.dependencies || {};
+  const count = value => Number.isInteger(value) && value >= 0 ? String(value) : '未知';
+  const rows = [diagnostic.summary,
+    `來源時間：${watch.sourceAvailableAt || '未知'}。`,
+    `完成 5 分 K ${count(dependencies.completedBarCount)} 根；近期 range 輸入 ${count(dependencies.recentRangeBarCount)} 根，結構合格 ${count(dependencies.eligibleRangeBarCount)} 根，原品質受限 ${count(dependencies.restrictedRangeBarCount)} 根。`,
+    ...(Array.isArray(diagnostic.sources) ? diagnostic.sources : []).map(source =>
+      `${source.id || '未識別來源'}：${source.availability || 'UNKNOWN'}；品質 ${source.qualityStatus || 'UNKNOWN'}${source.reason ? `；${source.reason}` : ''}。`),
+    ...(Array.isArray(diagnostic.reasonCodes) && diagnostic.reasonCodes.length ? [`限制原因：${diagnostic.reasonCodes.join('、')}。`] : []),
+  ].filter(Boolean);
+  return { summary: diagnostic.summary || '結構依賴尚未合格，目標與 R:R 保持空值。', rows, text: rows.join(' ') };
 }
 
 function renderDecisionLevelWatch(levelWatch) {
   state.levelWatch = levelWatch || null;
   if (state.decisionWorkspace) state.decisionWorkspace = { ...state.decisionWorkspace, levelWatch: levelWatch || null };
   const host = $('dw-next-watch');
-  const matchesChart = levelWatchIsFresh(levelWatch) && (!state.txChartPayload || levelWatchMatchesChart(levelWatch, state.txChartPayload));
+  const needsSourceTimeValidation = Boolean(levelWatch?.structureEligibility && levelWatch.currentPriceQualityStatus !== 'PASS');
+  const matchesChart = levelWatchIsFresh(levelWatch) && (state.txChartPayload
+    ? levelWatchMatchesChart(levelWatch, state.txChartPayload) : !needsSourceTimeValidation);
   const next = levelWatch?.state === 'READY' && matchesChart ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
     const expired = levelWatch?.reason === 'CHART_SOURCE_STALE'
       || (levelWatch?.state === 'READY' && !levelWatchIsFresh(levelWatch, state.txChartPayload));
+    const diagnosticIdentityMatches = !state.txChartPayload || ['actualContract', 'tradeDate', 'session']
+      .every(key => levelWatch?.identity?.[key] && levelWatch.identity[key] === state.txChartPayload[key]);
+    const explanation = levelWatch?.state === 'UNAVAILABLE' && !expired && diagnosticIdentityMatches && levelWatch?.unavailabilityDiagnostics
+      ? levelWatchUnavailableExplanation(levelWatch) : null;
     dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得' : '等待合法關鍵價位');
     dwText('dw-next-watch-distance', '—');
-    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。' : '目前沒有可用價位。');
-    renderNextWatchBasis(['等待合法價位與證據。']);
-    renderScenarioWatch(null);
-    dwText('dw-next-watch-response', '等待合法價位。');
+    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。' : explanation?.text || '目前沒有可用價位。');
+    renderNextWatchBasis(explanation?.rows || ['等待合法價位與證據。']);
+    renderScenarioWatch(null, { unavailableText: explanation?.text || '' });
+    dwText('dw-next-watch-response', explanation?.summary || '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
     return;
@@ -4252,12 +4275,16 @@ function renderDecisionLevelWatch(levelWatch) {
   host.dataset.state = next.state || 'MONITORING';
   const distance = finiteNumber(next.distancePoints);
   const distanceText = distance == null ? '距離未知' : distance === 0 ? '正在價位' : `距離 ${fmt(Math.abs(distance), 1)} 點`;
-  const qualityText = next.qualityStatus && next.qualityStatus !== 'PASS' ? ' · 資料品質受限' : '';
-  dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${scenarioDirectionLabel(scenario, next)}`);
+  const sourceTimeOnly = levelWatch?.structureEligibility && sourceTimeStructureEligible(levelWatch.structureEligibility)
+    && (state.txChartPayload?.qualityStatus !== 'PASS' || levelWatch.currentPriceQualityStatus !== 'PASS');
+  const restrictionText = sourceTimeOnly ? '來源時間結構：僅依來源所報時間計算幾何；跨時計品質受限，不等於可交易。' : '';
+  const qualityText = sourceTimeOnly ? ' · 跨時計品質受限／不等於可交易'
+    : next.qualityStatus && next.qualityStatus !== 'PASS' ? ' · 資料品質受限' : '';
+  dwText('dw-next-watch-label', `${next.label} ${fmt(next.price, 2)} · ${scenarioDirectionLabel(scenario, next)}${sourceTimeOnly ? ' · 來源時間結構' : ''}`);
   dwText('dw-next-watch-distance', `${distanceText}${qualityText}`);
-  dwText('dw-next-watch-why', next.why || '由合法價格結構產生。');
+  dwText('dw-next-watch-why', [restrictionText, next.why || '由合法價格結構產生。'].filter(Boolean).join(' '));
   renderNextWatchBasis(next.basisReasons || []);
-  renderScenarioWatch(scenario);
+  renderScenarioWatch(scenario, { restrictionText });
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
   dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
@@ -4290,10 +4317,16 @@ function levelWatchIsFresh(watch, chart = null) {
   return times.every(at => Number.isFinite(at) && at <= now + 5_000 && now - at <= 120_000)
     && sourceAt <= snapshotAt;
 }
+function sourceTimeStructureEligible(value) {
+  return value?.schemaVersion === 'source-time-structure-v1' && value.state === 'ELIGIBLE'
+    && value.basis === 'REPORTED_SOURCE_TIME_GEOMETRY' && value.scope === 'LIVE_DESCRIPTIVE_ONLY';
+}
 function levelWatchMatchesChart(watch, chart) {
   return watch?.state === 'READY' && levelWatchIsFresh(watch, chart) && chart?.mode !== 'REPLAY'
     && ['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(chart?.status)
-    && (chart?.qualityStatus === 'PASS' || ![watch.scenarioWatch?.long, watch.scenarioWatch?.short].some((side) => side?.rr?.state === 'AVAILABLE'))
+    && ((chart?.qualityStatus === 'PASS' && (!watch.currentPriceQualityStatus || watch.currentPriceQualityStatus === 'PASS'))
+      || (sourceTimeStructureEligible(watch.structureEligibility) && sourceTimeStructureEligible(chart?.structureEligibility))
+      || ![watch.scenarioWatch?.long, watch.scenarioWatch?.short].some((side) => side?.rr?.state === 'AVAILABLE'))
     && ['actualContract', 'tradeDate', 'session'].every((key) => watch.identity?.[key] && watch.identity[key] === chart?.[key]);
 }
 function clearTxChartLevels() {

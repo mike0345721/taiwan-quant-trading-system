@@ -5,6 +5,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
+import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
 
 const ledgerCache = new Map();
 let timestampLineageCache = new WeakMap();
@@ -417,7 +418,8 @@ export function loadTxDecisionChart({
   const priorDay = governedInitial.actualContract && governedInitial.contractMonth
     ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, governedInitial.actualContract, governedInitial.contractMonth)
     : null;
-  const result = attachPriorDayLevels(governedInitial, priorDay, cutoff);
+  const result = attachSourceTimeStructureEligibility(attachPriorDayLevels(governedInitial, priorDay, cutoff), records,
+    { calendar, cutoff, explicitAsOf: asOf != null });
   return Object.freeze({
     ...result,
     sourceLedgerDates: Object.freeze(ledgerDates),
