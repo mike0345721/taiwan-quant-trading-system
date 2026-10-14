@@ -224,7 +224,7 @@ try {
       Check $owned 'Another real startup is active; contention test did not acquire mutex'
       # The missing binding ensures even a broken mutex cannot reach runtime actions.
       $output=& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $entryPath -BindingPath (Join-Path $fixtureRoot 'never-exists.json') -NoBrowser 2>&1
-      Check ($LASTEXITCODE -eq 0 -and ($output -join "`n") -match 'BOUND_START_ALREADY_RUNNING') 'Second process was not serialized'
+      Check ($LASTEXITCODE -eq 3 -and ($output -join "`n") -match 'BUSY_NOT_READY') 'Second process was not serialized'
     } finally { if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
   }
 } finally {

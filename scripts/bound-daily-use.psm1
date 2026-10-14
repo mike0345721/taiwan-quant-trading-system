@@ -1,5 +1,13 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:BoundStartupTraceDirectory=$null
+function Set-BoundStartupTrace([string]$Directory) { $script:BoundStartupTraceDirectory=$Directory }
+function Write-BoundStartupStage([string]$Stage) {
+  if (-not $script:BoundStartupTraceDirectory) { return }
+  if ($Stage -cnotmatch '^[A-Z0-9_]+$') { throw 'BOUND_START_INVALID_STAGE' }
+  $record=@{at=[datetime]::UtcNow.ToString('o');pid=$PID;stage=$Stage}|ConvertTo-Json -Compress
+  [IO.File]::AppendAllText((Join-Path $script:BoundStartupTraceDirectory 'stages.ndjson'),$record+"`n",[Text.Encoding]::UTF8)
+}
 
 function Read-BoundJson([string]$Path) {
   if (-not [IO.File]::Exists($Path)) { return $null }
@@ -49,8 +57,11 @@ function Read-BoundPlan([string]$BindingPath, [string]$LauncherRoot) {
   Assert-Bound ($b.launcher.root -ceq $LauncherRoot) 'LAUNCHER_ROOT_MISMATCH'
   Assert-Bound ($b.dashboard.allowedDirty.Count -le 1) 'DIRTY_ALLOWLIST'
   foreach ($name in $b.dashboard.allowedDirty) { Assert-Bound ($name -ceq 'v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md') 'DIRTY_ALLOWLIST' }
+  Write-BoundStartupStage 'SOURCE_LAUNCHER'
   Assert-BoundSource $b.launcher
+  Write-BoundStartupStage 'SOURCE_PRODUCER'
   Assert-BoundSource $b.producer
+  Write-BoundStartupStage 'SOURCE_DASHBOARD'
   Assert-BoundSource $b.dashboard $b.dashboard.allowedDirty
   foreach ($value in @($b.dataRoot,$b.projectionRoot,$b.envFile,$b.node,$b.logRoot)) {
     Assert-Bound ([IO.Path]::IsPathRooted($value) -and ([IO.Path]::GetFullPath($value) -ceq $value)) 'ABSOLUTE_PATH_REQUIRED'
@@ -116,6 +127,7 @@ function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) 
 function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoot) {
   $id = [guid]::NewGuid().ToString()
   $stem = Join-Path $b.logRoot "$Role-$id"
+  Write-BoundStartupStage ('SPAWN_'+$Role.ToUpperInvariant())
   if ($Role -eq 'producer') {
     $env:CRU34_LIVE_WORKER_INSTANCE_ID = $id
     $env:CRU34_LIVE_STDOUT_PATH = "$stem.stdout.log"
@@ -128,6 +140,7 @@ function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoo
   return $p.Id
 }
 function Invoke-BoundStart($b,[switch]$NoBrowser) {
+  Write-BoundStartupStage 'CHECK_WORKER_IDENTITY'
   # All incumbent checks precede any runtime change. No process is ever stopped here.
   $lock = Read-BoundJson (Join-Path $b.projectionRoot 'worker.lock')
   $status = Read-BoundJson (Join-Path $b.projectionRoot 'status.json')
@@ -141,8 +154,10 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
     Assert-Bound ($status.schemaVersion -ceq 'cru34-live-worker-status-v1' -and $status.pid -gt 0) 'STATUS_UNVERIFIED'
     Assert-Bound ($null -eq (Get-BoundProcess ([int]$status.pid))) 'LIVE_STATUS_WITHOUT_OWNER_LOCK'
   }
+  Write-BoundStartupStage 'CHECK_DASHBOARD'
   $dashboard = Get-BoundListener 8787
   if ($dashboard) { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard -MissingProducer:($null -eq $owner) }
+  Write-BoundStartupStage 'CHECK_BRIDGE'
   $bridge = Get-BoundListener 8790
   if ($bridge) {
     $health = Get-BoundHealth 8790
@@ -174,6 +189,7 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
     $ready = $false
     foreach ($attempt in 1..12) {
       Start-Sleep -Milliseconds 500
+      Write-BoundStartupStage 'CHECK_DASHBOARD'
       $dashboard = Get-BoundListener 8787
       if ($dashboard -and $dashboard.pid -eq $newPid) {
         try { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard; $ready=$true; break } catch { }
@@ -181,6 +197,7 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
     }
     Assert-Bound $ready 'DASHBOARD_START_UNVERIFIED'
   }
+  Write-BoundStartupStage 'VERIFY_FINAL_HTTP'
   $health = Get-BoundHealth 8787
   Assert-BoundDashboard $b $health (Get-BoundListener 8787)
   $result = @{ at=[datetime]::UtcNow.ToString('o'); result='BOUND_SOURCE_READY'; producer=$owner; dashboard=$dashboard; producerReady=$health.runtimeEvidence.producer.ready; producerReasons=$health.runtimeEvidence.producer.reasons; snapshot=$health.runtimeEvidence.producer.observedFlowIdentity; launcher=$b.launcher; producerSource=$b.producer; dashboardSource=$b.dashboard }
