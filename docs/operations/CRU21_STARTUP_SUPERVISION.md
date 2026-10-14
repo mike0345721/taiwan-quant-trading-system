@@ -41,6 +41,17 @@ identities, worker/status/lock and listening ports; preserve the guard and recei
 as evidence before an explicitly reviewed recovery. Do NOT delete market worker.lock,
 rewind checkpoints, or stop unknown processes to clear a startup failure.
 
+The supervisor serializes its guard check through terminal persistence with a
+binding-key named mutex, separately from the worker's existing application mutex.
+A simultaneous attempt returns BUSY_NOT_READY without creating another worker.
+Before worker creation it persists pending-start.json. A leftover pending intent
+also blocks normal starts, including when the supervisor or diagnostic writes fail.
+Only a matching PID/state/exit-code receipt plus a successfully saved final result
+settles that intent by moving it into the attempt directory as evidence. Known
+completed refusals retain their nonzero exit code. Missing/invalid receipts and
+final result persistence failures require reconciliation; no failure evidence is
+deleted to allow a retry.
+
 Exit semantics: 0 requires a matching terminal worker receipt (BOUND_SOURCE_READY or
 PREFLIGHT_PASS); preflight is never application ready. Busy/parallel entry is exit3
 BUSY_NOT_READY, not success. Deadline is124. An unresolved prior attempt is125.

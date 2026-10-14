@@ -77,8 +77,16 @@ function Invoke-BoundStartupSupervisor {
   $root=Get-BoundSupervisionRoot $BindingPath
   [IO.Directory]::CreateDirectory($root)|Out-Null
   $guard=Join-Path $root 'reconciliation-required.json'
-  if ([IO.File]::Exists($guard)) {
-    return [pscustomobject]@{exitCode=125;state='PRIOR_START_REQUIRES_RECONCILIATION';ready=$false;guard=$guard}
+  $pending=Join-Path $root 'pending-start.json'
+  # Serialize the guard check, worker lifetime and terminal persistence together.
+  # The worker's existing global application mutex remains independent.
+  $mutex=New-Object Threading.Mutex($false,('Global\TwChipBoundSupervisorV1_'+(Split-Path $root -Leaf)))
+  $owned=$false
+  try {
+  try { $owned=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned=$true }
+  if (-not $owned) { return [pscustomobject]@{exitCode=3;state='BUSY_NOT_READY';ready=$false} }
+  if ([IO.File]::Exists($guard) -or [IO.File]::Exists($pending)) {
+    return [pscustomobject]@{exitCode=125;state='PRIOR_START_REQUIRES_RECONCILIATION';ready=$false;guard=$guard;pending=$pending}
   }
   $runId=[guid]::NewGuid().ToString()
   $attempt=Join-Path $root $runId
@@ -87,10 +95,13 @@ function Invoke-BoundStartupSupervisor {
     schema='bound-startup-supervision-v1';runId=$runId;at=[datetime]::UtcNow.ToString('o')
     binding=$BindingPath;deadlineSeconds=$DeadlineSeconds;checkOnly=[bool]$CheckOnly
   }
+  # Persist uncertainty BEFORE creating a worker. If this supervisor disappears or
+  # later diagnostics cannot be written, another invocation must not blindly retry.
+  Write-BoundExclusiveJson $pending @{runId=$runId;attemptDirectory=$attempt;at=[datetime]::UtcNow.ToString('o');automaticRetry=$false}
   $exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
   $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$EntryPath+'" -BindingPath "'+$BindingPath+'" -InternalWorker -AttemptDirectory "'+$attempt+'"'
   if ($NoBrowser) { $arguments+=' -NoBrowser' }; if ($CheckOnly) { $arguments+=' -CheckOnly' }
-  $state='FAILED';$code=1;$process=$null;$detail=$null
+  $state='FAILED';$code=1;$process=$null;$detail=$null;$settled=$false
   try {
     $process=Invoke-BoundSupervisedProcess $exe $arguments (Split-Path $EntryPath -Parent) $attempt ($DeadlineSeconds*1000)
     $code=[int]$process.exitCode
@@ -101,10 +112,17 @@ function Invoke-BoundStartupSupervisor {
       if (-not [IO.File]::Exists($guard)) {
         Write-BoundExclusiveJson $guard @{runId=$runId;attemptDirectory=$attempt;at=[datetime]::UtcNow.ToString('o');reason=$state;automaticRetry=$false}
       }
-    } elseif ($code -eq 0 -and $null -ne $detail -and $detail.pid -eq $process.pid -and
-      $detail.state -ceq $(if($CheckOnly){'PREFLIGHT_PASS'}else{'BOUND_SOURCE_READY'})) { $state=$detail.state }
-    elseif ($code -eq 3 -and $null -ne $detail -and $detail.pid -eq $process.pid -and $detail.state -ceq 'BUSY_NOT_READY') { $state='BUSY_NOT_READY' }
-    elseif ($code -eq 0) { $code=1;$state='MISSING_OR_INVALID_TERMINAL_RECEIPT' }
+    } else {
+      $valid=$null -ne $detail -and $detail.pid -eq $process.pid -and $detail.exitCode -eq $code
+      if ($valid -and $code -eq 0 -and $detail.state -ceq $(if($CheckOnly){'PREFLIGHT_PASS'}else{'BOUND_SOURCE_READY'})) { $state=$detail.state;$settled=$true }
+      elseif ($valid -and $code -eq 3 -and $detail.state -ceq 'BUSY_NOT_READY') { $state='BUSY_NOT_READY';$settled=$true }
+      elseif ($valid -and $code -ne 0 -and $detail.state -ceq 'FAILED') { $state='FAILED';$settled=$true }
+      else {
+        if ($code -eq 0) { $code=1 }
+        $state='MISSING_OR_INVALID_TERMINAL_RECEIPT'
+        Write-BoundExclusiveJson $guard @{runId=$runId;attemptDirectory=$attempt;at=[datetime]::UtcNow.ToString('o');reason=$state;automaticRetry=$false}
+      }
+    }
   } catch {
     $code=1; $state='SUPERVISOR_ERROR_RECONCILE'; $detail=@{errorType=$_.Exception.GetType().Name}
     if (-not [IO.File]::Exists($guard)) {
@@ -113,7 +131,20 @@ function Invoke-BoundStartupSupervisor {
   }
   $result=[pscustomobject]@{schema='bound-startup-supervision-v1';runId=$runId;state=$state;exitCode=$code;
     ready=($state -ceq 'BOUND_SOURCE_READY');at=[datetime]::UtcNow.ToString('o');attemptDirectory=$attempt;process=$process;worker=$detail}
-  Write-BoundExclusiveJson (Join-Path $attempt 'result.json') $result
+  try {
+    Write-BoundExclusiveJson (Join-Path $attempt 'result.json') $result
+    if ($settled) {
+      # Keep the intent as evidence rather than deleting it. Only a fully persisted,
+      # matching terminal result settles the pending attempt, including known refusal.
+      [IO.File]::Move($pending,(Join-Path $attempt 'settled-intent.json'))
+    }
+  } catch {
+    if (-not [IO.File]::Exists($guard)) {
+      Write-BoundExclusiveJson $guard @{runId=$runId;attemptDirectory=$attempt;at=[datetime]::UtcNow.ToString('o');reason='TERMINAL_PERSISTENCE_FAILED';automaticRetry=$false}
+    }
+    throw
+  }
   return $result
+  } finally { if ($owned) { $mutex.ReleaseMutex() };$mutex.Dispose() }
 }
 Export-ModuleMember -Function *-Bound*
