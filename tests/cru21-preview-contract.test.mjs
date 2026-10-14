@@ -15,3 +15,20 @@ test('candidate identity rejects wrong/missing head, base, branch and dirty sour
 test('candidate identity cannot be used for formal or network-exposed startup',()=>{
  for(const override of [{host:'0.0.0.0'},{port:8787},{port:8790},{port:8791},{port:18723},{inlineEnabled:false},{candidateReadRoot:null}])assert.equal(validateCru21PreviewVersionTruth(version,{...options,...override}).ready,false);
 });
+
+test('unified release preview accepts its real branch with the same exact-source boundaries',()=>{
+ const unified='codex/cru21-unified-release-20261014';
+ const unifiedVersion=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch:unified,dataMode:'LIVE'});
+ const unifiedOptions={...options,actualBranch:unified};
+ assert.equal(validateCru21PreviewVersionTruth(unifiedVersion,unifiedOptions).ready,true);
+ assert.equal(unifiedVersion.complete,false);assert.equal(unifiedVersion.syncState,'MISMATCH');
+ for(const override of [{expectedHead:base},{expectedBaseMain:head},{sourceClean:false},{port:8787},{port:18723},{host:'0.0.0.0'},{inlineEnabled:false},{candidateReadRoot:null},{actualDataMode:'MOCK'}])assert.equal(validateCru21PreviewVersionTruth(unifiedVersion,{...unifiedOptions,...override}).ready,false);
+});
+
+test('unified preview cannot substitute a declared branch or admit an unrelated release branch',()=>{
+ const unified='codex/cru21-unified-release-20261014';
+ for(const [declared,actual] of [[branch,unified],[unified,branch],['codex/unrelated','codex/unrelated'],['codex/cru21-unified-release-20990101','codex/cru21-unified-release-20990101']]){
+  const result=validateCru21PreviewVersionTruth({...version,branch:declared},{...options,actualBranch:actual});
+  assert.equal(result.ready,false);assert.ok(result.reasons.includes('CRU21_BRANCH_MISMATCH'));
+ }
+});
