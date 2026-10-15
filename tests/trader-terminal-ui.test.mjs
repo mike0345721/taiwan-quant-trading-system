@@ -229,7 +229,11 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(shellCss, /i\.is-filled \{ background: var\(--energy-strong\); \}/);
   assert.doesNotMatch(shellCss, /is-limited i\.is-filled[^\n]*opacity/);
   assert.match(app, /目前／收盤/);
-  assert.match(app, /完整 開/);
+  // Full OHLC remains wired, but known-loss bars must not always be called complete.
+  // Actual normal/loss output is executed in capture-review-regression.test.mjs.
+  assert.match(app, /txBarObservationLabel\(state\.txChartPayload, selectedTimeMs\)/);
+  assert.match(app, /開 \$\{fmt\(open\)\} \/ 高 \$\{fmt\(high\)\} \/ 低 \$\{fmt\(low\)\} \/ 收 \$\{fmt\(close\)\}/);
+  assert.doesNotMatch(app, /dwText\('dw-chart-crosshair',[^\n]*· 完整 開/);
   assert.match(app, /時段高\|時段低\|VWAP/);
   assert.match(app, /typeof value === 'boolean'/);
   assert.doesNotMatch(read('public', 'trader-terminal-shell.js'), /executionAuthorized\s*=\s*true|orderRoutesEnabled\s*=\s*true/);
