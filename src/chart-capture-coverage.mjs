@@ -60,7 +60,8 @@ export function knownCaptureIntervals(records, { actualContract, cutoff, calenda
       // regress the source watermark or erase the pending interruption.
       if (previousTick != null && source < previousTick) continue;
       if (pending) {
-        if (pending.start != null && source <= pending.start) continue;
+        if ((pending.start != null && source <= pending.start)
+          || source <= pending.failureSourceWatermark) continue;
         const witnessSessionStart = governedSessionStart(source, calendar);
         if (calendar && (witnessSessionStart == null
           || (pending.sessionFloor != null && witnessSessionStart < pending.sessionFloor))) continue;
@@ -79,8 +80,12 @@ export function knownCaptureIntervals(records, { actualContract, cutoff, calenda
     // Bounds are source-time observations surrounding a recorded failure, not
     // a claimed physical outage duration or cross-clock error estimate.
     const sessionFloor = governedSessionStart(event, calendar);
-    if (!pending) pending = { start: previousTick, detected: Math.max(event, receipt), sessionFloor, reasons: new Set(), witnesses: [] };
-    else if (sessionFloor != null) pending.sessionFloor = Math.max(pending.sessionFloor ?? sessionFloor, sessionFloor);
+    if (!pending) pending = { start: previousTick, detected: Math.max(event, receipt),
+      failureSourceWatermark: event, sessionFloor, reasons: new Set(), witnesses: [] };
+    else {
+      pending.failureSourceWatermark = Math.max(pending.failureSourceWatermark, event);
+      if (sessionFloor != null) pending.sessionFloor = Math.max(pending.sessionFloor ?? sessionFloor, sessionFloor);
+    }
     pending.reasons.add(reason);
     if (pending.witnesses.length < 8) pending.witnesses.push(Object.freeze({
       kind: record.kind, eventId: record.eventId ?? null, receivedAt: record.receivedAt, reason }));

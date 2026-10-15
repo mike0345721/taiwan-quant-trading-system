@@ -78,3 +78,19 @@ test('crosshair uses source-bar coverage and does not call affected OHLC complet
  assert.equal(context.txBarObservationLabel(chart,ms('10:50:00')),'完整');
  assert.match(app,/txBarObservationLabel\(state\.txChartPayload, selectedTimeMs\)/);
 });
+
+test('same-session delayed advancing source tick cannot precede the interruption event boundary',()=>{
+ const rows=[tick(ms('11:00:00')),down(ms('11:05:00')),tick(ms('11:02:00'),99,ms('11:06:00')),tick(ms('11:07:00'))];
+ const intervals=knownCaptureIntervals(rows,{actualContract:'TXFJ6',cutoff:iso(ms('11:08:00')),calendar});
+ assert.equal(intervals.length,1);assert.equal(intervals[0].endSourceAt,iso(ms('11:07:00')));
+ assert.equal(captureIntervalOverlaps(intervals,ms('11:05:00'),ms('11:10:00')),true);
+});
+test('without a post-interruption source witness a delayed advancing trade leaves loss open',()=>{
+ const intervals=knownCaptureIntervals([tick(ms('11:00:00')),down(ms('11:05:00')),tick(ms('11:02:00'),99,ms('11:06:00'))],{actualContract:'TXFJ6',cutoff:iso(ms('11:08:00')),calendar});
+ assert.equal(intervals[0].endSourceAt,null);
+});
+test('additional failure evidence advances the pending restoration source boundary',()=>{
+ const rows=[tick(ms('11:00:00')),down(ms('11:05:00')),down(ms('11:08:00')),tick(ms('11:07:00'),99,ms('11:09:00')),tick(ms('11:10:00'))];
+ const intervals=knownCaptureIntervals(rows,{actualContract:'TXFJ6',cutoff:iso(ms('11:11:00')),calendar});
+ assert.equal(intervals[0].endSourceAt,iso(ms('11:10:00')));
+});

@@ -164,3 +164,9 @@ behind an available number is not considered sufficient owner-visible disclosure
 Regression probes cover the review's late-tick, open-interval, primary-fallback
 and numeric-display cases. Source tests and review alone do not certify a deployed
 normal-entry/API/browser result or authorize execution or formal rollout.
+
+A follow-up review also rejects a delayed-but-advancing tick whose source time is
+not later than the recorded interruption event timestamp. Every additional failure
+advances that pending source boundary. This is a conservative eligibility refusal,
+not a calibration of source and local clocks; uncertainty can delay restoration
+but cannot certify a missing interval as received.
