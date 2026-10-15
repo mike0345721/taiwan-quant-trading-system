@@ -1,3 +1,5 @@
+import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
+
 // Known reception interruptions are different from an unknown native sequence.
 // Keep lifecycle evidence in physical ledger order; never infer zero loss from silence.
 export const CAPTURE_EVENT_KINDS = Object.freeze(['provider_event', 'session_down', 'bridge_stopped']);
@@ -9,6 +11,11 @@ const time = value => {
   return Number.isFinite(result) ? result : null;
 };
 const iso = value => Number.isFinite(value) ? new Date(value).toISOString() : null;
+function governedSessionStart(value, calendar) {
+  if (!calendar) return null;
+  try { return time(classifyTxChartSession(iso(value), calendar).sessionStart); }
+  catch { return null; }
+}
 
 export function compactCaptureEvidence(record) {
   if (!isCaptureKind(record?.kind)) return null;
@@ -34,7 +41,7 @@ function failureReason(record, contract) {
   return null;
 }
 
-export function knownCaptureIntervals(records, { actualContract, cutoff } = {}) {
+export function knownCaptureIntervals(records, { actualContract, cutoff, calendar = null } = {}) {
   const at = time(cutoff);
   if (!Number.isFinite(at) || typeof actualContract !== 'string') return Object.freeze([]);
   const intervals = [];
@@ -49,7 +56,14 @@ export function knownCaptureIntervals(records, { actualContract, cutoff } = {}) 
         || payload.code !== actualContract || record.product !== actualContract
         || payload._target_code !== actualContract || !Number.isFinite(source)
         || Math.max(source, receipt) > at || !(Number(payload.close) > 0) || !(Number(payload.volume) > 0)) continue;
+      // A physically later callback can carry an older trade. It must not
+      // regress the source watermark or erase the pending interruption.
+      if (previousTick != null && source < previousTick) continue;
       if (pending) {
+        if (pending.start != null && source <= pending.start) continue;
+        const witnessSessionStart = governedSessionStart(source, calendar);
+        if (calendar && (witnessSessionStart == null
+          || (pending.sessionFloor != null && witnessSessionStart < pending.sessionFloor))) continue;
         intervals.push(Object.freeze({ startSourceAt: iso(pending.start), endSourceAt: iso(source),
           detectedAt: iso(pending.detected), restorationAvailableAt: iso(Math.max(source, receipt)),
           reasonCodes: Object.freeze([...pending.reasons]), witnesses: Object.freeze(pending.witnesses) }));
@@ -64,7 +78,9 @@ export function knownCaptureIntervals(records, { actualContract, cutoff } = {}) 
     if (!Number.isFinite(event) || Math.max(event, receipt) > at) continue;
     // Bounds are source-time observations surrounding a recorded failure, not
     // a claimed physical outage duration or cross-clock error estimate.
-    if (!pending) pending = { start: previousTick, detected: Math.max(event, receipt), reasons: new Set(), witnesses: [] };
+    const sessionFloor = governedSessionStart(event, calendar);
+    if (!pending) pending = { start: previousTick, detected: Math.max(event, receipt), sessionFloor, reasons: new Set(), witnesses: [] };
+    else if (sessionFloor != null) pending.sessionFloor = Math.max(pending.sessionFloor ?? sessionFloor, sessionFloor);
     pending.reasons.add(reason);
     if (pending.witnesses.length < 8) pending.witnesses.push(Object.freeze({
       kind: record.kind, eventId: record.eventId ?? null, receivedAt: record.receivedAt, reason }));
@@ -78,7 +94,9 @@ export function knownCaptureIntervals(records, { actualContract, cutoff } = {}) 
 export function captureIntervalOverlaps(intervals, start, end) {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return false;
   return (intervals || []).some(interval => {
-    const from = time(interval.startSourceAt), until = time(interval.endSourceAt);
+    const from = time(interval.startSourceAt), reportedUntil = time(interval.endSourceAt);
+    // An inverted/empty restoration interval is uncertainty, not a proof of no loss.
+    const until = from != null && reportedUntil != null && reportedUntil <= from ? null : reportedUntil;
     // Missing start/end means unverified coverage to the corresponding boundary.
     return (until == null || until > start) && (from == null || from < end);
   });

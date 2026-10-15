@@ -116,7 +116,7 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
   if (!selected || !Number.isFinite(at) || selected.eventMs > at || selected.receivedMs > at
     || at - selected.eventMs > FRESH_MS || at - selected.receivedMs > FRESH_MS) reasons.push('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE');
   if (!selected || timestamp(chart.lastEventTime)?.ms !== selected.eventMs || Number(chart.lastPrice) !== selected.price) reasons.push('LATEST_SOURCE_MISMATCH');
-  const captureIntervals = knownCaptureIntervals(records, { actualContract: chart.actualContract, cutoff });
+  const captureIntervals = knownCaptureIntervals(records, { actualContract: chart.actualContract, cutoff, calendar });
   const sessionStart = timestamp(chart.bars?.[0]?.sessionStart)?.ms
     ?? inputs.reduce((earliest, input) => Math.min(earliest, input.eventMs), Infinity);
   const maxAvailable = inputs.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
@@ -126,7 +126,7 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
     selectedSourceEventTime: iso(selected?.eventMs), selectedSourceReceiptAt: iso(selected?.receivedMs),
     selectedSourceEventId: selected?.chartOrderKey.eventId ?? null,
     chronologyQualityPreserved: true,
-    feedCompleteness: captureIntervalOverlaps(captureIntervals, sessionStart, maxAvailable) ? 'KNOWN_CAPTURE_INTERRUPTION' : 'UNKNOWN_NO_NATIVE_SEQUENCE',
+    feedCompleteness: captureIntervalOverlaps(captureIntervals, sessionStart, at) ? 'KNOWN_CAPTURE_INTERRUPTION' : 'UNKNOWN_NO_NATIVE_SEQUENCE',
     ...(captureIntervals.length ? { captureIntervals } : {}), replayEligible: false,
     priceConfirmationEligible: false, flowConfirmationEligible: false });
   const top = eligibility(reasons, iso(maxAvailable), { audit });
@@ -159,7 +159,9 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
       || ['actualContract', 'tradeDate', 'session'].some(key => value[key] !== chart[key])) bad.push('LEVEL_INPUTS_UNVERIFIED');
     if (timestamp(value.availableAt)?.ms == null || timestamp(value.availableAt).ms > at) bad.push('LEVEL_AVAILABILITY_INVALID');
     let inputRows = inputs, closedBy = null;
-    let windowStart = sessionStart, windowEnd = maxAvailable;
+    // A LIVE cumulative reference must account for an open outage after its
+    // last tick, not stop checking at that tick's own availability.
+    let windowStart = sessionStart, windowEnd = at;
     if (name.startsWith('openingRange')) {
       const start = timestamp(chart.tradeDate + 'T08:45:00+08:00')?.ms;
       const end = timestamp(chart.tradeDate + 'T09:00:00+08:00')?.ms;

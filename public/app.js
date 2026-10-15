@@ -4073,6 +4073,18 @@ function txChartRuntimeReason() {
   return null;
 }
 
+function captureCoverageWarning(value) {
+  return value?.captureCoverage?.state === 'KNOWN_INTERRUPTION'
+    || value?.reason === 'KNOWN_CAPTURE_INTERRUPTION'
+    || value?.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION')
+    ? '（行情缺口：僅已收到資料，非完整區間）' : '';
+}
+function txBarObservationLabel(chart, selectedTimeMs) {
+  const observation = (chart?.bars || []).find(row => Date.parse(row.time) === selectedTimeMs);
+  const warning = captureCoverageWarning(observation);
+  return warning ? '觀測' + warning : '完整';
+}
+
 function ensureTxChart() {
   if (state.txChartApi) return state.txChartApi;
   state.txChartRuntimeReason = txChartRuntimeReason();
@@ -4132,7 +4144,7 @@ function ensureTxChart() {
     const range = high == null || low == null ? null : high - low;
     const selectedVwap = finiteNumber(vwapPoint?.value);
     const distance = close == null || selectedVwap == null ? 'UNAVAILABLE' : signed(close - selectedVwap, '', 2);
-    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · 目前／收盤 ${fmt(close)} · 漲跌 ${change == null ? 'UNAVAILABLE' : signed(change, ' 點', 2)} · 最高 ${fmt(high)} · 最低 ${fmt(low)} · 振幅 ${range == null ? 'UNAVAILABLE' : fmt(range, 2)} 點 · 成交量 ${fmt(volumePoint?.value)} · 完整 開 ${fmt(open)} / 高 ${fmt(high)} / 低 ${fmt(low)} / 收 ${fmt(close)} · VWAP ${fmt(selectedVwap, 2)} · 距 VWAP ${distance} · ${openingRangeText}`);
+    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · 目前／收盤 ${fmt(close)} · 漲跌 ${change == null ? 'UNAVAILABLE' : signed(change, ' 點', 2)} · 最高 ${fmt(high)} · 最低 ${fmt(low)} · 振幅 ${range == null ? 'UNAVAILABLE' : fmt(range, 2)} 點 · 成交量 ${fmt(volumePoint?.value)} · ${txBarObservationLabel(state.txChartPayload, selectedTimeMs)} 開 ${fmt(open)} / 高 ${fmt(high)} / 低 ${fmt(low)} / 收 ${fmt(close)} · VWAP ${fmt(selectedVwap, 2)}${captureCoverageWarning(state.txChartPayload?.levels?.vwap)} · 距 VWAP ${distance} · ${openingRangeText}`);
     });
     state.txChartApi = chart;
     state.txChartSeries = { candle, volume, vwap };
@@ -4354,11 +4366,13 @@ function renderTxChartLevels(chart) {
   terminalWrite('dw-prior-levels', prior.every((value) => value != null) ? prior.map((value) => fmt(value)).join(' / ') : null, { reason: levels.previousClose?.reason || 'PRIOR_LEVELS_UNAVAILABLE' });
   const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
-  terminalWrite('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
+  const rangeWarning = captureCoverageWarning(levelValue(levels.currentDayHigh) != null ? levels.currentDayHigh : levels.nightHigh)
+    || captureCoverageWarning(levelValue(levels.currentDayLow) != null ? levels.currentDayLow : levels.nightLow);
+  terminalWrite('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}${rangeWarning}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
   const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : null;
   terminalWrite('dw-or-state', orText, { reason: chart?.openingRange?.reason || 'OPENING_RANGE_UNAVAILABLE' });
   dwText('dw-vwap-label', chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP');
-  terminalWrite('dw-vwap-state', levelValue(levels.vwap) == null ? null : fmt(levels.vwap.value, 2), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  terminalWrite('dw-vwap-state', levelValue(levels.vwap) == null ? null : fmt(levels.vwap.value, 2) + captureCoverageWarning(levels.vwap), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
   terminalWrite('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
   terminalWrite('dw-chart-quality', chart?.qualityStatus || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
 
@@ -4380,7 +4394,7 @@ function renderTxChartLevels(chart) {
   const vwapSeriesLabel = chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP';
   if (state.txChartSeries?.vwap?.applyOptions) {
     state.txChartSeries.vwap.applyOptions({
-      title: vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel,
+      title: (vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel) + captureCoverageWarning(levels.vwap),
       lastValueVisible: levelValue(levels.vwap) != null,
     });
   }
@@ -4391,7 +4405,7 @@ function renderTxChartLevels(chart) {
     const price = levelValue(level);
     if (price == null || drawnPrices.has(price) || state.txChartLevelLines.length >= lineBudget) return;
     drawnPrices.add(price);
-    addTxChartLevel(level, title, color);
+    addTxChartLevel(level, title + captureCoverageWarning(level), color);
   };
   if (watch?.state === 'READY' && Array.isArray(watch.levels)) {
     const familyColor = {
@@ -4406,7 +4420,7 @@ function renderTxChartLevels(chart) {
       if (!Number.isFinite(Number(entry.price))) continue;
       const isNext = entry.id === nodeId;
       const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');
-      boundedLevel({ availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
+      boundedLevel({ ...entry, availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
     }
   } else {
     const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;

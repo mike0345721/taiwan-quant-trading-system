@@ -74,6 +74,10 @@ function ui(){
     finiteNumber:value=>value==null?null:Number.isFinite(Number(value))?Number(value):null,fmt:(value,n=0)=>Number(value).toFixed(n),
     levelValue:level=>level?.availability==='AVAILABLE'?level.value:null,AbortSignal,
     api:async()=>{throw new Error('OFFLINE_FIXTURE');}});
+  // Execute the production warning helper used by the renderer, not a stub.
+  const captureStart=app.indexOf('function captureCoverageWarning(');
+  const captureEnd=app.indexOf('function txBarObservationLabel(',captureStart);
+  vm.runInContext(app.slice(captureStart,captureEnd),context);
   vm.runInContext(app.slice(app.indexOf('function levelEventLabel('),app.indexOf('function renderTxChartLevels(')),context);
   const start=app.indexOf('function renderTxChartLevels('),end=app.indexOf('\n}\n',start)+3;
   vm.runInContext(app.slice(start,end),context);

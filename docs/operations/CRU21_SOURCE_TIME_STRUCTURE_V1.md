@@ -135,3 +135,32 @@ The revised semantics require separate review and deployment. Passing isolated
 regressions or replaying the saved incident does not certify the running c85 UI,
 all other timeframes, physical-clock accuracy, full-day capture, executable R:R,
 model responses or formal release.
+
+### Independent-review corrections (2026-10-15)
+
+The independent review of 51a identified additional boundary and display defects.
+A physically subsequent tick cannot restore an interval if its source timestamp
+regresses or equals the last pre-interruption source observation. With the governed
+calendar, a recovery witness must also be in the detected interruption's session
+or a later session; a delayed earlier-session trade leaves the interval open.
+The remembered source watermark cannot regress on a delayed callback. An inverted
+stored interval is treated as unresolved, not evidence that capture was complete.
+
+LIVE cumulative references check coverage through the current assessment cutoff,
+including an open interruption after the last captured tick. Completed fixed
+opening windows retain their own fixed dependency end. This does not manufacture
+trades in empty windows, change original timestamps or certify physical timing.
+
+Restricted numeric rows remain inspectable, but an explicit blocked structural
+capability never enters the primary-node fallback. Eligible contextual references
+are preferred when no eligible core node exists. If all rows are explicitly
+blocked, nextWatch and scenarioWatch remain null. Legacy observations without a
+capability retain their existing explanation-only fallback and unavailable
+thresholds; this compatibility path cannot admit a known capture interruption.
+Numeric VWAP/session reference displays, overlay labels and affected-bar crosshair
+text carry a visible capture-gap/observed-subset warning. A reason code hidden
+behind an available number is not considered sufficient owner-visible disclosure.
+
+Regression probes cover the review's late-tick, open-interval, primary-fallback
+and numeric-display cases. Source tests and review alone do not certify a deployed
+normal-entry/API/browser result or authorize execution or formal rollout.

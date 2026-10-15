@@ -452,8 +452,14 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   );
-  const nodePool=decorated.filter(x=>isStructureEligible(x)&&x.importanceBand!=='CONTEXT');
-  const next=[...(nodePool.length?nodePool:decorated)].sort((a,b)=>
+  // Explicitly blocked capability rows cannot become fallback nodes. Preserve
+  // the legacy no-capability observation explanation (unavailable thresholds),
+  // but never use it in preference to a genuinely eligible contextual reference.
+  const eligibleNodes=decorated.filter(x=>isStructureEligible(x));
+  const nodePool=eligibleNodes.filter(x=>x.importanceBand!=='CONTEXT');
+  const legacyObservations=decorated.filter(x=>!x.structureEligibility
+    && !x.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION'));
+  const next=[...(nodePool.length?nodePool:eligibleNodes.length?eligibleNodes:legacyObservations)].sort((a,b)=>
     structuralRank(b)-structuralRank(a)
     ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
     ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
