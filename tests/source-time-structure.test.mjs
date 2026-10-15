@@ -332,6 +332,6 @@ test('loader and restored caches preserve unknown raw sequence evidence and reje
       cacheSize:bytes.length,cacheHash:crypto.createHash('sha256').update(bytes).digest('hex')}));
     clearTxChartLedgerCache();
     assert.ok(reasons(loadTxDecisionChart(args)).includes('RAW_SEQUENCE_GAP_OR_UNKNOWN'));
-    assert.equal(JSON.parse(fs.readFileSync(metadataPath)).schemaVersion,'dw2-tx-tick-cache-v2');
+    assert.equal(JSON.parse(fs.readFileSync(metadataPath)).schemaVersion,'dw2-tx-tick-cache-v3');
   }
 });

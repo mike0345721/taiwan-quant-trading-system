@@ -25,7 +25,7 @@ coordinates** from cross-clock chronology assurance. No clock accuracy is claime
 `REPORTED_SOURCE_TIME_GEOMETRY`, scope `LIVE_DESCRIPTIVE_ONLY`, state
 `ELIGIBLE` or `BLOCKED`. This is calculation eligibility, never a quality upgrade.
 
-Original timestamps, OHLC, volume, VWAP, qualityStatus, reasons, anomaly counts
+Original timestamps, OHLC, volume, VWAP and anomaly counts
 and raw bytes stay unchanged. Cumulative VWAP/session extremes remain restricted
 when their inputs contain anomalies. The separate capability describes the full
 observed input set, without discarding old inputs or clearing their restrictions.
@@ -64,8 +64,8 @@ per-value behavior stays unchanged. The cache does not certify a durable histori
 knowledge-prefix cutoff. Feed completeness remains `UNKNOWN_NO_NATIVE_SEQUENCE`;
 local gap=0 does not prove complete exchange capture.
 
-Derived tick cache v2 preserves raw `sequenceGap` rather than coercing unknown
-to zero. Legacy v1 caches are rebuilt from the untouched ledger before the new
+Derived tick/lifecycle cache v3 preserves raw `sequenceGap` rather than coercing unknown
+to zero. Legacy v1/v2 caches are rebuilt from the untouched ledger before the new
 capability can rely on them. This affects only derived caches in the selected
 runtime's cacheRoot; it never rewrites raw Ledger or Producer checkpoints.
 
@@ -97,3 +97,41 @@ Actual acceptance must identify the same exact candidate SHA in real HTTP API
 and browser, report real targets/ratios including null, retained limitations and
 protected runtime identities. A direct loader run is not HTTP/browser evidence.
 Synthetic PASS never proves market recovery. Clock synchronization stays unverified.
+
+## Recorded reception interruption correction (2026-10-15)
+
+A real post-recovery API showed READY/PASS OR based on nine ticks spanning
+452 milliseconds at08:46, despite the independently recorded reception outage
+across the08:45–09:00 opening window. A late10:46 tick could close the clock
+window but could not establish reception of its missing part. Arithmetic over
+that observed subset was unchanged; its full-window eligibility was unsupported.
+
+The derived v3 cache retains relevant provider/session/bridge lifecycle records
+alongside ticks in physical order. Its public tick-reader default stays tick-only;
+the chart loader explicitly requests capture evidence. Legacy v1/v2 caches are
+rebuilt from untouched Ledger, because a tick-only cache cannot recover failures.
+
+For the existing LIVE-current5m capability only, a recorded bridge stop/session
+loss, provider reconnect, or matching TX Tick subscription failure starts a
+coverage-uncertainty interval bounded by the preceding and next observed source
+ticks. Receipt/source cutoff guards exclude evidence not yet available. These
+bounds do not claim exact physical outage duration or clock accuracy. A subscribe
+acknowledgement does not restore coverage; a new actual matching trade is needed.
+Silence, empty five-minute buckets, another contract, and BidAsk-only problems do
+not by themselves assert missing TX trades. No new gap-duration threshold is used.
+
+Original prices, volume, availableAt, raw bytes and chronology warnings remain.
+A value whose dependency window intersects a known interval gains
+KNOWN_CAPTURE_INTERRUPTION / QUALITY_INSUFFICIENT and BLOCKED eligibility. This
+includes the frozen OR and cumulative current-session references, plus affected
+individual bars. Observed numeric subsets remain inspectable with an explicit
+not-complete-range meaning. They cannot become a primary node or target through
+the existing per-value eligibility check. Unaffected later completed bars and
+independently qualified prior references remain available; no global disable or
+quality promotion is introduced. Late failures cannot invalidate a completed OR
+whose dependency window precedes the conservative interruption interval.
+
+The revised semantics require separate review and deployment. Passing isolated
+regressions or replaying the saved incident does not certify the running c85 UI,
+all other timeframes, physical-clock accuracy, full-day capture, executable R:R,
+model responses or formal release.

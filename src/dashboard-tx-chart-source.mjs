@@ -6,6 +6,7 @@ import { resolveGovernedTradingDay } from './market-state-forward-shadow-calenda
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
 import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
+import { CAPTURE_EVENT_KINDS, compactCaptureEvidence } from './chart-capture-coverage.mjs';
 
 const ledgerCache = new Map();
 let timestampLineageCache = new WeakMap();
@@ -17,6 +18,8 @@ function sha256(bytes) {
 }
 
 function compactTickRecord(record) {
+  const capture = compactCaptureEvidence(record);
+  if (capture) return capture;
   const payload = record.payload || {};
   return {
     kind: record.kind,
@@ -58,7 +61,7 @@ function readPersistentCache(sourcePath, sourceStat, cacheRoot) {
   try {
     const metadata = JSON.parse(fs.readFileSync(files.metadata, 'utf8'));
     const bytes = fs.readFileSync(files.records);
-    if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v2'
+    if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v3'
       || metadata.sourcePath !== path.resolve(sourcePath)
       || !Number.isInteger(metadata.sourceOffset)
       || metadata.sourceOffset < 0
@@ -98,7 +101,7 @@ function writePersistentCache(sourcePath, cached, cacheRoot) {
   const bytes = fs.existsSync(files.records) ? fs.readFileSync(files.records) : Buffer.alloc(0);
   const metadataTemp = `${files.metadata}.${process.pid}.tmp`;
   const metadata = {
-    schemaVersion: 'dw2-tx-tick-cache-v2',
+    schemaVersion: 'dw2-tx-tick-cache-v3',
     sourcePath: path.resolve(sourcePath),
     sourceOffset: cached.offset,
     recordCount: cached.records.length,
@@ -183,12 +186,15 @@ function relevantLedgerDates(calendar, tradeDate, session, timeframe = '5m') {
 }
 
 function parseCandidateLine(line, records) {
+  if (CAPTURE_EVENT_KINDS.some(kind => line.includes(`"kind":"${kind}"`))) {
+    try { const evidence = compactCaptureEvidence(JSON.parse(line)); if (evidence) { records.push(evidence); return true; } } catch { return false; }
+  }
   if (!line.includes('"kind":"futures_tick"')) return false;
   if (!line.includes('"_product_family":"TX"') && !/"product":"TXF[A-L]\d"/.test(line)) return false;
   try { records.push(compactTickRecord(JSON.parse(line))); return true; } catch { return false; }
 }
 
-export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
+export function readTxLiveEventLedger(filePath, { cacheRoot = null, includeCaptureEvidence = false } = {}) {
   const absolute = path.resolve(filePath);
   if (!fs.existsSync(absolute)) return Object.freeze([]);
   const stat = fs.statSync(absolute);
@@ -205,7 +211,7 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
   };
   // Remember a restored checkpoint even when no new suffix has arrived.
   ledgerCache.set(absolute, cached);
-  if (stat.size === cached.offset) return Object.freeze([...cached.records]);
+  if (stat.size === cached.offset) return Object.freeze(includeCaptureEvidence ? [...cached.records] : cached.records.filter(record => record.kind === 'futures_tick'));
   const fd = fs.openSync(absolute, 'r');
   const decoder = new StringDecoder('utf8');
   const buffer = Buffer.allocUnsafe(8 * 1024 * 1024);
@@ -230,7 +236,7 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null } = {}) {
   if (cacheRoot && (cached.forceRewrite === true || uncheckpointedBytes >= PERSISTENT_CACHE_CHECKPOINT_BYTES)) {
     writePersistentCache(absolute, cached, cacheRoot);
   }
-  return Object.freeze([...cached.records]);
+  return Object.freeze(includeCaptureEvidence ? [...cached.records] : cached.records.filter(record => record.kind === 'futures_tick'));
 }
 
 function chartTimestampMs(value) {
@@ -404,7 +410,7 @@ export function loadTxDecisionChart({
   const cutoff = asOf || now.toISOString();
   if (!selectedTradeDate) return buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
   const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
-  const records = ledgerDates.flatMap((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`), { cacheRoot }));
+  const records = ledgerDates.flatMap((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`), { cacheRoot, includeCaptureEvidence: true }));
   const lineage = normalizeTimestampLineageForChart(records, calendar);
   const initial = buildTxDecisionChart(lineage.records, {
     calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate,

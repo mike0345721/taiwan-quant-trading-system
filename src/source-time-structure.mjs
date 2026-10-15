@@ -1,4 +1,5 @@
 import { classifyTxChartSession, compareTxChartTicks, txChartTickOrderKey } from './dashboard-tx-chart.mjs';
+import { knownCaptureIntervals, captureIntervalOverlaps, restrictKnownCaptureLoss } from './chart-capture-coverage.mjs';
 
 const FIVE_MINUTES = 300_000;
 const FRESH_MS = 120_000;
@@ -115,13 +116,18 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
   if (!selected || !Number.isFinite(at) || selected.eventMs > at || selected.receivedMs > at
     || at - selected.eventMs > FRESH_MS || at - selected.receivedMs > FRESH_MS) reasons.push('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE');
   if (!selected || timestamp(chart.lastEventTime)?.ms !== selected.eventMs || Number(chart.lastPrice) !== selected.price) reasons.push('LATEST_SOURCE_MISMATCH');
+  const captureIntervals = knownCaptureIntervals(records, { actualContract: chart.actualContract, cutoff });
+  const sessionStart = timestamp(chart.bars?.[0]?.sessionStart)?.ms
+    ?? inputs.reduce((earliest, input) => Math.min(earliest, input.eventMs), Infinity);
   const maxAvailable = inputs.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
   if (timestamp(chart.availableAt)?.ms !== maxAvailable) reasons.push('CHART_AVAILABILITY_MISMATCH');
   const audit = Object.freeze({ scopedRecordCount, includedInputCount: inputs.length, duplicateExcludedCount, futureExcludedCount,
     sourceEventWatermark: iso(last?.eventMs), sourceReceiptAt: iso(last?.receivedMs), effectiveAvailableAt: iso(maxAvailable),
     selectedSourceEventTime: iso(selected?.eventMs), selectedSourceReceiptAt: iso(selected?.receivedMs),
     selectedSourceEventId: selected?.chartOrderKey.eventId ?? null,
-    chronologyQualityPreserved: true, feedCompleteness: 'UNKNOWN_NO_NATIVE_SEQUENCE', replayEligible: false,
+    chronologyQualityPreserved: true,
+    feedCompleteness: captureIntervalOverlaps(captureIntervals, sessionStart, maxAvailable) ? 'KNOWN_CAPTURE_INTERRUPTION' : 'UNKNOWN_NO_NATIVE_SEQUENCE',
+    ...(captureIntervals.length ? { captureIntervals } : {}), replayEligible: false,
     priceConfirmationEligible: false, flowConfirmationEligible: false });
   const top = eligibility(reasons, iso(maxAvailable), { audit });
   const baseReasons = [...top.reasonCodes];
@@ -133,13 +139,15 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
     // Existing exact-session-close semantics place the closing tick in the preceding bucket.
     if (end === timestamp(bar.sessionEnd)?.ms) sourceRows.push(...inputs.filter(input => input.eventMs === end));
     const closedBy = completion(end);
+    const captureAffected = captureIntervalOverlaps(captureIntervals, start, end);
+    if (captureAffected) bad.push('KNOWN_CAPTURE_INTERRUPTION');
     if (!Number.isFinite(start) || end > at || !closedBy || closedBy.effectiveMs > at) bad.push('SOURCE_COMPLETION_NOT_OBSERVED');
     if (['actualContract', 'tradeDate', 'session', 'sessionId'].some(key => bar[key] !== chart[key])) bad.push('BAR_IDENTITY_MISMATCH');
     if (!permittedQuality(bar) || bar.sequenceGapCount !== 0) bad.push('BAR_NON_TIMESTAMP_QUALITY');
     if (!sourceRows.length || sourceRows.length !== bar.eventCount || ![bar.open, bar.high, bar.low, bar.close, bar.volume].every(finitePositive)) bad.push('BAR_INPUTS_UNVERIFIED');
     const inputAvailable = sourceRows.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
     const available = Math.max(inputAvailable, closedBy?.effectiveMs ?? -Infinity);
-    return Object.freeze({ ...bar, structureEligibility: eligibility(bad, iso(available), {
+    return Object.freeze({ ...restrictKnownCaptureLoss(bar, captureAffected), structureEligibility: eligibility(bad, iso(available), {
       completionAvailableAt: iso(closedBy?.effectiveMs), completionSourceEventTime: iso(closedBy?.eventMs) }) });
   }));
   const levelEligibility = (value, name) => {
@@ -151,23 +159,30 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
       || ['actualContract', 'tradeDate', 'session'].some(key => value[key] !== chart[key])) bad.push('LEVEL_INPUTS_UNVERIFIED');
     if (timestamp(value.availableAt)?.ms == null || timestamp(value.availableAt).ms > at) bad.push('LEVEL_AVAILABILITY_INVALID');
     let inputRows = inputs, closedBy = null;
+    let windowStart = sessionStart, windowEnd = maxAvailable;
     if (name.startsWith('openingRange')) {
       const start = timestamp(chart.tradeDate + 'T08:45:00+08:00')?.ms;
       const end = timestamp(chart.tradeDate + 'T09:00:00+08:00')?.ms;
       inputRows = inputs.filter(input => input.eventMs >= start && input.eventMs < end);
+      windowStart = start; windowEnd = end;
       closedBy = completion(end);
       if (chart.session !== 'DAY' || !inputRows.length || !closedBy || closedBy.effectiveMs > at
         || !['READY', 'QUALITY_INSUFFICIENT'].includes(chart.openingRange?.status)) bad.push('OPENING_RANGE_COMPLETION_UNVERIFIED');
     }
+    if (captureIntervalOverlaps(captureIntervals, windowStart, windowEnd)) bad.push('KNOWN_CAPTURE_INTERRUPTION');
     const inputAvailable = inputRows.reduce((value, input) => Math.max(value, input.effectiveMs), -Infinity);
     return eligibility(bad, iso(Math.max(inputAvailable, closedBy?.effectiveMs ?? -Infinity)),
       closedBy ? { completionAvailableAt: iso(closedBy.effectiveMs) } : {});
   };
   const levels = { ...(chart.levels || {}) };
   for (const name of CURRENT_LEVELS) if (levels[name]?.availability === 'AVAILABLE') {
-    levels[name] = Object.freeze({ ...levels[name], structureEligibility: levelEligibility(levels[name], name) });
+    const proof = levelEligibility(levels[name], name);
+    levels[name] = Object.freeze({ ...restrictKnownCaptureLoss(levels[name], proof.reasonCodes.includes('KNOWN_CAPTURE_INTERRUPTION')), structureEligibility: proof });
   }
-  const openingRange = chart.openingRange && ['READY', 'QUALITY_INSUFFICIENT'].includes(chart.openingRange.status)
-    ? Object.freeze({ ...chart.openingRange, structureEligibility: levelEligibility(chart.openingRange, 'openingRange') }) : chart.openingRange;
+  let openingRange = chart.openingRange;
+  if (openingRange && ['READY', 'QUALITY_INSUFFICIENT'].includes(openingRange.status)) {
+    const proof = levelEligibility(openingRange, 'openingRange');
+    openingRange = Object.freeze({ ...restrictKnownCaptureLoss(openingRange, proof.reasonCodes.includes('KNOWN_CAPTURE_INTERRUPTION')), structureEligibility: proof });
+  }
   return Object.freeze({ ...chart, structureEligibility: top, bars, levels: Object.freeze(levels), openingRange });
 }

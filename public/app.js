@@ -2578,6 +2578,7 @@ const DW_REASON_LABELS = Object.freeze({
   PORT_OCCUPIED_UNHEALTHY: '行情連接埠已被不健康程序占用',
   RECOVERY_BUDGET_EXHAUSTED: '自動恢復次數已用完，進入冷卻',
   TIMESTAMP_LINEAGE_INSUFFICIENT: '時間來源品質仍不足',
+  KNOWN_CAPTURE_INTERRUPTION: '行情曾中斷；此區間資料不完整，不能作為已確認的目標依據',
   ARTIFACT_MISSING: '尚未設定或找不到已驗證的 CRU-34 歷史快照',
   ARTIFACT_CORRUPT_JSON: 'CRU-34 歷史快照內容損毀',
   ARTIFACT_SCHEMA_UNSUPPORTED: 'CRU-34 歷史快照版本不支援',
