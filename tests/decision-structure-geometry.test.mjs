@@ -21,7 +21,7 @@ function fixture(){
     levels:{vwap:level(100),nightHigh:level(130),nightLow:level(70)},openingRange:{status:'NOT_APPLICABLE'}};
 }
 test('LIVE source-time geometry yields real formula without promoting clock quality or price/Flow confirmation',()=>{
-  const chart=fixture(), before=structuredClone(chart);
+  const chart=fixture(); chart.lastPrice=100; const before=structuredClone(chart);
   const observedFlow={identity:{actualContract:'TXFJ6',tradeDate:'2026-10-14',session:'NIGHT'},sourceState:'LIVE',
     source:{availableAt:at},researchQuality:{status:'QUALITY_INSUFFICIENT'},
     windows:{primary60s:{pressure:{pressureRatio:.6},response:{displacementPoints:10}}}};
@@ -40,6 +40,19 @@ test('LIVE source-time geometry yields real formula without promoting clock qual
   assert.equal(result.executionAuthorized,false);assert.equal(result.orderRoutesEnabled,false);
   assert.deepEqual(chart,before);
 });
+test('live focus near an upper reference does not fabricate a still-ahead long target',()=>{
+  const chart=fixture();
+  const watch=buildDecisionLevelWatch({chart,snapshotTime:at});
+  assert.equal(watch.decisionFocus.state,'ACTIVE_REFERENCE');
+  assert.equal(watch.decisionFocus.activeNodeId,'SESSION_HIGH');
+  assert.equal(watch.nextWatch.id,'SESSION_HIGH');
+  assert.equal(watch.scenarioWatch.node.id,'SESSION_HIGH');
+  assert.equal(watch.scenarioWatch.long.target,null);
+  assert.equal(watch.scenarioWatch.long.rr.ratio,null);
+  assert.equal(watch.evidenceGate.directionConfirmed,false);
+  assert.equal(watch.executionAuthorized,false);
+});
+
 test('an empty directional universe stays null with a concrete reason under descriptive eligibility',()=>{
   const chart=fixture(); delete chart.levels.nightHigh; delete chart.levels.nightLow;
   const result=buildDecisionLevelWatch({chart,snapshotTime:at});

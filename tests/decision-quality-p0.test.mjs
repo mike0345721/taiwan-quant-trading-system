@@ -176,3 +176,17 @@ test('stale or future pressure evidence is never certified as usable even if a p
   assert.equal(f.executionAuthorized,false);
  }
 });
+
+test('active nearby qualified node, not remote priority, determines present scenario',()=>{
+ const c=sparseMarketFixture();
+ c.levels.vwap={...c.levels.vwap,value:46850,source:'SESSION_EXACT_TX_TICK_VWAP',
+  qualityStatus:'PASS',qualityReasons:[],structureEligibility:null};
+ c.levels.previousDayLow={...c.levels.previousDayLow,value:47241};
+ const w=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-16T01:30:00.000Z'});
+ assert.equal(w.decisionFocus.state,'ACTIVE_REFERENCE');
+ assert.equal(w.decisionFocus.activeNodeId,'PRIOR_LOW');
+ assert.equal(w.nextWatch?.id,'PRIOR_LOW','live nextWatch should match current nearby focus');
+ assert.equal(w.scenarioWatch?.node?.id,'PRIOR_LOW','live scenario should match current nearby focus');
+ assert.equal(w.evidenceGate.directionConfirmed,false);
+ assert.equal(w.executionAuthorized,false);
+});

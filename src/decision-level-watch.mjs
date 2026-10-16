@@ -464,16 +464,20 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
   const nodePool=eligibleNodes.filter(x=>x.importanceBand!=='CONTEXT');
   const legacyObservations=decorated.filter(x=>!x.structureEligibility
     && !x.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION'));
-  const next=[...(nodePool.length?nodePool:eligibleNodes.length?eligibleNodes:legacyObservations)].sort((a,b)=>
+  const legacyNext=[...(nodePool.length?nodePool:eligibleNodes.length?eligibleNodes:legacyObservations)].sort((a,b)=>
     structuralRank(b)-structuralRank(a)
     ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
     ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
     ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   )[0]||null;
-  // ACTIVE is not implied by an old structural scenario: it requires a nearby,
-  // quality-qualified level in the current observation zone.
+  // Current focus overrides legacy priority only for an eligible nearby node.
+  // Without current focus retain hypothetical evidence for API traceability,
+  // while the UI and verified AI explicitly gate it off.
   const decisionFocus=evaluateLiveFocus(decorated,{currentPrice,zonePoints:zone});
+  const focusNext=decisionFocus.state==='ACTIVE_REFERENCE'
+    ? decorated.find(row=>row.id===decisionFocus.activeNodeId&&isStructureEligible(row))||null : null;
+  const next=focusNext||legacyNext;
   const evidenceGate=evaluateDecisionEvidenceGate({
     chartQuality:currentQuality,sourceGeometry,flow,focus:decisionFocus,snapshotTime,
   });
