@@ -53,13 +53,13 @@ test('live focus near an upper reference does not fabricate a still-ahead long t
   assert.equal(watch.executionAuthorized,false);
 });
 
-test('an empty directional universe stays null with a concrete reason under descriptive eligibility',()=>{
+test('no near qualified direction level retains a null current scenario with observable context',()=>{
   const chart=fixture(); delete chart.levels.nightHigh; delete chart.levels.nightLow;
   const result=buildDecisionLevelWatch({chart,snapshotTime:at});
-  for(const side of [result.scenarioWatch.long,result.scenarioWatch.short]){
-    assert.equal(side.target,null);assert.equal(side.rr.ratio,null);
-    assert.ok(side.targetDiagnostics.reasonCodes.includes('NO_OTHER_VALIDATED_LEVEL'));
-  }
+  assert.equal(result.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(result.nextWatch,null);assert.equal(result.scenarioWatch,null);
+  assert.equal(result.evidenceGate.directionConfirmed,false);
+  assert.equal(result.executionAuthorized,false);
 });
 test('unknown restrictions, missing proof, replay and future proof cannot borrow descriptive eligibility',()=>{
   for(const mutate of [
@@ -92,9 +92,12 @@ test('a clean pivot center retains restrictions from both neighboring dependency
   chart.bars[3].qualityStatus='PASS';chart.bars[3].qualityReasons=[];
   chart.bars[2].timeLineageViolationCount=2;chart.bars[4].timeLineageViolationCount=3;
   const r=buildDecisionLevelWatch({chart,snapshotTime:at});
-  assert.equal(r.nextWatch.id,'SWING_HIGH');
-  assert.equal(r.nextWatch.qualityStatus,'QUALITY_INSUFFICIENT');
-  assert.deepEqual(r.nextWatch.qualityReasons,['TIMESTAMP_LINEAGE_INSUFFICIENT']);
-  assert.equal(r.nextWatch.timeLineageViolationCount,5);
-  assert.equal(r.nextWatch.structureEligibility.inputBarTimes.length,3);
+  const pivot=r.levels.find(row=>row.id==='SWING_HIGH');
+  assert.ok(pivot,'historical swing remains traceable when it is not near current price');
+  assert.equal(r.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(r.nextWatch,null);assert.equal(r.scenarioWatch,null);
+  assert.equal(pivot.qualityStatus,'QUALITY_INSUFFICIENT');
+  assert.deepEqual(pivot.qualityReasons,['TIMESTAMP_LINEAGE_INSUFFICIENT']);
+  assert.equal(pivot.timeLineageViolationCount,5);
+  assert.equal(pivot.structureEligibility.inputBarTimes.length,3);
 });

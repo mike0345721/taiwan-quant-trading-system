@@ -12,7 +12,7 @@ The 346-point difference cannot be hidden by a generic disclaimer.
 Missing or interrupted data must not become certified full-market VWAP or direction evidence.
 
 ## Implementation and contracts
-1. Focus relevance: legacy hypothetical nextWatch/scenarioWatch values and source evidence are retained for compatibility; new decisionFocus controls live selection and display. When a nearby qualified node exists it overrides a remote historical high-priority node for the live scenario; with no focus hypothetical legacy evidence remains traceable but not current. A candidate must be source-qualified, non-CONTEXT and within two existing zonePoints. Remote lawful history remains background; nearby quality-blocked references are refused. No near candidate means NO_ACTIVE_REFERENCE, and current UI/chart overlay/verified AI facts must not show the legacy scenario as active.
+1. Focus relevance: a current Next Watch/scenario is published ONLY when decisionFocus has a nearby qualified active node. With no active focus, nextWatch and scenarioWatch are null across raw API, snapshot, copy and AI; historical prices remain solely in separately labeled quality-aware levels and decisionFocus.nearestBackground. A candidate must be source-qualified, non-CONTEXT and within two existing zonePoints. Remote lawful history remains background; nearby quality-blocked references are refused. No near candidate means NO_ACTIVE_REFERENCE, and current UI/chart overlay/verified AI facts must not show the legacy scenario as active.
 2. No test from price proximity alone. A BIDIRECTIONAL_TEST state now requires an eligible post-formation completed-bar touch; proximity to moving VWAP yields BIDIRECTIONAL_WATCH.
 3. R:R applicability: arithmetic and original source prices are preserved. New fields describe current price, reference confirmation threshold, exact point gap and whether the conditional geometry is detached, near-but-unconfirmed, unavailable or target already passed. Every state has currentEntryRr=null and entryAuthorized=false, so geometric ratios are never executable current-price R:R.
 4. Evidence Gate: price relation and qualified pressure/response descriptions are separated from unproven persistence, direction, executable ratio and order authority. Flow quality incomplete remains incomplete.
@@ -22,7 +22,7 @@ Missing or interrupted data must not become certified full-market VWAP or direct
 No raw ledger, Producer, Bridge, checkpoint, history or market-data service changes.
 No credentials, model requests, paid API, formal weight, broker order, position or execution features.
 No profitability, strategy edge, or guaranteed feed completeness claim.
-Underlying legacy hypothetical scenarios remain traceable in the raw API; consumers must honor decisionFocus, not infer an active primary solely from nextWatch.
+On NO_ACTIVE_REFERENCE, live nextWatch and scenarioWatch are null even in the raw API. Historical contextual values remain traceable in levels and the separately labeled nearestBackground; old persisted snapshots are not promoted to current evidence.
 
 ## Acceptance requirements
 - Reproduce owner 47243 / 46897 / 823 / 28 example.

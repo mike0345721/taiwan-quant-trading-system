@@ -50,17 +50,14 @@ test('quality-rejected references are distinguished from no reference beyond the
   assert.match(value.nextWatch.why, /品質檢查/);
 });
 
-test('chart quality failure is identified as evidence failure, not a market without room', () => {
+test('chart quality failure blocks focus before publishing price thresholds', () => {
   const value = build(makeChart({ qualityStatus: 'QUALITY_INSUFFICIENT' }));
-  const side = value.scenarioWatch.long;
-  assert.equal(side.state, 'UNAVAILABLE');
-  assert.equal(side.confirmationThreshold, null);
-  assert.equal(side.invalidationThreshold, null);
-  assert.equal(side.targetDiagnostics.state, 'EVIDENCE_INCOMPLETE');
-  assert.ok(codes(value).includes('CHART_QUALITY_INSUFFICIENT'));
-  assert.equal(side.targetDiagnostics.counts.beyondConfirmation, null);
-  assert.match(value.nextWatch.watchFor, /資料不足.*不能.*確認方向/);
-  assert.doesNotMatch(value.nextWatch.watchFor, /價格在其中一側站穩/);
+  assert.equal(value.state,'READY');
+  assert.equal(value.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(value.nextWatch,null);assert.equal(value.scenarioWatch,null);
+  assert.equal(value.evidenceGate.priceRelationAllowed,false);
+  assert.ok(value.evidenceGate.reasonCodes.includes('PRICE_SOURCE_QUALITY_NOT_VERIFIED'));
+  assert.equal(value.executionAuthorized,false);
 });
 
 test('a context-only reference is not promoted to a legal target to fill an empty card', () => {

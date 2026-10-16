@@ -52,15 +52,19 @@ test('blocked cumulative values remain inspectable but never become a fallback p
  assert.equal(isStructureEligible(chart.levels.vwap),false);assert.ok(watch.levels.length>0);
  assert.equal(watch.nextWatch,null);assert.equal(watch.scenarioWatch,null);
 });
-test('an eligible lower-priority context reference outranks every blocked fallback',()=>{
- const cutoff=ms('11:16:01'),chart=chartFor(interruptedRows(),cutoff);
- const prior={availability:'AVAILABLE',value:90,source:'PP1_GOVERNED_ACTUAL_CONTRACT_5M_REPLAY',actualContract:'TXFJ6',tradeDate:'2026-10-14',session:'DAY',availableAt:'2026-10-14T06:00:00Z',qualityStatus:'PASS'};
- const watch=buildDecisionLevelWatch({chart:{...chart,levels:{...chart.levels,previousClose:prior}},snapshotTime:iso(cutoff)});
- assert.ok(watch.nextWatch);assert.equal(isStructureEligible(watch.nextWatch),true);assert.notEqual(watch.nextWatch.id,'VWAP');
+test('a lawful remote context remains visible but cannot become an active fallback',()=>{
+  const cutoff=ms('11:16:01'),chart=chartFor(interruptedRows(),cutoff);
+  const prior={availability:'AVAILABLE',value:90,source:'PP1_GOVERNED_ACTUAL_CONTRACT_5M_REPLAY',actualContract:'TXFJ6',tradeDate:'2026-10-14',session:'DAY',availableAt:'2026-10-14T06:00:00Z',qualityStatus:'PASS'};
+  const watch=buildDecisionLevelWatch({chart:{...chart,levels:{...chart.levels,previousClose:prior}},snapshotTime:iso(cutoff)});
+  assert.equal(watch.state,'READY');
+  assert.equal(watch.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(watch.nextWatch,null);assert.equal(watch.scenarioWatch,null);
+  assert.equal(watch.executionAuthorized,false);
 });
 const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 function declaration(name){const start=app.indexOf('function '+name+'(');assert.ok(start>=0,'missing '+name);const next=app.indexOf('\nfunction ',start+1);return app.slice(start,next<0?app.length:next);}
 function uiContext(){const writes={};const context={state:{txChartSeries:null,txChartLevelLines:[],levelWatch:null,decisionWorkspace:null},levelValue:v=>v?.availability==='AVAILABLE'?Number(v.value):null,fmt:v=>String(v),terminalWrite:(id,text,opts)=>{writes[id]={text,reason:opts?.reason};},dwText:()=>{},clearTxChartLevels:()=>{},levelWatchMatchesChart:()=>false,addTxChartLevel:()=>{},timeLabel:String,$:()=>({classList:{contains:()=>false}})};vm.createContext(context);vm.runInContext(declaration('captureCoverageWarning')+'\n'+declaration('renderTxChartLevels'),context);return {context,writes};}
+
 test('numeric VWAP and session extremes show interruption warning beside preserved values',()=>{
  const {context,writes}=uiContext();const level=value=>({availability:'AVAILABLE',value,reason:'KNOWN_CAPTURE_INTERRUPTION',captureCoverage:{state:'KNOWN_INTERRUPTION'}});
  context.renderTxChartLevels({levels:{vwap:level(100),currentDayHigh:level(110),currentDayLow:level(90)},openingRange:{status:'QUALITY_INSUFFICIENT',reason:'KNOWN_CAPTURE_INTERRUPTION'}});

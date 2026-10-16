@@ -4192,7 +4192,7 @@ function renderNextWatchBasis(rows = []) {
 function scenarioRrText(scenario) {
   const ratio = finiteNumber(scenario?.rr?.ratio);
   if (scenario?.rr?.state !== 'AVAILABLE' || ratio == null) return 'R:R —';
-  if (!scenario.rr.applicability) return 'R:R ' + fmt(ratio, 2); // Legacy immutable snapshots.
+  if (!scenario.rr.applicability) return 'R:R — · 現價適用性未驗證'; // Old or mixed-version snapshots fail closed.
   return scenario.rr.applicability?.state === 'NEAR_REFERENCE_UNCONFIRMED'
     ? '結構 R:R ' + fmt(ratio, 2) + ' · 尚未確認'
     : '現價 R:R — · 條件式 ' + fmt(ratio, 2) + '（非現價）';

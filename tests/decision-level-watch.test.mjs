@@ -256,20 +256,19 @@ test('unknown or insufficient source quality cannot become a target or hide a ne
     assert.equal(r.scenarioWatch.long.target.qualityStatus,'PASS');
   }
 });
-test('limited node quality preserves unknown thresholds and structural RR',()=>{
+test('limited node quality does not manufacture current focus, thresholds or R:R',()=>{
   const r=watch({...targetChart(),qualityStatus:'QUALITY_INSUFFICIENT'});
-  for(const side of ['long','short']){
-    assert.equal(r.scenarioWatch[side].state,'UNAVAILABLE');
-    assert.equal(r.scenarioWatch[side].confirmationThreshold,null);
-    assert.equal(r.scenarioWatch[side].invalidationThreshold,null);
-    assert.equal(r.scenarioWatch[side].rr.state,'UNAVAILABLE');
-    assert.equal(r.scenarioWatch[side].rr.ratio,null);
-    assert.equal(r.scenarioWatch[side].rr.riskPoints,null);
-  }
+  assert.equal(r.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(r.nextWatch,null);assert.equal(r.scenarioWatch,null);
+  assert.equal(r.evidenceGate.directionConfirmed,false);
+  assert.equal(r.executionAuthorized,false);
   const c={...targetChart(),qualityStatus:'QUALITY_INSUFFICIENT'};
   c.levels.previousDayHigh=available(160);c.levels.previousDayLow=available(40);
-  const prior=watch(c);assert.equal(prior.nextWatch.qualityStatus,'PASS');
-  assert.equal(prior.scenarioWatch.short.rr.state,'UNAVAILABLE');
+  const prior=watch(c);
+  assert.equal(prior.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(prior.nextWatch,null);
+  assert.equal(prior.scenarioWatch,null);
+  assert.equal(prior.executionAuthorized,false);
 });
 test('missing or non-five-minute range evidence never invents a zone or RR',()=>{
   for(const patch of [{bars:[]},{timeframe:'1m'},{bars:targetChart().bars.map(b=>({...b,qualityStatus:'UNKNOWN'}))}]){

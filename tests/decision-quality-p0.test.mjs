@@ -157,6 +157,30 @@ test('client renderer cannot show 29.39 as a current executable RR',()=>{
  assert.match(label,/條件式 29.39/);
  assert.doesNotMatch(label,/^R:R 29.39$/);
 });
+test('review P1: missing active focus has null nextWatch and scenario in raw backend contract',()=>{
+ const c=sparseMarketFixture();
+ const w=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-16T01:30:00.000Z'});
+ assert.equal(w.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+ assert.equal(w.nextWatch,null);
+ assert.equal(w.scenarioWatch,null);
+ assert.equal(w.decisionFocus.nearestBackground?.role,'BACKGROUND_NOT_CURRENT_TEST');
+ assert.equal(w.evidenceGate.directionConfirmed,false);
+ assert.equal(w.executionAuthorized,false);
+});
+
+test('review P2: old or mixed-version R:R cannot show unqualified bare ratio',()=>{
+ const source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const from=source.indexOf('function scenarioRrText(scenario) {');
+ const to=source.indexOf('function scenarioTargetText(scenario) {',from);
+ assert.ok(from>0&&to>from);
+ const sandbox={finiteNumber:v=>typeof v==='number'&&Number.isFinite(v)?v:null,
+  fmt:(v,n)=>Number(v).toFixed(n)};
+ vm.createContext(sandbox);vm.runInContext(source.slice(from,to),sandbox);
+ const text=sandbox.scenarioRrText({rr:{state:'AVAILABLE',ratio:823/28}});
+ assert.match(text,/R:R —/);
+ assert.doesNotMatch(text,/29\.39/);
+});
+
 test('client and canonical model renderer contain explicit current-focus and RR gates',()=>{
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  const ai=fs.readFileSync(new URL('../src/ask-gpt-inline-verification.mjs',import.meta.url),'utf8');

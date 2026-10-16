@@ -458,26 +458,12 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   );
-  // Preserve the legacy hypothetical structural node in raw API evidence.
-  // DecisionFocus is the authoritative gate for CURRENT relevance in all surfaces.
-  const eligibleNodes=decorated.filter(x=>isStructureEligible(x));
-  const nodePool=eligibleNodes.filter(x=>x.importanceBand!=='CONTEXT');
-  const legacyObservations=decorated.filter(x=>!x.structureEligibility
-    && !x.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION'));
-  const legacyNext=[...(nodePool.length?nodePool:eligibleNodes.length?eligibleNodes:legacyObservations)].sort((a,b)=>
-    structuralRank(b)-structuralRank(a)
-    ||(b.basis?.confluence?.count||0)-(a.basis?.confluence?.count||0)
-    ||(b.basis?.reaction?.meaningfulReactionCount||0)-(a.basis?.reaction?.meaningfulReactionCount||0)
-    ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
-    ||a.absoluteDistancePoints-b.absoluteDistancePoints
-  )[0]||null;
-  // Current focus overrides legacy priority only for an eligible nearby node.
-  // Without current focus retain hypothetical evidence for API traceability,
-  // while the UI and verified AI explicitly gate it off.
+  // Current API must never publish an inactive historic node as a live
+  // Next Watch or a directional scenario. Background prices remain traceable
+  // through decorated levels and decisionFocus.nearestBackground.
   const decisionFocus=evaluateLiveFocus(decorated,{currentPrice,zonePoints:zone});
-  const focusNext=decisionFocus.state==='ACTIVE_REFERENCE'
+  const next=decisionFocus.state==='ACTIVE_REFERENCE'
     ? decorated.find(row=>row.id===decisionFocus.activeNodeId&&isStructureEligible(row))||null : null;
-  const next=focusNext||legacyNext;
   const evidenceGate=evaluateDecisionEvidenceGate({
     chartQuality:currentQuality,sourceGeometry,flow,focus:decisionFocus,snapshotTime,
   });

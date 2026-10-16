@@ -86,7 +86,7 @@ function ui(){
 const identity={actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'};
 function displayWatch(){
   const levels=[['OR_HIGH',120],['SESSION_HIGH',160],['OR_LOW',80]].map(([id,price])=>({id,price,label:id,state:'TESTING',basisReasons:['結構','形成時間','反應','資料品質限制']}));
-  const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
+  const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24,applicability:{state:'NEAR_REFERENCE_UNCONFIRMED',currentEntryRr:null,confirmationReferencePrice:120,currentPrice:120,gapFromConfirmationPoints:0,entryAuthorized:false}},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
   return{state:'READY',snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
 }
 function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',availableAt:'2026-10-05T10:29:30Z',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
@@ -142,8 +142,8 @@ function sourceTimeFixture(){
 test('source-time structural RR needs matching chart and watch contracts and visibly retains raw quality restrictions',()=>{
   const h=ui(),{watch,chart}=sourceTimeFixture(),before=JSON.stringify({watch,chart});
   h.state.txChartPayload=chart;h.context.renderDecisionLevelWatch(watch);h.context.renderTxChartLevels(chart);
-  assert.equal(h.node('dw-long-rr').textContent,'R:R 2.00');
-  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+  assert.equal(h.node('dw-long-rr').textContent,'結構 R:R 2.00 · 尚未確認');
+  assert.equal(h.node('dw-short-rr').textContent,'結構 R:R 2.00 · 尚未確認');
   assert.match(h.node('dw-next-watch-label').textContent,/來源時間結構/);
   assert.match(h.node('dw-next-watch-distance').textContent,/跨時計品質受限／不等於可交易/);
   for(const id of ['dw-next-watch-why','dw-long-target-why','dw-short-target-why','dw-long-evidence','dw-short-evidence','dw-scenario-rr-note']){
@@ -205,7 +205,7 @@ test('an absent side target reuses its specific backend exclusion and wait reaso
   h.state.txChartPayload=displayChart();h.context.renderDecisionLevelWatch(watch);
   assert.equal(h.node('dw-long-target').textContent,'目前無合法目標');assert.equal(h.node('dw-long-rr').textContent,'R:R —');
   assert.match(h.node('dw-long-target-why').textContent,/低優先級背景結構.*等待形成後有效反應/);
-  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+  assert.equal(h.node('dw-short-rr').textContent,'結構 R:R 2.00 · 尚未確認');
 });
 test('executed drawer keeps complete target evidence and distinguishes candidate from confirmation',()=>{
   const h=ui();h.context.renderDecisionLevelWatch(displayWatch());
@@ -224,11 +224,19 @@ test('bounded GPT context preserves exact backend scenarios and unavailable thre
     const levelWatch=buildDecisionLevelWatch({chart,snapshotTime});
     const snapshot=createDecisionSnapshot({chart,levelWatch,snapshotTime,dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0}});
     const result=buildInlineContext(snapshot,{now:Date.parse(snapshotTime)+1000});
-    for(const side of ['long','short']){
-      const actual=result.context.levelWatch.scenarioWatch[side],expected=levelWatch.scenarioWatch[side];
-      assert.equal(actual.confirmationThreshold,expected.confirmationThreshold);assert.equal(actual.invalidationThreshold,expected.invalidationThreshold);
-      assert.deepEqual(actual.target,expected.target);assert.deepEqual(actual.rr,expected.rr);
-      assert.equal(actual.rr.state,qualityStatus==='PASS'?'AVAILABLE':'UNAVAILABLE');
+    if(qualityStatus==='PASS'){
+      for(const side of ['long','short']){
+        const actual=result.context.levelWatch.scenarioWatch[side],expected=levelWatch.scenarioWatch[side];
+        assert.equal(actual.confirmationThreshold,expected.confirmationThreshold);
+        assert.equal(actual.invalidationThreshold,expected.invalidationThreshold);
+        assert.deepEqual(actual.target,expected.target);assert.deepEqual(actual.rr,expected.rr);
+        assert.equal(actual.rr.state,'AVAILABLE');
+      }
+    }else{
+      assert.equal(levelWatch.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+      assert.equal(levelWatch.nextWatch,null);
+      assert.equal(levelWatch.scenarioWatch,null);
+      assert.equal(result.context.levelWatch.scenarioWatch,null);
     }
     assert.ok(result.inputBytes<40000);
     for(const [key,value]of Object.entries({formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false}))assert.equal(result.context[key],value);
