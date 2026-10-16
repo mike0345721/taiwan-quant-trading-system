@@ -276,3 +276,19 @@ test('a freshly generated AI snapshot keeps stale market source time and cannot 
   assert.equal(result.context.levelWatch.sourceAvailableAt,new Date(sourceAvailableAt).toISOString());
   assert.equal(result.context.levelWatch.scenarioWatch,null);assert.equal(result.context.levelWatch.nextWatch,null);
 });
+
+test('P0 production DOM omits distant hypothetical nodes and RR from the current focus and overlays',()=>{
+  const h=ui(), watch=displayWatch(), chart=displayChart();
+  watch.decisionFocus={
+    state:'NO_ACTIVE_REFERENCE',activeNodeId:null,activityRadiusPoints:12,
+    nearestBackground:{id:'OR_HIGH',label:'歷史參考',price:120,distancePoints:360},
+  };
+  h.state.txChartPayload=chart;
+  h.context.renderDecisionLevelWatch(watch);
+  h.context.renderTxChartLevels(chart);
+  assert.match(h.node('dw-next-watch-label').textContent,/沒有合格且接近現價的主要觀察節點/);
+  assert.match(h.node('dw-next-watch-why').textContent,/不是當前測試/);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+  assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+  assert.equal(h.state.txChartLevelLines.some(x=>/雙向|下一關/.test(x.title)),false);
+});

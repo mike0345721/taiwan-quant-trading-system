@@ -4191,7 +4191,11 @@ function renderNextWatchBasis(rows = []) {
 
 function scenarioRrText(scenario) {
   const ratio = finiteNumber(scenario?.rr?.ratio);
-  return scenario?.rr?.state === 'AVAILABLE' && ratio != null ? `R:R ${fmt(ratio, 2)}` : 'R:R —';
+  if (scenario?.rr?.state !== 'AVAILABLE' || ratio == null) return 'R:R —';
+  if (!scenario.rr.applicability) return 'R:R ' + fmt(ratio, 2); // Legacy immutable snapshots.
+  return scenario.rr.applicability?.state === 'NEAR_REFERENCE_UNCONFIRMED'
+    ? '結構 R:R ' + fmt(ratio, 2) + ' · 尚未確認'
+    : '現價 R:R — · 條件式 ' + fmt(ratio, 2) + '（非現價）';
 }
 
 function scenarioTargetText(scenario) {
@@ -4217,9 +4221,14 @@ function scenarioEvidenceText(scenario) {
   const price = ({ MET: '價格越過確認邊界，仍待維持', NOT_MET: '價格尚未達確認邊界', UNAVAILABLE: '價格確認條件不可用' })[scenario?.priceGateState] || '價格確認條件不可用';
   const flow = ({ ALIGNED: '成交壓力與價格反應同向', CONTRARY: '成交壓力與價格反應偏向另一側', MIXED: '成交壓力與價格反應尚未一致', QUALITY_INSUFFICIENT: '成交證據品質不足', UNAVAILABLE: '成交確認不可用' })[scenario?.flowConfirmationState] || '成交確認不可用';
   const rr = scenario?.rr;
-  const geometry = rr?.state === 'AVAILABLE' ? `結構風險 ${fmt(rr.riskPoints, 2)} 點、報酬 ${fmt(rr.rewardPoints, 2)} 點。`
+  const geometry = rr?.state === 'AVAILABLE' ? '結構風險 ' + fmt(rr.riskPoints, 2) + ' 點、報酬 ' + fmt(rr.rewardPoints, 2) + ' 點。'
     : rr?.reason === 'THRESHOLDS_UNAVAILABLE' ? 'R:R 不可用：確認／失效門檻缺乏合格資料。' : 'R:R 不可用：缺少合法方向目標。';
-  return `${price}；${flow}。${geometry}仍是條件情境，未形成交易訊號。`;
+  const a = rr?.applicability;
+  const applicability = rr?.state === 'AVAILABLE' && a && a.confirmationReferencePrice != null && a.currentPrice != null
+    ? '現價 ' + fmt(a.currentPrice, 2) + '、條件式確認門檻 ' + fmt(a.confirmationReferencePrice, 2)
+      + '，相距 ' + fmt(Math.abs(a.gapFromConfirmationPoints), 2) + ' 點；現價可執行 R:R 不可用。'
+    : '現價進場適用性不可用。';
+  return price + '；' + flow + '。' + geometry + applicability + '仍是條件情境，未形成交易訊號。';
 }
 
 function renderScenarioWatch(scenarioWatch, { restrictionText = '', unavailableText = '' } = {}) {
@@ -4239,7 +4248,7 @@ function renderScenarioWatch(scenarioWatch, { restrictionText = '', unavailableT
   dwText('dw-short-evidence', [restrictionText, unavailableText || scenarioEvidenceText(short)].filter(Boolean).join(' '));
   const available = [long, short].some((row) => row?.rr?.state === 'AVAILABLE');
   dwText('dw-scenario-rr-note', [restrictionText, available
-    ? '條件式結構 R:R：確認門檻→合法目標 ÷ 確認門檻→失效門檻；不是勝率、EV、進場或停損指令。'
+    ? '條件式結構 R:R 以確認門檻而非當前價格起算；不是現價可執行 R:R、勝率、EV、進場或停損指令。'
     : '目前缺少合法方向目標或結構條件，因此不計算 R:R；不補造價位。'].filter(Boolean).join(' '));
 }
 
@@ -4265,7 +4274,8 @@ function renderDecisionLevelWatch(levelWatch) {
   const needsSourceTimeValidation = Boolean(levelWatch?.structureEligibility && levelWatch.currentPriceQualityStatus !== 'PASS');
   const matchesChart = levelWatchIsFresh(levelWatch) && (state.txChartPayload
     ? levelWatchMatchesChart(levelWatch, state.txChartPayload) : !needsSourceTimeValidation);
-  const next = levelWatch?.state === 'READY' && matchesChart ? levelWatch.nextWatch : null;
+  const next = levelWatch?.state === 'READY' && matchesChart
+    && levelWatch?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE' ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
     const expired = levelWatch?.reason === 'CHART_SOURCE_STALE'
@@ -4274,11 +4284,22 @@ function renderDecisionLevelWatch(levelWatch) {
       .every(key => levelWatch?.identity?.[key] && levelWatch.identity[key] === state.txChartPayload[key]);
     const explanation = levelWatch?.state === 'UNAVAILABLE' && !expired && diagnosticIdentityMatches && levelWatch?.unavailabilityDiagnostics
       ? levelWatchUnavailableExplanation(levelWatch) : null;
-    dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得' : '等待合法關鍵價位');
+    const noFocus = !expired && levelWatch?.decisionFocus?.state === 'NO_ACTIVE_REFERENCE';
+    const f = levelWatch?.decisionFocus;
+    const bg = f?.nearestBackground;
+    const message = noFocus ? '目前沒有接近現價且品質合格的主要觀察節點。'
+      + (bg ? ' 最近合法背景參考 ' + bg.label + ' ' + fmt(bg.price, 2)
+        + '，相距 ' + fmt(bg.distancePoints, 1) + ' 點；不是當前測試。' : '')
+      : '';
+    dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得'
+      : noFocus ? '目前沒有合格且接近現價的主要觀察節點' : '等待合法關鍵價位');
     dwText('dw-next-watch-distance', '—');
-    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。' : explanation?.text || '目前沒有可用價位。');
-    renderNextWatchBasis(explanation?.rows || ['等待合法價位與證據。']);
-    renderScenarioWatch(null, { unavailableText: explanation?.text || '' });
+    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。'
+      : message || explanation?.text || '目前沒有可用價位。');
+    renderNextWatchBasis(noFocus
+      ? [message, '合法但遠端的價位只能作背景，不建立情境或 R:R。']
+      : explanation?.rows || ['等待合法價位與證據。']);
+    renderScenarioWatch(null, { unavailableText: message || explanation?.text || '' });
     dwText('dw-next-watch-response', explanation?.summary || '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
@@ -4378,7 +4399,8 @@ function renderTxChartLevels(chart) {
 
   clearTxChartLevels();
   const candidate = state.levelWatch || state.decisionWorkspace?.levelWatch;
-  const watch = levelWatchMatchesChart(candidate, chart) ? candidate : null;
+  const watch = levelWatchMatchesChart(candidate, chart)
+    && candidate?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE' ? candidate : null;
   const scenario = watch?.scenarioWatch || null;
   const longTargetId = scenario?.long?.target?.id || null;
   const shortTargetId = scenario?.short?.target?.id || null;

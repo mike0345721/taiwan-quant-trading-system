@@ -37,7 +37,8 @@ const flowLabels = new Map([
 const currentAt = (context, at) => at == null || (Number.isFinite(Date.parse(at))
   && Number.isFinite(Date.parse(context.snapshotTime)) && Date.parse(at) <= Date.parse(context.snapshotTime)
   && Date.parse(context.snapshotTime) - Date.parse(at) <= 120000);
-const watchReady = context => context.levelWatch?.state === 'READY' && currentAt(context, context.levelWatch.sourceAvailableAt);
+const watchReady = context => context.levelWatch?.state === 'READY' && currentAt(context, context.levelWatch.sourceAvailableAt)
+  && context.levelWatch?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE';
 
 function fields(context, { flowRule = 'v3' } = {}) {
   const rows = new Map();
@@ -154,6 +155,24 @@ function renderDecision(context, catalog, direction, nodeState, comparisons, { l
       + fact(prefix + '.target.price')
       + (catalog.get(prefix + '.target.price').value !== null ? `下一關理由：${reasons(s.target)}。` : '尚無合格下一關，不外推目標。');
   };
+  const focusSummary = watch?.decisionFocus?.state === 'NO_ACTIVE_REFERENCE'
+    ? '目前沒有接近現價且品質合格的主要觀察節點；遠端合格價位只屬背景，不能當作正在測試。' : '';
+  const rrReferenceNotes = ['long', 'short'].flatMap(side => {
+    const r = scenario?.[side]?.rr, a = r?.applicability;
+    if (!ready || r?.state !== 'AVAILABLE' || !a) return [];
+    const valid = numeric(a.currentPrice) && numeric(watch?.currentPrice)
+      && numeric(a.confirmationReferencePrice) && numeric(scenario?.[side]?.confirmationThreshold)
+      && numeric(a.gapFromConfirmationPoints)
+      && a.currentPrice === watch.currentPrice
+      && a.confirmationReferencePrice === scenario[side].confirmationThreshold
+      && Math.abs(a.gapFromConfirmationPoints - (a.currentPrice - a.confirmationReferencePrice)) < 1e-8
+      && a.currentEntryRr === null && a.entryAuthorized === false;
+    if (!valid) fail('RR_APPLICABILITY_MISMATCH');
+    const name = side === 'long' ? '多方' : '空方';
+    const gapText = numeric(a.gapFromConfirmationPoints) ? '；現價與確認門檻相差 ' + display(Math.abs(a.gapFromConfirmationPoints)) + ' 點' : '';
+    return [name + '：幾何 R:R 起算價是確認門檻，不是目前價格' + gapText
+      + (a.state === 'NEAR_REFERENCE_UNCONFIRMED' ? '；即使接近門檻，仍缺少持續價格與 Flow 確認。' : '；此條件式比例不適用於目前價格。')];
+  });
   const warnings = (context.dataHealthWarnings || []).map(w => `資料警示：新鮮度 ${qualityText(w.freshness)}／品質 ${qualityText(w.quality)}；原因 ${explanation(w.reasonCode)}；availableAt ${timeText(w.availableAt)}。`);
   const rvolValue = catalog.get('marketPulse.rvol.ratio').value;
   const rvolText = rvolValue == null ? '完成 K 相對量能：未知／不可用。'
@@ -163,11 +182,12 @@ function renderDecision(context, catalog, direction, nodeState, comparisons, { l
   const rvolLine = legacy ? '' : `\n${rvolText}`;
   const bodies = [
     `${ready ? directionLabels.get(direction) : '方向狀態不可用'}。節點狀態：${ready ? nodeLabels.get(nodeState) : '不可用'}。不確定性：單一快照不能證明持續接受或多空確認。${flowSummary}\n${fact('price.value')}${fact('VWAP.value')}${freshnessText}${comparisons.join('\n')}${rvolLine}`,
-    `${fact('levelWatch.scenarioWatch.node.price')}節點品質：${qualityText(node?.qualityStatus)}。為什麼重要（後端受控理由）：${nodeUsable ? reasons(node) : '不可用'}。\n預期價格反應 Expected：${nodeUsable ? explanation(node?.expectedResponse ?? detail?.expectedResponse) : '不可用'}。實際反應 Actual：${flowSummary}\n${fact('levelWatch.nextWatch.price')}下一觀察理由：${nextUsable ? next?.id != null && next.id === node?.id && next.price === node.price ? '與核心節點相同，理由見上' : reasons(next) : '不可用'}。`,
+    `${fact('levelWatch.scenarioWatch.node.price')}${focusSummary}節點品質：${qualityText(node?.qualityStatus)}。為什麼重要（後端受控理由）：${nodeUsable ? reasons(node) : '不可用'}。\n預期價格反應 Expected：${nodeUsable ? explanation(node?.expectedResponse ?? detail?.expectedResponse) : '不可用'}。實際反應 Actual：${flowSummary}\n${fact('levelWatch.nextWatch.price')}下一觀察理由：${nextUsable ? next?.id != null && next.id === node?.id && next.price === node.price ? '與核心節點相同，理由見上' : reasons(next) : '不可用'}。`,
     sideText('long', 'Long 多方'), sideText('short', 'Short 空方'),
     '確認與失效條件須連同價格能否維持、壓力與價格反應一起觀察。Flow 品質不足、反應混合或門檻未知時，維持觀望；未達條件不能稱為方向確認。',
     ['long', 'short'].map(side => ['ratio', 'riskPoints', 'rewardPoints'].map(key => fact(`levelWatch.scenarioWatch.${side}.rr.${key}`)).join('')).join('\n')
-      + '僅引用後端條件式幾何距離與比例，不是勝率、EV、進場價或停損指令。',
+      + '僅引用後端條件式幾何距離與比例，不是勝率、EV、進場價或停損指令。'
+      + (rrReferenceNotes.length ? '\n' + rrReferenceNotes.join('\n') : ''),
     '不要把觀察當測試、價格候選當多空確認、結構目標當必達價位；不要以缺值補零或自行推算目標。不提供買賣建議。',
     `未知保持未知。後端受控說明不是模型自由文字；未綁定欄位的說明數字省略，數值只依合格欄位呈現。節點 availableAt：${timeText(node?.availableAt)}；Flow availableAt：${timeText(flow?.availableAt)}。\n`
       + `整體 Flow 品質：${qualityText(context.observedFlow?.quality?.status)}；原因：${explanation(context.observedFlow?.quality?.reason ?? context.observedFlow?.unavailableReason)}。`

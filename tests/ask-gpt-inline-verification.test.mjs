@@ -646,3 +646,32 @@ test('published V1 RVOL receipt recovers exactly and tampering still fails',()=>
  assert.match(verifiedReceiptText(receipt),/RVOL）：1\.75×/);
  assert.throws(()=>verifiedReceiptText({...receipt,text:receipt.text+' changed'}),/CONTENT_UNVERIFIED_RECEIPT/);
 });
+
+test('P0 no-current-focus suppresses legacy hypothetical node and RR from the verified AI answer',()=>{
+  const c=decisionContext();
+  c.levelWatch.decisionFocus={state:'NO_ACTIVE_REFERENCE',activeNodeId:null,
+    nearestBackground:{id:'PRIOR_LOW',price:46883,distancePoints:360}};
+  const {text}=verify(answer(c),c);
+  assert.match(text,/目前沒有接近現價且品質合格的主要觀察節點/);
+  assert.match(text,/多方條件式結構R:R：未知／不可用/);
+  assert.match(text,/情境觀察節點：未知／不可用/);
+  assert.doesNotMatch(text,/多方條件式結構R:R：1。/);
+});
+
+test('P0 canonical model answer explains why geometry is not applicable to a displaced current price',()=>{
+  const c=decisionContext();
+  c.levelWatch.scenarioWatch.short.rr={...c.levelWatch.scenarioWatch.short.rr};
+  c.levelWatch.currentPrice=105;
+  c.levelWatch.decisionFocus={state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'};
+  c.levelWatch.scenarioWatch.long.rr.applicability={
+    state:'REFERENCE_PRICE_DISLOCATED',currentPrice:105,confirmationReferencePrice:110,
+    gapFromConfirmationPoints:-5,currentEntryRr:null,entryAuthorized:false,
+  };
+  const {text}=verify(answer(c),c);
+  assert.match(text,/多方：幾何 R:R 起算價是確認門檻，不是目前價格/);
+  assert.match(text,/現價與確認門檻相差 5 點/);
+  assert.match(text,/此條件式比例不適用於目前價格/);
+  const bad=structuredClone(c);
+  bad.levelWatch.scenarioWatch.long.rr.applicability.gapFromConfirmationPoints=346;
+  assert.throws(()=>verify(answer(bad),bad),/CONTENT_RR_APPLICABILITY_MISMATCH/);
+});

@@ -52,7 +52,7 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
  const safeScenario=s=>s?{
   ...pick(s,['side','state','priceGateState','priceGateReason','flowConfirmationState','confirmationThreshold','invalidationThreshold','confirm','invalidate','recommendation']),
   target:s.target?pick(s.target,['id','family','label','price','importanceBand','sourceId','availableAt','qualityStatus','qualityReasons','structureEligibility','why','basisReasons']):null,
-  rr:pick(s.rr,['state','ratio','riskPoints','rewardPoints','reason','meaning']),
+  rr:{...pick(s.rr,['state','ratio','riskPoints','rewardPoints','reason','meaning']),applicability:pick(s.rr?.applicability,['schemaVersion','state','reasonCode','confirmationReferencePrice','currentPrice','gapFromConfirmationPoints','observationZonePoints','currentEntryRr','entryAuthorized','recommendation'])},
  }:null;
  const scenarioWatch=watch.scenarioWatch?{
   ...pick(watch.scenarioWatch,['schemaVersion','directionState','rrMeaning','recommendation']),
@@ -60,7 +60,7 @@ export function buildInlineContext(snapshot,{now=Date.now()}={}){
   long:safeScenario(watch.scenarioWatch.long),
   short:safeScenario(watch.scenarioWatch.short),
  }:null;
- const levelWatch={...pick(watch,['state','reason','snapshotTime','sourceAvailableAt','currentPrice','zonePoints','zoneMethod','rankingMethod','structureEligibility','currentPriceQualityStatus']),levels:(watch.levels||[]).slice(0,3).map(safeLevel),nextWatch:watch.nextWatch?safeLevel(watch.nextWatch):null,scenarioWatch,observedFlow:pick(watch.observedFlow,['sourceState','quality','pressure60','response60','directionRelation','availableAt']),participation:pick(watch.participation,['completedBarVolumeRatio','rvolState','rvolRatio','rvolPercentile','rvolSampleDays'])};
+ const levelWatch={...pick(watch,['state','reason','snapshotTime','sourceAvailableAt','currentPrice','zonePoints','zoneMethod','rankingMethod','structureEligibility','currentPriceQualityStatus']),decisionFocus:pick(watch.decisionFocus,['state','reasonCode','currentPrice','zonePoints','activityRadiusPoints','activeNodeId','nearestBackground','nearbyEligibleCount','nearbyBlockedCount']),evidenceGate:pick(watch.evidenceGate,['priceRelationAllowed','pressureResponseDescriptionAllowed','priceAcceptanceConfirmed','directionConfirmed','actionableRrAllowed','reasonCodes']),levels:(watch.levels||[]).slice(0,3).map(safeLevel),nextWatch:watch.nextWatch?safeLevel(watch.nextWatch):null,scenarioWatch,observedFlow:pick(watch.observedFlow,['sourceState','quality','pressure60','response60','directionRelation','availableAt']),participation:pick(watch.participation,['completedBarVolumeRatio','rvolState','rvolRatio','rvolPercentile','rvolSampleDays'])};
  const context={schemaVersion:'ask-gpt-inline-context-v1',...pick(d,['snapshotHash','snapshotTime','tradeDate','contract','session','identityState','identityReason','identitySource','decisionReadiness']),
   selection:'CURRENT_LIVE_WORKSPACE_NOT_LOCKED_OR_REPLAY_SELECTION',
   price:pick(d.price,AVAIL),OR:pick(d.OR,AVAIL),VWAP:pick(d.VWAP,AVAIL),marketPulse,levelWatch,

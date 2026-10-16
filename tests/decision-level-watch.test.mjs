@@ -177,7 +177,7 @@ test('scenario watch treats a nearby VWAP as a bidirectional decision node with 
   const r=buildDecisionLevelWatch({chart:c,snapshotTime:'2026-10-05T10:30:00.000Z'});
   assert.equal(r.schemaVersion,'decision-level-watch-v3');
   assert.ok(r.scenarioWatch);
-  assert.equal(r.scenarioWatch.directionState,'BIDIRECTIONAL_TEST');
+  assert.equal(r.scenarioWatch.directionState,'BIDIRECTIONAL_WATCH'); // Proximity to moving VWAP alone is not a completed test.
   assert.equal(r.scenarioWatch.node.id,'VWAP');
   assert.equal(r.scenarioWatch.long.confirmationThreshold,100+r.zonePoints);
   assert.equal(r.scenarioWatch.short.confirmationThreshold,100-r.zonePoints);

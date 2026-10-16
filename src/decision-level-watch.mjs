@@ -1,4 +1,5 @@
 import { hasSourceTimeGeometry, isStructureEligible } from './structural-eligibility.mjs';
+import { evaluateLiveFocus, evaluateConditionalRrApplicability, evaluateDecisionEvidenceGate } from './decision-quality-p0.mjs';
 import { explainScenarioTarget, observationOnlyGuidance } from './scenario-target-diagnostics.mjs';
 
 const finite = value => value == null || value === '' || typeof value === 'boolean' ? null : Number.isFinite(Number(value)) ? Number(value) : null;
@@ -77,7 +78,7 @@ function eventState(level,bars,currentPrice,zone){
     const state=abs<=zone?'TESTING':abs<=zone*2?'APPROACHING':'MONITORING';
     const movingToward=null;
     return {state,side:distance>=0?'ABOVE':'BELOW',distancePoints:distance,absoluteDistancePoints:abs,movingToward,
-      lifecycleBasis:'CURRENT_DYNAMIC_VWAP_ONLY_NO_HISTORICAL_STATIC_BACKFILL'};
+      lifecycleBasis:'CURRENT_DYNAMIC_VWAP_ONLY_NO_HISTORICAL_STATIC_BACKFILL',touchObserved:false};
   }
   const priorClose=finite(prior?.close),lastClose=finite(last?.close),twoClose=finite(two?.close);
   const crossedUp=priorClose!=null&&lastClose!=null&&priorClose<=price&&lastClose>price;
@@ -95,7 +96,7 @@ function eventState(level,bars,currentPrice,zone){
   else if(touch||abs<=zone) state='TESTING';
   else if(abs<=zone*2) state='APPROACHING';
   const movingToward=closes.length>=2?Math.abs(closes.at(-2)-price)>Math.abs(closes.at(-1)-price):null;
-  return {state,side,distancePoints:distance,absoluteDistancePoints:abs,movingToward};
+  return {state,side,distancePoints:distance,absoluteDistancePoints:abs,movingToward,touchObserved:Boolean(touch)};
 }
 function levelRole(level){
   if (['OR_HIGH','SESSION_HIGH','SWING_HIGH','PRIOR_HIGH'].includes(level?.id)) return 'UPPER';
@@ -319,7 +320,11 @@ function buildScenario(direction,node,target,{zone,currentPrice,flow,levels,char
   const invalidationThreshold=thresholdsAvailable?node.price+(long?-zone:zone):null;
   const priceQualityReady=chartQuality==='PASS';
   const priceGate=thresholdsAvailable&&priceQualityReady&&(long?currentPrice>=confirmThreshold:currentPrice<=confirmThreshold);
-  const rr=scenarioRr(direction,confirmThreshold,invalidationThreshold,target);
+  const geometryRr=scenarioRr(direction,confirmThreshold,invalidationThreshold,target);
+  const rr=Object.freeze({...geometryRr,applicability:evaluateConditionalRrApplicability(geometryRr,{
+    currentPrice,confirmationThreshold:confirmThreshold,invalidationThreshold,
+    targetPrice:target?.price,direction,zonePoints:zone,
+  })});
   const targetDiagnostics=explainScenarioTarget({side:direction,node,levels,target,threshold:confirmThreshold,chartQuality,structureEligibility});
   const targetPayload=target?Object.freeze({
     id:target.id,family:target.family,label:target.label,price:target.price,
@@ -348,7 +353,8 @@ function buildScenario(direction,node,target,{zone,currentPrice,flow,levels,char
 }
 function scenarioDirectionState(node,zone){
   if(!node)return 'UNAVAILABLE';
-  if(['TESTING','BREAKING','APPROACHING'].includes(node.state)||node.absoluteDistancePoints<=zone)return 'BIDIRECTIONAL_TEST';
+  // Proximity alone (especially moving VWAP) does not prove an observed test.
+  if(node.touchObserved===true&&node.absoluteDistancePoints<=zone*2)return 'BIDIRECTIONAL_TEST';
   return 'BIDIRECTIONAL_WATCH';
 }
 
@@ -452,9 +458,8 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   );
-  // Explicitly blocked capability rows cannot become fallback nodes. Preserve
-  // the legacy no-capability observation explanation (unavailable thresholds),
-  // but never use it in preference to a genuinely eligible contextual reference.
+  // Preserve the legacy hypothetical structural node in raw API evidence.
+  // DecisionFocus is the authoritative gate for CURRENT relevance in all surfaces.
   const eligibleNodes=decorated.filter(x=>isStructureEligible(x));
   const nodePool=eligibleNodes.filter(x=>x.importanceBand!=='CONTEXT');
   const legacyObservations=decorated.filter(x=>!x.structureEligibility
@@ -466,6 +471,12 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     ||Number(isStructureEligible(b))-Number(isStructureEligible(a))
     ||a.absoluteDistancePoints-b.absoluteDistancePoints
   )[0]||null;
+  // ACTIVE is not implied by an old structural scenario: it requires a nearby,
+  // quality-qualified level in the current observation zone.
+  const decisionFocus=evaluateLiveFocus(decorated,{currentPrice,zonePoints:zone});
+  const evidenceGate=evaluateDecisionEvidenceGate({
+    chartQuality:currentQuality,sourceGeometry,flow,focus:decisionFocus,snapshotTime,
+  });
   const longThreshold=next?next.price+zone:null;
   const shortThreshold=next?next.price-zone:null;
   const longTarget=next&&geometryReady&&isStructureEligible(next)?directionalTarget(decorated,next,'LONG',longThreshold):null;
@@ -503,6 +514,7 @@ export function buildDecisionLevelWatch({chart,observedFlow=null,marketPulse=nul
     structureEligibility,currentPriceQualityStatus:currentQuality,
     currentPrice,zonePoints:zone,zoneMethod:'35%_RECENT_COMPLETED_5M_MEDIAN_RANGE_CLAMP_6_30_OBSERVATION_ONLY',
     rankingMethod:'EVIDENCE_FIRST_STRUCTURAL_CONFLUENCE_REACTION_THEN_PROXIMITY',
+    decisionFocus,evidenceGate,
     levels:freezeRows(display),nextWatch:explainedNext?Object.freeze({...explainedNext}):null,scenarioWatch,observationGuidance,
     observedFlow:Object.freeze(flow),participation:Object.freeze(participation),
     formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false,
