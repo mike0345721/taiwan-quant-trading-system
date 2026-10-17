@@ -87,7 +87,7 @@ const identity={actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'};
 function displayWatch(){
   const levels=[['OR_HIGH',120],['SESSION_HIGH',160],['OR_LOW',80]].map(([id,price])=>({id,price,label:id,state:'TESTING',basisReasons:['結構','形成時間','反應','資料品質限制']}));
   const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24,applicability:{state:'NEAR_REFERENCE_UNCONFIRMED',currentEntryRr:null,confirmationReferencePrice:120,currentPrice:120,gapFromConfirmationPoints:0,entryAuthorized:false}},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
-  return{state:'READY',snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
+  return{state:'READY',decisionFocus:{state:'ACTIVE_REFERENCE',activeNodeId:'OR_HIGH'},snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
 }
 function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',availableAt:'2026-10-05T10:29:30Z',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
 test('executed chart render caps all overlays including VWAP and optional references at three',()=>{
@@ -299,4 +299,38 @@ test('P0 production DOM omits distant hypothetical nodes and RR from the current
   assert.equal(h.node('dw-long-rr').textContent,'R:R —');
   assert.equal(h.node('dw-short-rr').textContent,'R:R —');
   assert.equal(h.state.txChartLevelLines.some(x=>/雙向|下一關/.test(x.title)),false);
+});
+
+for (const focus of [undefined, null, {}, {state:'UNKNOWN'}, {state:'FUTURE_STATE'}, {state:'NO_ACTIVE_REFERENCE'}]) {
+  test(`missing or unqualified focus hides legacy UI and scenario chart overlays: ${JSON.stringify(focus)}`,()=>{
+    const h=ui(), watch=displayWatch(), chart=displayChart();
+    watch.decisionFocus=focus;
+    h.state.txChartPayload=chart;
+    h.context.renderDecisionLevelWatch(watch);
+    h.context.renderTxChartLevels(chart);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+    assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+    assert.equal(h.node('dw-long-target').textContent,'目前無合法目標');
+    assert.equal(h.node('dw-next-watch').dataset.state,'UNAVAILABLE');
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  });
+}
+
+test('applicability gap stays unavailable unless finite and consistent with both prices',()=>{
+  for (const gap of [undefined,null,NaN,Infinity,'0',0,345]) {
+    const h=ui(), watch=displayWatch();
+    Object.assign(watch.scenarioWatch.long.rr.applicability,{
+      currentPrice:47243,confirmationReferencePrice:46897,gapFromConfirmationPoints:gap,
+    });
+    h.context.renderDecisionLevelWatch(watch);
+    const text=h.node('dw-long-evidence').textContent;
+    assert.match(text,/現價進場適用性不可用/);
+    assert.doesNotMatch(text,/相距 .* 點/);
+  }
+  for (const [currentPrice,confirmationReferencePrice,gap] of [[47243,46897,346],[46897,47243,-346],[46897,46897,0]]) {
+    const h=ui(), watch=displayWatch();
+    Object.assign(watch.scenarioWatch.long.rr.applicability,{currentPrice,confirmationReferencePrice,gapFromConfirmationPoints:gap});
+    h.context.renderDecisionLevelWatch(watch);
+    assert.match(h.node('dw-long-evidence').textContent,new RegExp('相距 '+Math.abs(gap).toFixed(2)+' 點'));
+  }
 });

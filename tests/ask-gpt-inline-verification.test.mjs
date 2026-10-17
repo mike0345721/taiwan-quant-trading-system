@@ -24,7 +24,7 @@ function snapshot(price = 49046, vwap = 48981.43164262448) {
   return createDecisionSnapshot({
     snapshotTime: stamp, dataHealth: { items: [], overall: 'PARTIAL', unavailableCount: 0, staleCount: 0 },
     chart: { lastPrice: price, source: 'SYNTHETIC_ONLY', availableAt: stamp, tradeDate: '2026-10-09', actualContract: 'TXFJ6', session: 'DAY', bars: [], levels: { vwap: { availability: 'AVAILABLE', value: vwap, availableAt: stamp, source: 'SYNTHETIC_ONLY' } } },
-    levelWatch: { state: 'READY', currentPrice: price, nextWatch: node, levels: [node], scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: { ...side }, short: { ...side } }, formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false, executionAuthorized: false, orderRoutesEnabled: false },
+    levelWatch: { state: 'READY', decisionFocus: {state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'}, currentPrice: price, nextWatch: node, levels: [node], scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: { ...side }, short: { ...side } }, formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false, executionAuthorized: false, orderRoutesEnabled: false },
   });
 }
 const context = () => buildInlineContext(snapshot(), { now }).context;
@@ -48,7 +48,7 @@ function decisionContext() {
     rr: { state: 'AVAILABLE', ratio: 1, riskPoints: 20, rewardPoints: 20 },
     confirm: 'Must sustain above threshold; require aligned price response',
     invalidate: 'Loss of the lower boundary or buying pressure without upward progress' };
-  c.levelWatch = { state: 'READY', sourceAvailableAt: stamp,
+  c.levelWatch = { state: 'READY', decisionFocus: {state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'}, sourceAvailableAt: stamp,
     nextWatch: { ...node, expectedResponse: 'Acceptance requires sustained departure with aligned pressure' },
     observedFlow: { sourceState: 'LIVE', quality: 'QUALITY_INSUFFICIENT', pressure60: 0.47, response60: -2.7, availableAt: stamp },
     scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: side,
@@ -674,4 +674,18 @@ test('P0 canonical model answer explains why geometry is not applicable to a dis
   const bad=structuredClone(c);
   bad.levelWatch.scenarioWatch.long.rr.applicability.gapFromConfirmationPoints=346;
   assert.throws(()=>verify(answer(bad),bad),/CONTENT_RR_APPLICABILITY_MISMATCH/);
+});
+
+test('missing or unknown focus refuses legacy numeric scenario facts in verified AI output',()=>{
+ for(const focus of [undefined,null,{}, {state:'UNKNOWN'}, {state:'FUTURE_STATE'}]) {
+  const c=decisionContext(); c.levelWatch.decisionFocus=focus;
+  const contract=analysisContentContract(c);
+  for(const field of contract.fields.filter(x=>x.type!=='state' && /levelWatch\.(nextWatch|scenarioWatch)/.test(x.field))) {
+   assert.equal(field.expected,null,field.field);
+  }
+  const {text}=verify(answer(c),c);
+  assert.match(text,/多方條件式結構R:R：未知／不可用/);
+  assert.match(text,/情境觀察節點：未知／不可用/);
+  assert.doesNotMatch(text,/Upper qualified structure|Multiple lawful references/);
+ }
 });

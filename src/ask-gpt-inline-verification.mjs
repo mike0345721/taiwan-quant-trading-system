@@ -38,7 +38,7 @@ const currentAt = (context, at) => at == null || (Number.isFinite(Date.parse(at)
   && Number.isFinite(Date.parse(context.snapshotTime)) && Date.parse(at) <= Date.parse(context.snapshotTime)
   && Date.parse(context.snapshotTime) - Date.parse(at) <= 120000);
 const watchReady = context => context.levelWatch?.state === 'READY' && currentAt(context, context.levelWatch.sourceAvailableAt)
-  && context.levelWatch?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE';
+  && context.levelWatch?.decisionFocus?.state === 'ACTIVE_REFERENCE';
 
 function fields(context, { flowRule = 'v3' } = {}) {
   const rows = new Map();

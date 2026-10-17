@@ -184,9 +184,9 @@ test('review P2: old or mixed-version R:R cannot show unqualified bare ratio',()
 test('client and canonical model renderer contain explicit current-focus and RR gates',()=>{
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  const ai=fs.readFileSync(new URL('../src/ask-gpt-inline-verification.mjs',import.meta.url),'utf8');
- assert.match(app,/decisionFocus\?\.state !== 'NO_ACTIVE_REFERENCE'/);
+ assert.match(app,/decisionFocus\?\.state === 'ACTIVE_REFERENCE'/);
  assert.match(app,/現價可執行 R:R 不可用/);
- assert.match(ai,/decisionFocus\?\.state !== 'NO_ACTIVE_REFERENCE'/);
+ assert.match(ai,/decisionFocus\?\.state === 'ACTIVE_REFERENCE'/);
  assert.match(ai,/現價與確認門檻相差/);
 });
 

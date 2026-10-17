@@ -4224,7 +4224,10 @@ function scenarioEvidenceText(scenario) {
   const geometry = rr?.state === 'AVAILABLE' ? '結構風險 ' + fmt(rr.riskPoints, 2) + ' 點、報酬 ' + fmt(rr.rewardPoints, 2) + ' 點。'
     : rr?.reason === 'THRESHOLDS_UNAVAILABLE' ? 'R:R 不可用：確認／失效門檻缺乏合格資料。' : 'R:R 不可用：缺少合法方向目標。';
   const a = rr?.applicability;
-  const applicability = rr?.state === 'AVAILABLE' && a && a.confirmationReferencePrice != null && a.currentPrice != null
+  const validGap = a && [a.currentPrice, a.confirmationReferencePrice, a.gapFromConfirmationPoints]
+    .every(value => typeof value === 'number' && Number.isFinite(value))
+    && Math.abs(a.gapFromConfirmationPoints - (a.currentPrice - a.confirmationReferencePrice)) < 1e-8;
+  const applicability = rr?.state === 'AVAILABLE' && validGap
     ? '現價 ' + fmt(a.currentPrice, 2) + '、條件式確認門檻 ' + fmt(a.confirmationReferencePrice, 2)
       + '，相距 ' + fmt(Math.abs(a.gapFromConfirmationPoints), 2) + ' 點；現價可執行 R:R 不可用。'
     : '現價進場適用性不可用。';
@@ -4275,7 +4278,7 @@ function renderDecisionLevelWatch(levelWatch) {
   const matchesChart = levelWatchIsFresh(levelWatch) && (state.txChartPayload
     ? levelWatchMatchesChart(levelWatch, state.txChartPayload) : !needsSourceTimeValidation);
   const next = levelWatch?.state === 'READY' && matchesChart
-    && levelWatch?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE' ? levelWatch.nextWatch : null;
+    && levelWatch?.decisionFocus?.state === 'ACTIVE_REFERENCE' ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
     const expired = levelWatch?.reason === 'CHART_SOURCE_STALE'
@@ -4400,7 +4403,7 @@ function renderTxChartLevels(chart) {
   clearTxChartLevels();
   const candidate = state.levelWatch || state.decisionWorkspace?.levelWatch;
   const watch = levelWatchMatchesChart(candidate, chart)
-    && candidate?.decisionFocus?.state !== 'NO_ACTIVE_REFERENCE' ? candidate : null;
+    && candidate?.decisionFocus?.state === 'ACTIVE_REFERENCE' ? candidate : null;
   const scenario = watch?.scenarioWatch || null;
   const longTargetId = scenario?.long?.target?.id || null;
   const shortTargetId = scenario?.short?.target?.id || null;
