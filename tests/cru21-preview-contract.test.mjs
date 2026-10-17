@@ -32,3 +32,26 @@ test('unified preview cannot substitute a declared branch or admit an unrelated 
   assert.equal(result.ready,false);assert.ok(result.reasons.includes('CRU21_BRANCH_MISMATCH'));
  }
 });
+
+test('PR87 P0 candidate accepts only its real branch with all existing identity and isolation gates',()=>{
+ const p0='codex/cru21-decision-quality-p0-20261016';
+ const p0Version=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch:p0,dataMode:'LIVE'});
+ const p0Options={...options,actualBranch:p0};
+ assert.equal(validateCru21PreviewVersionTruth(p0Version,p0Options).ready,true);
+ assert.equal(p0Version.complete,false);
+ assert.equal(p0Version.syncState,'MISMATCH');
+ for(const override of [{expectedHead:null},{expectedHead:base},{expectedBaseMain:null},{expectedBaseMain:head},
+  {sourceClean:false},{host:'0.0.0.0'},{host:'localhost'},{port:8787},{port:8790},{port:8791},{port:18723},
+  {inlineEnabled:false},{candidateReadRoot:null},{actualDataMode:'MOCK'},{actualDataMode:null}]){
+  assert.equal(validateCru21PreviewVersionTruth(p0Version,{...p0Options,...override}).ready,false,JSON.stringify(override));
+ }
+ for(const override of [{runtimeCommit:base},{buildCommit:base},{exactHead:base},{approvedMainCommit:head},
+  {baseMainCommit:head},{complete:true},{dataMode:'MOCK'},{previewType:'INTEGRATION_OWNER_PREVIEW'}]){
+  assert.equal(validateCru21PreviewVersionTruth({...p0Version,...override},p0Options).ready,false,JSON.stringify(override));
+ }
+ for(const [declared,actual] of [[p0,branch],[branch,p0],[p0,'main'],[p0,p0+'-other'],
+  [p0+'-other',p0+'-other'],['codex/cru21-decision-quality-p0-20990101','codex/cru21-decision-quality-p0-20990101']]){
+  const result=validateCru21PreviewVersionTruth({...p0Version,branch:declared},{...p0Options,actualBranch:actual});
+  assert.equal(result.ready,false);assert.ok(result.reasons.includes('CRU21_BRANCH_MISMATCH'));
+ }
+});
