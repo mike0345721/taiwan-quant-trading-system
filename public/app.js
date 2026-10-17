@@ -5027,12 +5027,12 @@ function setSidebarCollapsed(collapsed, { persist = false } = {}) {
   toggle.title = collapsed ? '展開側邊欄' : '收合側邊欄';
   const label = toggle.querySelector('b');
   if (label) label.textContent = collapsed ? '展開' : '收合';
-  if (persist) {
+  if (persist && document.documentElement.dataset.guestReadOnly !== 'true') {
     try { localStorage.setItem(sidebarPreferenceKey, collapsed ? '1' : '0'); } catch { /* local preference is optional */ }
   }
 }
 let sidebarCollapsed = false;
-try { sidebarCollapsed = localStorage.getItem(sidebarPreferenceKey) === '1'; } catch { /* local preference is optional */ }
+try { if (document.documentElement.dataset.guestReadOnly !== 'true') sidebarCollapsed = localStorage.getItem(sidebarPreferenceKey) === '1'; } catch { /* local preference is optional */ }
 setSidebarCollapsed(sidebarCollapsed);
 $('side-nav-toggle')?.addEventListener('click', () => {
   const collapsed = !document.querySelector('.workspace-layout')?.classList.contains('is-nav-collapsed');

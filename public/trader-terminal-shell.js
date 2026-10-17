@@ -548,6 +548,7 @@
   }
 
   function readPalette() {
+    if (document.documentElement.dataset.guestReadOnly === 'true') return 'red-up';
     try {
       const value = global.localStorage?.getItem(STORAGE_KEY);
       return PALETTES[value] ? value : 'red-up';
@@ -577,7 +578,7 @@
       control.value = selected;
       control.setAttribute('aria-label', `漲跌配色：${palette.label}`);
     }
-    if (persist) {
+    if (persist && document.documentElement.dataset.guestReadOnly !== 'true') {
       try { global.localStorage?.setItem(STORAGE_KEY, selected); } catch { /* presentation preference only */ }
     }
     global.dispatchEvent(new CustomEvent('trader-terminal:palette', { detail: { name: selected, ...palette } }));

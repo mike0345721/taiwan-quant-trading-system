@@ -135,6 +135,7 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     const errors=[],requests=[];cdp.on('Runtime.exceptionThrown',p=>errors.push(p.exceptionDetails.text+':'+p.exceptionDetails.exception?.description));
     cdp.on('Network.requestWillBeSent',p=>requests.push({url:p.request.url,method:p.request.method}));
     await cdp.command('Runtime.enable');await cdp.command('Network.enable');await cdp.command('Page.enable');
+    await cdp.command('Page.addScriptToEvaluateOnNewDocument',{source:"window.__guestStorageCalls=[];for(const method of ['getItem','setItem','removeItem','clear']){const prior=Storage.prototype[method];Storage.prototype[method]=function(...args){window.__guestStorageCalls.push(method);return prior.apply(this,args);};}"});
     await cdp.command('Fetch.enable',{patterns:[{urlPattern:'*'}]});
     cdp.on('Fetch.requestPaused',p=>{void cdp.command(p.request.url.startsWith('http://127.0.0.1:18722/')?'Fetch.continueRequest':'Fetch.failRequest',p.request.url.startsWith('http://127.0.0.1:18722/')?{requestId:p.requestId}:{requestId:p.requestId,errorReason:'BlockedByClient'});});
     await cdp.command('Page.navigate',{url:'http://127.0.0.1:18722/'});
@@ -142,6 +143,8 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     while(Date.now()<until){const result=await cdp.command('Runtime.evaluate',{expression:`({banner:document.getElementById('guest-read-only-banner')?.textContent,load:document.getElementById('decision-workspace')?.dataset.dashboardLoadState,loginHidden:document.getElementById('login-view')?.classList.contains('hidden'),dashboardHidden:document.getElementById('dashboard-view')?.classList.contains('hidden'),canvases:document.querySelectorAll('#dw-chart-canvas canvas').length})`,returnByValue:true});page=result.result.value||{};if(page.load==='READY')break;await sleep(50);}
     if(page.load!=='READY'){const debug=await cdp.command('Runtime.evaluate',{expression:`fetch('/api/session').then(async r=>({status:r.status,body:await r.text(),marker:document.documentElement.dataset.guestReadOnly}))`,returnByValue:true,awaitPromise:true});page.debug=debug.result.value;}
     assert.equal(page.load,'READY',JSON.stringify({page,errors,requests}));assert.equal(page.loginHidden,true);assert.equal(page.dashboardHidden,false);assert.match(page.banner,/臨時唯讀訪客/);assert.ok(page.canvases>0,JSON.stringify(page));assert.deepEqual(errors,[]);
+    const storage=await cdp.command('Runtime.evaluate',{expression:`(() => {document.getElementById('side-nav-toggle')?.click();const select=document.getElementById('market-palette-select');if(select){select.value='green-up';select.dispatchEvent(new Event('change',{bubbles:true}));}return window.__guestStorageCalls;})()`,returnByValue:true});assert.deepEqual(storage.result.value,[],'guest UI preferences must be memory-only');
+
     const api=requests.filter(p=>new URL(p.url).pathname.startsWith('/api/'));assert.ok(api.some(p=>p.url.endsWith('/api/v1/dashboard')));assert.ok(api.every(p=>p.method==='GET'&&!/ask-gpt|history|backtest|journal|browser-runtime-proof/.test(p.url)),JSON.stringify(api));
    }finally{pipe.close();if(browser.exitCode===null){browser.kill();await new Promise(r=>browser.once('exit',r));}}
   });
