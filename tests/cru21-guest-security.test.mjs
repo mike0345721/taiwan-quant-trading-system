@@ -92,3 +92,13 @@ test('source identity change during awaited real request rejects success without
   assert.equal(result.status,503);assert.doesNotMatch(result.body,/MUST_NOT_RETURN/);assert.match(result.body,/GUEST_IDENTITY_CHANGED/);
  }finally{await new Promise(r=>server.close(r));server.closeAllConnections();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('expiry and identity are checked after body serialization before any successful headers',async()=>{
+ let remaining=10000,valid=true,calls=0;const root=fs.mkdtempSync(path.join(os.tmpdir(),'guest-encode-'));
+ const server=createGuestServer({deadline:{...deadline,remaining:()=>remaining},publicDir:root,vendorPath:'/unused',head,verifyIdentity:()=>valid,read:async()=>({toJSON(){if(++calls===1)remaining=0;else valid=false;return {data:'MUST_NOT_SEND_ENCODED_DATA'};}})});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const get=()=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port:server.address().port,path:'/api/v1/dashboard',headers:req.headers},res=>{let body='';res.on('data',b=>body+=b);res.on('end',()=>resolve({status:res.statusCode,body}));}).on('error',reject);});
+ try{const expired=await get();assert.equal(expired.status,410);assert.doesNotMatch(expired.body,/MUST_NOT_SEND/);remaining=10000;
+  const changed=await get();assert.equal(changed.status,503);assert.doesNotMatch(changed.body,/MUST_NOT_SEND/);
+ }finally{await new Promise(r=>server.close(r));server.closeAllConnections();fs.rmSync(root,{recursive:true,force:true});}
+});

@@ -12,9 +12,12 @@ export function createGuestServer({deadline,read,publicDir,vendorPath,head,verif
   setSecurityHeaders(res,{isHttps:false});res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');
   // No auth cookies are read or issued. This dispatcher never falls through to normal handlers.
   const send=(status,value,type='application/json; charset=utf-8')=>{
-   if(status<400&&!verifyIdentity()){status=503;value={ok:false,error:'GUEST_IDENTITY_CHANGED'};type='application/json; charset=utf-8';}
-   if(deadline.remaining()<=0){status=410;value={ok:false,error:'GUEST_EXPIRED'};type='application/json; charset=utf-8';}
-   res.writeHead(status,{'Content-Type':type});res.end(req.method==='HEAD'?'':typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value));
+   // Encoding/file reads may take time: authorize the complete body, then commit headers.
+   let body=Buffer.isBuffer(value)?value:Buffer.from(typeof value==='string'?value:JSON.stringify(value));
+   if(body.byteLength>8*1024*1024){status=503;body=Buffer.from(JSON.stringify({ok:false,error:'GUEST_RESPONSE_BUDGET'}));type='application/json; charset=utf-8';}
+   if(status<400&&!verifyIdentity()){status=503;body=Buffer.from(JSON.stringify({ok:false,error:'GUEST_IDENTITY_CHANGED'}));type='application/json; charset=utf-8';}
+   if(deadline.remaining()<=0){status=410;body=Buffer.from(JSON.stringify({ok:false,error:'GUEST_EXPIRED'}));type='application/json; charset=utf-8';}
+   res.writeHead(status,{'Content-Type':type,'Content-Length':body.byteLength});res.end(req.method==='HEAD'?'':body);
   };
   try{
    if(!verifyIdentity()){send(503,{ok:false,error:'GUEST_IDENTITY_CHANGED'});return;}
