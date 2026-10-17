@@ -70,6 +70,7 @@ export function approvedGuestPaths(env,appRoot) {
   const resolveParent=p=>{let cursor=path.resolve(p),tail=[];while(!fs.existsSync(cursor)){const next=path.dirname(cursor);if(next===cursor)throw Error('GUEST_FLOW_BINDING_REQUIRED');tail.unshift(path.basename(cursor));cursor=next;}return path.join(fs.realpathSync(cursor),...tail);};
   const parent=resolveParent(path.dirname(env[key]));
   const expectedParent=resolveParent(path.dirname(expected));
+  if(contains(privateRoot,parent)||contains(parent,privateRoot))throw Error('GUEST_SOURCE_PRIVATE_OVERLAP');
   if(parent!==expectedParent||path.basename(env[key])!==path.basename(expected))throw Error('GUEST_FLOW_BINDING_MISMATCH');
   return path.join(parent,path.basename(expected));
  };

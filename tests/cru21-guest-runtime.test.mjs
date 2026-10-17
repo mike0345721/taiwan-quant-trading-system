@@ -89,7 +89,10 @@ test('real reader uses actual approved products and never writes any app data or
   }
   assert.deepEqual(hashTree(source),before);assert.ok(bridge.every(p=>['/health','/latest','/leadership'].includes(p)));
   assert.throws(()=>approvedGuestPaths({...env,ASK_GPT_CANDIDATE_READ_ROOT:path.parse(source).root},app),/OVERLAP/);
-  fs.mkdirSync(path.join(app,'data'));fs.rmdirSync(path.join(app,'data'));fs.symlinkSync(source,path.join(app,'data'),'junction');assert.throws(()=>approvedGuestPaths(env,app),/OVERLAP/);
+  fs.mkdirSync(path.join(app,'data'));
+  const projection=path.join(source,'runtime','cru34-live');fs.rmdirSync(projection);fs.symlinkSync(path.join(app,'data'),projection,'junction');
+  assert.throws(()=>approvedGuestPaths(env,app),/OVERLAP/);fs.unlinkSync(projection);fs.mkdirSync(projection);
+  fs.rmdirSync(path.join(app,'data'));fs.symlinkSync(source,path.join(app,'data'),'junction');assert.throws(()=>approvedGuestPaths(env,app),/OVERLAP/);
  }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
 
