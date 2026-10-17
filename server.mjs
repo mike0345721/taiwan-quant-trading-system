@@ -75,6 +75,9 @@ import {
 } from './src/http-utils.mjs';
 
 validateConfig();
+if (process.env.CRU21_GUEST_ENABLED === '1') {
+  await import('./src/cru21-guest-server.mjs').then(m => m.startGuestServer({ appRoot: config.appRoot }));
+} else {
 // Explicit isolated integration only. Formal startup retains the existing path.
 const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration.mjs').then(m => m.prepareIntegration(config)) : null;
 
@@ -807,3 +810,5 @@ function shutdown(signal) {
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+} // Normal authenticated runtime; guest dispatcher cannot fall through here.

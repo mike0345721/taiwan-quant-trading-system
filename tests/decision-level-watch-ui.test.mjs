@@ -1,3 +1,5 @@
+import { projectGuest,watchSchema,chartSchema,pulseSchema } from '../src/cru21-guest-projection.mjs';
+import { buildMarketPulseLive } from '../src/market-pulse-live.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -333,4 +335,43 @@ test('applicability gap stays unavailable unless finite and consistent with both
     h.context.renderDecisionLevelWatch(watch);
     assert.match(h.node('dw-long-evidence').textContent,new RegExp('相距 '+Math.abs(gap).toFixed(2)+' 點'));
   }
+});
+
+
+test('guest projection executes real scenario renderer: affirmative focus and unknown gap stay fail-closed',()=>{
+ for(const focus of [undefined,null,{}, {state:'UNKNOWN'},{state:'NO_ACTIVE_REFERENCE'}]) {
+  const h=ui(),watch=displayWatch();watch.decisionFocus=focus;
+  h.state.guestReadOnly=true;h.state.csrfToken='';h.state.txChartPayload=projectGuest(displayChart(),chartSchema);
+  h.context.renderDecisionLevelWatch(projectGuest(watch,watchSchema));h.context.renderTxChartLevels(h.state.txChartPayload);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+  assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+ }
+ for(const gap of [undefined,null,NaN,345,346]) {
+  const h=ui(),watch=displayWatch();Object.assign(watch.scenarioWatch.long.rr.applicability,{currentPrice:47243,confirmationReferencePrice:46897,gapFromConfirmationPoints:gap});
+  h.context.renderDecisionLevelWatch(projectGuest(watch,watchSchema));
+  assert.match(h.node('dw-long-rr').textContent,/2\.00/);
+  if(gap===346)assert.match(h.node('dw-long-evidence').textContent,/346\.00/);
+  else {assert.match(h.node('dw-long-evidence').textContent,/現價進場適用性不可用/);assert.doesNotMatch(h.node('dw-long-evidence').textContent,/相距 .* 點/);}
+ }
+});
+
+test('guest chart projection preserves production interrupted-capture warning instead of calling a bar complete',()=>{
+ const h=ui(),chart=displayChart();chart.bars=[{time:'2026-10-05T10:25:00Z',open:100,high:120,low:90,close:110,volume:10,captureCoverage:{state:'KNOWN_INTERRUPTION'},qualityReasons:['KNOWN_CAPTURE_INTERRUPTION']}];
+ chart.levels.currentDayHigh={availability:'AVAILABLE',value:120,reason:'KNOWN_CAPTURE_INTERRUPTION'};
+ const p=projectGuest(chart,chartSchema);
+ vm.runInContext(app.slice(app.indexOf('function txBarObservationLabel('),app.indexOf('function ensureTxChart(')),h.context);
+ assert.match(h.context.txBarObservationLabel(p,Date.parse(p.bars[0].time)),/行情缺口/);
+ assert.match(h.context.captureCoverageWarning(p.levels.currentDayHigh),/行情缺口/);
+});
+
+test('guest projection keeps actual Pulse producer metadata accepted by production live renderer',()=>{
+ const h=ui(),chart=displayChart();h.state.txChartPayload=chart;
+ h.context.signed=(value,suffix='',n=2)=>Number(value).toFixed(n)+suffix;h.context.tone=()=>{};
+ const start=app.indexOf('function renderLiveMarketPulse('),end=app.indexOf('async function loadLiveMarketPulse(',start);
+ vm.runInContext(app.slice(start,end),h.context);
+ const pulse=buildMarketPulseLive({chart,bridgeLatest:{state:'UNAVAILABLE',data:null},archiveDir:'/not-a-source',now:new Date('2026-10-05T10:30:00Z')});
+ const projected=projectGuest(pulse,pulseSchema);h.context.renderLiveMarketPulse(projected);
+ assert.equal(h.state.marketPulse.generatedAt,pulse.generatedAt);
+ assert.equal(h.state.marketPulse.sourceAvailableAt,pulse.sourceAvailableAt);
+ assert.equal(h.state.marketPulse.identity.actualContract,pulse.identity.actualContract);
 });

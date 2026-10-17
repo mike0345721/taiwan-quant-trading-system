@@ -1,7 +1,7 @@
 'use strict';
 
 const state = {
-  csrfToken: '', snapshot: null, history: [], historyDays: 20,
+  guestReadOnly: false, guestExpiresAt: null, guestExpiryMono: null, csrfToken: '', snapshot: null, history: [], historyDays: 20,
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
@@ -18,7 +18,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const flowChannel = window.Cru49Flow.createFlowChannel({
   request: signal => api('/api/v1/observed-flow', { signal, cache: 'no-store' }),
-  authenticated: () => Boolean(state.csrfToken),
+  authenticated: () => Boolean(state.csrfToken || state.guestReadOnly),
   chartIdentity: () => state.txChartPayload,
   visible: () => !document.hidden && !$('dashboard-view').classList.contains('hidden'),
   render: value => {
@@ -68,7 +68,7 @@ function normalizeDashboardPageFragments() {
 
 function setDashboardPage(page, { scroll = true } = {}) {
   const valid = new Set(['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']);
-  const selected = valid.has(page) ? page : 'workspace';
+  const selected = state.guestReadOnly ? 'workspace' : valid.has(page) ? page : 'workspace';
   document.querySelectorAll('[data-page]').forEach((element) => element.classList.toggle('is-active-page', element.dataset.page === selected));
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -163,14 +163,39 @@ function show(view) {
   }
 }
 
+function expireGuestView() {
+  state.guestReadOnly = false; state.guestExpiryMono = null; state.csrfToken = '';
+  flowChannel.stop(); flowChannel.reset(); dataOperationsChannel.reset();
+  show('loading-view');
+  const host = $('loading-view'); if (host) host.textContent = '唯讀訪客驗收已到期或關閉，請關閉此頁。';
+}
+function enableGuestView(session) {
+  state.guestReadOnly = true; state.guestExpiresAt = session.expiresAt;
+  const banner = document.createElement('p'); banner.id = 'guest-read-only-banner'; banner.setAttribute('role','status');
+  banner.textContent = '臨時唯讀訪客 · 真實資料（不保證新鮮） · 至 ' + session.expiresAt + ' · 本機其他程式亦可能讀取 · AI／帳號／寫入停用';
+  $('dashboard-view').prepend(banner);
+  for (const selector of ['#ai-inline','#dw-journal-form','#dw-lock-snapshot','#dw-copy-chatgpt','#refresh-button','#logout-button','[data-dashboard-page]']) {
+    document.querySelectorAll(selector).forEach(node => { if (node.dataset.dashboardPage === 'workspace') return; node.hidden = true;
+      if ('disabled' in node) node.disabled = true; node.querySelectorAll('button,input,select,textarea').forEach(control => { control.disabled = true; }); });
+  }
+  const wait = Date.parse(session.expiresAt) - Date.now();
+  if (!Number.isFinite(wait) || wait <= 0 || wait > 900000) { expireGuestView(); return false; }
+  state.guestExpiryMono = performance.now() + wait;
+  setTimeout(expireGuestView, wait); return true;
+}
 async function api(path, options = {}) {
+  if (state.guestReadOnly && (Date.now() >= Date.parse(state.guestExpiresAt) || performance.now() >= state.guestExpiryMono)) { expireGuestView(); throw Error('GUEST_EXPIRED'); }
+  if (state.guestReadOnly && options.method && options.method !== 'GET') throw Error('GUEST_READ_ONLY');
   const requestSession = state.csrfToken;
   const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   if (options.method && options.method !== 'GET' && state.csrfToken) headers['X-CSRF-Token'] = state.csrfToken;
-  const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+  let response;
+  try { response = await fetch(path, { credentials: 'same-origin', ...options, headers }); }
+  catch (error) { if (state.guestReadOnly) expireGuestView(); throw error; }
   let payload = null;
   try { payload = await response.json(); } catch { payload = { ok: false, error: 'INVALID_RESPONSE' }; }
+  if (state.guestReadOnly && response.status === 410) expireGuestView();
   if (response.status === 401 && requestSession === state.csrfToken) {
     state.csrfToken = '';
     show('login-view');
@@ -2809,7 +2834,7 @@ function renderLiveMarketPulse(pulse) {
 }
 
 async function loadLiveMarketPulse() {
-  if (state.marketPulseLoading || !state.csrfToken) return;
+  if (state.marketPulseLoading || !(state.csrfToken || state.guestReadOnly)) return;
   state.marketPulseLoading = true;
   renderLiveMarketPulse(state.marketPulse);
   try {
@@ -4328,7 +4353,7 @@ function renderDecisionLevelWatch(levelWatch) {
 }
 
 async function loadDecisionLevelWatch() {
-  if (state.levelWatchLoading || !state.csrfToken || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
+  if (state.levelWatchLoading || !(state.csrfToken || state.guestReadOnly) || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
   state.levelWatchLoading = true;
   try {
     // Revalidate cached evidence while a new response is in flight.
@@ -4959,19 +4984,17 @@ async function loadDashboard() {
   const terminalRoot = $('decision-workspace');
   terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
   terminalRoot?.setAttribute('aria-busy', 'true');
-  void Promise.allSettled([loadHistory(), loadBacktest()]);
+  if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
   const payload = await api('/api/v1/dashboard');
-  if (!state.csrfToken || !flowChannel.isCurrentSession(flowTicket)) return;
+  if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
   await loadLiveMarketPulse().catch(() => {});
-  await reportCru46BrowserRuntimeProof();
-  await loadDecisionJournal();
-  renderPrelive(payload.service?.prelive);
-  if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
+  if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
+  if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
   terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
 }
@@ -5318,7 +5341,9 @@ $('logout-button').addEventListener('click', async () => {
   let authenticated = false;
   try {
     const session = await api('/api/session');
-    if (!session.authenticated) { show('login-view'); return; }
+    if (document.documentElement.dataset.guestReadOnly === 'true') {
+      if (session.guestReadOnly !== true || session.authenticated !== false || !enableGuestView(session)) { expireGuestView(); return; }
+    } else if (!session.authenticated) { show('login-view'); return; }
     authenticated = true;
     state.csrfToken = session.csrfToken;
     show('dashboard-view');
@@ -5357,3 +5382,8 @@ setInterval(() => {
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) void loadDecisionLevelWatch();
 }, 5_000);
+
+// Suspended tabs must hide retained guest data on return after the fixed deadline.
+document.addEventListener('visibilitychange', () => {
+  if (state.guestReadOnly && (Date.now() >= Date.parse(state.guestExpiresAt) || performance.now() >= state.guestExpiryMono)) expireGuestView();
+});
