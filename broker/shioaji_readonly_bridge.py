@@ -26,6 +26,11 @@ from typing import Any
 
 import shioaji as sj
 from live_event_ledger import LiveEventLedger
+from bridge_startup_diagnostics import (
+    StartupDiagnostics,
+    StartupStage,
+    decode_credential_reader_failure,
+)
 from txo_live_chain import (
     contract_metadata,
     load_activation_config,
@@ -34,6 +39,17 @@ from txo_live_chain import (
     select_governed_universe,
     select_nearest_expiry_contracts,
 )
+
+
+STARTUP_DIAGNOSTICS = StartupDiagnostics()
+
+
+def record_startup_failure(error: Exception, *, role: str) -> None:
+    try:
+        print(STARTUP_DIAGNOSTICS.failure(error, role=role), file=sys.stderr, flush=True)
+    except Exception:
+        # A failed diagnostic sink must not change startup or cleanup propagation.
+        pass
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -216,28 +232,44 @@ def record_lifecycle(kind: str, **details: Any) -> None:
 
 
 def load_credentials(path: Path) -> dict[str, Any]:
+    STARTUP_DIAGNOSTICS.stage = StartupStage.CREDENTIAL_READ
     if not path.exists():
         raise RuntimeError(
             "missing DPAPI credentials; run 17_MIGRATE_SHIOAJI_SECURITY.bat "
             "or 14_SETUP_SHIOAJI_READONLY.bat"
         )
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    result = subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(CREDENTIAL_READER),
-            "-Path",
-            str(path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        creationflags=creation_flags,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(CREDENTIAL_READER),
+                "-Path",
+                str(path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            creationflags=creation_flags,
+            # A Python process launched by pwsh inherits its PS7 module path.
+            # Windows PowerShell 5.1 must resolve its own native modules instead.
+            # Change only this child's environment, never user/machine settings.
+            env={key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"},
+        )
+    except subprocess.CalledProcessError as error:
+        try:
+            diagnostic = decode_credential_reader_failure(error.stderr)
+            if diagnostic is not None:
+                print(diagnostic, file=sys.stderr, flush=True)
+        except Exception:
+            # Reader diagnostics and a failed sink must not replace the original failure.
+            pass
+        raise
+    STARTUP_DIAGNOSTICS.stage = StartupStage.CREDENTIAL_PARSE
     credentials = json.loads(result.stdout)
     if not credentials.get("apiKey") or not credentials.get("secretKey"):
         raise RuntimeError("DPAPI credentials are incomplete")
@@ -1257,12 +1289,16 @@ def startup_exit_code(error: Exception) -> tuple[int, str]:
 
 
 def main() -> None:
-    global SERVER, BRIDGE_STARTED_AT, SHIOAJI_API
+    global SERVER, BRIDGE_STARTED_AT, SHIOAJI_API, STARTUP_DIAGNOSTICS
+    STARTUP_DIAGNOSTICS = StartupDiagnostics()
+    STARTUP_DIAGNOSTICS.stage = StartupStage.SINGLETON
     instance_mutex = acquire_single_instance()
     # Acquire the singleton port before login. A second launcher therefore exits
     # without consuming another broker connection or creating duplicate subscriptions.
+    STARTUP_DIAGNOSTICS.stage = StartupStage.BIND
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     SERVER = server
+    STARTUP_DIAGNOSTICS.stage = StartupStage.WRITER_START
     writer = threading.Thread(target=event_writer, name="live-event-writer", daemon=True)
     writer.start()
     with LOCK:
@@ -1281,25 +1317,31 @@ def main() -> None:
         stop.set()
         threading.Thread(target=server.shutdown, daemon=True).start()
 
+    STARTUP_DIAGNOSTICS.stage = StartupStage.SIGNAL_SETUP
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     try:
+        STARTUP_DIAGNOSTICS.stage = StartupStage.CREDENTIAL_READ
         credentials = load_credentials(CREDENTIAL_PATH)
         api_key = str(credentials["apiKey"])
         secret_key = str(credentials["secretKey"])
         simulation = not bool(credentials.get("production", False))
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.SDK_CREATE
         api = sj.Shioaji(simulation=simulation)
+        STARTUP_DIAGNOSTICS.stage = StartupStage.LOGIN
         api.login(
             api_key=api_key,
             secret_key=secret_key,
             subscribe_trade=False,
         )
+        STARTUP_DIAGNOSTICS.stage = StartupStage.LIFECYCLE_START
         SHIOAJI_API = api
         bridge_started = True
         BRIDGE_STARTED_AT = datetime.now().astimezone().isoformat()
         record_lifecycle("bridge_started", simulation=simulation, processId=os.getpid())
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.CALLBACK_BIND
         api.set_on_tick_stk_v1_callback(lambda tick: record("stock_tick", tick))
         api.set_on_quote_idx_v1_callback(lambda quote: record("index_quote", quote))
         api.set_on_tick_fop_v1_callback(lambda tick: record("futures_tick", tick))
@@ -1352,6 +1394,7 @@ def main() -> None:
 
         api.set_session_down_callback(on_session_down)
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.CORE_SUBSCRIBE
         contract = api.contracts.get("2330")
         if contract is None:
             raise LookupError("stock contract not found: 2330")
@@ -1368,6 +1411,7 @@ def main() -> None:
         with LOCK:
             REQUIRED_SUBSCRIPTIONS["IX0001"]["state"] = "RESTORED"
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.OPTIONAL_SUBSCRIBE
         if LEADERSHIP_COLLECTION_ENABLED:
             leadership_rankings = (
                 ("IX0001_INDEX_ABS10", sj.ContributionRanking.Abs10),
@@ -1402,6 +1446,7 @@ def main() -> None:
                         "restorationState": "NOT_REQUESTED",
                     })
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.CORE_SUBSCRIBE
         futures_contracts: list[tuple[str, str, Any]] = []
         for product_family, alias in (
             ("TX", "TXFR1"),
@@ -1445,6 +1490,7 @@ def main() -> None:
             QUEUE_STATE["sessionDown"] = False
             subscription_generation = QUEUE_STATE["subscriptionGeneration"]
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.OPTIONAL_SUBSCRIBE
         txo_enabled = os.getenv("DW4_TXO_COLLECTION_ENABLED", "").strip().lower() == "true"
         txo_config_path_raw = os.getenv("DW4_TXO_COLLECTION_CONFIG", "").strip()
         txo_config = load_activation_config(
@@ -1478,6 +1524,7 @@ def main() -> None:
                     "restoredSubscriptionCount": len(selected_options) * 2,
                     "productionActivationApproved": True,
                 })
+        STARTUP_DIAGNOSTICS.stage = StartupStage.LIFECYCLE_READY
         record_lifecycle(
             "subscriptions_ready",
             products=[
@@ -1511,6 +1558,7 @@ def main() -> None:
             subscriptionGeneration=subscription_generation,
             processId=os.getpid(),
         )
+        STARTUP_DIAGNOSTICS.stage = StartupStage.WATCHDOG_START
         watchdog = threading.Thread(
             target=quote_delivery_watchdog,
             args=(api, futures_contract_map, stop),
@@ -1519,44 +1567,53 @@ def main() -> None:
         )
         watchdog.start()
 
+        STARTUP_DIAGNOSTICS.stage = StartupStage.SERVE
         print(f"Shioaji read-only quotes: http://{HOST}:{PORT}/health")
         leadership_status = "enabled" if LEADERSHIP_COLLECTION_ENABLED else "default-off"
         print(f"Subscribed: IX0001 Quote, 2330, TXFR1, MXFR1, TMFR1; IX0001 Leadership {leadership_status}; TXO default-off")
         print("Order routes: disabled")
         server.serve_forever()
+    except Exception as error:
+        record_startup_failure(error, role="primary")
+        raise
     finally:
-        stop.set()
-        if watchdog is not None:
-            watchdog.join(timeout=5)
-        if bridge_started:
+        STARTUP_DIAGNOSTICS.stage = StartupStage.CLEANUP
+        try:
+            stop.set()
+            if watchdog is not None:
+                watchdog.join(timeout=5)
+            if bridge_started:
+                with LOCK:
+                    stop_counters = {
+                        "callbackErrors": QUEUE_STATE["callbackErrors"],
+                        "dropped": QUEUE_STATE["dropped"],
+                        "writerErrors": QUEUE_STATE["writerErrors"],
+                    }
+                record_lifecycle("bridge_stopped", processId=os.getpid(), **stop_counters)
+            EVENT_QUEUE.join()
+            EVENT_QUEUE.put(None)
+            writer.join(timeout=5)
             with LOCK:
-                stop_counters = {
-                    "callbackErrors": QUEUE_STATE["callbackErrors"],
-                    "dropped": QUEUE_STATE["dropped"],
-                    "writerErrors": QUEUE_STATE["writerErrors"],
-                }
-            record_lifecycle("bridge_stopped", processId=os.getpid(), **stop_counters)
-        EVENT_QUEUE.join()
-        EVENT_QUEUE.put(None)
-        writer.join(timeout=5)
-        with LOCK:
-            QUEUE_STATE["writerThreadAlive"] = writer.is_alive()
-        if api is not None:
-            for contract, quote_type, ranking in subscriptions:
+                QUEUE_STATE["writerThreadAlive"] = writer.is_alive()
+            if api is not None:
+                for contract, quote_type, ranking in subscriptions:
+                    try:
+                        if ranking is None:
+                            api.unsubscribe(contract, quote_type=quote_type)
+                        else:
+                            api.unsubscribe(contract, quote_type=quote_type, ranking=ranking)
+                    except Exception:
+                        pass
                 try:
-                    if ranking is None:
-                        api.unsubscribe(contract, quote_type=quote_type)
-                    else:
-                        api.unsubscribe(contract, quote_type=quote_type, ranking=ranking)
+                    api.logout()
                 except Exception:
                     pass
-            try:
-                api.logout()
-            except Exception:
-                pass
-        server.server_close()
-        SERVER = None
-        release_single_instance(instance_mutex)
+            server.server_close()
+            SERVER = None
+            release_single_instance(instance_mutex)
+        except Exception as error:
+            record_startup_failure(error, role="cleanup")
+            raise
     if exit_code:
         raise SystemExit(exit_code)
     if EXPECTED_STOP_REQUESTED:
@@ -1569,6 +1626,8 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except Exception as error:
+        if not STARTUP_DIAGNOSTICS.failure_recorded:
+            record_startup_failure(error, role="primary")
         code, reason = startup_exit_code(error)
         print(f"Shioaji bridge stopped before readiness: reasonCode={reason}", file=sys.stderr)
         raise SystemExit(code) from None
