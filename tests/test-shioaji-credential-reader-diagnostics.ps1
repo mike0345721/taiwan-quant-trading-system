@@ -94,8 +94,8 @@ function ConvertFrom-Json {
     return [pscustomobject]@{
       version = $version
       protection = 'windows-dpapi-current-user'
-      apiKey = 'SYNTHETIC_CIPHERTEXT_KEY'
-      secretKey = 'SYNTHETIC_CIPHERTEXT_SECRET'
+      apiKey = 'FAKE_CIPHER_A'
+      secretKey = 'FAKE_CIPHER_B'
       production = $false
     }
   }
@@ -103,7 +103,7 @@ function ConvertFrom-Json {
 
 function ConvertTo-SecureString {
   param([Alias('String')][string]$CipherText)
-  Assert-True ($CipherText -in @('SYNTHETIC_CIPHERTEXT_KEY', 'SYNTHETIC_CIPHERTEXT_SECRET')) 'only fake ciphertext accepted'
+  Assert-True ($CipherText -in @('FAKE_CIPHER_A', 'FAKE_CIPHER_B')) 'only fake ciphertext accepted'
   $script:DecryptCount++
   if ($script:FailureStage -eq 'DPAPI_DECRYPT') {
     throw [System.Security.Cryptography.CryptographicException]::new($script:Canary)
@@ -162,7 +162,7 @@ function Convert-TestJson([string]$Json) {
 
 function Assert-Diagnostic([string]$Json, [string]$Stage) {
   $record = Convert-TestJson $Json
-  Assert-True (-not $Json.Contains($script:Canary) -and -not $Json.Contains('SYNTHETIC_CIPHERTEXT') -and -not $Json.Contains('SYNTHETIC_PLAINTEXT')) 'no private markers emitted'
+  Assert-True (-not $Json.Contains($script:Canary) -and -not $Json.Contains('FAKE_CIPHER') -and -not $Json.Contains('SYNTHETIC_PLAINTEXT')) 'no private markers emitted'
   $keys = @($record.PSObject.Properties.Name | Sort-Object)
   Assert-True (($keys -join ',') -ceq 'event,exceptions,exitCode,schemaVersion,stage') 'exact top-level keys'
   Assert-True ($record.schemaVersion -eq 1 -and $record.exitCode -eq 1) 'fixed versions and exit'
