@@ -61,10 +61,11 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /tt-contribution-net/);
   assert.match(shell, /tt-mini-series/);
   assert.match(shell, /COPY SNAPSHOT · LOADING/);
-  assert.match(shell, /Manual copy only · no direct GPT API/);
+  assert.match(shell, /僅複製快照，不代表 AI 已連接或回答已驗證/);
   assert.match(shell, /copyBody\?\.parentElement === node/);
   assert.match(shell, /tt-fixture-only/);
-  assert.match(shell, /tierOne\.append\(pulse, observedFlow\)/);
+  assert.match(shell, /tierOne\.append\(focusCard\)/);
+  assert.match(shell, /observations\.append\(observedFlow\)/);
   assert.match(shell, /tt-primary-market-surface/);
   assert.match(shell, /Price Structure · Primary/);
   assert.match(shell, /tierTwo\.append\(leadership, futures, options, breadth, conflict\)/);
@@ -76,7 +77,7 @@ test('Trader Terminal shell provides hierarchy, chart expansion, palette and det
   assert.match(shell, /returnFocus\?\.isConnected/);
   assert.match(shell, /event\.key !== 'Tab'/);
   assert.match(shell, /const modeSwitch = heading\.querySelector\('\.dw-mode-switch'\)/);
-  assert.match(shell, /if \(modeSwitch\) status\.append\(modeSwitch\)/);
+  assert.match(shell, /if \(modeSwitch\) recency\.append\(modeSwitch\)/);
   assert.match(shell, /aria-labelledby/);
   assert.match(shell, /index <= 6/);
   assert.match(shell, /正貢獻 TOP 5/);
@@ -160,7 +161,7 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(terminalSource, /renderLiveMarketPulse\(state.marketPulse\)/);
   assert.doesNotMatch(terminalSource, /terminalWrite\('tt-(?:pulse-rvol|pulse-basis|futures-basis|top-basis)'/);
   assert.match(terminalSource, /BREAKDOWN_NOT_IMPLEMENTED/);
-  assert.match(terminalSource, /COPY SNAPSHOT · READY/);
+  assert.match(terminalSource, /複製快照已就緒（非 AI 連線狀態）/);
   assert.match(terminalSource, /COPY_CONTEXT_UNAVAILABLE/);
   assert.match(terminalSource, /function renderTerminalDashboardFailure/);
   assert.match(terminalSource, /DASHBOARD_API_UNAVAILABLE/);

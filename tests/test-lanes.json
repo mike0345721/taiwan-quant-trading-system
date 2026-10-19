@@ -37,7 +37,8 @@
     "runtime": {
       "description": "Browser/runtime integration tests that need a separately stabilized runtime lane before becoming a required PR gate.",
       "files": [
-        "trader-terminal-production-dom.test.mjs"
+        "trader-terminal-production-dom.test.mjs",
+        "ui-decision-first-layout.test.mjs"
       ]
     }
   }

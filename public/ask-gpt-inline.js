@@ -27,6 +27,7 @@
  async function connection(){
   try{await session();const d=await api('status');enabled=d.enabled;
    options('ai-account',d.accounts||[],'請選擇已授權的帳號');
+   if($('ai-settings')&&(d.reason||!d.accounts?.length))$('ai-settings').open=true;
    text('ai-connection',d.reason?(reasons[d.reason]||d.reason):(d.accounts.length?'已找到保存的訂閱授權；模型仍需由帳號目錄選取。':'尚未有保存的帳號授權。'));
    text('ai-version',`版本 ${String(d.runtimeCommit||'未知').slice(0,12)} · 訂閱授權 · 無付費 API 備援`);
    if(!d.enabled)feedback(reasons.INLINE_ASSISTANT_NOT_ACTIVATED,'DISABLED');
@@ -53,12 +54,15 @@
  }
  $('ai-refresh').addEventListener('click',()=>{void connection();});
  $('ai-recover').addEventListener('click',()=>{if(!busy)void recover();});
- $('ai-account').addEventListener('change',()=>{options('ai-model',[],'請重新載入此帳號模型');controls();});
+ $('ai-account').addEventListener('change',()=>{options('ai-model',[],'請重新載入此帳號模型');if($('ai-settings'))$('ai-settings').open=true;if($('ai-settings-summary'))text('ai-settings-summary','帳號與模型設定 · 請重新載入模型');controls();});
  $('ai-models').addEventListener('click',async()=>{
   if(busy)return;busy=true;controls();feedback('正在讀取此帳號的可選模型…');
   try{const d=await api('models',{account:$('ai-account').value});options('ai-model',d.models.map(m=>({key:m.slug,label:m.display_name})),'請選擇模型');
    const terra=d.models.find(m=>m.slug==='gpt-5.6-terra');if(terra)$('ai-model').value=terra.slug;
    feedback('模型目錄已讀取。依你選擇的模型分析，不會自動升級。');
+   const selected=d.models.find(m=>m.slug===$('ai-model').value);
+   if($('ai-settings'))$('ai-settings').open=!selected;
+   if($('ai-settings-summary'))text('ai-settings-summary',selected?'帳號與模型設定 · '+selected.display_name:'帳號與模型設定 · 請選擇模型');
   }catch(e){feedback(errorText(e),'FAILED');}finally{busy=false;controls();}
  });
  $('ai-connect').addEventListener('click',async()=>{
@@ -69,7 +73,11 @@
    try{window.open(u.href,'_blank','noopener,noreferrer');}catch{}
   }catch(e){feedback(errorText(e),'FAILED');}finally{busy=false;controls();}
  });
- $('ai-credits').addEventListener('change',controls);$('ai-model').addEventListener('change',controls);
+ $('ai-credits').addEventListener('change',controls);$('ai-model').addEventListener('change',()=>{
+  const selected=$('ai-model').selectedOptions[0];
+  if($('ai-settings-summary'))text('ai-settings-summary',$('ai-model').value?'帳號與模型設定 · '+selected.textContent:'帳號與模型設定 · 請選擇模型');
+  controls();
+ });
  document.querySelectorAll('[data-gpt-question]').forEach(b=>b.addEventListener('click',()=>{if(!busy)$('ai-question').value=b.dataset.gptQuestion;}));
  $('ai-submit').addEventListener('click',async()=>{
   if(busy||$('ai-submit').disabled)return;

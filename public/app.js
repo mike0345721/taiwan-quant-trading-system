@@ -3732,7 +3732,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     button.disabled = !copyContextReady;
     button.setAttribute('aria-disabled', String(!copyContextReady));
   }
-  terminalWrite('tt-gpt-disabled-state', copyContextReady ? 'COPY SNAPSHOT · READY' : null, {
+  terminalWrite('tt-gpt-disabled-state', copyContextReady ? '複製快照已就緒（非 AI 連線狀態）' : null, {
     reason: 'COPY_CONTEXT_UNAVAILABLE',
     title: copyContextReady
       ? 'Manual question + immutable snapshot copy is available; no direct GPT API is connected.'

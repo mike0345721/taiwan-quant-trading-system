@@ -379,11 +379,15 @@
                   <p>用最新 immutable snapshot 帶入 RVOL、Basis、IX0001 指數貢獻、Observed Flow 與 Data Trust；只做盤況討論，不產生交易指令。</p>
                   <div id="ai-inline" aria-busy="false">
                     <p><strong>在本頁提問與閱讀回答</strong> · 使用目前市場快照，不是鎖定或歷史回放畫面。資料來源可能過期或不完整，模型不得補造。</p>
-                    <p id="ai-version"></p><p id="ai-connection">正在確認連線設定…</p>
+                    <p id="ai-connection" role="status">正在確認連線設定…</p>
+                    <details id="ai-settings" open>
+                    <summary id="ai-settings-summary">帳號與模型設定</summary>
+                    <p id="ai-version"></p>
                     <div class="ai-actions"><button id="ai-refresh" type="button" class="secondary">讀取連線狀態</button><button id="ai-connect" type="button" class="secondary" disabled>連接／重新授權</button></div>
                     <a id="ai-setup-link" class="hidden" target="_blank" rel="noopener noreferrer">開啟本機訂閱授權設定</a>
                     <label for="ai-account">已授權的 ChatGPT 帳號</label><select id="ai-account" disabled><option value="">尚未讀取</option></select>
                     <div id="ai-model-row"><button id="ai-models" type="button" class="secondary" disabled>載入帳號可用模型</button><label for="ai-model">本次使用模型（不會自動升級）</label><select id="ai-model" disabled><option value="">請先載入模型</option></select></div>
+                    </details>
                     <label for="ai-question">想了解什麼？</label><textarea id="ai-question" maxlength="1000" rows="3" disabled>現在市場發生什麼？請分開事實、可能解讀與資料缺口。</textarea>
                     <label class="ai-consent"><input id="ai-credits" type="checkbox" disabled><span>我已在 ChatGPT「使用情況」確認額外點數與自動儲值關閉；本次只使用訂閱額度。</span></label>
                     <p>每次提問才送出盤況。沒有付費 API 備援；達上限會停止。<a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">查看 ChatGPT 用量設定</a></p>
