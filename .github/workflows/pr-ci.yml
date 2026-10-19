@@ -5,6 +5,10 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # PR87 targets the stacked PR86 branch, not main. Run the same gate on its pushes.
+  push:
+    branches:
+      - codex/cru21-decision-quality-p0-20261016
 
 permissions:
   contents: read
