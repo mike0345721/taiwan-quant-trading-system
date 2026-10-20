@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn,spawnSync,execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { approvedGuestPaths,GUEST_BRANCH } from '../src/cru21-guest-guard.mjs';
@@ -219,9 +219,9 @@ const promiseOpen=fsp.open;fsp.open=async function(p,flags,...args){if(!['r','rs
 const read=fs.readFileSync;fs.readFileSync=function(p,...args){if(/sessions\\.json|credentials|oauth|vault|siwc-v1|ChatGPTPlan|\\.dpapi/i.test(String(p)))trip('GUEST_SECRET_READ');return read.call(this,p,...args);};
 globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(health|latest|leadership)$/.test(String(url))||opt.redirect!=='error'||opt.credentials!=='omit')trip('GUEST_EXTERNAL_NETWORK');return new Response(JSON.stringify({mode:'market_data_only',formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false}));};
 `);
-  const self=spawn(process.execPath,['--import',probe,'-e',"import('node:fs').then(({default:fs})=>{try{fs.openSync('/must-never-create','w')}catch{};try{fs.readFileSync('/sessions.json')}catch{};return fetch('https://must-never-connect.invalid').catch(()=>{})})"],{cwd:app,env:{PATH:process.env.PATH},stdio:['ignore','pipe','pipe']});let selfLog='';self.stderr.on('data',b=>selfLog+=b);await new Promise(r=>self.once('exit',r));assert.match(selfLog,/GUEST_WRITE_ATTEMPT/);assert.match(selfLog,/GUEST_SECRET_READ/);assert.match(selfLog,/GUEST_EXTERNAL_NETWORK/);
+  const self=spawn(process.execPath,['--import',pathToFileURL(probe).href,'-e',"import('node:fs').then(({default:fs})=>{try{fs.openSync('/must-never-create','w')}catch{};try{fs.readFileSync('/sessions.json')}catch{};return fetch('https://must-never-connect.invalid').catch(()=>{})})"],{cwd:app,env:{PATH:process.env.PATH},stdio:['ignore','pipe','pipe']});let selfLog='';self.stderr.on('data',b=>selfLog+=b);await new Promise(r=>self.once('exit',r));assert.match(selfLog,/GUEST_WRITE_ATTEMPT/);assert.match(selfLog,/GUEST_SECRET_READ/);assert.match(selfLog,/GUEST_EXTERNAL_NETWORK/);
   const baseEnv={PATH:process.env.PATH,NODE_NO_WARNINGS:'1',HOME:temp,TMPDIR:temp,NODE_ENV:'production',DASHBOARD_PASSWORD_HASH:hashPassword('Synthetic guest test passphrase'),HOST:'127.0.0.1',PORT:'18722',MOCK_DATA:'0',ASK_GPT_INLINE_ENABLED:'0',DASHBOARD_PREVIEW_TYPE:'CRU21_OWNER_PREVIEW',DASHBOARD_PREVIEW_DATA_MODE:'LIVE',DASHBOARD_PREVIEW_BRANCH:GUEST_BRANCH,DASHBOARD_PREVIEW_EXPECTED_HEAD:head,DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN:base,...bindings};
-  let out='';child=spawn(process.execPath,['--import',probe,'server.mjs'],{cwd:app,env:{...baseEnv,CRU21_GUEST_ENABLED:'1',CRU21_GUEST_EXPIRES_AT:new Date(Date.now()+20000).toISOString()},stdio:['ignore','pipe','pipe']});child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>out+=b);
+  let out='';child=spawn(process.execPath,['--import',pathToFileURL(probe).href,'server.mjs'],{cwd:app,env:{...baseEnv,CRU21_GUEST_ENABLED:'1',CRU21_GUEST_EXPIRES_AT:new Date(Date.now()+20000).toISOString()},stdio:['ignore','pipe','pipe']});child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>out+=b);
   const start=Date.now();while(!out.includes('CRU21_GUEST_READ_ONLY')&&child.exitCode===null&&Date.now()-start<7000)await sleep(25);
   assert.match(out,/CRU21_GUEST_READ_ONLY/,out);
   const headers={'Sec-Fetch-Site':'same-origin','Sec-Fetch-Mode':'cors','Sec-Fetch-Dest':'empty'};
@@ -255,7 +255,7 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   });
 
   child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));assert.doesNotMatch(out,/GUEST_WRITE_ATTEMPT|GUEST_SECRET_READ|GUEST_EXTERNAL_NETWORK/);
-  out='';child=spawn(process.execPath,['--import',probe,'server.mjs'],{cwd:app,env:{...baseEnv,CRU21_GUEST_ENABLED:'1',CRU21_GUEST_EXPIRES_AT:new Date(Date.now()+1500).toISOString()},stdio:['ignore','pipe','pipe']});child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>out+=b);
+  out='';child=spawn(process.execPath,['--import',pathToFileURL(probe).href,'server.mjs'],{cwd:app,env:{...baseEnv,CRU21_GUEST_ENABLED:'1',CRU21_GUEST_EXPIRES_AT:new Date(Date.now()+1500).toISOString()},stdio:['ignore','pipe','pipe']});child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>out+=b);
   await new Promise(r=>child.once('exit',r));assert.match(out,/CRU21_GUEST_READ_ONLY/);assert.equal(child.exitCode,0);assert.doesNotMatch(out,/GUEST_WRITE_ATTEMPT|GUEST_SECRET_READ|GUEST_EXTERNAL_NETWORK/);
   await assert.rejects(fetch('http://127.0.0.1:18722/api/session',{headers}),/fetch failed/);
 
