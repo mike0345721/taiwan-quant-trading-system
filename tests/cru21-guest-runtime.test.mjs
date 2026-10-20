@@ -3,45 +3,77 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn,execFileSync } from 'node:child_process';
+import { spawn,spawnSync,execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { approvedGuestPaths,GUEST_BRANCH } from '../src/cru21-guest-guard.mjs';
 import { hashPassword } from '../src/security.mjs';
 import { createGuestReader } from '../src/cru21-guest-reader.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hashTree=dir=>{const rows=[];function walk(p){for(const name of fs.readdirSync(p).sort()){const file=path.join(p,name),st=fs.lstatSync(file);if(st.isDirectory())walk(file);else rows.push([path.relative(dir,file),st.size,st.mtimeMs,fs.readFileSync(file).toString('base64')]);}}walk(dir);return rows;};
-function connectPipeCdp(child) {
+function connectPipeCdp(child, { signal, diagnostics = true } = {}) {
   const input = child.stdio[3];
   const output = child.stdio[4];
   assert.ok(input && output, 'Chrome DevTools pipe was not created');
   let sequence = 0;
   let buffer = Buffer.alloc(0);
+  let closedError = null;
   const pending = new Map();
   const listeners = new Map();
   const listenerKey = (sessionId, method) => `${sessionId || ''}:${method}`;
   // Test-harness diagnostics only: never log command parameters, page data or env.
   const began = performance.now();
   let replies = 0;
-  const trace = (stage, method = null) => process.stderr.write(`GUEST_CDP ${JSON.stringify({
-    stage, method, elapsedMs: Math.round(performance.now() - began),
-    availableParallelism: os.availableParallelism(), load1m: os.loadavg()[0],
-    pending: [...pending.values()].map((p) => ({ method: p.method, ageMs: Math.round(performance.now() - p.sentAt) })),
-    replies, exitCode: child.exitCode,
-  })}\n`);
+  const trace = (stage, method = null) => {
+    if (!diagnostics) return;
+    process.stderr.write(`GUEST_CDP ${JSON.stringify({
+      stage, method, elapsedMs: Math.round(performance.now() - began),
+      availableParallelism: os.availableParallelism(), load1m: os.loadavg()[0],
+      pending: [...pending.values()].map((p) => ({ method: p.method, ageMs: Math.round(performance.now() - p.sentAt) })),
+      replies, exitCode: child.exitCode, signalCode: child.signalCode,
+    })}\n`);
+  };
   trace('spawned');
   const diagnosticTimer = setInterval(() => trace('waiting'), 1000);
   diagnosticTimer.unref();
+  const fail = (error) => {
+    if (closedError) return;
+    closedError = error;
+    trace('closed', error.message);
+    clearInterval(diagnosticTimer);
+    signal?.removeEventListener('abort', onAbort);
+    for (const handler of pending.values()) handler.reject(error);
+    pending.clear();
+    listeners.clear();
+    buffer = Buffer.alloc(0);
+  };
+  const onAbort = () => fail(new Error('BROWSER_TEST_ABORTED'));
+  // A test timeout does not cancel an arbitrary Promise: explicitly release CDP.
+  signal?.addEventListener('abort', onAbort, { once: true });
+  child.once('error', () => fail(new Error('BROWSER_PROCESS_ERROR')));
+  child.once('exit', () => fail(new Error('BROWSER_PIPE_CLOSED')));
+  input.on('error', () => fail(new Error('BROWSER_PIPE_WRITE_ERROR')));
+  output.on('error', () => fail(new Error('BROWSER_PIPE_READ_ERROR')));
+  output.once('end', () => fail(new Error('BROWSER_PIPE_CLOSED')));
+  output.once('close', () => fail(new Error('BROWSER_PIPE_CLOSED')));
 
   output.on('data', (chunk) => {
+    if (closedError) return;
     buffer = Buffer.concat([buffer, chunk]);
     let boundary = buffer.indexOf(0);
-    while (boundary >= 0) {
+    while (boundary >= 0 && !closedError) {
       const packet = buffer.subarray(0, boundary).toString('utf8');
       buffer = buffer.subarray(boundary + 1);
       boundary = buffer.indexOf(0);
       if (!packet) continue;
-      const message = JSON.parse(packet);
+      let message;
+      try { message = JSON.parse(packet); }
+      catch { fail(new Error('BROWSER_PIPE_INVALID_JSON')); return; }
+      if (!message || typeof message !== 'object') {
+        fail(new Error('BROWSER_PIPE_INVALID_MESSAGE')); return;
+      }
       if (message.id != null) {
         const handler = pending.get(message.id);
         pending.delete(message.id);
@@ -56,30 +88,65 @@ function connectPipeCdp(child) {
       }
     }
   });
-  child.once('exit', (code) => {
-    clearInterval(diagnosticTimer);
-    trace('exit');
-    for (const handler of pending.values()) handler.reject(new Error(`BROWSER_PIPE_CLOSED:${code}`));
-    pending.clear();
-  });
+  if (signal?.aborted) onAbort();
+  else if (child.exitCode != null || child.signalCode != null || input.destroyed || output.destroyed || output.readableEnded) {
+    fail(new Error('BROWSER_PIPE_CLOSED'));
+  }
 
   return {
     command(method, params = {}, sessionId = null) {
+      if (closedError) return Promise.reject(closedError);
       const id = ++sequence;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject, method, sentAt: performance.now() });
         if (method !== 'Runtime.evaluate') trace('send', method);
-        input.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
+        try {
+          input.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`,
+            (error) => { if (error) fail(new Error('BROWSER_PIPE_WRITE_ERROR')); });
+        } catch { fail(new Error('BROWSER_PIPE_WRITE_ERROR')); }
       });
     },
     on(method, listener, sessionId = null) {
+      if (closedError) return;
       const key = listenerKey(sessionId, method);
       const current = listeners.get(key) || [];
       current.push(listener);
       listeners.set(key, current);
     },
-    close() { clearInterval(diagnosticTimer); trace('close'); input.end(); },
+    close() {
+      fail(new Error('BROWSER_PIPE_CLOSED'));
+      if (!input.destroyed && !input.writableEnded) input.end();
+    },
   };
+}
+
+function stopOwnedBrowser(child, { graceMs = 1000, killWaitMs = 1000 } = {}) {
+  // Inspect both terminal fields; signal exits leave exitCode null.
+  if (child.exitCode != null || child.signalCode != null || !child.pid) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(forceTimer);
+      clearTimeout(deadlineTimer);
+      child.removeListener('exit', onExit);
+      child.removeListener('error', onError);
+      if (error) reject(error); else resolve();
+    };
+    const onExit = () => finish();
+    const onError = () => finish(new Error('BROWSER_CLEANUP_FAILED'));
+    const forceTimer = setTimeout(() => {
+      if (child.exitCode == null && child.signalCode == null) {
+        try { child.kill('SIGKILL'); } catch { onError(); }
+      }
+    }, graceMs);
+    const deadlineTimer = setTimeout(() => finish(new Error('BROWSER_CLEANUP_TIMEOUT')), graceMs + killWaitMs);
+    // Register before kill, otherwise an already-observed exit can be missed.
+    child.once('exit', onExit);
+    child.once('error', onError);
+    try { child.kill('SIGTERM'); } catch { onError(); }
+  });
 }
 
 function sessionClient(pipe, sessionId) {
@@ -146,9 +213,12 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   const session=await fetch('http://127.0.0.1:18722/api/session',{headers});assert.equal((await session.json()).authenticated,false);
   const response=await fetch('http://127.0.0.1:18722/api/v1/dashboard',{headers});assert.equal(response.status,200,await response.clone().text());
   assert.deepEqual(hashTree(source),before);assert.equal(fs.existsSync(path.join(app,'data')),false);
-  await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:!fs.existsSync('/usr/bin/chromium'),timeout:12000},async()=>{
+  await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:!fs.existsSync('/usr/bin/chromium'),timeout:12000},async(browserTest)=>{
    const browser=spawn('/usr/bin/chromium',['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
-   const pipe=connectPipeCdp(browser);
+   const pipe=connectPipeCdp(browser,{signal:browserTest.signal});
+   let cleanup;
+   const close=()=>cleanup||=(async()=>{pipe.close();await stopOwnedBrowser(browser);})();
+   browserTest.after(close);
    try{
     const{targetId}=await pipe.command('Target.createTarget',{url:'about:blank'});
     const{sessionId}=await pipe.command('Target.attachToTarget',{targetId,flatten:true});const cdp=sessionClient(pipe,sessionId);
@@ -157,7 +227,7 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     await cdp.command('Runtime.enable');await cdp.command('Network.enable');await cdp.command('Page.enable');
     await cdp.command('Page.addScriptToEvaluateOnNewDocument',{source:"window.__guestStorageCalls=[];for(const method of ['getItem','setItem','removeItem','clear']){const prior=Storage.prototype[method];Storage.prototype[method]=function(...args){window.__guestStorageCalls.push(method);return prior.apply(this,args);};}"});
     await cdp.command('Fetch.enable',{patterns:[{urlPattern:'*'}]});
-    cdp.on('Fetch.requestPaused',p=>{void cdp.command(p.request.url.startsWith('http://127.0.0.1:18722/')?'Fetch.continueRequest':'Fetch.failRequest',p.request.url.startsWith('http://127.0.0.1:18722/')?{requestId:p.requestId}:{requestId:p.requestId,errorReason:'BlockedByClient'});});
+    cdp.on('Fetch.requestPaused',p=>{void cdp.command(p.request.url.startsWith('http://127.0.0.1:18722/')?'Fetch.continueRequest':'Fetch.failRequest',p.request.url.startsWith('http://127.0.0.1:18722/')?{requestId:p.requestId}:{requestId:p.requestId,errorReason:'BlockedByClient'}).catch(error=>errors.push('CDP_REQUEST_FAILED:'+error.message));});
     await cdp.command('Page.navigate',{url:'http://127.0.0.1:18722/'});
     let page={};const until=Date.now()+6000;
     while(Date.now()<until){const result=await cdp.command('Runtime.evaluate',{expression:`({banner:document.getElementById('guest-read-only-banner')?.textContent,load:document.getElementById('decision-workspace')?.dataset.dashboardLoadState,loginHidden:document.getElementById('login-view')?.classList.contains('hidden'),dashboardHidden:document.getElementById('dashboard-view')?.classList.contains('hidden'),canvases:document.querySelectorAll('#dw-chart-canvas canvas').length})`,returnByValue:true});page=result.result.value||{};if(page.load==='READY')break;await sleep(50);}
@@ -166,7 +236,7 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     const storage=await cdp.command('Runtime.evaluate',{expression:`(() => {document.getElementById('side-nav-toggle')?.click();const select=document.getElementById('market-palette-select');if(select){select.value='green-up';select.dispatchEvent(new Event('change',{bubbles:true}));}return window.__guestStorageCalls;})()`,returnByValue:true});assert.deepEqual(storage.result.value,[],'guest UI preferences must be memory-only');
 
     const api=requests.filter(p=>new URL(p.url).pathname.startsWith('/api/'));assert.ok(api.some(p=>p.url.endsWith('/api/v1/dashboard')));assert.ok(api.every(p=>p.method==='GET'&&!/ask-gpt|history|backtest|journal|browser-runtime-proof/.test(p.url)),JSON.stringify(api));
-   }finally{pipe.close();if(browser.exitCode===null){browser.kill();await new Promise(r=>browser.once('exit',r));}}
+   }finally{await close();}
   });
 
   child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));assert.doesNotMatch(out,/GUEST_WRITE_ATTEMPT|GUEST_SECRET_READ|GUEST_EXTERNAL_NETWORK/);
@@ -190,4 +260,125 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   assert.equal((await fetch('http://127.0.0.1:18724/api/auth/logout',{method:'POST',headers:{cookie:normalCookie,'x-csrf-token':normalSession.csrfToken}})).status,200);
 
  }finally{if(child&&child.exitCode===null){child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));}fs.rmSync(temp,{recursive:true,force:true});}
+});
+
+function syntheticPipeChild() {
+  const child = new EventEmitter();
+  child.exitCode = null;
+  child.signalCode = null;
+  child.stdio = [null, null, null, new PassThrough(), new PassThrough()];
+  return child;
+}
+
+test('CDP pipe preserves fragmented replies, session events and protocol failures', async () => {
+  const child = syntheticPipeChild();
+  const pipe = connectPipeCdp(child, { diagnostics: false });
+  try {
+    const seen = [];
+    pipe.on('Runtime.fixture', (value) => seen.push(value), 'synthetic-session');
+    const result = pipe.command('Runtime.evaluate', {}, 'synthetic-session');
+    const packet = Buffer.from(JSON.stringify({ id: 1, result: { text: '中文' } }) + '\0');
+    const split = packet.indexOf(Buffer.from('中')) + 1;
+    child.stdio[4].write(packet.subarray(0, split));
+    child.stdio[4].write(packet.subarray(split));
+    assert.deepEqual(await result, { text: '中文' });
+    child.stdio[4].write(JSON.stringify({ method: 'Runtime.fixture', sessionId: 'synthetic-session', params: { ok: true } }) + '\0');
+    assert.deepEqual(seen, [{ ok: true }]);
+    const failure = assert.rejects(pipe.command('Synthetic.invalid'), /synthetic rejection/);
+    child.stdio[4].write(JSON.stringify({ id: 2, error: { message: 'synthetic rejection' } }) + '\0');
+    await failure;
+  } finally { pipe.close(); }
+});
+
+test('CDP abort rejects every pending command and forbids subsequent writes', async () => {
+  const child = syntheticPipeChild(), controller = new AbortController();
+  const pipe = connectPipeCdp(child, { signal: controller.signal, diagnostics: false });
+  let writes = 0;
+  child.stdio[3].on('data', () => writes++);
+  const a = assert.rejects(pipe.command('Target.createTarget'), /BROWSER_TEST_ABORTED/);
+  const b = assert.rejects(pipe.command('Runtime.enable'), /BROWSER_TEST_ABORTED/);
+  controller.abort();
+  await Promise.all([a, b]);
+  await assert.rejects(pipe.command('Page.navigate'), /BROWSER_TEST_ABORTED/);
+  assert.equal(writes, 2);
+  pipe.close(); pipe.close();
+  const next = syntheticPipeChild();
+  const alreadyAborted = connectPipeCdp(next, { signal: controller.signal, diagnostics: false });
+  await assert.rejects(alreadyAborted.command('Target.createTarget'), /BROWSER_TEST_ABORTED/);
+  assert.equal(next.stdio[3].readableLength, 0);
+  alreadyAborted.close();
+});
+
+test('CDP process and pipe termination reject pending and future commands without hanging', async () => {
+  for (const [target, event, reason] of [
+    ['child', 'exit', 'BROWSER_PIPE_CLOSED'], ['child', 'error', 'BROWSER_PROCESS_ERROR'],
+    ['input', 'error', 'BROWSER_PIPE_WRITE_ERROR'], ['output', 'error', 'BROWSER_PIPE_READ_ERROR'],
+    ['output', 'end', 'BROWSER_PIPE_CLOSED'], ['output', 'close', 'BROWSER_PIPE_CLOSED'],
+  ]) {
+    const child = syntheticPipeChild(), pipe = connectPipeCdp(child, { diagnostics: false });
+    const check = assert.rejects(pipe.command('Target.createTarget'), new RegExp(reason));
+    const emitter = target === 'child' ? child : child.stdio[target === 'input' ? 3 : 4];
+    emitter.emit(event, event === 'error' ? new Error('synthetic') : 0);
+    await check;
+    await assert.rejects(pipe.command('Page.navigate'), new RegExp(reason));
+    pipe.close();
+  }
+});
+
+test('CDP rejects an already exited browser and malformed messages instead of waiting forever', async () => {
+  for (const field of ['exitCode', 'signalCode']) {
+    const child = syntheticPipeChild(); child[field] = field === 'exitCode' ? 0 : 'SIGTERM';
+    const pipe = connectPipeCdp(child, { diagnostics: false });
+    await assert.rejects(pipe.command('Target.createTarget'), /BROWSER_PIPE_CLOSED/);
+    assert.equal(child.stdio[3].readableLength, 0); pipe.close();
+  }
+  for (const packet of ['{\0', 'null\0']) {
+    const child = syntheticPipeChild(), pipe = connectPipeCdp(child, { diagnostics: false });
+    const check = assert.rejects(pipe.command('Target.createTarget'), /BROWSER_PIPE_INVALID_/);
+    child.stdio[4].write(packet); await check; pipe.close();
+  }
+});
+
+test('browser cleanup handles signal exits, escalation and bounded failure for only its own child', async () => {
+  const exited = syntheticPipeChild(); exited.pid = 1; exited.signalCode = 'SIGTERM';
+  exited.kill = () => assert.fail('must not signal an already reaped process');
+  await stopOwnedBrowser(exited);
+  const child = syntheticPipeChild(); child.pid = 1;
+  const signals = [];
+  child.kill = (signal) => { signals.push(signal); if (signal === 'SIGKILL') { child.signalCode = signal; child.emit('exit', null, signal); } return true; };
+  await stopOwnedBrowser(child, { graceMs: 5, killWaitMs: 50 });
+  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  assert.equal(child.listenerCount('exit'), 0);
+  const stuck = syntheticPipeChild(); stuck.pid = 1; stuck.kill = () => false;
+  await assert.rejects(stopOwnedBrowser(stuck, { graceMs: 5, killWaitMs: 10 }), /BROWSER_CLEANUP_TIMEOUT/);
+  assert.equal(stuck.listenerCount('exit'), 0);
+});
+
+test('a real test deadline reaps an unresponsive synthetic browser and remains a failed test', { timeout: 7000 }, () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'guest-cdp-deadline-'));
+  try {
+    const probe = path.join(temp, 'deadline.test.mjs');
+    fs.writeFileSync(probe, `import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport os from 'node:os';\nimport {spawn} from 'node:child_process';\n${connectPipeCdp.toString()}\n${stopOwnedBrowser.toString()}\n
+      test('intentional synthetic CDP timeout', {timeout:100}, async (t) => {
+        const child = spawn(process.execPath, ['-e', 'setTimeout(()=>process.exit(23),1800)'], {stdio:['ignore','ignore','ignore','pipe','pipe']});
+        const pipe = connectPipeCdp(child, {signal:t.signal, diagnostics:false});
+        let cleanup;
+        const close = () => cleanup ||= (async () => {
+          pipe.close(); await stopOwnedBrowser(child);
+          assert.notEqual(child.exitCode,23,'must reap on timeout, not wait for synthetic self-expiry');
+          console.log('SYNTHETIC_CHILD_REAPED');
+        })();
+        t.after(close);
+        try { await pipe.command('Target.createTarget'); } finally { await close(); }
+      });\n`);
+    // This is an independent runner, not a recursively inherited node:test worker.
+    const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+    const result = spawnSync(process.execPath, ['--test', probe], { encoding: 'utf8', timeout: 5000, env });
+    assert.equal(result.error, undefined, 'deadline must not leave the runner stuck');
+    assert.equal(result.status, 1, 'an actual test timeout must remain a failure');
+    assert.equal(result.signal, null);
+    assert.match(result.stdout, /test timed out after 100ms/);
+    assert.match(result.stdout, /SYNTHETIC_CHILD_REAPED/);
+    assert.equal((result.stdout.match(/SYNTHETIC_CHILD_REAPED/g) || []).length, 1);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
