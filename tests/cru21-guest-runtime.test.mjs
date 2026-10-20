@@ -83,7 +83,7 @@ function connectPipeCdp(child, { signal, diagnostics = true } = {}) {
         else handler?.resolve(message.result);
         continue;
       }
-      if (message.method === 'Fetch.requestPaused') trace('event', 'Fetch.requestPaused');
+      if (['Fetch.requestPaused', 'Network.requestWillBeSent', 'Network.loadingFailed', 'Page.frameStartedLoading', 'Page.frameNavigated', 'Page.frameStoppedLoading'].includes(message.method)) trace('event', message.method);
       for (const listener of listeners.get(listenerKey(message.sessionId, message.method)) || []) {
         listener(message.params);
       }
@@ -229,12 +229,17 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   const response=await fetch('http://127.0.0.1:18722/api/v1/dashboard',{headers});assert.equal(response.status,200,await response.clone().text());
   assert.deepEqual(hashTree(source),before);assert.equal(fs.existsSync(path.join(app,'data')),false);
   await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:!fs.existsSync('/usr/bin/chromium'),timeout:12000},async(browserTest)=>{
-   const browser=spawn('/usr/bin/chromium',['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
+   const browser=spawn('/usr/bin/chromium',['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','pipe','pipe','pipe']});
+   // Only classify stderr; never print browser output, URLs, profiles or environment.
+   const stderrClasses=new Set();let stderrBytes=0;
+   browser.stderr.on('data',chunk=>{stderrBytes+=chunk.length;const text=chunk.toString('utf8');for(const category of ['dbus','gpu','network','sandbox','zygote','crash','error'])if(text.toLowerCase().includes(category))stderrClasses.add(category);});
    const pipe=connectPipeCdp(browser,{signal:browserTest.signal});
-   let cleanup;
-   const close=()=>cleanup||=(async()=>{pipe.close();await stopOwnedBrowser(browser);})();
+   let cleanup,diagnosticTimer;
+   const report=(stage,fields)=>process.stderr.write('GUEST_BROWSER '+JSON.stringify({stage,...fields})+'\n');
+   const close=()=>cleanup||=(async()=>{clearTimeout(diagnosticTimer);pipe.close();await stopOwnedBrowser(browser);report('stderr-summary',{bytes:stderrBytes,categories:[...stderrClasses].sort()});})();
    browserTest.after(close);
    try{
+    const version=await pipe.command('Browser.getVersion');report('version',{product:version.product,protocolVersion:version.protocolVersion});
     const{targetId}=await pipe.command('Target.createTarget',{url:'about:blank'});
     const{sessionId}=await pipe.command('Target.attachToTarget',{targetId,flatten:true});const cdp=sessionClient(pipe,sessionId);
     const errors=[],requests=[];cdp.on('Runtime.exceptionThrown',p=>errors.push(p.exceptionDetails.text+':'+p.exceptionDetails.exception?.description));
@@ -242,7 +247,13 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     await cdp.command('Runtime.enable');await cdp.command('Network.enable');await cdp.command('Page.enable');
     await cdp.command('Page.addScriptToEvaluateOnNewDocument',{source:"window.__guestStorageCalls=[];for(const method of ['getItem','setItem','removeItem','clear']){const prior=Storage.prototype[method];Storage.prototype[method]=function(...args){window.__guestStorageCalls.push(method);return prior.apply(this,args);};}"});
     await enableGuestInterception(cdp,errors);
+    // One bounded observation while navigation is pending; no retries or prewarming.
+    diagnosticTimer=setTimeout(()=>{
+     void pipe.command('SystemInfo.getProcessInfo').then(r=>report('processes',{types:(r.processInfo||[]).map(p=>p.type)}),()=>report('processes-unavailable',{}));
+     void cdp.command('Page.getFrameTree').then(r=>report('frame',{hasFrame:!!r.frameTree?.frame,isBlank:r.frameTree?.frame?.url==='about:blank',isLoopback:!!r.frameTree?.frame?.url?.startsWith('http://127.0.0.1:18722/')}),()=>report('frame-unavailable',{}));
+    },2000);diagnosticTimer.unref();
     const navigation=await cdp.command('Page.navigate',{url:'http://127.0.0.1:18722/'});
+    clearTimeout(diagnosticTimer);
     assert.equal(navigation.errorText,undefined,'BROWSER_NAVIGATION_FAILED:'+navigation.errorText);
     let page={};const until=Date.now()+6000;
     while(Date.now()<until){const result=await cdp.command('Runtime.evaluate',{expression:`({banner:document.getElementById('guest-read-only-banner')?.textContent,load:document.getElementById('decision-workspace')?.dataset.dashboardLoadState,loginHidden:document.getElementById('login-view')?.classList.contains('hidden'),dashboardHidden:document.getElementById('dashboard-view')?.classList.contains('hidden'),canvases:document.querySelectorAll('#dw-chart-canvas canvas').length})`,returnByValue:true});page=result.result.value||{};if(page.load==='READY')break;await sleep(50);}
