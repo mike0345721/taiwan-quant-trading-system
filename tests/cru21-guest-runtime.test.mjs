@@ -83,6 +83,7 @@ function connectPipeCdp(child, { signal, diagnostics = true } = {}) {
         else handler?.resolve(message.result);
         continue;
       }
+      if (message.method === 'Fetch.requestPaused') trace('event', 'Fetch.requestPaused');
       for (const listener of listeners.get(listenerKey(message.sessionId, message.method)) || []) {
         listener(message.params);
       }
@@ -157,6 +158,20 @@ function sessionClient(pipe, sessionId) {
 }
 
 
+async function enableGuestInterception(cdp, errors) {
+  // Register first: a pipe read may contain both the enable reply and a pause.
+  // Await continuations run later; enabling before listening can lose that pause.
+  cdp.on('Fetch.requestPaused', (event) => {
+    const allowed = typeof event.request?.url === 'string'
+      && event.request.url.startsWith('http://127.0.0.1:18722/');
+    void cdp.command(allowed ? 'Fetch.continueRequest' : 'Fetch.failRequest', allowed
+      ? { requestId: event.requestId }
+      : { requestId: event.requestId, errorReason: 'BlockedByClient' })
+      .catch((error) => errors.push('CDP_REQUEST_FAILED:' + error.message));
+  });
+  await cdp.command('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+}
+
 function dataRoots(temp){const source=path.join(temp,'source');fs.mkdirSync(path.join(source,'runtime','cru34-live'),{recursive:true});fs.mkdirSync(path.join(source,'live-events'));fs.mkdirSync(path.join(source,'intraday','archive'),{recursive:true});fs.writeFileSync(path.join(source,'latest.json'),JSON.stringify({dataMode:'live',generatedAt:'2026-10-17T05:00:00Z',privateCanary:'DO_NOT_EXPOSE'}));return {source,env:{ASK_GPT_CANDIDATE_READ_ROOT:source,TX_CHART_DATA_ROOT:source,CRU34_LIVE_DATA_ROOT:source,CRU34_LIVE_SNAPSHOT_PATH:path.join(source,'runtime','cru34-live','latest.json'),CRU34_LIVE_STATUS_PATH:path.join(source,'runtime','cru34-live','status.json')}};}
 test('real reader uses actual approved products and never writes any app data or returns private snapshot fields',async()=>{
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'guest-data-'));
@@ -226,9 +241,9 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
     cdp.on('Network.requestWillBeSent',p=>requests.push({url:p.request.url,method:p.request.method}));
     await cdp.command('Runtime.enable');await cdp.command('Network.enable');await cdp.command('Page.enable');
     await cdp.command('Page.addScriptToEvaluateOnNewDocument',{source:"window.__guestStorageCalls=[];for(const method of ['getItem','setItem','removeItem','clear']){const prior=Storage.prototype[method];Storage.prototype[method]=function(...args){window.__guestStorageCalls.push(method);return prior.apply(this,args);};}"});
-    await cdp.command('Fetch.enable',{patterns:[{urlPattern:'*'}]});
-    cdp.on('Fetch.requestPaused',p=>{void cdp.command(p.request.url.startsWith('http://127.0.0.1:18722/')?'Fetch.continueRequest':'Fetch.failRequest',p.request.url.startsWith('http://127.0.0.1:18722/')?{requestId:p.requestId}:{requestId:p.requestId,errorReason:'BlockedByClient'}).catch(error=>errors.push('CDP_REQUEST_FAILED:'+error.message));});
-    await cdp.command('Page.navigate',{url:'http://127.0.0.1:18722/'});
+    await enableGuestInterception(cdp,errors);
+    const navigation=await cdp.command('Page.navigate',{url:'http://127.0.0.1:18722/'});
+    assert.equal(navigation.errorText,undefined,'BROWSER_NAVIGATION_FAILED:'+navigation.errorText);
     let page={};const until=Date.now()+6000;
     while(Date.now()<until){const result=await cdp.command('Runtime.evaluate',{expression:`({banner:document.getElementById('guest-read-only-banner')?.textContent,load:document.getElementById('decision-workspace')?.dataset.dashboardLoadState,loginHidden:document.getElementById('login-view')?.classList.contains('hidden'),dashboardHidden:document.getElementById('dashboard-view')?.classList.contains('hidden'),canvases:document.querySelectorAll('#dw-chart-canvas canvas').length})`,returnByValue:true});page=result.result.value||{};if(page.load==='READY')break;await sleep(50);}
     if(page.load!=='READY'){const debug=await cdp.command('Runtime.evaluate',{expression:`fetch('/api/session').then(async r=>({status:r.status,body:await r.text(),marker:document.documentElement.dataset.guestReadOnly}))`,returnByValue:true,awaitPromise:true});page.debug=debug.result.value;}
@@ -381,4 +396,54 @@ test('a real test deadline reaps an unresponsive synthetic browser and remains a
     assert.match(result.stdout, /SYNTHETIC_CHILD_REAPED/);
     assert.equal((result.stdout.match(/SYNTHETIC_CHILD_REAPED/g) || []).length, 1);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test('Fetch interception handles a pause coalesced with its enable reply before await resumes', async () => {
+  const child = syntheticPipeChild();
+  const pipe = connectPipeCdp(child, { diagnostics: false });
+  const cdp = sessionClient(pipe, 'synthetic-session');
+  const sent = [], errors = [];
+  child.stdio[3].on('data', (packet) => sent.push(JSON.parse(packet.toString().replace(/\0$/, ''))));
+  try {
+    const enabled = enableGuestInterception(cdp, errors);
+    assert.equal(sent[0].method, 'Fetch.enable');
+    assert.deepEqual(sent[0].params, { patterns: [{ urlPattern: '*' }] });
+    const pause = (requestId, url) => ({ method: 'Fetch.requestPaused', sessionId: 'synthetic-session', params: { requestId, request: { url } } });
+    // Same physical read; registering a listener after await loses every event.
+    child.stdio[4].write([
+      { id: sent[0].id, result: {} },
+      pause('local', 'http://127.0.0.1:18722/'),
+      pause('external', 'https://synthetic.invalid/'),
+      pause('other-port', 'http://127.0.0.1:18723/'),
+      pause('lookalike', 'http://127.0.0.1:18722.evil.invalid/'),
+      pause('redirect', 'https://redirect.synthetic.invalid/'),
+    ].map(packet => JSON.stringify(packet) + '\0').join(''));
+    await enabled;
+    assert.deepEqual(sent.slice(1).map(({ method, params, sessionId }) => ({ method, params, sessionId })), [
+      { method: 'Fetch.continueRequest', params: { requestId: 'local' }, sessionId: 'synthetic-session' },
+      ...['external', 'other-port', 'lookalike', 'redirect'].map(requestId => ({ method: 'Fetch.failRequest', params: { requestId, errorReason: 'BlockedByClient' }, sessionId: 'synthetic-session' })),
+    ]);
+    for (const command of sent.slice(1)) child.stdio[4].write(JSON.stringify({ id: command.id, result: {} }) + '\0');
+    await Promise.resolve();
+    assert.deepEqual(errors, []);
+  } finally { pipe.close(); }
+});
+
+test('Fetch interception receives pauses before enable acknowledgement and records command rejection', async () => {
+  const child = syntheticPipeChild();
+  const pipe = connectPipeCdp(child, { diagnostics: false });
+  const cdp = sessionClient(pipe, 'synthetic-session');
+  const sent = [], errors = [];
+  child.stdio[3].on('data', (packet) => sent.push(JSON.parse(packet.toString().replace(/\0$/, ''))));
+  try {
+    const enabled = enableGuestInterception(cdp, errors);
+    child.stdio[4].write(JSON.stringify({ method: 'Fetch.requestPaused', sessionId: 'synthetic-session', params: { requestId: 'early', request: { url: 'http://127.0.0.1:18722/api/session' } } }) + '\0');
+    assert.equal(sent[1].method, 'Fetch.continueRequest');
+    child.stdio[4].write(JSON.stringify({ id: sent[1].id, error: { message: 'synthetic protocol rejection' } }) + '\0');
+    child.stdio[4].write(JSON.stringify({ id: sent[0].id, result: {} }) + '\0');
+    await enabled;
+    assert.deepEqual(errors, ['CDP_REQUEST_FAILED:synthetic protocol rejection']);
+    child.stdio[4].write(JSON.stringify({ method: 'Fetch.requestPaused', sessionId: 'other-session', params: { requestId: 'foreign', request: { url: 'http://127.0.0.1:18722/' } } }) + '\0');
+    assert.equal(sent.length, 2, 'must not act on another target session');
+  } finally { pipe.close(); }
 });
