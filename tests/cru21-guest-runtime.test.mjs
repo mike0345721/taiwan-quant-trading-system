@@ -20,6 +20,18 @@ function connectPipeCdp(child) {
   const pending = new Map();
   const listeners = new Map();
   const listenerKey = (sessionId, method) => `${sessionId || ''}:${method}`;
+  // Test-harness diagnostics only: never log command parameters, page data or env.
+  const began = performance.now();
+  let replies = 0;
+  const trace = (stage, method = null) => process.stderr.write(`GUEST_CDP ${JSON.stringify({
+    stage, method, elapsedMs: Math.round(performance.now() - began),
+    availableParallelism: os.availableParallelism(), load1m: os.loadavg()[0],
+    pending: [...pending.values()].map((p) => ({ method: p.method, ageMs: Math.round(performance.now() - p.sentAt) })),
+    replies, exitCode: child.exitCode,
+  })}\n`);
+  trace('spawned');
+  const diagnosticTimer = setInterval(() => trace('waiting'), 1000);
+  diagnosticTimer.unref();
 
   output.on('data', (chunk) => {
     buffer = Buffer.concat([buffer, chunk]);
@@ -33,6 +45,8 @@ function connectPipeCdp(child) {
       if (message.id != null) {
         const handler = pending.get(message.id);
         pending.delete(message.id);
+        replies += 1;
+        if (handler && (handler.method !== 'Runtime.evaluate' || performance.now() - handler.sentAt > 500)) trace('reply', handler.method);
         if (message.error) handler?.reject(new Error(message.error.message));
         else handler?.resolve(message.result);
         continue;
@@ -43,6 +57,8 @@ function connectPipeCdp(child) {
     }
   });
   child.once('exit', (code) => {
+    clearInterval(diagnosticTimer);
+    trace('exit');
     for (const handler of pending.values()) handler.reject(new Error(`BROWSER_PIPE_CLOSED:${code}`));
     pending.clear();
   });
@@ -51,7 +67,8 @@ function connectPipeCdp(child) {
     command(method, params = {}, sessionId = null) {
       const id = ++sequence;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        pending.set(id, { resolve, reject, method, sentAt: performance.now() });
+        if (method !== 'Runtime.evaluate') trace('send', method);
         input.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
       });
     },
@@ -61,7 +78,7 @@ function connectPipeCdp(child) {
       current.push(listener);
       listeners.set(key, current);
     },
-    close() { input.end(); },
+    close() { clearInterval(diagnosticTimer); trace('close'); input.end(); },
   };
 }
 
