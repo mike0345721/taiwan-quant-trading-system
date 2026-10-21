@@ -21,6 +21,10 @@ for(const [width,height,scenario] of [[1536,864,'normal'],[1366,768,'normal'],[1
  }
  for(const key of ['creditsInitiallyUnchecked','submitBefore','submitStillDisabled','settingsClosedAfterModels','settingsReopened','modelReady','selectedModelSummaryUpdated','backgroundInitiallyClosed','fallbackInitiallyClosed','recencyVisible','modeVisible','confirmVisible','rrNoteVisible','flowBelowChart','preservedIds','backgroundExpandable','fallbackExpandable','expandHidesRail','restoreShowsRail'])assert.equal(r[key],true,key+' '+JSON.stringify(r));
  for(const key of ['flowSelectionIndependent','chartSelectionIndependent','rowSelectionPreservesChart','actualAdapterRows','evidenceRowsVisible','relatedMarketVisible'])assert.equal(r[key],true,key+' '+JSON.stringify(r));
+ for(const key of ['quickInitial','quickBeforeChart','quickSelectionSync','quickKeyboardReachable','quickTableToStrip','quickCanvasPreserved','quickMirrorValues','quickMountIdempotent','quickExpandedVisible','quickOfflineCleared','quickRecoveryRestores'])assert.equal(r[key],true,key+' '+JSON.stringify(r));
+ assert.equal(r.quickFinal.length,6);assert.ok(r.quickFinal.every(b=>b.visible));
+ if(scenario==='warming'){assert.equal(r.quickFinal[5].value,'—');assert.match(r.quickFinal[5].status,/暖機中/);assert.equal(r.quickFinal[0].value,'+0.250');}
+ if(scenario==='offline'||scenario==='limited')assert.ok(r.quickFinal.every(b=>b.value==='—'));
  assert.equal(r.finalFlowRows.length,6);
  if(scenario==='warming'){assert.equal(r.finalFlowRows[5].state,'暖機中');assert.equal(r.finalFlowRows[5].net,'—');assert.equal(r.finalFlowRows[0].net,'+50');}
  if(scenario==='offline'||scenario==='limited')assert.ok(r.finalFlowRows.every(row=>row.net==='—'));

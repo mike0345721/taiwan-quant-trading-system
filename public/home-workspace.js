@@ -138,6 +138,63 @@
   const metricText = (value, digits = 0, signed = false) => number(value) == null ? '—'
     : (signed && value > 0 ? '+' : '') + value.toLocaleString('zh-TW', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
+  // The compact view consumes the SAME governed row as the detailed table.
+  // It does not calculate a new score, request data, or select a chart timeframe.
+  function quickFlowView(row, { flow = null, now = Date.now() } = {}) {
+    const availableAt = time(flow?.source?.availableAt), validUntil = time(flow?.source?.validUntil);
+    const expired = !row.available && (flow?.sourceState === 'STALE'
+      || (Number.isFinite(availableAt) && now - availableAt > 120000)
+      || (Number.isFinite(validUntil) && validUntil < now));
+    const state = expired ? '已過期' : row.state;
+    const hasRatio = row.available && number(row.ratio) != null && Math.abs(row.ratio) <= 1;
+    const pressure = hasRatio ? metricText(row.ratio, 3, true) : '—';
+    const direction = hasRatio ? ({ '偏買方': 'buy', '偏賣方': 'sell', '均衡': 'balanced' })[row.side] || 'none' : 'none';
+    const width = hasRatio ? Math.abs(row.ratio) * 50 : 0;
+    return Object.freeze({ pressure, state, side: row.side, direction, hasRatio, width,
+      left: hasRatio && row.ratio < 0 ? 50 - width : 50,
+      title: row.label + ' · 壓力比 ' + pressure + '（非勝率） · ' + state + ' · ' + row.side
+        + ' · ' + stamp(row.sourceTime) + (row.reason ? ' · ' + row.reason : ''),
+    });
+  }
+
+  function mountFlowQuick(root) {
+    const stage = root.querySelector('.dw-chart-stage');
+    if (!stage || root.querySelector('#home-flow-quick')) return;
+    const strip = el('section', 'home-flow-quick', null, 'home-flow-quick');
+    strip.setAttribute('aria-label', 'K線上方六時窗成交力道摘要');
+    const heading = el('div', 'home-flow-quick-heading');
+    heading.append(el('strong', '', '成交力道快看'), el('span', '', '近1分–4小時 · 與K線週期獨立'));
+    const cells = el('div', 'home-flow-quick-cells');
+    for (const original of root.querySelectorAll('.home-flow-table [data-flow-window]')) {
+      const key = original.dataset.flowWindow;
+      const button = el('button', 'home-flow-quick-button', null, 'home-flow-quick-' + key);
+      button.type = 'button'; button.dataset.homeQuickKey = key;
+      button.setAttribute('aria-controls', 'home-flow-selection'); button.setAttribute('aria-pressed', 'false');
+      const top = el('span', 'home-flow-quick-top');
+      top.append(el('span', 'home-flow-quick-label', original.querySelector('strong')?.textContent || original.textContent), el('strong', 'home-flow-quick-value', '—'));
+      const meter = el('span', 'home-flow-quick-meter'); meter.setAttribute('aria-hidden', 'true');
+      const fill = el('span', 'home-flow-quick-fill'); fill.hidden = true; meter.append(fill);
+      button.append(top, meter, el('span', 'home-flow-quick-state', '不可用'));
+      // Keep the original control and handler. No cloned IDs or second data-flow-window.
+      button.addEventListener('click', () => original.click());
+      cells.append(button);
+    }
+    strip.append(heading, cells); stage.before(strip);
+  }
+
+  function renderFlowQuick(root, row, input, selected) {
+    const button = root.querySelector('#home-flow-quick-' + row.key); if (!button) return;
+    const view = quickFlowView(row, input);
+    button.setAttribute('aria-pressed', String(row.key === selected));
+    button.setAttribute('aria-label', view.title); button.title = view.title;
+    button.dataset.state = row.available ? (row.qualified ? 'ready' : 'limited') : 'unavailable';
+    button.dataset.direction = view.direction;
+    button.querySelector('.home-flow-quick-value').textContent = view.pressure;
+    button.querySelector('.home-flow-quick-state').textContent = view.state + (row.qualified ? ' · ' + row.side : '');
+    const fill = button.querySelector('.home-flow-quick-fill'); fill.hidden = !view.hasRatio;
+    fill.style.width = view.width + '%'; fill.style.left = view.left + '%';
+  }
+
   function mountEvidence(root) {
     if (root.dataset.homeEvidence === '2') return;
     root.dataset.homeEvidence = '2';
@@ -178,6 +235,7 @@
       details.before(selection); details.querySelector('summary').textContent = '所選時窗方法、來源與完整研究證據';
       const strip = root.querySelector('#dw-flow-window-strip'); if (strip) strip.setAttribute('aria-label', '未開放的觀察範圍');
     }
+    mountFlowQuick(root);
     const rail = root.querySelector('.tt-tier-one-grid');
     if (rail) {
       const context = el('section', 'dw-card home-market-context', null, 'home-related-market');
@@ -201,6 +259,7 @@
   function renderEvidence(root, input) {
     const rows = flowRows(input), selected = input.selectedFlowWindow || '5m';
     for (const value of rows) {
+      renderFlowQuick(root, value, input, selected);
       const row = [...root.querySelectorAll('[data-home-window]')].find(n => n.dataset.homeWindow === value.key); if (!row) continue;
       row.classList.toggle('is-selected', value.key === selected); row.dataset.state = value.available ? (value.qualified ? 'ready' : 'limited') : 'unavailable';
       const button = row.querySelector('button'); if (button) { button.tabIndex = 0; button.setAttribute('aria-pressed', String(value.key === selected)); button.removeAttribute('aria-selected'); }
@@ -406,5 +465,5 @@
     renderEvidence(root, input);
     aiSummary(); return view;
   }
-  global.HomeWorkspace = Object.freeze({ derive, flowRows, marketContext, mount, render, aiSummary });
+  global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, marketContext, mount, render, aiSummary });
 })(window);

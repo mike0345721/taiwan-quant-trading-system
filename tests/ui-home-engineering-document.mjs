@@ -73,6 +73,16 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   const rowSelectionPreservesChart=originalCanvas===$('dw-chart-canvas').querySelector('canvas');
   const actualAdapterRows=[...r.querySelectorAll('[data-home-window]')].length===6&&$('home-flow-buy').textContent==='125';
   window.__homeScenario('normal');
+  const quickButtons=[...r.querySelectorAll('[data-home-quick-key]')];
+  const quickInitial=quickButtons.length===6&&$('home-flow-quick-5m').getAttribute('aria-pressed')==='true';
+  const quickBeforeChart=rect($('home-flow-quick')).bottom<=rect(r.querySelector('.dw-chart-stage')).y+1;
+  let quickSelectionSync=true,quickKeyboardReachable=true;
+  for(const b of quickButtons){b.focus();quickKeyboardReachable=quickKeyboardReachable&&document.activeElement===b&&b.tagName==='BUTTON'&&b.type==='button'&&b.tabIndex>=0;b.click();await sleep();const key=b.dataset.homeQuickKey;quickSelectionSync=quickSelectionSync&&observedFlowSelectedWindow===key&&state.txChartTimeframe==='5m'&&$('dw-flow-tab-'+key).getAttribute('aria-pressed')==='true'&&b.getAttribute('aria-pressed')==='true'&&quickButtons.filter(n=>n.getAttribute('aria-pressed')==='true').length===1;}
+  $('dw-flow-tab-30m').click();await sleep();const quickTableToStrip=$('home-flow-quick-30m').getAttribute('aria-pressed')==='true';
+  const quickCanvasPreserved=originalCanvas===$('dw-chart-canvas').querySelector('canvas');
+  const quickMirrorValues=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent===r.querySelector('[data-home-window="'+b.dataset.homeQuickKey+'"] [data-home-field="pressure"]').textContent);
+  window.HomeWorkspace.mount(r);const quickMountIdempotent=r.querySelectorAll('#home-flow-quick').length===1&&r.querySelectorAll('[data-home-quick-key]').length===6&&r.querySelectorAll('[data-flow-window]').length===7;
+  window.__homeScenario('normal');
   const menu=$('home-nav-toggle'),nav=$('side-nav'),pages=document.querySelector('.dashboard-pages');
   const navigationInitiallyHidden=nav.hidden,menuInitiallyReachable=rect(menu).w>=40;
   const canvas=$('dw-chart-canvas').querySelector('canvas'),beforeWidth=rect(r.querySelector('.dw-price-region')).w;
@@ -102,22 +112,24 @@ export function homeEngineeringDocument({scenario='normal'}={}){
    rrNoteVisible:!$('dw-scenario-rr-note').closest('details:not([open])'),flowBelowChart:rect(r.querySelector('.tt-flow-overview')).y>=rect(r.querySelector('.dw-price-region')).bottom-1,
    preservedIds:window.__originalIds.every(id=>ids.includes(id)),missingIds:window.__originalIds.filter(id=>!ids.includes(id)),duplicateCriticalIds:['ai-credits','ai-account','ai-model','dw-next-watch','dw-chart-canvas'].filter(id=>ids.filter(v=>v===id).length!==1),
    flowSelectionIndependent,chartSelectionIndependent,rowSelectionPreservesChart,actualAdapterRows,
+   quickInitial,quickBeforeChart,quickSelectionSync,quickKeyboardReachable,quickTableToStrip,quickCanvasPreserved,quickMirrorValues,quickMountIdempotent,
    evidenceRowsVisible:[...r.querySelectorAll('[data-home-window]')].every(n=>rect(n).h>0&&!n.closest('details:not([open])')),
    relatedMarketVisible:rect($('home-related-market')).h>0&&!$('home-related-market').closest('details:not([open])'),
    navigationInitiallyHidden,menuInitiallyReachable,navigationOpens,navigationCloses,escapeRestoresFocus,modalInertPreserved,canvasIdentityPreserved,hiddenRailReclaimsWidth,aiInitiallyClosed};
   background.open=true;fallback.open=true;result.backgroundExpandable=rect(background.querySelector('.tt-card-global')).h>0;result.fallbackExpandable=rect($('dw-copy-gpt-prompt')).h>0;result.docWidthExpanded=document.documentElement.scrollWidth;
   background.open=false;fallback.open=false;ai.open=false;
-  $('tt-chart-expand').click();result.expandHidesRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display==='none';$('tt-chart-expand').click();result.restoreShowsRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display!=='none';
-  window.__homeScenario('offline');result.offlineSnapshotVisible=!$('home-chart-notice').hidden&&$('dw-chart-status').textContent.includes('非即時');result.offlineFocusBlocked=r.dataset.homeFocus==='blocked';
+  $('tt-chart-expand').click();result.quickExpandedVisible=rect($('home-flow-quick')).h>0&&rect($('home-flow-quick')).bottom<=rect(r.querySelector('.dw-chart-stage')).y+1;result.expandHidesRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display==='none';$('tt-chart-expand').click();result.restoreShowsRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display!=='none';
+  window.__homeScenario('offline');result.quickOfflineCleared=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='—'&&b.querySelector('.home-flow-quick-fill').hidden);result.offlineSnapshotVisible=!$('home-chart-notice').hidden&&$('dw-chart-status').textContent.includes('非即時');result.offlineFocusBlocked=r.dataset.homeFocus==='blocked';
   result.offlineNoPriceError=!/fetch|UNAVAILABLE/i.test($('tt-top-price').textContent);result.offlineTimeUnchanged=$('tt-top-updated').textContent.includes(new Date(chartPayload.availableAt).getFullYear());
   result.offlineCanvasRetained=canvas===$('dw-chart-canvas').querySelector('canvas');
   window.__homeScenario('limited');result.limitedStateVisible=$('home-status').textContent==='資料受限'&&r.dataset.homeFlow==='unavailable';
-  window.__homeScenario('normal');result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
+  window.__homeScenario('normal');result.quickRecoveryRestores=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='+0.250');result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
   const longInput=structuredClone(base);longInput.dashboardError='FAILED_'+ 'x'.repeat(3000);window.HomeWorkspace.render(r,longInput);$('home-data-details').open=true;
   result.longErrorNoOverflow=document.documentElement.scrollWidth<=innerWidth+1;$('home-data-details').open=false;
   window.__homeScenario(${JSON.stringify(scenario)});$('ai-account').value='a'.repeat(64);$('ai-model').value='gpt-5.6-terra';$('ai-settings').open=false;HomeWorkspace.aiSummary();
   result.mobileFocusVisible=innerWidth>=1200||rect($('home-mobile-focus')).h>0;
   result.chartControlsPreserved=['tt-level-toggle','tt-chart-expand','dw-chart-timeframes'].every(id=>Boolean($(id)));
+  result.quickFinal=quickButtons.map(b=>({key:b.dataset.homeQuickKey,value:b.querySelector('.home-flow-quick-value').textContent,status:b.querySelector('.home-flow-quick-state').textContent,visible:rect(b).h>0}));
   result.finalFlowRows=[...r.querySelectorAll('[data-home-window]')].map(n=>({key:n.dataset.homeWindow,state:n.querySelector('[data-home-field="state"]').textContent,net:n.querySelector('[data-home-field="net"]').textContent}));
   result.finalContextBasisLabel=$('home-context-basis-label').textContent;result.finalContextBasis=$('home-context-basis').textContent;
   result.runtimeErrors=window.__runtimeErrors;result.finalScenario=${JSON.stringify(scenario)};
