@@ -58,6 +58,8 @@ export function homeEngineeringDocument({scenario='normal'}={}){
    if(name==='offline'){x.chartError='Failed to fetch';x.dashboardError='DASHBOARD_REFRESH: Failed to fetch';x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='Failed to fetch';}
    if(name==='offline'){x.pulse=null;x.leadership={state:'UNAVAILABLE'};}
    if(name==='warming')x.flow.windows.window14400s.truthState='WARMING_UP';
+   if(name==='seller')for(const w of Object.values(x.flow.windows)){w.pressure.pressureRatio=-.4;w.pressure.direction='SELL_SIDE';w.pressure.buyProxyVolume=75;w.pressure.sellProxyVolume=125;w.pressure.netAggressiveFlowProxy=-50;w.response.displacementPoints=-12;}
+   if(name==='partial')for(const w of Object.values(x.flow.windows)){w.pressure.status='PARTIAL';w.pressure.classifiedCoverage=.75;w.pressure.unknownVolume=50;w.pressure.totalExecutedVolume=250;}
    if(name==='noFocus'){x.watch.decisionFocus.state='NO_ACTIVE_REFERENCE';x.focusAllowed=false;}
    if(name==='day'){x.chart.session=x.flow.identity.session=x.watch.identity.session=x.pulse.identity.session='DAY';x.pulse.basis.state='LIVE';x.leadership.state='LIVE';x.leadership.sourceMode='LIVE_RAW';}
    lastObservedFlowValue=x.flow;state.txChartPayload=x.chart;state.txChartTimeframe=x.chart.timeframe;document.querySelectorAll('[data-chart-timeframe]').forEach(b=>{const active=b.dataset.chartTimeframe===x.chart.timeframe;b.classList.toggle('is-selected',active);b.setAttribute('aria-pressed',String(active));});state.levelWatch=x.watch;state.marketPulse=x.pulse;state.indexLeadership=x.leadership;state.homeChartError=x.chartError;state.homeDashboardError=x.dashboardError;observedFlowSelectedWindow=x.selectedFlowWindow;
@@ -81,6 +83,8 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   $('dw-flow-tab-30m').click();await sleep();const quickTableToStrip=$('home-flow-quick-30m').getAttribute('aria-pressed')==='true';
   const quickCanvasPreserved=originalCanvas===$('dw-chart-canvas').querySelector('canvas');
   const quickMirrorValues=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent===r.querySelector('[data-home-window="'+b.dataset.homeQuickKey+'"] [data-home-field="pressure"]').textContent);
+  const quickSegmentsValid=quickButtons.every(b=>b.querySelectorAll('.home-flow-quick-segments i').length===9);
+  const quickQualifiedColor=quickButtons.every(b=>b.querySelector('.home-flow-quick-segments').classList.contains('is-positive')&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===1&&b.querySelector('.home-flow-quick-segments').dataset.displayCells==='1');
   window.HomeWorkspace.mount(r);const quickMountIdempotent=r.querySelectorAll('#home-flow-quick').length===1&&r.querySelectorAll('[data-home-quick-key]').length===6&&r.querySelectorAll('[data-flow-window]').length===7;
   window.__homeScenario('normal');
   const menu=$('home-nav-toggle'),nav=$('side-nav'),pages=document.querySelector('.dashboard-pages');
@@ -112,24 +116,24 @@ export function homeEngineeringDocument({scenario='normal'}={}){
    rrNoteVisible:!$('dw-scenario-rr-note').closest('details:not([open])'),flowBelowChart:rect(r.querySelector('.tt-flow-overview')).y>=rect(r.querySelector('.dw-price-region')).bottom-1,
    preservedIds:window.__originalIds.every(id=>ids.includes(id)),missingIds:window.__originalIds.filter(id=>!ids.includes(id)),duplicateCriticalIds:['ai-credits','ai-account','ai-model','dw-next-watch','dw-chart-canvas'].filter(id=>ids.filter(v=>v===id).length!==1),
    flowSelectionIndependent,chartSelectionIndependent,rowSelectionPreservesChart,actualAdapterRows,
-   quickInitial,quickBeforeChart,quickSelectionSync,quickKeyboardReachable,quickTableToStrip,quickCanvasPreserved,quickMirrorValues,quickMountIdempotent,
+   quickInitial,quickBeforeChart,quickSelectionSync,quickKeyboardReachable,quickTableToStrip,quickCanvasPreserved,quickMirrorValues,quickSegmentsValid,quickQualifiedColor,quickMountIdempotent,
    evidenceRowsVisible:[...r.querySelectorAll('[data-home-window]')].every(n=>rect(n).h>0&&!n.closest('details:not([open])')),
    relatedMarketVisible:rect($('home-related-market')).h>0&&!$('home-related-market').closest('details:not([open])'),
    navigationInitiallyHidden,menuInitiallyReachable,navigationOpens,navigationCloses,escapeRestoresFocus,modalInertPreserved,canvasIdentityPreserved,hiddenRailReclaimsWidth,aiInitiallyClosed};
   background.open=true;fallback.open=true;result.backgroundExpandable=rect(background.querySelector('.tt-card-global')).h>0;result.fallbackExpandable=rect($('dw-copy-gpt-prompt')).h>0;result.docWidthExpanded=document.documentElement.scrollWidth;
   background.open=false;fallback.open=false;ai.open=false;
   $('tt-chart-expand').click();result.quickExpandedVisible=rect($('home-flow-quick')).h>0&&rect($('home-flow-quick')).bottom<=rect(r.querySelector('.dw-chart-stage')).y+1;result.expandHidesRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display==='none';$('tt-chart-expand').click();result.restoreShowsRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display!=='none';
-  window.__homeScenario('offline');result.quickOfflineCleared=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='—'&&b.querySelector('.home-flow-quick-fill').hidden);result.offlineSnapshotVisible=!$('home-chart-notice').hidden&&$('dw-chart-status').textContent.includes('非即時');result.offlineFocusBlocked=r.dataset.homeFocus==='blocked';
+  window.__homeScenario('offline');result.quickOfflineCleared=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='—'&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===0&&!b.querySelector('.home-flow-quick-segments').classList.contains('is-positive')&&!b.querySelector('.home-flow-quick-segments').classList.contains('is-negative'));result.offlineSnapshotVisible=!$('home-chart-notice').hidden&&$('dw-chart-status').textContent.includes('非即時');result.offlineFocusBlocked=r.dataset.homeFocus==='blocked';
   result.offlineNoPriceError=!/fetch|UNAVAILABLE/i.test($('tt-top-price').textContent);result.offlineTimeUnchanged=$('tt-top-updated').textContent.includes(new Date(chartPayload.availableAt).getFullYear());
   result.offlineCanvasRetained=canvas===$('dw-chart-canvas').querySelector('canvas');
   window.__homeScenario('limited');result.limitedStateVisible=$('home-status').textContent==='資料受限'&&r.dataset.homeFlow==='unavailable';
-  window.__homeScenario('normal');result.quickRecoveryRestores=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='+0.250');result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
+  window.__homeScenario('normal');result.quickRecoveryRestores=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='+0.250'&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===1&&b.querySelector('.home-flow-quick-segments').classList.contains('is-positive'));result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
   const longInput=structuredClone(base);longInput.dashboardError='FAILED_'+ 'x'.repeat(3000);window.HomeWorkspace.render(r,longInput);$('home-data-details').open=true;
   result.longErrorNoOverflow=document.documentElement.scrollWidth<=innerWidth+1;$('home-data-details').open=false;
   window.__homeScenario(${JSON.stringify(scenario)});$('ai-account').value='a'.repeat(64);$('ai-model').value='gpt-5.6-terra';$('ai-settings').open=false;HomeWorkspace.aiSummary();
   result.mobileFocusVisible=innerWidth>=1200||rect($('home-mobile-focus')).h>0;
   result.chartControlsPreserved=['tt-level-toggle','tt-chart-expand','dw-chart-timeframes'].every(id=>Boolean($(id)));
-  result.quickFinal=quickButtons.map(b=>({key:b.dataset.homeQuickKey,value:b.querySelector('.home-flow-quick-value').textContent,status:b.querySelector('.home-flow-quick-state').textContent,visible:rect(b).h>0}));
+  result.quickFinal=quickButtons.map(b=>({key:b.dataset.homeQuickKey,value:b.querySelector('.home-flow-quick-value').textContent,status:b.querySelector('.home-flow-quick-state').textContent,visible:rect(b).h>0,filled:b.querySelectorAll('.home-flow-quick-segments i.is-filled').length,direction:b.dataset.direction,segments:b.querySelectorAll('.home-flow-quick-segments i').length}));
   result.finalFlowRows=[...r.querySelectorAll('[data-home-window]')].map(n=>({key:n.dataset.homeWindow,state:n.querySelector('[data-home-field="state"]').textContent,net:n.querySelector('[data-home-field="net"]').textContent}));
   result.finalContextBasisLabel=$('home-context-basis-label').textContent;result.finalContextBasis=$('home-context-basis').textContent;
   result.runtimeErrors=window.__runtimeErrors;result.finalScenario=${JSON.stringify(scenario)};

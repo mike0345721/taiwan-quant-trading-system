@@ -140,6 +140,18 @@
 
   // The compact view consumes the SAME governed row as the detailed table.
   // It does not calculate a new score, request data, or select a chart timeframe.
+  function quickFlowCells(ratio) {
+    if (ratio === null || ratio === undefined) return 0;
+    const numeric = Number(ratio);
+    if (!Number.isFinite(numeric) || numeric < -1 || numeric > 1) return 0;
+    const magnitude = Math.abs(numeric);
+    if (magnitude < 0.10) return 0;
+    if (magnitude < 0.325) return 1;
+    if (magnitude < 0.55) return 2;
+    if (magnitude < 0.775) return 3;
+    return 4;
+  }
+
   function quickFlowView(row, { flow = null, now = Date.now() } = {}) {
     const availableAt = time(flow?.source?.availableAt), validUntil = time(flow?.source?.validUntil);
     const expired = !row.available && (flow?.sourceState === 'STALE'
@@ -148,12 +160,16 @@
     const state = expired ? '已過期' : row.state;
     const hasRatio = row.available && number(row.ratio) != null && Math.abs(row.ratio) <= 1;
     const pressure = hasRatio ? metricText(row.ratio, 3, true) : '—';
-    const direction = hasRatio ? ({ '偏買方': 'buy', '偏賣方': 'sell', '均衡': 'balanced' })[row.side] || 'none' : 'none';
+    const semanticDirection = hasRatio ? ({ '偏買方': 'buy', '偏賣方': 'sell', '均衡': 'balanced' })[row.side] || 'none' : 'none';
+    const cells = hasRatio ? quickFlowCells(row.ratio) : 0;
+    const colorEligible = Boolean(row.qualified && cells > 0 && ['buy', 'sell'].includes(semanticDirection));
+    const direction = colorEligible ? semanticDirection : 'none';
     const width = hasRatio ? Math.abs(row.ratio) * 50 : 0;
-    return Object.freeze({ pressure, state, side: row.side, direction, hasRatio, width,
+    return Object.freeze({ pressure, state, side: row.side, direction, visualDirection: direction, semanticDirection, colorEligible, cells,
+      ratio: hasRatio ? row.ratio : null, hasRatio, width,
       left: hasRatio && row.ratio < 0 ? 50 - width : 50,
-      title: row.label + ' · 壓力比 ' + pressure + '（非勝率） · ' + state + ' · ' + row.side
-        + ' · ' + stamp(row.sourceTime) + (row.reason ? ' · ' + row.reason : ''),
+      title: row.label + ' · 壓力比 ' + pressure + '（非勝率） · 視覺格數 ' + cells + '/4 · ' + state + ' · ' + row.side
+        + (colorEligible ? '' : hasRatio ? ' · 方向色停用' : '') + ' · ' + stamp(row.sourceTime) + (row.reason ? ' · ' + row.reason : ''),
     });
   }
 
@@ -172,9 +188,9 @@
       button.setAttribute('aria-controls', 'home-flow-selection'); button.setAttribute('aria-pressed', 'false');
       const top = el('span', 'home-flow-quick-top');
       top.append(el('span', 'home-flow-quick-label', original.querySelector('strong')?.textContent || original.textContent), el('strong', 'home-flow-quick-value', '—'));
-      const meter = el('span', 'home-flow-quick-meter'); meter.setAttribute('aria-hidden', 'true');
-      const fill = el('span', 'home-flow-quick-fill'); fill.hidden = true; meter.append(fill);
-      button.append(top, meter, el('span', 'home-flow-quick-state', '不可用'));
+      const segments = el('span', 'dw-flow-mini-bar home-flow-quick-segments'); segments.setAttribute('aria-hidden', 'true');
+      segments.append(...Array.from({ length: 9 }, (_, index) => el('i', index === 4 ? 'is-neutral-cell' : '')));
+      button.append(top, segments, el('span', 'home-flow-quick-state', '不可用'));
       // Keep the original control and handler. No cloned IDs or second data-flow-window.
       button.addEventListener('click', () => original.click());
       cells.append(button);
@@ -190,9 +206,25 @@
     button.dataset.state = row.available ? (row.qualified ? 'ready' : 'limited') : 'unavailable';
     button.dataset.direction = view.direction;
     button.querySelector('.home-flow-quick-value').textContent = view.pressure;
-    button.querySelector('.home-flow-quick-state').textContent = view.state + (row.qualified ? ' · ' + row.side : '');
-    const fill = button.querySelector('.home-flow-quick-fill'); fill.hidden = !view.hasRatio;
-    fill.style.width = view.width + '%'; fill.style.left = view.left + '%';
+    button.querySelector('.home-flow-quick-state').textContent = view.state
+      + (row.qualified ? ' · ' + row.side : view.hasRatio ? ' · 方向色停用' : '');
+    const segments = button.querySelector('.home-flow-quick-segments');
+    if (segments) {
+      const classDirection = view.colorEligible ? (view.direction === 'buy' ? 'is-positive' : 'is-negative')
+        : view.hasRatio ? 'is-neutral is-limited' : 'is-neutral is-inactive';
+      segments.className = 'dw-flow-mini-bar home-flow-quick-segments ' + classDirection;
+      segments.dataset.rawRatio = view.hasRatio ? String(view.ratio) : '';
+      segments.dataset.displayCells = String(view.cells);
+      const segmentCells = [...segments.children];
+      for (let index = 0; index < segmentCells.length; index += 1) {
+        const cell = segmentCells[index];
+        cell.className = index === 4 ? 'is-neutral-cell' : '';
+        const level = view.ratio > 0 ? index - 4 : 4 - index;
+        const filled = view.hasRatio && index !== 4 && level >= 1 && level <= view.cells
+          && ((view.ratio > 0 && index > 4) || (view.ratio < 0 && index < 4));
+        if (filled) cell.className = 'is-filled is-level-' + level;
+      }
+    }
   }
 
   function mountEvidence(root) {
@@ -465,5 +497,5 @@
     renderEvidence(root, input);
     aiSummary(); return view;
   }
-  global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, marketContext, mount, render, aiSummary });
+  global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
 })(window);
