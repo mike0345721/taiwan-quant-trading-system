@@ -1,6 +1,6 @@
 /* Owner-approved CRU-21 home V1. All selectors are scoped; original routes remain. */
 .home-dashboard { --home-bg:#0b1118; --home-card:#121d29; --home-layer:#192838; --home-border:#2b3b4d; --home-ink:#e8eef5; --home-muted:#a7b7c9; --home-accent:#46d3c2; color:var(--home-ink); background:var(--home-bg); }
-.home-dashboard > .topbar { display:flex; align-items:center; justify-content:flex-start; gap:14px; min-height:58px; padding:10px 20px; border-bottom:1px solid var(--home-border); background:var(--home-bg); }
+.home-dashboard > .topbar { display:flex; align-items:center; justify-content:flex-start; gap:14px; min-height:58px; padding:10px 16px; border-bottom:1px solid var(--home-border); background:var(--home-bg); }
 .home-dashboard .global-app-identity { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; }
 .home-dashboard .global-app-identity strong { font-size:18px; }
 .home-dashboard .global-app-identity span { color:var(--home-muted); font-size:12px; }
@@ -23,7 +23,7 @@
 .home-layout .side-nav::before { display:none; }
 .home-dashboard [hidden],.trader-terminal[data-home-version="1"] [hidden] { display:none !important; }
 .home-nav-scrim { position:fixed; inset:0; z-index:119; border:0; border-radius:0; background:rgba(0,0,0,.65); }
-.trader-terminal[data-home-version="1"] { max-width:1760px; margin:0 auto; padding:16px 24px 28px; overflow:visible; font-size:14px; --tt-card-bg:var(--home-card); --tt-muted:var(--home-muted); }
+.trader-terminal[data-home-version="1"] { width:100%; max-width:none; margin:0; padding:16px 16px 28px; overflow:visible; font-size:14px; --tt-card-bg:var(--home-card); --tt-muted:var(--home-muted); }
 .trader-terminal[data-home-version="1"] :where(button,span,small,code,p,li,label,summary) { font-size:14px !important; line-height:1.55; }
 .trader-terminal[data-home-version="1"] :where(section,article,div,header,details,summary,p,strong,span) { min-width:0; }
 .trader-terminal[data-home-version="1"] :where(p,strong,small,span,code,summary) { overflow-wrap:anywhere; }
@@ -144,8 +144,8 @@
 .trader-terminal[data-home-version="1"] #home-data-details .tt-top-details > summary { cursor:pointer; }
 
 /* First-screen density: history lives in details; never crop a warning or condition. */
-.app-shell.is-dashboard-shell:has(.home-dashboard) { width:100%; max-width:1880px; padding:0 0 24px; }
-.home-dashboard > .topbar { min-height:54px; margin:0; padding:6px 24px; border-width:0 0 1px; border-radius:0; flex-direction:row; }
+.app-shell.is-dashboard-shell:has(.home-dashboard) { width:100%; max-width:none; margin:0; padding:0 0 24px; }
+.home-dashboard > .topbar { min-height:54px; margin:0; padding:6px 16px; border-width:0 0 1px; border-radius:0; flex-direction:row; }
 .trader-terminal[data-home-version="1"] { padding-top:14px; gap:10px; }
 .trader-terminal[data-home-version="1"] .tt-terminal-topbar { margin:0; padding:0; }
 .trader-terminal[data-home-version="1"][data-home-tone="ready"] .home-banner { display:none; }

@@ -52,7 +52,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   const menu=$('home-nav-toggle'),nav=$('side-nav'),pages=document.querySelector('.dashboard-pages');
   const navigationInitiallyHidden=nav.hidden,menuInitiallyReachable=rect(menu).w>=40;
   const canvas=$('dw-chart-canvas').querySelector('canvas'),beforeWidth=rect(r.querySelector('.dw-price-region')).w;
-  menu.click();await sleep();const navigationOpens=!nav.hidden;
+  menu.click();await sleep();const navigationOpens=!nav.hidden;const openedChartWidth=rect(r.querySelector('.dw-price-region')).w;
   const modal=innerWidth<768;let escapeRestoresFocus=true,modalInertPreserved=true;
   if(modal){modalInertPreserved=pages.inert===true;document.querySelector('#side-nav button').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep();escapeRestoresFocus=nav.hidden&&document.activeElement===menu&&pages.inert===false;}
   else{$('side-nav-toggle').click();await sleep();}
@@ -69,7 +69,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   const selectedModelSummaryUpdated=$('ai-settings-summary').textContent.includes('SYNTHETIC SECOND MODEL');
   $('ai-account').value='';$('ai-account').dispatchEvent(new Event('change'));const settingsReopened=$('ai-settings').open;
   const result={engineeringOnly:true,productionChartFactory:true,canvasCount:$('dw-chart-canvas').querySelectorAll('canvas').length,viewport:innerWidth,docWidth:document.documentElement.scrollWidth,layout:r.dataset.uiLayout,
-   chart:rect(r.querySelector('.dw-chart-stage')),chartRegion:rect(r.querySelector('.dw-price-region')),focus:rect(r.querySelector('.tt-focus-card')),
+   clientWidth:document.documentElement.clientWidth,workspace:rect(r),navigationWidthDelta:beforeWidth-openedChartWidth,chart:rect(r.querySelector('.dw-chart-stage')),chartRegion:rect(r.querySelector('.dw-price-region')),focus:rect(r.querySelector('.tt-focus-card')),
    focusFont:parseFloat(getComputedStyle($('dw-next-watch-label')).fontSize),checkbox:rect(checkbox),consent:rect(consent),consentText:rect(span),consentFont:parseFloat(getComputedStyle(span).fontSize),
    creditsInitiallyUnchecked:!beforeConsent,submitBefore,submitStillDisabled,settingsClosedAfterModels,summaryAfterModels,settingsReopened,modelReady,selectedModelSummaryUpdated,
    modelCalls:window.__calls.filter(u=>u==='/api/v1/ask-gpt/ask').length,backgroundInitiallyClosed:!background.open,fallbackInitiallyClosed:!fallback.open,
