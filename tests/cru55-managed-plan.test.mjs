@@ -12,7 +12,7 @@ function fixture(){
     sourceAlias:{kind:'PLAIN',physicalRoot:sourceRoot,targetIdentity:sourceDirectoryIdentity(sourceRoot)},sourceSelection:{kind:'DATED_CALENDAR_LEDGER',startDate:'2026-09-18'},
     producer:'STREAM_PAGED_V2',sourceVerification:'FULL_PREFIX_BEFORE_PUBLICATION',sourceKind:'SYNTHETIC_FIXTURE',bindingHash:digest(root),...SAFETY};
   const write=(date,value=date)=>fs.writeFileSync(path.join(sourceRoot,date+'.ndjson'),JSON.stringify({previousHash:'GENESIS',recordHash:digest(value),receivedAt:date+'T00:00:00+08:00'})+'\n');
-  return {root,binding,write,dispose(){assert.equal(path.dirname(root),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('cru55-managed-test-'));fs.rmSync(root,{recursive:true,force:true});}};
+  return {root,binding,write,dispose(){assert.equal(path.dirname(root),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('cru55-managed-test-'));fs.rmSync(root,{recursive:true,force:true,maxRetries:3,retryDelay:50});assert.equal(fs.existsSync(root),false);}};
 }
 test('stream proposal pins plain target identity and refuses source/write escape without changing frozen policy',()=>{
   const f=fixture();try{

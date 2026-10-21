@@ -54,3 +54,13 @@ jobs:
           node --version
           npm --version
           node --test tests/cru21-guest-runtime.test.mjs
+
+      # A/B evidence only: never converts an earlier failed full gate into success.
+      - name: Stable browser compatibility diagnostic after gate failure
+        if: ${{ failure() && steps.hermetic_gate.outcome == 'failure' && github.ref == 'refs/heads/codex/cru21-decision-quality-p0-20261016' }}
+        timeout-minutes: 3
+        env:
+          CRU21_TEST_BROWSER_PATH: /usr/bin/google-chrome
+        run: |
+          echo 'Compatibility diagnostic only; full gate result remains authoritative.'
+          node --test tests/cru21-guest-runtime.test.mjs

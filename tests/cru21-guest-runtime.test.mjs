@@ -8,6 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { ownedBrowserWaitState, sanitizedBrowserStderr } from './browser-startup-diagnostics.mjs';
+import { guestBrowserPath } from './guest-browser-path.mjs';
+const guestBrowser=guestBrowserPath();
 import { approvedGuestPaths,GUEST_BRANCH } from '../src/cru21-guest-guard.mjs';
 import { hashPassword } from '../src/security.mjs';
 import { createGuestReader } from '../src/cru21-guest-reader.mjs';
@@ -229,8 +231,8 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   const session=await fetch('http://127.0.0.1:18722/api/session',{headers});assert.equal((await session.json()).authenticated,false);
   const response=await fetch('http://127.0.0.1:18722/api/v1/dashboard',{headers});assert.equal(response.status,200,await response.clone().text());
   assert.deepEqual(hashTree(source),before);assert.equal(fs.existsSync(path.join(app,'data')),false);
-  await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:!fs.existsSync('/usr/bin/chromium'),timeout:12000},async(browserTest)=>{
-   const browser=spawn('/usr/bin/chromium',['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','pipe','pipe','pipe']});
+  await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:guestBrowser.skip,timeout:12000},async(browserTest)=>{
+   const browser=spawn(guestBrowser.executable,['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','pipe','pipe','pipe']});
    // Only classify stderr; never print browser output, URLs, profiles or environment.
    const stderrClasses=new Set();let stderrBytes=0,stderrTail='';
    browser.stderr.on('data',chunk=>{stderrBytes+=chunk.length;const text=chunk.toString('utf8');stderrTail=(stderrTail+text).slice(-8000);for(const category of ['dbus','gpu','network','sandbox','zygote','crash','error'])if(text.toLowerCase().includes(category))stderrClasses.add(category);});
