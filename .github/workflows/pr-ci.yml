@@ -39,8 +39,12 @@ jobs:
       - name: Secret scan
         run: npm run security:scan
 
+      # Use the installed stable Chromium-family build verified in the #294 A/B diagnostic.
+      # Same full lane, real browser, isolation, assertions and 12/30 second deadlines.
       - name: Hermetic PR gate
         id: hermetic_gate
+        env:
+          CRU21_TEST_BROWSER_PATH: /usr/bin/google-chrome
         run: npm run test:ci
 
       # Diagnostic only: the original gate remains failed even if this passes.
@@ -53,14 +57,4 @@ jobs:
           uname -sr
           node --version
           npm --version
-          node --test tests/cru21-guest-runtime.test.mjs
-
-      # A/B evidence only: never converts an earlier failed full gate into success.
-      - name: Stable browser compatibility diagnostic after gate failure
-        if: ${{ failure() && steps.hermetic_gate.outcome == 'failure' && github.ref == 'refs/heads/codex/cru21-decision-quality-p0-20261016' }}
-        timeout-minutes: 3
-        env:
-          CRU21_TEST_BROWSER_PATH: /usr/bin/google-chrome
-        run: |
-          echo 'Compatibility diagnostic only; full gate result remains authoritative.'
           node --test tests/cru21-guest-runtime.test.mjs
