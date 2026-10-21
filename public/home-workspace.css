@@ -165,3 +165,63 @@
 @media(max-width:767px) { .trader-terminal[data-home-version="1"] .tt-market-recency .dw-mode-switch { flex-basis:auto; } }
 
 .trader-terminal[data-home-version="1"] .home-price-caption { font-size:12px !important; color:var(--home-muted); }
+
+/* Owner-accepted Preview 02, integrated into retained production components. */
+.trader-terminal[data-home-evidence="2"] .tt-primary-grid .dw-chart-stage { height:clamp(360px,33vh,440px); }
+.trader-terminal[data-home-evidence="2"] .tt-primary-grid { grid-template-areas:"chart rail" "flow rail"; gap:16px; }
+.trader-terminal[data-home-evidence="2"] .tt-primary-grid > .dw-price-region { grid-area:chart; }
+.trader-terminal[data-home-evidence="2"] .tt-primary-grid > .tt-tier-one-grid { grid-area:rail; display:flex; flex-direction:column; gap:16px; }
+.trader-terminal[data-home-evidence="2"] .tt-primary-grid > .tt-flow-overview { grid-area:flow; margin:0; }
+.trader-terminal[data-home-evidence="2"] .tt-flow-overview > .dw-card { padding:16px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-message { font-size:12px !important; line-height:1.6; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table { width:100%; table-layout:fixed; border-collapse:collapse; color:var(--home-ink); font-variant-numeric:tabular-nums; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table caption { text-align:left; caption-side:top; color:var(--home-muted); font-size:12px; padding:0 0 10px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table th,.trader-terminal[data-home-evidence="2"] .home-flow-table td { text-align:right; padding:9px 6px; border-bottom:1px solid var(--home-border); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table thead th { color:var(--home-muted); font-weight:500; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table th:first-child { width:66px; text-align:left; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table th:last-child { width:78px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table tbody tr { cursor:pointer; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table tr.is-selected { background:#163035; box-shadow:inset 2px 0 var(--home-accent); }
+.trader-terminal[data-home-evidence="2"] .home-flow-table [data-state="unavailable"] { color:#e8bd78; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table [data-flow-window] { width:auto; min-width:0; min-height:36px; padding:5px 7px; display:inline-flex; border:1px solid transparent; background:transparent; color:var(--home-ink); }
+.trader-terminal[data-home-evidence="2"] .home-flow-table [data-flow-window] strong { font-size:12px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-table [data-flow-window] :is(small,.dw-flow-mini-bar) { display:none; }
+.trader-terminal[data-home-evidence="2"] .home-flow-selection { background:#0d1923; border:1px solid var(--home-border); border-radius:8px; margin-top:12px; padding:12px; }
+.trader-terminal[data-home-evidence="2"] #home-flow-selection-title { font-size:14px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:10px 0; }
+.trader-terminal[data-home-evidence="2"] .home-flow-facts dt { color:var(--home-muted); font-size:12px; }
+.trader-terminal[data-home-evidence="2"] .home-flow-facts dd { margin:3px 0 0; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
+.trader-terminal[data-home-evidence="2"] .home-flow-selection-note { font-size:12px !important; color:var(--home-muted); margin:8px 0 0; }
+.trader-terminal[data-home-evidence="2"] #home-flow-details #dw-flow-selected-detail { display:block; }
+.trader-terminal[data-home-evidence="2"] .home-market-context { padding:16px; }
+.trader-terminal[data-home-evidence="2"] .home-market-context h3 { font-size:16px; margin:0 0 8px; }
+.trader-terminal[data-home-evidence="2"] .home-context-mode { margin:0 0 10px; color:var(--home-muted); font-size:12px !important; }
+.trader-terminal[data-home-evidence="2"] .home-context-values { margin:0; }
+.trader-terminal[data-home-evidence="2"] .home-context-values > div { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--home-border); }
+.trader-terminal[data-home-evidence="2"] .home-context-values dt { color:var(--home-muted); font-size:13px; }
+.trader-terminal[data-home-evidence="2"] .home-context-values dd { margin:0; font-weight:600; font-size:17px; font-variant-numeric:tabular-nums; }
+.trader-terminal[data-home-evidence="2"] .home-context-source { margin:8px 0; color:var(--home-muted); font-size:12px !important; }
+.trader-terminal[data-home-evidence="2"] .home-context-breadth { display:flex; flex-direction:column; gap:5px; border-top:1px solid var(--home-border); padding:10px 0 0; }
+.trader-terminal[data-home-evidence="2"] .home-context-breadth :is(span,small) { font-size:12px !important; color:var(--home-muted); }
+.trader-terminal[data-home-evidence="2"] .home-context-breadth strong { font-size:13px; }
+.trader-terminal[data-home-evidence="2"] .home-context-heading { display:block; padding-top:12px; border-top:1px solid var(--home-border); font-size:13px; }
+.trader-terminal[data-home-evidence="2"] .home-leader-rows > div { display:flex; gap:12px; justify-content:space-between; margin-top:8px; }
+.trader-terminal[data-home-evidence="2"] .home-leader-rows :is(span,p,strong) { font-size:13px !important; }
+.trader-terminal[data-home-evidence="2"] .home-market-context .home-link { width:100%; margin-top:4px; }
+.trader-terminal[data-home-evidence="2"].is-chart-expanded .tt-primary-grid { grid-template-areas:"chart"; grid-template-columns:minmax(0,1fr); }
+.trader-terminal[data-home-evidence="2"].is-chart-expanded .tt-primary-grid > :is(.tt-tier-one-grid,.tt-flow-overview) { display:none; }
+@media(max-width:1199px) {
+ .trader-terminal[data-home-evidence="2"] .tt-primary-grid { grid-template-areas:"chart" "flow" "rail"; grid-template-columns:minmax(0,1fr); }
+ .trader-terminal[data-home-evidence="2"] .tt-primary-grid > .tt-tier-one-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+}
+@media(max-width:767px) {
+ .trader-terminal[data-home-evidence="2"] .tt-primary-grid .dw-chart-stage { height:320px; }
+ .trader-terminal[data-home-evidence="2"] .tt-primary-grid > .tt-tier-one-grid { display:flex; }
+ .trader-terminal[data-home-evidence="2"] .tt-flow-overview > .dw-card { padding:12px; }
+ .trader-terminal[data-home-evidence="2"] .home-flow-table :is(.home-net-col,.home-path-col,.home-coverage-col) { display:none; }
+ .trader-terminal[data-home-evidence="2"] .home-flow-table th:first-child { width:58px; }
+ .trader-terminal[data-home-evidence="2"] .home-flow-table th:last-child { width:66px; }
+ .trader-terminal[data-home-evidence="2"] .home-flow-table th,.trader-terminal[data-home-evidence="2"] .home-flow-table td { padding:8px 3px; }
+ .trader-terminal[data-home-evidence="2"] .home-flow-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .trader-terminal[data-home-evidence="2"] .home-flow-heading { flex-wrap:wrap; gap:5px; }
+}

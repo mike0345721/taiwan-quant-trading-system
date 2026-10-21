@@ -10,9 +10,15 @@ function productionFunction(name){const start=app.indexOf('function '+name+'('),
 export function homeEngineeringDocument({scenario='normal'}={}){
  let html=read('public/index.html').replace(/\s*<link[^>]+rel="stylesheet"[^>]*>/g,'').replace(/\s*<script[^>]+src="[^"]+"[^>]*><\/script>/g,'');
  const styles=['public/styles.css','public/trader-terminal-shell.css','public/ask-gpt-inline.css','public/home-workspace.css'].map(f=>'<style>'+read(f)+'</style>').join('');
- const chartCode=['finiteNumber','fmt','signed','dwText','chartTimeLabel','chartEpoch','activeCandlePalette','txChartRuntimeReason','captureCoverageWarning','txBarObservationLabel','ensureTxChart','chartSeriesData','normalizeDashboardPageFragments','setDashboardPage'].map(productionFunction).join('\n');
+ const rb=app.indexOf('const OBSERVED_FLOW_WINDOW_REGISTRY ='),re=app.indexOf('\n]);',rb)+4;
+ const registryCode=app.slice(rb,re);
+ const chartCode=['timeLabel','finiteNumber','fmt','signed','dwText','chartTimeLabel','chartEpoch','activeCandlePalette','txChartRuntimeReason','captureCoverageWarning','txBarObservationLabel','ensureTxChart','chartSeriesData','normalizeDashboardPageFragments','setDashboardPage','observedFlowMetric','observedFlowCoverage','observedFlowRatio','observedFlowStateLabel','observedFlowDisplayCells','renderObservedFlowSegments','renderObservedFlowEnergy','observedFlowWindowByKey','observedFlowPressureSide','observedFlowRelation','observedFlowSelectedSummary','renderObservedFlowSelected','renderObservedFlowStrip','selectObservedFlowWindow','selectChartTimeframe','bindObservationControls','sourceTimeStructureEligible','levelWatchIsFresh','levelWatchMatchesChart','renderHomeWorkspace'].map(productionFunction).join('\n');
  const setup=`
- const $=id=>document.getElementById(id);const state={txChartPalette:'red-up',txChartPayload:null,csrfToken:'',guestReadOnly:false};let dataOperationsPageActive=false;
+ const $=id=>document.getElementById(id);let observedFlowSelectedWindow='5m',lastObservedFlowValue=null;
+ const flowChannel={view:()=>lastObservedFlowValue||{sourceState:'UNAVAILABLE',windows:null}};
+ const dwHumanize=v=>String(v||'未知');
+ async function loadTxDecisionChart(){state.txChartPayload={...state.txChartPayload,timeframe:state.txChartTimeframe};renderHomeWorkspace();}
+ const state={txChartPalette:'red-up',txChartPayload:null,csrfToken:'',guestReadOnly:false};let dataOperationsPageActive=false;
  window.__calls=[];window.__uiAccountRows=[{key:'a'.repeat(64),label:'SYNTHETIC TEST ACCOUNT',accessReady:true,planPermission:true}];window.__runtimeErrors=[];
  window.addEventListener('error',e=>window.__runtimeErrors.push(e.message));
  window.fetch=async function(url,options={}){window.__calls.push(String(url));
@@ -42,12 +48,30 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   const base={now:Date.now(),chart:chartPayload,rendered:true,focusAllowed:true,
    flow:{identity:{...identity},sourceState:'LIVE',source:{availableAt:chartPayload.availableAt},researchQuality:{status:'READY'},windows:{primary60s:{}}},
    watch:{state:'READY',identity:{...identity},sourceAvailableAt:chartPayload.availableAt,decisionFocus:{state:'ACTIVE_REFERENCE'},nextWatch:{price:46760},scenarioWatch:{long:{target:{price:46920}},short:{target:{price:46720}}},evidenceGate:{actionableRrAllowed:false}}};
-  window.__homeScenario=name=>{const x=structuredClone(base);x.now=Date.now();
+  base.flowDefinitions=OBSERVED_FLOW_WINDOW_REGISTRY;base.selectedFlowWindow='5m';base.watch.snapshotTime=chartPayload.availableAt;
+ for(const d of OBSERVED_FLOW_WINDOW_REGISTRY.filter(d=>d.data==='GOVERNED'))base.flow.windows[d.source]={status:'READY',truthState:'LIVE',pressure:{status:'READY',pressureRatio:.25,classifiedCoverage:1,direction:'BUY_SIDE',buyProxyVolume:125,sellProxyVolume:75,unknownVolume:0,totalExecutedVolume:200,netAggressiveFlowProxy:50},response:{status:'READY',displacementPoints:12},pathEfficiency:{status:'READY',value:.4}};
+ base.pulse={schemaVersion:'market-pulse-live-v1',identity:{...identity},generatedAt:chartPayload.availableAt,sourceAvailableAt:chartPayload.availableAt,rvol:{state:'READY',ratio:1.24,sampleDays:20},basis:{state:'SESSION_CLOSED_REFERENCE',points:12,spotPrice:chartPayload.lastPrice-12,spotTradeDate:identity.tradeDate}};
+ base.leadership={indexCode:'IX0001',session:'DAY',state:'SESSION_CLOSED',sourceMode:'EOD_CONTEXT',quality:'PASS',sourceTradeDate:identity.tradeDate,lastAvailableAt:chartPayload.availableAt,indexLeadership:{topAbsolute:[{name:'測試成分甲',points:12},{name:'測試成分乙',points:-4}]}};
+ state.txChartBarCount=72;state.txChartTimeframe='5m';
+ window.__homeScenario=name=>{const x=structuredClone(base);x.now=Date.now();
    if(name==='limited'){x.chart.qualityStatus='QUALITY_INSUFFICIENT';x.chart.qualityReasons=['TIMESTAMP_LINEAGE_INSUFFICIENT'];x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='LIVE_PRODUCER_PROCESS_MISSING';x.focusAllowed=false;}
    if(name==='offline'){x.chartError='Failed to fetch';x.dashboardError='DASHBOARD_REFRESH: Failed to fetch';x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='Failed to fetch';}
+   if(name==='offline'){x.pulse=null;x.leadership={state:'UNAVAILABLE'};}
+   if(name==='warming')x.flow.windows.window14400s.truthState='WARMING_UP';
+   if(name==='noFocus'){x.watch.decisionFocus.state='NO_ACTIVE_REFERENCE';x.focusAllowed=false;}
+   if(name==='day'){x.chart.session=x.flow.identity.session=x.watch.identity.session=x.pulse.identity.session='DAY';x.pulse.basis.state='LIVE';x.leadership.state='LIVE';x.leadership.sourceMode='LIVE_RAW';}
+   lastObservedFlowValue=x.flow;state.txChartPayload=x.chart;state.txChartTimeframe=x.chart.timeframe;document.querySelectorAll('[data-chart-timeframe]').forEach(b=>{const active=b.dataset.chartTimeframe===x.chart.timeframe;b.classList.toggle('is-selected',active);b.setAttribute('aria-pressed',String(active));});state.levelWatch=x.watch;state.marketPulse=x.pulse;state.indexLeadership=x.leadership;state.homeChartError=x.chartError;state.homeDashboardError=x.dashboardError;observedFlowSelectedWindow=x.selectedFlowWindow;
    window.HomeWorkspace.render(r,x);window.__currentHomeInput=x;return x;
   };
   for(const [id,value] of Object.entries({'dw-chart-session':'夜盤','dw-chart-contract':'TX-TEST','dw-reference-price':fmt(chartPayload.lastPrice),'dw-vwap-label':'本時段 VWAP','dw-vwap-state':'46,810.20','dw-session-levels':'46,920 / 46,684','dw-rvol-state':'1.24×','dw-next-watch-label':'觀察位置 46,760（合成案例）','dw-next-watch-distance':'距現價 120 點・僅為版面案例','dw-long-target':'46,920（示例）','dw-short-target':'46,720（示例）','dw-long-confirm':'依既有合法條件確認','dw-long-invalidate':'依既有失效条件排除','dw-short-confirm':'依既有合法條件確認','dw-short-invalidate':'依既有失效條件排除','dw-scenario-rr-note':'條件不足，不提供可執行 R:R。','dw-flow-selected-ratio':'+0.218','dw-flow-selected-side':'成交壓力觀測','dw-flow-selected-response':'+12 點','dw-flow-selected-relation':'價格反應觀測','dw-flow-selected-path':'0.420','dw-flow-selected-coverage':'100.0%'}))$(id).textContent=value;
+  window.__homeScenario('normal');bindObservationControls();
+  const originalCanvas=$('dw-chart-canvas').querySelector('canvas');
+  $('dw-flow-tab-1h').click();await sleep();
+  const flowSelectionIndependent=state.txChartTimeframe==='5m'&&observedFlowSelectedWindow==='1h'&&$('home-flow-selection-title').textContent.includes('1小時');
+  document.querySelector('[data-chart-timeframe="15m"]').click();await sleep();
+  const chartSelectionIndependent=state.txChartTimeframe==='15m'&&observedFlowSelectedWindow==='1h';
+  const rowSelectionPreservesChart=originalCanvas===$('dw-chart-canvas').querySelector('canvas');
+  const actualAdapterRows=[...r.querySelectorAll('[data-home-window]')].length===6&&$('home-flow-buy').textContent==='125';
   window.__homeScenario('normal');
   const menu=$('home-nav-toggle'),nav=$('side-nav'),pages=document.querySelector('.dashboard-pages');
   const navigationInitiallyHidden=nav.hidden,menuInitiallyReachable=rect(menu).w>=40;
@@ -75,8 +99,11 @@ export function homeEngineeringDocument({scenario='normal'}={}){
    modelCalls:window.__calls.filter(u=>u==='/api/v1/ask-gpt/ask').length,backgroundInitiallyClosed:!background.open,fallbackInitiallyClosed:!fallback.open,
    recencyVisible:rect($('tt-top-updated')).h>0,modeVisible:rect(r.querySelector('.dw-mode-switch')).h>0,
    confirmVisible:['dw-long-confirm','dw-long-invalidate','dw-short-confirm','dw-short-invalidate'].every(id=>!$(id).closest('details:not([open])')&&rect($(id)).h>0),
-   rrNoteVisible:!$('dw-scenario-rr-note').closest('details:not([open])'),flowBelowChart:rect(r.querySelector('.tt-flow-overview')).y>=rect(r.querySelector('.tt-primary-grid')).bottom-1,
+   rrNoteVisible:!$('dw-scenario-rr-note').closest('details:not([open])'),flowBelowChart:rect(r.querySelector('.tt-flow-overview')).y>=rect(r.querySelector('.dw-price-region')).bottom-1,
    preservedIds:window.__originalIds.every(id=>ids.includes(id)),missingIds:window.__originalIds.filter(id=>!ids.includes(id)),duplicateCriticalIds:['ai-credits','ai-account','ai-model','dw-next-watch','dw-chart-canvas'].filter(id=>ids.filter(v=>v===id).length!==1),
+   flowSelectionIndependent,chartSelectionIndependent,rowSelectionPreservesChart,actualAdapterRows,
+   evidenceRowsVisible:[...r.querySelectorAll('[data-home-window]')].every(n=>rect(n).h>0&&!n.closest('details:not([open])')),
+   relatedMarketVisible:rect($('home-related-market')).h>0&&!$('home-related-market').closest('details:not([open])'),
    navigationInitiallyHidden,menuInitiallyReachable,navigationOpens,navigationCloses,escapeRestoresFocus,modalInertPreserved,canvasIdentityPreserved,hiddenRailReclaimsWidth,aiInitiallyClosed};
   background.open=true;fallback.open=true;result.backgroundExpandable=rect(background.querySelector('.tt-card-global')).h>0;result.fallbackExpandable=rect($('dw-copy-gpt-prompt')).h>0;result.docWidthExpanded=document.documentElement.scrollWidth;
   background.open=false;fallback.open=false;ai.open=false;
@@ -91,6 +118,8 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   window.__homeScenario(${JSON.stringify(scenario)});$('ai-account').value='a'.repeat(64);$('ai-model').value='gpt-5.6-terra';$('ai-settings').open=false;HomeWorkspace.aiSummary();
   result.mobileFocusVisible=innerWidth>=1200||rect($('home-mobile-focus')).h>0;
   result.chartControlsPreserved=['tt-level-toggle','tt-chart-expand','dw-chart-timeframes'].every(id=>Boolean($(id)));
+  result.finalFlowRows=[...r.querySelectorAll('[data-home-window]')].map(n=>({key:n.dataset.homeWindow,state:n.querySelector('[data-home-field="state"]').textContent,net:n.querySelector('[data-home-field="net"]').textContent}));
+  result.finalContextBasisLabel=$('home-context-basis-label').textContent;result.finalContextBasis=$('home-context-basis').textContent;
   result.runtimeErrors=window.__runtimeErrors;result.finalScenario=${JSON.stringify(scenario)};
   result.overflowElements=[...document.querySelectorAll('body *')].filter(n=>n.getBoundingClientRect().width>0&&n.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(n=>({id:n.id,class:n.className,rect:rect(n)}));
   output.textContent=JSON.stringify(result);window.scrollTo(0,0);
@@ -98,5 +127,23 @@ export function homeEngineeringDocument({scenario='normal'}={}){
  document.body.append(output);
  })();`;
  const bundle=read('node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js');
- return html.replace('</head>',styles+'</head>').replace('</body>',script(setup)+script(bundle)+script(read('public/home-workspace.js'))+script(read('public/trader-terminal-shell.js'))+script(chartCode)+script(read('public/ask-gpt-inline.js'))+script(inspect)+'</body>');
+ return html.replace('</head>',styles+'</head>').replace('</body>',script(setup)+script(bundle)+script(read('public/home-workspace.js'))+script(read('public/trader-terminal-shell.js'))+script(registryCode)+script(chartCode)+script(read('public/ask-gpt-inline.js'))+script(inspect)+'</body>');
+}
+
+// Whole production script stack, not extracted renderers. Transport is synthetic;
+// this verifies login/failure lifecycle without using an Owner session or live data.
+export function homeBootstrapDocument(authenticated = false) {
+ const original=read('public/index.html');
+ const css=[...original.matchAll(/<link[^>]+href="([^"?]+)(?:\?[^"]*)?"[^>]*>/g)].map(m=>m[1]).filter(p=>p.startsWith('/')&&p.endsWith('.css'));
+ const js=[...original.matchAll(/<script[^>]+src="([^"?]+)(?:\?[^"]*)?"[^>]*><\/script>/g)].map(m=>m[1]);
+ const assets=js.map(p=>p==='/vendor/lightweight-charts.js'?read('node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js'):read('public'+p));
+ const html=original.replace(/\s*<link[^>]+rel="stylesheet"[^>]*>/g,'').replace(/\s*<script[^>]+src="[^"]+"[^>]*><\/script>/g,'');
+ const setup=`window.__entryErrors=[];window.__entryCalls=[];window.addEventListener('error',e=>window.__entryErrors.push(e.message));window.addEventListener('unhandledrejection',e=>window.__entryErrors.push(String(e.reason)));
+ window.fetch=async(url,options={})=>{window.__entryCalls.push({url:String(url),method:options.method||'GET'});
+ if(String(url)==='/api/session')return new Response(JSON.stringify({authenticated:${Boolean(authenticated)},csrfToken:${authenticated?'"SYNTHETIC_ENTRY_CSRF"':'""'}}));
+ if(String(url)==='/api/v1/ask-gpt/status')return new Response(JSON.stringify({ok:true,data:{enabled:false,accounts:[],reason:'SYNTHETIC_DISABLED'}}));
+ throw new Error('SYNTHETIC_SOURCE_OFFLINE');};`;
+ const check=`(async()=>{await new Promise(r=>setTimeout(r,650));const out=document.createElement('pre');out.id='ui-convergence-test-result';out.hidden=true;const root=document.getElementById('decision-workspace');
+ const result={engineeringOnly:true,wholeProductionStack:true,authenticatedFixture:${Boolean(authenticated)},errors:window.__entryErrors,loginVisible:!document.getElementById('login-view').classList.contains('hidden'),dashboardVisible:!document.getElementById('dashboard-view').classList.contains('hidden'),homeVersion:root.dataset.homeEvidence,loadState:root.dataset.dashboardLoadState,sourceFailureVisible:!document.getElementById('home-banner').hidden&&document.getElementById('home-status').textContent.includes('中斷'),rows:document.querySelectorAll('[data-home-window]').length,modelWrites:window.__entryCalls.filter(c=>c.method!=='GET'||c.url.includes('/ask-gpt/ask')).length,sessionCalls:window.__entryCalls.filter(c=>c.url==='/api/session').length,idsUnique:[...document.querySelectorAll('[id]')].map(n=>n.id).length===new Set([...document.querySelectorAll('[id]')].map(n=>n.id)).size};out.textContent=JSON.stringify(result);document.body.append(out);})();`;
+ return html.replace('</head>',css.map(p=>'<style>'+read('public'+p)+'</style>').join('')+'</head>').replace('</body>',script(setup)+assets.map(script).join('')+script(check)+'</body>');
 }

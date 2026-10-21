@@ -2831,6 +2831,7 @@ function renderLiveMarketPulse(pulse) {
     terminalWrite(id, basisValue, { reason: basis.reason || 'BASIS_UNAVAILABLE', title: basisTitle });
     tone(id, basisReady ? points : 0);
   }
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadLiveMarketPulse() {
@@ -3536,6 +3537,8 @@ function renderHomeWorkspace() {
   const matches = Boolean(watch && chart && levelWatchIsFresh(watch) && levelWatchMatchesChart(watch, chart));
   return globalThis.HomeWorkspace.render($('decision-workspace'), {
     chart, watch, flow: lastObservedFlowValue,
+    flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY, selectedFlowWindow: observedFlowSelectedWindow,
+    pulse: state.marketPulse, leadership: state.indexLeadership,
     dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
     focusAllowed: matches && watch?.state === 'READY' && Boolean(watch?.nextWatch),
     rendered: state.txChartBarCount > 0,
@@ -3934,6 +3937,7 @@ function renderIndexLeadership(leadership) {
   if (trendLeadership) trendLeadership.textContent = value.state === 'LIVE'
     ? 'LIVE · DESCRIPTIVE'
     : value.runtimeActivationState === 'ENABLED' ? '等待日盤資料' : '來源尚未啟用';
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadIndexLeadership() {
@@ -5091,6 +5095,7 @@ function selectObservedFlowWindow(windowKey) {
   const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
   renderObservedFlowStrip(value, available);
   renderObservedFlowSelected(value, available, value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function selectChartTimeframe(timeframe) {
@@ -5103,20 +5108,20 @@ function selectChartTimeframe(timeframe) {
   loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
 }
 
-document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
-  const timeframe = button.dataset.chartTimeframe;
-  selectChartTimeframe(timeframe);
-  selectObservedFlowWindow(CHART_TO_FLOW_WINDOW[timeframe]);
-}));
-document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
-  const windowKey = button.dataset.flowWindow;
-  selectObservedFlowWindow(windowKey);
-  selectChartTimeframe(FLOW_TO_CHART_TIMEFRAME[windowKey]);
-}));
+function bindObservationControls() {
+  // K-line aggregation and rolling executed-flow windows are independent selections.
+  document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
+    selectChartTimeframe(button.dataset.chartTimeframe);
+  }));
+  document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
+    selectObservedFlowWindow(button.dataset.flowWindow);
+  }));
+}
+bindObservationControls();
 document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('keydown', (event) => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();
-  const tabs = [...document.querySelectorAll('[data-flow-window]')];
+  const tabs = [...document.querySelectorAll('[data-flow-window]')].filter(item => item.dataset.flowWindow !== 'tradingDay');
   const current = tabs.indexOf(button);
   const next = event.key === 'Home' ? 0
     : event.key === 'End' ? tabs.length - 1

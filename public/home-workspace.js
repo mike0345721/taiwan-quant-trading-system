@@ -16,8 +16,9 @@
     const chartFresh = chart?.mode === 'LIVE' && fresh(chart.availableAt, now) && identity(chart);
     const chartCurrent = hasChart && chartFresh && !chartError;
     const chartQualified = chartCurrent && chart.qualityStatus === 'PASS';
-    const flowCurrent = Boolean(flow?.sourceState === 'LIVE' && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now));
-    const flowQualified = flowCurrent && ['PASS', 'READY'].includes(flow.researchQuality?.status);
+    const flowCurrent = Boolean(['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
+      && (flow.source.validUntil == null || (Number.isFinite(time(flow.source.validUntil)) && time(flow.source.validUntil) >= now)));
+    const flowQualified = flowCurrent && flow.sourceState === 'LIVE' && ['PASS', 'READY'].includes(flow.researchQuality?.status);
     const mismatch = Boolean(chart && flow?.identity && identity(chart) && identity(flow.identity) && !same(chart, flow.identity));
     const watchFresh = Boolean(watch && fresh(watch.sourceAvailableAt, now) && same(chart, watch.identity));
     const blocking = Boolean(dashboardError || !chartQualified || !flowQualified || !watchFresh || mismatch);
@@ -60,6 +61,185 @@
       raw: [dashboardError, chartError, ...(chart?.qualityReasons || []), flowReason, watch?.reason, ...(watch?.evidenceGate?.reasonCodes || [])].filter(Boolean).map(String).join('\n'),
     });
   }
+  // Preview 02 projects existing contracts only; never invents signals or missing values.
+  function flowRows({ chart = null, flow = null, flowDefinitions = [], now = Date.now() } = {}) {
+    const expires = flow?.source?.validUntil;
+    const transport = ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
+      && identity(flow?.identity) && fresh(flow?.source?.availableAt, now)
+      && (expires == null || (Number.isFinite(time(expires)) && time(expires) >= now));
+    const comparable = chart?.mode === 'LIVE' && same(chart, flow?.identity);
+    const rawState = ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT'];
+    return flowDefinitions.filter(d => d.data === 'GOVERNED').map(d => {
+      const w = flow?.windows?.[d.source], p = w?.pressure || {};
+      const reason = !transport ? (flow?.unavailableReason || 'FLOW_NOT_CURRENT')
+        : !comparable ? 'FLOW_CHART_IDENTITY_OR_MODE_MISMATCH'
+          : !w ? 'WINDOW_MISSING'
+            : w.truthState === 'WARMING_UP' ? 'WINDOW_WARMING_UP'
+              : ![null, undefined, 'LIVE'].includes(w.truthState) || !rawState.includes(w.status) ? (w.unavailableReason || 'WINDOW_UNAVAILABLE') : null;
+      const available = !reason;
+      const pressureAvailable = available && rawState.includes(p.status);
+      const bounded = (v, min, max) => number(v) != null && v >= min && v <= max ? v : null;
+      const quantity = v => number(v) != null && v >= 0 ? v : null;
+      const ratio = pressureAvailable ? bounded(p.pressureRatio, -1, 1) : null;
+      const coverage = available ? bounded(p.classifiedCoverage, 0, 1) : null;
+      const response = available && rawState.includes(w.response?.status) ? number(w.response.displacementPoints) : null;
+      const efficiency = available && w.pathEfficiency?.status === 'READY' ? bounded(w.pathEfficiency.value, 0, 1) : null;
+      const qualified = available && w.status === 'READY' && p.status === 'READY' && coverage === 1
+        && ratio != null && response != null && efficiency != null;
+      const directional = available && flow.sourceState === 'LIVE' && p.status === 'READY' && coverage === 1 && ratio != null;
+      return Object.freeze({ key: d.key, label: d.label, available, qualified,
+        state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
+        reason: reason || p.unavailableReason || w.pathEfficiency?.unavailableReason || (qualified ? null : 'WINDOW_FIELDS_LIMITED'),
+        ratio, net: pressureAvailable ? number(p.netAggressiveFlowProxy) : null, response, efficiency, coverage,
+        buy: pressureAvailable ? quantity(p.buyProxyVolume) : null,
+        sell: pressureAvailable ? quantity(p.sellProxyVolume) : null,
+        unknown: pressureAvailable ? quantity(p.unknownVolume) : null,
+        total: pressureAvailable ? quantity(p.totalExecutedVolume) : null,
+        side: directional ? ({ BUY_SIDE: '偏買方', SELL_SIDE: '偏賣方', BALANCED: '均衡' })[p.direction] || '分類受限' : '不作方向判定',
+        sourceTime: flow?.source?.availableAt || null,
+      });
+    });
+  }
+
+  function marketContext({ chart = null, pulse = null, leadership = null, now = Date.now() } = {}) {
+    const night = chart?.session === 'NIGHT';
+    const pulseCurrent = chart?.mode === 'LIVE' && pulse?.schemaVersion === 'market-pulse-live-v1'
+      && same(chart, pulse.identity) && fresh(pulse.generatedAt, now) && fresh(pulse.sourceAvailableAt, now);
+    const basis = pulse?.basis || {};
+    const basisReady = pulseCurrent && basis.state === (night ? 'SESSION_CLOSED_REFERENCE' : 'LIVE') && number(basis.points) != null;
+    const rvol = pulse?.rvol || {};
+    const rvolReady = pulseCurrent && rvol.state === 'READY' && number(rvol.ratio) != null && rvol.ratio >= 0;
+    const l = leadership || {};
+    const dated = typeof l.sourceTradeDate === 'string' && /^\d{4}-\d\d-\d\d$/.test(l.sourceTradeDate)
+      && Number.isFinite(time(l.lastAvailableAt)) && time(l.lastAvailableAt) <= now + 5000;
+    const dayLive = chart?.mode === 'LIVE' && !night && l.state === 'LIVE' && l.sourceMode === 'LIVE_RAW'
+      && dated && l.sourceTradeDate === chart.tradeDate && fresh(l.lastAvailableAt, now);
+    const closed = chart?.mode === 'LIVE' && dated && identity(chart) && l.sourceTradeDate <= chart.tradeDate
+      && l.state === 'SESSION_CLOSED' && l.sourceMode === 'EOD_CONTEXT';
+    const leadershipUsable = l.indexCode === 'IX0001' && l.session === 'DAY' && l.quality === 'PASS' && (dayLive || closed);
+    return Object.freeze({ night, basisReady, rvolReady,
+      basisLabel: night ? '夜盤對現貨收盤差' : '期現貨差',
+      basis: basisReady ? basis.points : null, spot: basisReady ? number(basis.spotPrice) : null,
+      spotDate: basisReady ? basis.spotTradeDate || null : null,
+      basisReason: basisReady ? null : basis.reason || 'BASIS_NOT_CURRENT_OR_IDENTITY_MISMATCH',
+      rvol: rvolReady ? rvol.ratio : null,
+      rvolDetail: rvolReady ? '已完成5分K · 樣本 ' + (number(rvol.sampleDays) ?? '未知') + ' 日' : '基準／來源尚未合格',
+      sourceTime: pulseCurrent ? pulse.sourceAvailableAt : null,
+      leadershipUsable, leadershipMode: dayLive && leadershipUsable ? '日盤即時貢獻' : closed && leadershipUsable ? '已收盤背景・非即時' : '指數貢獻暫不可用',
+      leadershipDate: dated ? l.sourceTradeDate : null, leadershipTime: dated ? l.lastAvailableAt : null,
+      leadershipReason: leadershipUsable ? null : l.reasonCode || l.reason || 'LEADERSHIP_QUALITY_OR_TIME_UNAVAILABLE',
+      leaders: leadershipUsable && Array.isArray(l.indexLeadership?.topAbsolute)
+        ? l.indexLeadership.topAbsolute.filter(row => number(row.points) != null).slice(0, 3).map(row => ({
+          name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : '名稱未提供', points: row.points,
+        })) : [],
+    });
+  }
+
+  const metricText = (value, digits = 0, signed = false) => number(value) == null ? '—'
+    : (signed && value > 0 ? '+' : '') + value.toLocaleString('zh-TW', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+  function mountEvidence(root) {
+    if (root.dataset.homeEvidence === '2') return;
+    root.dataset.homeEvidence = '2';
+    const primary = root.querySelector('.tt-primary-grid'), observations = root.querySelector('.tt-flow-overview');
+    if (primary && observations) primary.append(observations);
+    const flow = root.querySelector('.dw-observed-flow'), details = root.querySelector('#home-flow-details');
+    if (flow && details) {
+      const oldSelected = root.querySelector('#dw-flow-selected-detail'); if (oldSelected) details.append(oldSelected);
+      const heading = flow.querySelector('.home-flow-heading h3'); if (heading) heading.textContent = '六時窗成交觀測';
+      const wrapper = el('div', 'home-comparison', null, 'home-flow-comparison');
+      const table = el('table', 'home-flow-table'); table.setAttribute('aria-label', '六時窗成交觀測比較');
+      const caption = el('caption', '', '滾動成交觀察窗，與K線聚合週期分開；重疊時窗不是獨立投票。');
+      const thead = el('thead'), hr = el('tr');
+      for (const [label, cls] of [['時窗',''],['成交壓力',''],['淨差','home-net-col'],['價格反應',''],['路徑效率','home-path-col'],['分類覆蓋','home-coverage-col'],['狀態','']]) {
+        const th = el('th', cls, label); th.scope = 'col'; hr.append(th);
+      }
+      thead.append(hr); const body = el('tbody');
+      for (const button of [...root.querySelectorAll('[data-flow-window]')]) {
+        const key = button.dataset.flowWindow; if (key === 'tradingDay') continue;
+        const row = el('tr'); row.dataset.homeWindow = key;
+        const cell = el('th'); cell.scope = 'row';
+        button.removeAttribute('role'); button.setAttribute('aria-controls', 'home-flow-selection'); button.tabIndex = 0;
+        cell.append(button); row.append(cell);
+        for (const [field, cls] of [['pressure',''],['net','home-net-col'],['response',''],['path','home-path-col'],['coverage','home-coverage-col'],['state','']]) {
+          const td = el('td', cls, '—'); td.dataset.homeField = field; row.append(td);
+        }
+        row.addEventListener('click', event => { if (!event.target.closest('button')) button.click(); }); body.append(row);
+      }
+      table.append(caption, thead, body); wrapper.append(table); details.before(wrapper);
+      const selection = el('section', 'home-flow-selection', null, 'home-flow-selection');
+      selection.setAttribute('aria-label', '所選成交觀察窗的原始量與限制');
+      selection.append(el('strong', '', '近5分・成交觀察窗', 'home-flow-selection-title'));
+      const facts = el('dl', 'home-flow-facts');
+      for (const [key,label] of [['buy','買方代理量'],['sell','賣方代理量'],['unknown','未知分類量'],['total','已收成交量'],['net','淨差'],['response','價格反應'],['path','路徑效率'],['coverage','分類覆蓋']]) {
+        const field = el('div'); field.append(el('dt', '', label), el('dd', '', '—', 'home-flow-' + key)); facts.append(field);
+      }
+      selection.append(facts, el('p', 'home-flow-selection-note', '等待來源。', 'home-flow-selection-note'));
+      details.before(selection); details.querySelector('summary').textContent = '所選時窗方法、來源與完整研究證據';
+      const strip = root.querySelector('#dw-flow-window-strip'); if (strip) strip.setAttribute('aria-label', '未開放的觀察範圍');
+    }
+    const rail = root.querySelector('.tt-tier-one-grid');
+    if (rail) {
+      const context = el('section', 'dw-card home-market-context', null, 'home-related-market');
+      context.setAttribute('aria-labelledby', 'home-market-title');
+      context.append(el('h3', '', '相關市場', 'home-market-title'), el('p', 'home-context-mode', '依各來源時間獨立呈現', 'home-context-mode'));
+      const grid = el('dl', 'home-context-values');
+      for (const [key,label] of [['spot','現貨參考'],['basis','期現貨差'],['rvol','相對量']]) {
+        const row = el('div'); row.append(el('dt', '', label, 'home-context-'+key+'-label'), el('dd', '', '—', 'home-context-'+key)); grid.append(row);
+      }
+      context.append(grid, el('p', 'home-context-source', '', 'home-context-source'));
+      const breadth = root.querySelector('#dw-pulse-breadth')?.closest('article');
+      if (breadth) { breadth.hidden = false; breadth.classList.add('home-context-breadth'); context.append(breadth); }
+      context.append(el('p', 'home-context-source', '廣度依下列來源日期，非一定與期貨同步。', 'home-breadth-note'));
+      context.append(el('strong', 'home-context-heading', '指數貢獻', 'home-leadership-mode'), el('div', 'home-leader-rows', null, 'home-leader-rows'), el('p', 'home-context-source', '', 'home-leadership-source'));
+      const link = el('button', 'home-link', '完整來源與相關市場資料'); link.type = 'button';
+      link.addEventListener('click', () => { const background = root.querySelector('.tt-context-section'); if (background) { background.open = true; background.scrollIntoView({ block: 'start' }); background.querySelector('summary')?.focus({ preventScroll: true }); } });
+      context.append(link); rail.append(context);
+    }
+  }
+
+  function renderEvidence(root, input) {
+    const rows = flowRows(input), selected = input.selectedFlowWindow || '5m';
+    for (const value of rows) {
+      const row = [...root.querySelectorAll('[data-home-window]')].find(n => n.dataset.homeWindow === value.key); if (!row) continue;
+      row.classList.toggle('is-selected', value.key === selected); row.dataset.state = value.available ? (value.qualified ? 'ready' : 'limited') : 'unavailable';
+      const button = row.querySelector('button'); if (button) { button.tabIndex = 0; button.setAttribute('aria-pressed', String(value.key === selected)); button.removeAttribute('aria-selected'); }
+      const values = { pressure: metricText(value.ratio, 3, true), net: metricText(value.net, 0, true), response: value.response == null ? '—' : metricText(value.response, 0, true) + ' 點', path: metricText(value.efficiency, 3), coverage: value.coverage == null ? '—' : metricText(value.coverage * 100, 1) + '%', state: value.state };
+      for (const [field, label] of Object.entries(values)) {
+        const cell = row.querySelector('[data-home-field="'+field+'"]'); if (!cell) continue;
+        cell.textContent = label; cell.title = field === 'pressure' ? value.side : value.reason || '';
+      }
+      row.title = value.label + ' · ' + value.state + ' · ' + (value.reason || '描述性觀測') + ' · ' + stamp(value.sourceTime);
+    }
+    const value = rows.find(row => row.key === selected);
+    text('home-flow-selection-title', value ? '近' + value.label + '・成交觀察窗' : '觀察範圍尚未開放');
+    for (const key of ['buy','sell','unknown','total','net','response','path','coverage']) {
+      const v = key === 'path' ? value?.efficiency : value?.[key];
+      text('home-flow-'+key, key === 'coverage' ? number(v) == null ? '—' : metricText(v * 100, 1) + '%' : metricText(v, key === 'path' ? 3 : 0, ['net','response'].includes(key)) + (key === 'response' && number(v) != null ? ' 點' : ''));
+    }
+    text('home-flow-selection-note', (value ? value.state + ' · ' + value.side + ' · ' + stamp(value.sourceTime) : '本交易日語意尚未開放。') + '；分類覆蓋不等於收集完整率。');
+    const context = marketContext(input);
+    text('home-context-mode', context.night ? '夜盤・現貨收盤背景，非同步即時現貨' : '日盤・每項依來源時間與品質呈現');
+    text('home-context-spot-label', context.night ? '現貨收盤參考' : '現貨指數');
+    text('home-context-basis-label', context.basisLabel);
+    text('home-context-spot', metricText(context.spot, 2));
+    text('home-context-basis', context.basis == null ? '—' : metricText(context.basis, 2, true) + ' 點');
+    text('home-context-rvol', context.rvol == null ? '—' : metricText(context.rvol, 2) + '×');
+    text('home-context-source', (context.sourceTime ? '期貨來源 ' + stamp(context.sourceTime) : '期現／相對量暫無合格資料') + (context.spotDate ? ' · 現貨資料日 ' + context.spotDate : '') + ' · ' + context.rvolDetail);
+    const market = root.querySelector('#home-related-market');
+    if (market) market.title = [context.basisReason, context.leadershipReason].filter(Boolean).join(' · ');
+    const breadth = root.querySelector('.home-context-breadth');
+    if (breadth) breadth.hidden = Boolean(input.dashboardError || input.chart?.mode !== 'LIVE');
+    text('home-breadth-note', input.dashboardError ? '廣度背景更新中斷，原始狀態見資料詳情。' : '廣度依其來源日期，不保證與期貨同步。');
+    text('home-leadership-mode', context.leadershipMode);
+    const leaders = root.querySelector('#home-leader-rows');
+    if (leaders) {
+      const items = context.leaders.map(row => { const item = el('div'); item.append(el('span', '', row.name), el('strong', '', metricText(row.points, 2, true) + ' 點')); return item; });
+      leaders.replaceChildren(...(items.length ? items : [el('p', '', '沒有可呈現的合格貢獻資料。')]));
+    }
+    text('home-leadership-source', context.leadershipDate ? context.leadershipDate + ' · ' + stamp(context.leadershipTime) + ' · 描述性資料，非方向確認' : '來源日期未知，不補造股票或貢獻值。');
+  }
+
   const el = (tag, className, text, id) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; if (id) n.id = id; return n; };
   const text = (id, value) => { const n = document.getElementById(id); if (n && n.textContent !== String(value)) n.textContent = String(value); };
   function disclosure(id, label, className = '') { const n = el('details', className, null, id); n.append(el('summary', '', label)); return n; }
@@ -184,6 +364,7 @@
     const topPrice = document.getElementById('tt-top-price'); if (topPrice) topPrice.before(el('small', 'home-price-caption', '成交價', 'home-price-caption'));
     const recency = document.getElementById('tt-top-updated')?.previousElementSibling; if (recency) recency.textContent = '資料時間';
     const chartTitle = root.querySelector('#tt-chart-title') || root.querySelector('.dw-chart-header h2'); if (chartTitle) chartTitle.textContent = '決策圖表';
+    mountEvidence(root);
     aiSummary();
   }
 
@@ -222,7 +403,8 @@
     const trust = document.getElementById('tt-top-trust'); if (trust) trust.className = 'dw-status-pill home-trust';
     for (const id of ['dw-chart-quality', 'dw-chart-available-at']) text(id, id.endsWith('quality') ? (view.chartQualified ? '資料合格' : '資料受限／未確認') : view.chartTime);
     // Original technical values stay available in their existing detail containers.
+    renderEvidence(root, input);
     aiSummary(); return view;
   }
-  global.HomeWorkspace = Object.freeze({ derive, mount, render, aiSummary });
+  global.HomeWorkspace = Object.freeze({ derive, flowRows, marketContext, mount, render, aiSummary });
 })(window);
