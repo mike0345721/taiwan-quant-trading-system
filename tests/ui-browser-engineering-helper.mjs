@@ -32,10 +32,10 @@ export async function inspectEngineeringDocument({binary,html,width,height=1000,
   let result;const end=Date.now()+10000;
   while(Date.now()<end){const r=await send('Runtime.evaluate',{expression:"document.getElementById('ui-convergence-test-result')?.textContent || ''",returnByValue:true});if(r.result?.value){result=JSON.parse(r.result.value);break;}await wait(100);}
   if(!result)throw Error('BROWSER_LAYOUT_RESULT_MISSING '+stderr);
-  if(evidenceDir){fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.json'),JSON.stringify(result,null,2)+'\n');
-   await send('Runtime.evaluate',{expression:"document.querySelector('.tt-context-section').open=false;document.querySelector('.tt-copy-fallback').open=false;document.getElementById('ai-settings').open=false;window.scrollTo(0,0);"});
+  if(evidenceDir){fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.json'),JSON.stringify(result,null,2)+'\n');fs.writeFileSync(path.join(evidenceDir,'preview-'+width+'.html'),html);
+   await send('Runtime.evaluate',{expression:"document.querySelector('.tt-context-section').open=false;document.querySelector('.tt-copy-fallback').open=false;document.getElementById('ai-settings').open=false;if(document.getElementById('home-ai'))document.getElementById('home-ai').open=false;window.scrollTo(0,0);"});
    const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.png'),Buffer.from(shot.data,'base64'));
-   await send('Runtime.evaluate',{expression:"document.getElementById('ai-inline').scrollIntoView({block:'start'});"});
+   await send('Runtime.evaluate',{expression:"if(document.getElementById('home-ai'))document.getElementById('home-ai').open=true;document.getElementById('ai-inline').scrollIntoView({block:'start'});"});
    const consent=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(evidenceDir,'consent-'+width+'.png'),Buffer.from(consent.data,'base64'));
   }
   return result;

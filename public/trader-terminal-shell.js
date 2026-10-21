@@ -735,6 +735,7 @@
     focus.append(summary, primary, observations, aiWorkspace, background, progressive);
     bindDrawer(root);
     bindChartControls(root);
+    global.HomeWorkspace?.mount(root);
     return root;
   }
 

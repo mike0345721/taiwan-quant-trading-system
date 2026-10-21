@@ -3374,6 +3374,7 @@ function renderObservedFlow(flow) {
   terminalWrite('dw-observed-flow-promotion', '尚未通過正式方向驗證', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
   renderObservedFlowDetail(value);
   window.TraderTerminalShell?.refreshDrawer(traderTerminalRoot, '[data-terminal-card="observed-flow"]');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function terminalSetTrust(cardKey, evidence) {
@@ -3438,7 +3439,8 @@ function terminalWrite(id, value, { reason = 'SOURCE_UNAVAILABLE', title = null 
   const node = $(id);
   if (!node) return;
   const available = value != null && value !== '' && value !== '—' && value !== 'UNAVAILABLE';
-  node.textContent = available ? String(value) : terminalUnavailable(reason);
+  const homeMetric = $('decision-workspace')?.dataset?.homeVersion === '1' && ['tt-top-price', 'tt-top-volume', 'tt-top-change', 'dw-rvol-state', 'dw-vwap-state', 'dw-session-levels'].includes(id);
+  node.textContent = available ? String(value) : homeMetric ? '—' : terminalUnavailable(reason);
   node.classList.toggle('is-unavailable', !available);
   const context = title || (available ? String(value) : reason);
   node.title = context;
@@ -3528,6 +3530,18 @@ function renderGlobalTiles(evidence) {
   }
 }
 
+function renderHomeWorkspace() {
+  if (!globalThis.HomeWorkspace || !$('decision-workspace')?.dataset?.homeVersion) return null;
+  const watch = state.levelWatch, chart = state.txChartPayload;
+  const matches = Boolean(watch && chart && levelWatchIsFresh(watch) && levelWatchMatchesChart(watch, chart));
+  return globalThis.HomeWorkspace.render($('decision-workspace'), {
+    chart, watch, flow: lastObservedFlowValue,
+    dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
+    focusAllowed: matches && watch?.state === 'READY' && Boolean(watch?.nextWatch),
+    rendered: state.txChartBarCount > 0,
+  });
+}
+
 function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace?.globalStatus?.dataHealth) {
   const sourceTime = Date.parse(chart?.availableAt || '');
   const sourceTimeKnown = Number.isFinite(sourceTime);
@@ -3543,6 +3557,7 @@ function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace
   if (topTrust) topTrust.className = `dw-status-pill ${warning ? 'is-unavailable' : healthTone(quality || 'UNAVAILABLE')}`;
   const mode = `${chart?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${chart?.timeframe || state.txChartTimeframe} · READ ONLY`;
   dwText('dw-chart-mode', warning ? `${warning} · ${sourceLabel} · ${mode}` : mode);
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function renderTerminalShell(workspace, chart = state.txChartPayload) {
@@ -3782,6 +3797,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   }
   const riskSeriesLabel = $('tt-risk-series')?.previousElementSibling;
   if (riskSeriesLabel) riskSeriesLabel.textContent = 'Risk Trend · RESEARCH_PENDING';
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
@@ -3790,6 +3806,14 @@ function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
   const unavailable = terminalUnavailable(reason);
   root.setAttribute('data-dashboard-load-state', 'UNAVAILABLE');
   root.setAttribute('aria-busy', 'false');
+  if (root.dataset.homeVersion === '1' && globalThis.HomeWorkspace) {
+    state.homeDashboardError = reason;
+    for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
+      const button = $(id); if (button) { button.disabled = true; button.setAttribute('aria-disabled', 'true'); }
+    }
+    renderHomeWorkspace();
+    return; // Never replace every label, number and account summary with one raw error.
+  }
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -4331,6 +4355,7 @@ function renderDecisionLevelWatch(levelWatch) {
     dwText('dw-next-watch-response', explanation?.summary || '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
+    if (globalThis.HomeWorkspace) renderHomeWorkspace();
     return;
   }
   const scenario = levelWatch?.scenarioWatch || null;
@@ -4350,6 +4375,7 @@ function renderDecisionLevelWatch(levelWatch) {
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
   dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadDecisionLevelWatch() {
@@ -4770,6 +4796,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   $('dw-chart-status').className = `dw-status-pill ${visibleRenderReady && payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
   $('dw-chart-empty').classList.toggle('hidden', visibleRenderReady);
   dwText('dw-chart-empty-reason', dwHumanize(visibleFailureReason));
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
@@ -4785,9 +4812,12 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   try {
     const payload = await api(`/api/v1/tx-chart?${params}`);
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    state.homeChartError = null;
     renderTxDecisionChart(payload.data, { fit });
   } catch (error) {
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    state.homeChartError = error?.message || 'CHART_REFRESH_FAILED';
+    if (globalThis.HomeWorkspace) renderHomeWorkspace();
     throw error;
   } finally {
     state.txChartLoading = false;
@@ -4813,6 +4843,7 @@ async function reportCru46BrowserRuntimeProof() {
   const flow = lastObservedFlowValue;
   const visible = (element) => Boolean(element && element.offsetParent !== null && element.getClientRects().length);
   const chartStatus = $('dw-chart-status');
+  const homeView = globalThis.HomeWorkspace ? renderHomeWorkspace() : null;
   const flow1m = $('dw-flow-tab-1m');
   const flow5m = $('dw-flow-tab-5m');
   const flow15m = $('dw-flow-tab-15m');
@@ -4826,7 +4857,9 @@ async function reportCru46BrowserRuntimeProof() {
     chartHeight: Math.round(rect?.height || 0),
     candleCount: state.txChartBarCount,
     volumeCount: state.txChartVolumeCount,
-    chartStatusVisible: visible(chartStatus) && chartStatus?.textContent === state.txChartPayload?.status,
+    chartStatusVisible: visible(chartStatus) && (homeView
+      ? homeView.chartCurrent && chartStatus?.dataset.sourceStatus === state.txChartPayload?.status && chartStatus?.textContent === homeView.chartLabel
+      : chartStatus?.textContent === state.txChartPayload?.status),
     observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE' && visible(flow1m)),
     observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE' && visible(flow5m)),
     observedFlow15m: Boolean(flow?.windows?.window900s
@@ -4987,16 +5020,21 @@ async function loadDashboard() {
   if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
   const payload = await api('/api/v1/dashboard');
   if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
+  state.homeDashboardError = null;
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
-  await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+  await loadTxDecisionChart({ fit: true }).catch((error) => {
+    if (!globalThis.HomeWorkspace || !state.txChartPayload) renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} });
+    else renderHomeWorkspace();
+  });
   await loadLiveMarketPulse().catch(() => {});
   if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
   if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
   terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
@@ -5005,6 +5043,7 @@ function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
   box.className = 'alert bad';
   box.dataset.dashboardLoadError = 'true';
   box.textContent = `Dashboard data unavailable · ${context} · ${message}`;
+  if ($('decision-workspace')?.dataset?.homeVersion === '1') box.hidden = true; // Same error is visible in the home status + technical details.
   $('alert-area')?.replaceChildren(box);
   renderTerminalDashboardFailure(`${context}:${message}`);
   console.error(`[${context}] ${message}`);
@@ -5017,6 +5056,7 @@ document.querySelectorAll('#v2-range-controls button').forEach((button) => butto
 }));
 
 document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.addEventListener('click', () => setDashboardPage(button.dataset.dashboardPage)));
+if (!$('home-nav-toggle')) { // Home navigation has one owner; legacy layouts retain their original handler.
 const sidebarPreferenceKey = 'twchip.dashboard.sidebarCollapsed.v1';
 function setSidebarCollapsed(collapsed, { persist = false } = {}) {
   const layout = document.querySelector('.workspace-layout');
@@ -5038,6 +5078,7 @@ $('side-nav-toggle')?.addEventListener('click', () => {
   const collapsed = !document.querySelector('.workspace-layout')?.classList.contains('is-nav-collapsed');
   setSidebarCollapsed(collapsed, { persist: true });
 });
+}
 document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventListener('click', () => {
   const mode = button.dataset.dwMode;
   document.querySelectorAll('[data-dw-mode]').forEach((item) => item.classList.toggle('is-selected', item === button));

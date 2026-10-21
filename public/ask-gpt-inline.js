@@ -14,6 +14,7 @@
   $('ai-connect').disabled=busy||!enabled||!csrf;$('ai-refresh').disabled=busy;
   for(const id of ['ai-account','ai-model','ai-question','ai-credits'])$(id).disabled=busy||!enabled;
   $('ai-cancel').disabled=!busy||!requestId;$('ai-inline').setAttribute('aria-busy',String(busy));
+  window.HomeWorkspace?.aiSummary();
  }
  async function session(){const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10000)});const d=await r.json();if(!d.authenticated)throw Error('AUTH_REQUIRED');csrf=d.csrfToken;}
  async function api(route,body){

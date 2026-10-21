@@ -4,7 +4,7 @@ import { performance } from 'node:perf_hooks';
 export const GUEST_BRANCH = 'codex/cru21-decision-quality-p0-20261016';
 export const GUEST_ORIGIN = 'http://127.0.0.1:18722';
 export const GUEST_APIS = new Set(['/api/session','/healthz','/api/v1/dashboard','/api/v1/tx-chart','/api/v1/decision-level-watch','/api/v1/observed-flow','/api/v1/market-pulse','/api/v1/index-leadership']);
-export const GUEST_ASSETS = new Set(['/','/index.html','/app.js','/styles.css','/trader-terminal-shell.js','/trader-terminal-shell.css','/observed-flow-refresh.js','/data-operations.js','/data-operations.css','/ask-gpt-inline.css','/ask-gpt-inline.js','/vendor/lightweight-charts.js']);
+export const GUEST_ASSETS = new Set(['/','/index.html','/app.js','/styles.css','/trader-terminal-shell.js','/trader-terminal-shell.css','/observed-flow-refresh.js','/data-operations.js','/data-operations.css','/ask-gpt-inline.css','/ask-gpt-inline.js','/home-workspace.css','/home-workspace.js','/vendor/lightweight-charts.js']);
 const sha = s => typeof s === 'string' && /^[a-f0-9]{40}$/.test(s);
 export function guestRequested(env=process.env) {
  if (env.CRU21_GUEST_ENABLED && !['0','1'].includes(env.CRU21_GUEST_ENABLED)) throw Error('GUEST_FLAG_INVALID');
