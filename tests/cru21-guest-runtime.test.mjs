@@ -7,6 +7,7 @@ import { spawn,spawnSync,execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { ownedBrowserWaitState, sanitizedBrowserStderr } from './browser-startup-diagnostics.mjs';
 import { approvedGuestPaths,GUEST_BRANCH } from '../src/cru21-guest-guard.mjs';
 import { hashPassword } from '../src/security.mjs';
 import { createGuestReader } from '../src/cru21-guest-reader.mjs';
@@ -231,12 +232,13 @@ globalThis.fetch=async(url,opt)=>{if(!/^http:\\/\\/127\\.0\\.0\\.1:8790\\/(healt
   await t.test('real Chromium loads actual production workspace through guest HTTP without login or write/AI calls',{skip:!fs.existsSync('/usr/bin/chromium'),timeout:12000},async(browserTest)=>{
    const browser=spawn('/usr/bin/chromium',['--headless=new','--no-sandbox','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-pipe','--user-data-dir='+path.join(temp,'browser-profile'),'about:blank'],{stdio:['ignore','ignore','pipe','pipe','pipe']});
    // Only classify stderr; never print browser output, URLs, profiles or environment.
-   const stderrClasses=new Set();let stderrBytes=0;
-   browser.stderr.on('data',chunk=>{stderrBytes+=chunk.length;const text=chunk.toString('utf8');for(const category of ['dbus','gpu','network','sandbox','zygote','crash','error'])if(text.toLowerCase().includes(category))stderrClasses.add(category);});
+   const stderrClasses=new Set();let stderrBytes=0,stderrTail='';
+   browser.stderr.on('data',chunk=>{stderrBytes+=chunk.length;const text=chunk.toString('utf8');stderrTail=(stderrTail+text).slice(-8000);for(const category of ['dbus','gpu','network','sandbox','zygote','crash','error'])if(text.toLowerCase().includes(category))stderrClasses.add(category);});
    const pipe=connectPipeCdp(browser,{signal:browserTest.signal});
    let cleanup,diagnosticTimer;
+   const startupProbe=setTimeout(()=>process.stderr.write('GUEST_OWNED_WAIT '+JSON.stringify(ownedBrowserWaitState(browser))+'\n'),2000);startupProbe.unref();
    const report=(stage,fields)=>process.stderr.write('GUEST_BROWSER '+JSON.stringify({stage,...fields})+'\n');
-   const close=()=>cleanup||=(async()=>{clearTimeout(diagnosticTimer);pipe.close();await stopOwnedBrowser(browser);report('stderr-summary',{bytes:stderrBytes,categories:[...stderrClasses].sort()});})();
+   const close=()=>cleanup||=(async()=>{clearTimeout(diagnosticTimer);clearTimeout(startupProbe);report('pre-close-owned',ownedBrowserWaitState(browser));pipe.close();await stopOwnedBrowser(browser);report('stderr-summary',{bytes:stderrBytes,categories:[...stderrClasses].sort(),sanitizedTail:sanitizedBrowserStderr(stderrTail,temp)});})();
    browserTest.after(close);
    try{
     const version=await pipe.command('Browser.getVersion');report('version',{product:version.product,protocolVersion:version.protocolVersion});

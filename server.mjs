@@ -38,6 +38,7 @@ import {
   buildIntegrationPreviewVersion,
   CRU44_PRODUCT_SURFACE_CONTRACT,
   CRU46_PRODUCT_SURFACE_CONTRACT,
+  selectDashboardProductSurface,
   validateCru44PreviewVersionTruth,
   validateIntegrationPreviewVersionTruth,
 } from './src/dashboard-integration-contract.mjs';
@@ -156,7 +157,10 @@ const cru21IdentityOptions = cru21PreviewEnabled ? {
 } : null;
 if (cru21PreviewEnabled && !validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions).ready) throw Error('CRU21_PREVIEW_STARTUP_REJECTED');
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
-const productSurfaceContract = cru44PreviewEnabled ? CRU44_PRODUCT_SURFACE_CONTRACT : defaultProductSurface.productSurface;
+const productSurfaceContract = selectDashboardProductSurface({
+  previewType: process.env.DASHBOARD_PREVIEW_TYPE,
+  actualBranch: cru21IdentityOptions?.actualBranch,
+});
 let lastRefreshError = null;
 let browserRuntimeProof = null;
 const isolatedBridge={connected:false,state:'UNAVAILABLE',reason:'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
