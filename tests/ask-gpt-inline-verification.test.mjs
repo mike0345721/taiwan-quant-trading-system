@@ -308,7 +308,7 @@ test('bounded context is deeply frozen and response contract uses only known fie
 
 function fixture(t, output, mode = 'completed') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-content-test-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
   let calls = 0;
   const config = { enabled: true, root, runtimeCommit: 'f80a8f9f596fd560883727f2ddbc6d9cf7e7c75b', now: () => now,
     snapshotProvider: async () => ({ snapshot: snapshot() }), storeFactory: () => ({}), configureTransport: () => {}, minIntervalMs: 0,
@@ -320,7 +320,13 @@ function fixture(t, output, mode = 'completed') {
     } },
   };
   const assistant = new InlineAssistant(config);
-  t.after(() => assistant.close());
+  t.after(async () => {
+    // Close the owned fixture first. Windows may briefly report a just-deleted
+    // child as ENOTEMPTY; bounded OS cleanup retries are not test retries.
+    await assistant.close();
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
+    assert.equal(fs.existsSync(root), false, 'owned fixture directory must be removed');
+  });
   const body = { requestId: randomUUID(), account: 'a'.repeat(64), model: 'synthetic', question: 'synthetic only', creditsDisabledConfirmed: true };
   return { assistant, config, body, calls: () => calls };
 }
