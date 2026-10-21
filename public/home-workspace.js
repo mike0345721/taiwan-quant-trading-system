@@ -87,6 +87,7 @@
       const qualified = available && w.status === 'READY' && p.status === 'READY' && coverage === 1
         && ratio != null && response != null && efficiency != null;
       const directional = available && flow.sourceState === 'LIVE' && p.status === 'READY' && coverage === 1 && ratio != null;
+      const side = !directional ? '不作方向判定' : ratio > 0 ? '偏買方' : ratio < 0 ? '偏賣方' : '均衡';
       return Object.freeze({ key: d.key, label: d.label, available, qualified,
         state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
         reason: reason || p.unavailableReason || w.pathEfficiency?.unavailableReason || (qualified ? null : 'WINDOW_FIELDS_LIMITED'),
@@ -95,7 +96,7 @@
         sell: pressureAvailable ? quantity(p.sellProxyVolume) : null,
         unknown: pressureAvailable ? quantity(p.unknownVolume) : null,
         total: pressureAvailable ? quantity(p.totalExecutedVolume) : null,
-        side: directional ? ({ BUY_SIDE: '偏買方', SELL_SIDE: '偏賣方', BALANCED: '均衡' })[p.direction] || '分類受限' : '不作方向判定',
+        side,
         sourceTime: flow?.source?.availableAt || null,
       });
     });
