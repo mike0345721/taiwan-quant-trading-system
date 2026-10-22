@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - codex/cru21-decision-quality-p0-20261016
+      - codex/cru21-microstructure-outcome-p1-20261022
 
 permissions:
   contents: read
