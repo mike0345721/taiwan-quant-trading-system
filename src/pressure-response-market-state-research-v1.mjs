@@ -61,8 +61,11 @@ function validSource(source,event,asOf,calendar,maxAgeMs) {
   if(!classification||classification.sessionId!==event.sessionId)return false;
   const time=evidenceTimestampMs(source.availableAt);
   const exchange=evidenceTimestampMs(source.exchangeTimestamp,{taipeiNaive:true});
-  return time!==null && exchange!==null && time<=asOf
-    && asOf-time<=maxAgeMs && Math.abs(time-exchange)<=maxAgeMs;
+  // Source must already have occurred when it was received and by decision as-of.
+  // Staleness limit cannot legalize evidence from the future.
+  return time!==null && exchange!==null && exchange<=time
+    && exchange<=asOf && time<=asOf
+    && asOf-time<=maxAgeMs && time-exchange<=maxAgeMs;
 }
 
 export function describeFlowPriceResponse({
@@ -73,6 +76,19 @@ export function describeFlowPriceResponse({
   if(!validSource(pressure,event,asOf,calendar,rules.maxAgeMs)
       ||!validSource(response,event,asOf,calendar,rules.maxAgeMs))
     return fail('FLOW_OR_RESPONSE_UNAVAILABLE_AS_OF');
+  // Pressure and response must describe the SAME governed interval and cutoff.
+  const pw=numericScalar(pressure.windowMs,{integer:true,positive:true});
+  const rw=numericScalar(response.windowMs,{integer:true,positive:true});
+  const ps=evidenceTimestampMs(pressure.windowStartAt);
+  const pe=evidenceTimestampMs(pressure.windowEndAt);
+  const rs=evidenceTimestampMs(response.windowStartAt);
+  const re=evidenceTimestampMs(response.windowEndAt);
+  const cutoff=pressure.cutoffLedgerOrdinal;
+  if(pw===null||pw!==rw||ps===null||pe===null||rs===null||re===null
+      ||ps!==rs||pe!==re||ps>=pe||pe>asOf||pe-ps!==pw
+      ||!Number.isSafeInteger(cutoff)||cutoff<=0
+      ||response.cutoffLedgerOrdinal!==cutoff)
+    return fail('FLOW_RESPONSE_WINDOW_OR_CUTOFF_MISMATCH');
   const ratio=numericScalar(pressure.pressureRatio),
     coverage=numericScalar(pressure.classifiedCoverage),
     displacement=numericScalar(response.displacementPoints),
@@ -98,6 +114,8 @@ export function describeFlowPriceResponse({
     observedPressureRatio:ratio,observedDisplacementPoints:displacement,
     observedPathEfficiency:efficiency,
     asOfAvailableAt:event.asOfAvailableAt,sourceQuality:'READY_AS_OF',
+    windowMs:pw,windowStartAt:pressure.windowStartAt,
+    windowEndAt:pressure.windowEndAt,cutoffLedgerOrdinal:cutoff,
     outcomeStatus:'PENDING',recommendation:false,formalWeight:0,researchOnly:true,
     executionAuthorized:false,orderRoutesEnabled:false,
   });

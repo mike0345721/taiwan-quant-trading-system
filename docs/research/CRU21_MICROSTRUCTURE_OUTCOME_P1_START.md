@@ -76,3 +76,17 @@ A read-only parse of the existing approved CRU34 producer snapshot reports LIVE,
 Price response and efficiency are READY in five shorter windows but their pressure is `QUALITY_INSUFFICIENT` due to `PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE`. The new Flow × Response gate **must refuse** declaring directional confirmation from these actual inputs. This is a concrete barrier to an OOS positive-EV claim, and will not be silently overridden.
 
 Research next before strategy: build full-day immutable BidAsk/tick continuity and as-of joins; source-resolved Flow classifications with timestamps; chronological future-label corpus (session cutoff/gaps/simtrade/rollover), frozen costs/entry/stop/target; validation/OOS/walk-forward; measure incremental improvement of L5 against Flow-only, then forward paper. `formalWeight=0`, `executionAuthorized=false` remain.
+
+## 2026-10-22 P1 exact-head independent review and as-of join audit
+
+CI #304 on `d5692028e1a618fb6ef6a21c685891a4bff0540c` passed **1,453 tests, 0 failures, 9 existing skips**, but an independent review surfaced three material time/window defects in newly authored research-only modules. They were not waived:
+
+- A source exchange timestamp after its receipt was previously accepted when its difference was below `maxAgeMs`: strict chronology now requires `exchangeTime <= receivedAt <= decisionAsOf`.
+- Pressure and Price Response now **must** declare matching `windowMs`, `windowStartAt`, `windowEndAt`, and the same positive `cutoffLedgerOrdinal`; window length and end-before-as-of are verified and the matched window identity is retained in the candidate.
+- Higher-resolution ticks may legitimately share a millisecond. The separate lower-bound path observer now preserves submillisecond precision; identical exact source timestamps are allowed only with distinct ledger IDs in chronological receipt order. Missing IDs or duplicate IDs fail closed. This still does NOT certify full-horizon MFE/MAE or PnL.
+
+New deterministic tests cover future-source/old-receipt, 1-minute-vs-4-hour false alignment, distinct sub-ms ticks / tied exact timestamps, and reference/identity tampering. Synthetic thresholds remain uncalibrated and cannot be promoted.
+
+**Bounded original-ledger as-of join audit** on the 2026-10-22 TX DAY original immutable `live-events` (sample time 13:08 Taiwan): three disjoint **12 MiB** head/middle/tail regions, 3,882 eligible TX BidAsk quote events and **800 sampled TX ticks**. Within these windows all **800/800 ticks** were joined to a preceding eligible same-contract/same-governed-session quote by append order, receipt `quote.availableAt <= tick.receivedAt` and quote age <=5 seconds; 0 observed missing-prefix/stale/future quote/cross-session/gap flags. Quote age median by window 5ms / 101ms / 121ms, P95 135ms / 135ms / 251ms. Private immutable audit report SHA256 `16520cd1f42ae745abfa683cb68c2730f8ff6b281f8b746e5de9e13a76aab2a6`, private gitignored path `data/research-microstructure-outcome-20261022-p1-evidence/bounded-l5-tick-asof-alignment.json`.
+
+**Interpretation:** Samples show L5 fields and as-of quote→tick joins are technically feasible *without a new collector*. They do **not** establish unsampled gaps, a full session capture, alignment to historical `Flow` aggregate windows, statistical forecast gains, slippage costs, EV or external execution rights. The actual 13:04 CRU34 flow still had classified coverage <100%, so source qualification and forward corpus collection remain prerequisites.

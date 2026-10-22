@@ -34,6 +34,16 @@ export function evidenceTimestampMs(value,{taipeiNaive=false}={}) {
   // Do not trust Date.parse's normalization of an impossible clock/calendar tuple.
   return parsed;
 }
+export function evidenceTimestampNs(value,{taipeiNaive=false}={}) {
+  const whole=evidenceTimestampMs(value,{taipeiNaive});
+  if(whole===null)return null;
+  const match=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?/.exec(value);
+  if(!match)return null;
+  const fraction=match[1]??'';
+  const nanoFraction=BigInt(fraction.padEnd(9,'0')||'0');
+  return BigInt(whole)*1_000_000n + (nanoFraction%1_000_000n);
+}
+
 export function governedEventIdentity({exchangeTimestamp,calendar,tradeDate,session}={}) {
   const ms=evidenceTimestampMs(exchangeTimestamp,{taipeiNaive:true});
   if(ms===null||!calendar||typeof tradeDate!=='string'||typeof session!=='string'

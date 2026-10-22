@@ -24,7 +24,11 @@ const event=(kind)=>freezeOutcomeCandidate({
 const baseSource=()=>({
  status:'READY',actualContract:'TXFK6',tradeDate:'2026-10-22',session:'DAY',
  exchangeTimestamp:'2026-10-22T02:00:00.000Z',
- availableAt:'2026-10-22T02:00:00.300Z',
+  availableAt:'2026-10-22T02:00:00.300Z',
+  windowMs:60000,
+  windowStartAt:'2026-10-22T01:59:00.000Z',
+  windowEndAt:'2026-10-22T02:00:00.000Z',
+  cutoffLedgerOrdinal:1234,
 });
 const p=(ratio=.6)=>({...baseSource(),pressureRatio:ratio,classifiedCoverage:1});
 const a=(move=5,eff=.7)=>({...baseSource(),displacementPoints:move,pathEfficiency:eff});
@@ -135,4 +139,32 @@ test('Market State event calendar must match; future outcomes and financial reco
  const x=market(m());assert.equal(x.researchOnly,true);
  assert.equal(x.formalWeight,0);assert.equal(x.recommendation,false);
  assert.equal('mfe' in x,false);assert.equal('mae' in x,false);assert.equal('winRate' in x,false);
+});
+
+test('Flow/Response refuses future exchange time despite earlier receipt',()=>{
+ const future={...a(),exchangeTimestamp:'2026-10-22T02:00:20.000Z'};
+ assert.equal(flow(p(),future).state,'UNAVAILABLE');
+ const futurePressure={...p(),exchangeTimestamp:'2026-10-22T02:00:20.000Z'};
+ assert.equal(flow(futurePressure,a()).state,'UNAVAILABLE');
+ const futureMarket={...m(),exchangeTimestamp:'2026-10-22T02:00:20.000Z'};
+ assert.equal(market(futureMarket).state,'UNAVAILABLE');
+});
+test('Flow pressure and price response must use identical windows and cutoff ordinal',()=>{
+ const cases=[
+  {...a(),windowMs:14400000},
+  {...a(),windowMs:null},
+  {...a(),windowStartAt:'2026-10-22T01:58:00.000Z'},
+  {...a(),windowEndAt:'2026-10-22T01:59:59.000Z'},
+  {...a(),cutoffLedgerOrdinal:1235},
+ ];
+ for(const response of cases){
+  const r=flow(p(),response);
+  assert.equal(r.state,'UNAVAILABLE');
+  assert.equal(r.reason,'FLOW_RESPONSE_WINDOW_OR_CUTOFF_MISMATCH');
+ }
+ const qualified=flow(p(),a());
+ assert.equal(qualified.windowMs,60000);
+ assert.equal(qualified.windowStartAt,'2026-10-22T01:59:00.000Z');
+ assert.equal(qualified.windowEndAt,'2026-10-22T02:00:00.000Z');
+ assert.equal(qualified.cutoffLedgerOrdinal,1234);
 });

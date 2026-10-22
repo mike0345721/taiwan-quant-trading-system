@@ -76,3 +76,29 @@ test('no valid horizon, invalid event, unknown direction, empty or giant path do
   assert.equal(x.ev,null);assert.equal(x.tradeFailureCause,null);
  }
 });
+
+test('sub-millisecond distinct trades and same-millisecond unique ticks are retained',()=>{
+ const a={...tick(1,101),exchangeTimestamp:'2026-10-22T02:00:02.000100Z',
+  availableAt:'2026-10-22T02:00:02.200000Z',recordHash:'a'.repeat(64)};
+ const b={...tick(1,102),exchangeTimestamp:'2026-10-22T02:00:02.000200Z',
+  availableAt:'2026-10-22T02:00:02.200100Z',recordHash:'b'.repeat(64)};
+ const c={...tick(1,103),exchangeTimestamp:'2026-10-22T02:00:02.000200Z',
+  availableAt:'2026-10-22T02:00:02.200200Z',recordHash:'c'.repeat(64)};
+ const result=observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[a,b,c]});
+ assert.equal(result.state,'OBSERVED_PATH_BOUNDS_ONLY');
+ assert.equal(result.observedTicks,3);
+ assert.equal(result.mfeLowerBoundPoints,3);
+ assert.equal(result.futureLabelCertified,false);
+ const duplicate={...c,recordHash:b.recordHash};
+ assert.equal(observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[a,b,duplicate]}).state,'UNAVAILABLE');
+ const ambiguous={...c,recordHash:undefined,eventId:undefined};
+ assert.equal(observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[a,b,ambiguous]}).state,'UNAVAILABLE');
+});
+test('path timestamps from future exchange clock before receipt reject negative transport delay',()=>{
+ const row={...tick(60,103),exchangeTimestamp:'2026-10-22T02:03:01Z'};
+ assert.equal(observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[row]}).state,'UNAVAILABLE');
+});
