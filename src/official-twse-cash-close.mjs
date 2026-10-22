@@ -31,7 +31,7 @@ export function parseOfficialTaiexClose(rows, { receivedAt, expectedCashDate, no
     date: dataDate,
     close,
     receivedAt,
-    publisherTimestamp: null, // API's field describes date, not authoritative publication time.
+    publisherTimestamp: null,
     source: 'TWSE_OPENAPI_MI_INDEX',
     sourceUrl: TWSE_INDEX_URL,
     executionAuthorized: false,
@@ -40,15 +40,20 @@ export function parseOfficialTaiexClose(rows, { receivedAt, expectedCashDate, no
 }
 
 export async function fetchOfficialTaiexClose({
-  expectedCashDate, now = new Date(), fetchImpl = fetch, timeoutMs = 4_000,
+  expectedCashDate, fetchImpl = fetch, timeoutMs = 4_000, clock = () => new Date(),
 } = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(expectedCashDate || '')) return null;
-  let response;
   try {
-    response = await fetchImpl(TWSE_INDEX_URL, { signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetchImpl(TWSE_INDEX_URL, {
+      signal: AbortSignal.timeout(timeoutMs), redirect: 'error',
+    });
     if (!response?.ok) return null;
-    return parseOfficialTaiexClose(await response.json(), {
-      receivedAt: now.toISOString(), expectedCashDate, now, now,
+    const payload = await response.json();
+    // Source availability begins only after the complete response has arrived.
+    const receivedAt = clock();
+    if (!(receivedAt instanceof Date) || !Number.isFinite(receivedAt.getTime())) return null;
+    return parseOfficialTaiexClose(payload, {
+      expectedCashDate, receivedAt: receivedAt.toISOString(), now: receivedAt,
     });
   } catch { return null; }
 }

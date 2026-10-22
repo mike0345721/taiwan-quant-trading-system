@@ -69,14 +69,14 @@ test('DAY cannot silently use official after-close reference as live IX0001',()=
 });
 test('fetch uses official exact source and refuses network or published-date failures',async()=>{
  let seen=null;
- const good=await fetchOfficialTaiexClose({expectedCashDate:cashDate,now,fetchImpl:async(url,options)=>{
+ const good=await fetchOfficialTaiexClose({expectedCashDate:cashDate,clock:()=>now,fetchImpl:async(url,options)=>{
   seen={url,signal:options.signal};return {ok:true,json:async()=>rows()};
  }});
  assert.equal(seen.url,TWSE_INDEX_URL);assert.ok(seen.signal);
  assert.equal(good.close,27234.56);
- assert.equal(await fetchOfficialTaiexClose({expectedCashDate:cashDate,now,fetchImpl:async()=>{throw Error('offline')}}),null);
- assert.equal(await fetchOfficialTaiexClose({expectedCashDate:cashDate,now,fetchImpl:async()=>({ok:false})}),null);
- assert.equal(await fetchOfficialTaiexClose({expectedCashDate:'2026-10-20',now,fetchImpl:async()=>({ok:true,json:async()=>rows()})}),null);
+ assert.equal(await fetchOfficialTaiexClose({expectedCashDate:cashDate,clock:()=>now,fetchImpl:async()=>{throw Error('offline')}}),null);
+ assert.equal(await fetchOfficialTaiexClose({expectedCashDate:cashDate,clock:()=>now,fetchImpl:async()=>({ok:false})}),null);
+ assert.equal(await fetchOfficialTaiexClose({expectedCashDate:'2026-10-20',clock:()=>now,fetchImpl:async()=>({ok:true,json:async()=>rows()})}),null);
 });
 
 test('market pulse passes the vetted official night close without promoting RVOL or order access', async()=>{
@@ -87,4 +87,19 @@ test('market pulse passes the vetted official night close without promoting RVOL
  assert.equal(pulse.rvol.state,'UNAVAILABLE');
  assert.equal(pulse.executionAuthorized,false);
  assert.equal(pulse.orderRoutesEnabled,false);
+});
+
+test('receipt time is assigned after the body is received rather than at request start',async()=>{
+ const received=new Date('2026-10-21T06:05:30.000Z');
+ let complete=false,clockCalls=0;
+ const result=await fetchOfficialTaiexClose({expectedCashDate:cashDate,
+  fetchImpl:async()=>({ok:true,json:async()=>{complete=true;return rows();}}),
+  clock:()=>{clockCalls++;assert.equal(complete,true);return received;},
+ });
+ assert.equal(clockCalls,1);
+ assert.equal(result.receivedAt,received.toISOString());
+ assert.equal(result.publisherTimestamp,null);
+ assert.equal(await fetchOfficialTaiexClose({expectedCashDate:cashDate,
+  fetchImpl:async()=>({ok:true,json:async()=>rows()}),
+  clock:()=>new Date(NaN)}),null);
 });

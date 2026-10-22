@@ -192,7 +192,7 @@ async function currentOfficialCashClose(chart) {
       && now.getTime() - officialCashCloseCache.checkedAt < 300_000) {
     return officialCashCloseCache.result;
   }
-  const result = await fetchOfficialTaiexClose({ expectedCashDate, now });
+  const result = await fetchOfficialTaiexClose({ expectedCashDate });
   officialCashCloseCache.date = expectedCashDate;
   officialCashCloseCache.checkedAt = now.getTime();
   officialCashCloseCache.result = result;
