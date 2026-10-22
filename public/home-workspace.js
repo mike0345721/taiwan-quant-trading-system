@@ -405,7 +405,7 @@
     const grid = el('div', 'home-research-grid', null, 'home-research-grid');
     for (const [key, label, stage, detail] of [
       ['depth', '五檔流動性', '待全日資料資格',
-        '原始 BidAsk 五檔已保存；價差、深度與不平衡尚未接入正式決策。'],
+        '研究樣本已見五檔欄位；當前深度與全時段連續性尚未取得資格。'],
       ['flow', 'Flow × 價格反應', '方向資格待確認',
         '推進／受阻只是候選研究；必須同窗、同截止與來源品質合格。'],
       ['state', '市場狀態／不追價', '分類規則待校準',

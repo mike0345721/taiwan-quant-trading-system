@@ -52,3 +52,9 @@ All screenshots have the explicit synthetic preview ribbon; **not live TX or ord
 ![Research desk at 390px](./evidence/cru21-ui-clarity-p1/research-phone-390.png)
 
 Expanded/collapsed research cards never call market APIs, AI endpoints or order routes. Snapshot image captures and UI assertions are test evidence only, not an Owner approval for merge/deployment.
+
+## 2026-10-22 independent review P2 screenshot safety fix
+
+The first scrolled Research Desk evidence images omitted the top-of-page synthetic ribbon. The browser test helper now injects a **fixed, always-visible, high-contrast** Chinese watermark on screenshots of scrolled research cards: `工程版面預覽 · 合成資料／測試帳號 · 非即時行情／非產品驗收`. The capture fails closed if the watermark is missing or not fixed and spanning the visible content width; the temporary banner is removed after capture and does **not** exist in the actual product. All four evidence PNG files were regenerated and independently visually checked after the fix. The L5 status copy now describes sampled historical evidence only, without claiming current live depth is verified.
+
+Revised screenshots are synthetic engineering evidence, **never** Owner live-source or normal-auth acceptance. The first unwatermarked screenshots on an older commit must not be used as evidence.

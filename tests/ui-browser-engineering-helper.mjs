@@ -37,8 +37,12 @@ export async function inspectEngineeringDocument({binary,html,width,height=1000,
    const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.png'),Buffer.from(shot.data,'base64'));
     if(width===390||width===1366){
       await send('Runtime.evaluate',{expression:"if(document.getElementById('home-research-drawer')){document.getElementById('home-research-drawer').open=true;document.getElementById('home-research-drawer').scrollIntoView({block:'start'});}"});
+       await send('Runtime.evaluate',{expression:"(function(){const mark=document.createElement('div');mark.id='cru21-synthetic-evidence-watermark';mark.textContent='工程版面預覽 · 合成資料／測試帳號 · 非即時行情／非產品驗收';mark.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483600;background:#713449;color:#fff;padding:7px 12px;font:600 12px/1.55 system-ui,sans-serif;box-shadow:0 2px 7px rgba(0,0,0,.5)';document.body.append(mark)})()"});
+       const watermarkVisible=await send('Runtime.evaluate',{expression:"(function(){const node=document.getElementById('cru21-synthetic-evidence-watermark');if(!node)return false;const box=node.getBoundingClientRect();return getComputedStyle(node).position==='fixed'&&Math.abs(box.top)<1&&box.width>=document.documentElement.clientWidth-1&&box.height>=24&&node.textContent.includes('合成資料')})()",returnByValue:true});
+       if(watermarkVisible.result?.value!==true)throw Error('SYNTHETIC_WATERMARK_NOT_VISIBLE');
       const research=await send('Page.captureScreenshot',{format:'png'});
       fs.writeFileSync(path.join(evidenceDir,'research-'+width+'.png'),Buffer.from(research.data,'base64'));
+       await send('Runtime.evaluate',{expression:"document.getElementById('cru21-synthetic-evidence-watermark')?.remove();"});
       await send('Runtime.evaluate',{expression:"if(document.getElementById('home-research-drawer'))document.getElementById('home-research-drawer').open=false;"});
     }
    await send('Runtime.evaluate',{expression:"if(document.getElementById('home-ai'))document.getElementById('home-ai').open=true;document.getElementById('ai-inline').scrollIntoView({block:'start'});"});
