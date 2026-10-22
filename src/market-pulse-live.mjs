@@ -198,11 +198,25 @@ function safeLatestRecord(bridgeLatest, key) {
   return record;
 }
 
+function safeOfficialCashClose(reference, expectedCashDate, now) {
+  if (!reference || reference.kind !== 'TWSE_OFFICIAL_TAIEX_CASH_CLOSE'
+      || reference.indexName !== '發行量加權股價指數'
+      || reference.source !== 'TWSE_OPENAPI_MI_INDEX'
+      || reference.executionAuthorized !== false || reference.orderRoutesEnabled !== false
+      || reference.date !== expectedCashDate) return null;
+  const close = finite(reference.close);
+  const timestamp = Date.parse(reference.receivedAt || '');
+  const cashCloseMs = Date.parse(expectedCashDate + 'T05:30:00.000Z');
+  if (close == null || close <= 0 || !Number.isFinite(timestamp) || !Number.isFinite(cashCloseMs)
+      || timestamp < cashCloseMs || timestamp > now.getTime() + 5_000) return null;
+  return reference;
+}
+
 function nightCashDate(chart) {
   const sessionId = chart?.bars?.[0]?.sessionId || null;
   return /^\d{4}-\d{2}-\d{2}-NIGHT$/.test(String(sessionId)) ? sessionId.slice(0, 10) : null;
 }
-export function buildLiveBasis({ chart, bridgeLatest, now = new Date() } = {}) {
+export function buildLiveBasis({ chart, bridgeLatest, cashCloseReference = null, now = new Date() } = {}) {
   const unavailable = (reason) => Object.freeze({
     state: 'UNAVAILABLE', reason, label: '基差', points: null, pct: null,
     futuresPrice: null, spotPrice: null, futuresAvailableAt: null, spotAvailableAt: null,
@@ -210,10 +224,13 @@ export function buildLiveBasis({ chart, bridgeLatest, now = new Date() } = {}) {
   const futuresPrice = finite(chart?.lastPrice);
   const futuresAvailableAt = chart?.availableAt || chart?.bars?.at(-1)?.availableAt || null;
   const ix = safeLatestRecord(bridgeLatest, 'IX0001');
-  const spotPrice = finite(ix?.payload?.close);
-  const spotAvailableAt = ix?.receivedAt || ix?.payload?._received_at || null;
-  const spotTradeDate = ix?.payload?.date || null;
-  const spotClockSkewMs = finite(ix?.clockSkewMs);
+  const expectedNightCashDate = chart?.session === 'NIGHT' ? nightCashDate(chart) : null;
+  const official = expectedNightCashDate
+    ? safeOfficialCashClose(cashCloseReference, expectedNightCashDate, now) : null;
+  const spotPrice = finite(official ? official.close : ix?.payload?.close);
+  const spotAvailableAt = official?.receivedAt || ix?.receivedAt || ix?.payload?._received_at || null;
+  const spotTradeDate = official?.date || ix?.payload?.date || null;
+  const spotClockSkewMs = official ? null : finite(ix?.clockSkewMs);
   if (futuresPrice == null || !futuresAvailableAt) return unavailable('FUTURES_PRICE_UNAVAILABLE');
   if (spotPrice == null || !spotAvailableAt || !spotTradeDate) return unavailable('IX0001_REFERENCE_UNAVAILABLE');
   const futuresMs = Date.parse(futuresAvailableAt);
@@ -231,6 +248,8 @@ export function buildLiveBasis({ chart, bridgeLatest, now = new Date() } = {}) {
     chartTradeDate: chart?.tradeDate || null,
     session: chart?.session || null,
     spotClockSkewMs,
+    sourceReference: official ? 'TWSE_OFFICIAL_CASH_CLOSE' : 'SHIOAJI_IX0001',
+    sourcePublisherTimestamp: official?.publisherTimestamp || null,
   };
   if (chart?.session === 'DAY') {
     const minute = taipeiMinute(now);
@@ -250,15 +269,15 @@ export function buildLiveBasis({ chart, bridgeLatest, now = new Date() } = {}) {
       ...base,
       state: 'SESSION_CLOSED_REFERENCE',
       label: '夜盤對現貨收盤差',
-      referenceMode: 'LAST_CASH_CLOSE',
+      referenceMode: official ? 'TWSE_OFFICIAL_LAST_CASH_CLOSE' : 'LAST_CASH_CLOSE',
     });
   }
   return unavailable('BASIS_SESSION_UNAVAILABLE');
 }
 
-export function buildMarketPulseLive({ chart, bridgeLatest, archiveDir, now = new Date() } = {}) {
+export function buildMarketPulseLive({ chart, bridgeLatest, cashCloseReference, archiveDir, now = new Date() } = {}) {
   const rvol = buildLiveRvol({ chart, archiveDir, now });
-  const basis = buildLiveBasis({ chart, bridgeLatest, now });
+  const basis = buildLiveBasis({ chart, bridgeLatest, cashCloseReference, now });
   return Object.freeze({
     schemaVersion: 'market-pulse-live-v1',
     generatedAt: now.toISOString(),

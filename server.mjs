@@ -46,6 +46,7 @@ import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-sour
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
 import { loadFlowRefresh } from './src/dashboard-flow-refresh.mjs';
 import { buildMarketPulseLive } from './src/market-pulse-live.mjs';
+import { fetchOfficialTaiexClose } from './src/official-twse-cash-close.mjs';
 import {
   buildCru46Readiness,
   inspectChartPayload,
@@ -180,6 +181,24 @@ async function currentDecisionLevelWatch(chart = null) {
   return buildDecisionLevelWatch({ chart: selectedChart, observedFlow: currentObservedFlow(), marketPulse, snapshotTime: new Date().toISOString() });
 }
 
+const officialCashCloseCache = { date: null, checkedAt: 0, result: null };
+async function currentOfficialCashClose(chart) {
+  if (chart?.session !== 'NIGHT') return null;
+  const id = chart?.bars?.[0]?.sessionId || '';
+  if (!/^\d{4}-\d{2}-\d{2}-NIGHT$/.test(id)) return null;
+  const expectedCashDate = id.slice(0, 10);
+  const now = new Date();
+  if (officialCashCloseCache.date === expectedCashDate
+      && now.getTime() - officialCashCloseCache.checkedAt < 300_000) {
+    return officialCashCloseCache.result;
+  }
+  const result = await fetchOfficialTaiexClose({ expectedCashDate, now });
+  officialCashCloseCache.date = expectedCashDate;
+  officialCashCloseCache.checkedAt = now.getTime();
+  officialCashCloseCache.result = result;
+  return result;
+}
+
 async function currentMarketPulse(chart = null) {
   const selectedChart = chart || loadTxDecisionChart({
     dataRoot: txChartDataRoot,
@@ -194,6 +213,7 @@ async function currentMarketPulse(chart = null) {
   return buildMarketPulseLive({
     chart: selectedChart,
     bridgeLatest,
+    cashCloseReference: await currentOfficialCashClose(selectedChart),
     archiveDir: path.join(txChartDataRoot, 'intraday', 'archive'),
   });
 }
