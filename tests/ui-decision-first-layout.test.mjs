@@ -32,6 +32,11 @@ for(const [width,height,scenario] of [[1536,864,'normal'],[1366,768,'normal'],[1
  if(scenario==='offline'||scenario==='limited')assert.ok(r.finalFlowRows.every(row=>row.net==='—'));
  assert.equal(r.finalContextBasisLabel,scenario==='day'?'期現貨差':'夜盤對現貨收盤差');
  if(scenario==='offline')assert.equal(r.finalContextBasis,'—');
+ for(const k of ['researchInitiallyClosed','researchSummaryKeyboard','researchExpandable',
+   'researchNoModelFetch','researchNoHorizontalOverflow','researchOfflineGated',
+   'researchQualifiedStillNotSignal'])assert.equal(r[k],true,k+' '+JSON.stringify(r));
+ if(width===390&&scenario==='normal')
+   assert.ok(r.chart.y<670,'Mobile chart should enter first screen '+JSON.stringify(r));
  assert.equal(r.modelCalls,0);assert.deepEqual(r.duplicateCriticalIds,[]);assert.match(r.summaryAfterModels,/SYNTHETIC TEST MODEL/);
  assert.equal(r.productionChartFactory,true);assert.ok(r.canvasCount>=5);assert.deepEqual(r.runtimeErrors,[]);
  for(const key of ['navigationInitiallyHidden','menuInitiallyReachable','navigationOpens','navigationCloses','escapeRestoresFocus','modalInertPreserved','canvasIdentityPreserved','hiddenRailReclaimsWidth','aiInitiallyClosed','offlineSnapshotVisible','offlineFocusBlocked','offlineNoPriceError','offlineTimeUnchanged','offlineCanvasRetained','limitedStateVisible','recoveryClearsSnapshot','longErrorNoOverflow']) assert.equal(r[key],true,key+' '+JSON.stringify(r));

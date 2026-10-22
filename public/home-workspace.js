@@ -389,6 +389,54 @@
     apply(narrow.matches ? false : desktopOpen);
   }
 
+  // Research features are deliberately NOT connected to the production decision engine.
+  // UI previews the pending evidence stages, never synthesizes Depth/EV/No-Chase signals.
+  function mountResearchDrawer(root) {
+    const primary = root.querySelector('.tt-primary-grid');
+    if (!primary || root.querySelector('#home-research-drawer')) return;
+    const panel = disclosure('home-research-drawer', '', 'home-research-drawer');
+    panel.dataset.researchOnly = 'true';
+    panel.setAttribute('aria-label', '研究預覽，尚未產生交易訊號');
+    const summary = panel.querySelector('summary');
+    const heading = el('span', 'home-research-heading');
+    heading.append(el('span', 'home-research-kicker', 'RESEARCH DESK · 研究工作區'),
+      el('strong', 'home-research-title', '從盤中觀察到可驗證決策'));
+    summary.append(heading, el('span', 'home-research-summary-state', '4 項研究 · 不作交易訊號'));
+    const grid = el('div', 'home-research-grid', null, 'home-research-grid');
+    for (const [key, label, stage, detail] of [
+      ['depth', '五檔流動性', '待全日資料資格',
+        '原始 BidAsk 五檔已保存；價差、深度與不平衡尚未接入正式決策。'],
+      ['flow', 'Flow × 價格反應', '方向資格待確認',
+        '推進／受阻只是候選研究；必須同窗、同截止與來源品質合格。'],
+      ['state', '市場狀態／不追價', '分類規則待校準',
+        '趨勢、盤整與流動性風險，須用當下已知資料完成樣本外驗證。'],
+      ['outcome', 'Outcome／EV', '待前向結果',
+        'MFE／MAE、出場失效及扣成本 EV 未完成；不展示虛構績效。'],
+    ]) {
+      const article = el('article', 'home-research-card');
+      article.dataset.researchModule = key;
+      const head = el('div', 'home-research-card-head');
+      head.append(el('strong', 'home-research-card-title', label),
+        el('span', 'home-research-card-stage', stage, 'home-research-' + key + '-status'));
+      article.append(head, el('p', 'home-research-card-note', detail));
+      grid.append(article);
+    }
+    panel.append(grid, el('p', 'home-research-boundary',
+      '研究候選／資料稽核 ≠ 已確認方向、正 EV 或下單授權。完整證據請以研究 PR 與驗收紀錄為準。'));
+    primary.after(panel);
+  }
+
+  function renderResearchDrawer(root, input) {
+    const panel = root.querySelector('#home-research-drawer');
+    if (!panel) return;
+    const selected = (flowRows(input) || []).find(row => row.key === (input.selectedFlowWindow || '5m'));
+    const sourceQualified = Boolean(selected?.qualified);
+    panel.dataset.flowQuality = sourceQualified ? 'observed-qualified' : 'limited';
+    text('home-research-flow-status', sourceQualified
+      ? '僅資料合格 · 候選待驗證'
+      : '資料受限 · 不推論方向');
+  }
+
   function mount(root) {
     if (!root || root.dataset.homeVersion === '1') return;
     const focus = root.querySelector('#dw-focus-mode'), primary = root.querySelector('.tt-primary-grid');
@@ -457,6 +505,7 @@
     const recency = document.getElementById('tt-top-updated')?.previousElementSibling; if (recency) recency.textContent = '資料時間';
     const chartTitle = root.querySelector('#tt-chart-title') || root.querySelector('.dw-chart-header h2'); if (chartTitle) chartTitle.textContent = '決策圖表';
     mountEvidence(root);
+    mountResearchDrawer(root);
     aiSummary();
   }
 
@@ -496,6 +545,7 @@
     for (const id of ['dw-chart-quality', 'dw-chart-available-at']) text(id, id.endsWith('quality') ? (view.chartQualified ? '資料合格' : '資料受限／未確認') : view.chartTime);
     // Original technical values stay available in their existing detail containers.
     renderEvidence(root, input);
+    renderResearchDrawer(root, input);
     aiSummary(); return view;
   }
   global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
