@@ -52,3 +52,27 @@ CI #302 first attempt failed from an existing real-Chromium test timing out afte
 New unit tests exercise these production-shaped negative controls and genuine calendar fixture; no live deployment. Re-read 2026-10-22 private ledger 8MiB tail after fixes: **771/771** TX quote sample events passed event-level eligibility using validated calendar/sequence/strict source-time semantics; spread tick histogram 1:6, 2:75, 3:161, 4:306, 5:209, 6:14. Still **not** continuous full-corpus/OOS evidence.
 
 Next: frozen Flow × price-response candidate and as-of Market State/No-Trade exploratory gates, with separate future-outcome labels; remain entirely research-only with no trading weights.
+
+## 2026-10-22 P1 Phase 2–3 provisional executable research contracts
+
+Added `src/pressure-response-market-state-research-v1.mjs` and `src/outcome-observed-path-research-v1.mjs` (all **pure, read-only**). No production wires, model requests, broker calls, charts, database migrations, forward execution or order routes.
+
+**Pressure × Price Response:** `sealResearchThresholds` requires a complete, explicit, hashed, immutable scenario-threshold object (never default/automatically tuned). `describeFlowPriceResponse` requires source/price response READY, contract/date/session agreement, governed official calendar, contemporaneous timestamps and 100% classified pressure coverage; labels are `BUY_PROGRESS_CANDIDATE`, `SELL_PROGRESS_CANDIDATE`, `BUY_PRESSURE_BLOCKED_CANDIDATE`, `SELL_PRESSURE_BLOCKED_CANDIDATE`, `PRESSURE_PRICE_MISMATCH_CANDIDATE`, low-pressure high-efficiency candidates and `UNCERTAIN`. They are **descriptive hypotheses**, NOT market-control/absorption claims or evidence of forward returns.
+
+**Market State / No-Chase:** `describeMarketStateNoTrade` requires an identically frozen as-of event, quality-valid market RV/path efficiency and fresh five-level quote projection with same calendar/contract/session. Outputs `TREND_CANDIDATE` / `RANGE_CANDIDATE` / `UNCERTAIN` and separate `NO_CHASE_LIQUIDITY_CANDIDATE` / `HIGH_VOLATILITY_SKIP_CANDIDATE` / `NONE_PROPOSED`. Missing/off-time/mismatched sources => `UNAVAILABLE`, never “no risk.” Thresholds in synthetic tests are **demonstration values only**, not calibrated or deployed.
+
+**Outcome path:** `observePostEventPricePath` writes a **separate** future-evidence record from sorted later ticks, with verified contract/calendar/safe clock and gap rejection. Maximum favorable/adverse excursions are explicitly `mfeLowerBoundPoints` / `maeLowerBoundPoints`; they are **lower bounds from observed samples**, not complete-horizon MFE/MAE, fills, stops, net R, EV or a diagnosed failure cause. Without continuously audited historical ticks and frozen fill/fee/stop/target rules, `pathCoverage='UNVERIFIED'`, `futureLabelCertified=false`, `netPoints/netR/ev/tradeFailureCause=null`. No future outcomes are written into immutable as-of features.
+
+### Live source qualification (13:04 Taiwan, 2026-10-22)
+
+A read-only parse of the existing approved CRU34 producer snapshot reports LIVE, TXFK6, 2026-10-22 DAY. The six windows show classified coverage:
+- 1m **0.953125**
+- 5m **0.9674952198852772**
+- 15m **0.9716494845360825**
+- 30m **0.9736537348002317**
+- 1h **0.9779947537161178**
+- 4h **WARMING_UP / no comparable ratio**
+
+Price response and efficiency are READY in five shorter windows but their pressure is `QUALITY_INSUFFICIENT` due to `PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE`. The new Flow × Response gate **must refuse** declaring directional confirmation from these actual inputs. This is a concrete barrier to an OOS positive-EV claim, and will not be silently overridden.
+
+Research next before strategy: build full-day immutable BidAsk/tick continuity and as-of joins; source-resolved Flow classifications with timestamps; chronological future-label corpus (session cutoff/gaps/simtrade/rollover), frozen costs/entry/stop/target; validation/OOS/walk-forward; measure incremental improvement of L5 against Flow-only, then forward paper. `formalWeight=0`, `executionAuthorized=false` remain.
