@@ -103,3 +103,12 @@ test('receipt time is assigned after the body is received rather than at request
   fetchImpl:async()=>({ok:true,json:async()=>rows()}),
   clock:()=>new Date(NaN)}),null);
 });
+
+test('isolated CRU55 acceptance mode skips any official TWSE acquisition',async()=>{
+ const fs=await import('node:fs');
+ const source=fs.readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
+ const section=source.slice(source.indexOf('async function currentOfficialCashClose('),
+   source.indexOf('async function currentMarketPulse('));
+ assert.match(section,/if \(config\.cru55Acceptance \|\| chart\?\.session !== 'NIGHT'\) return null;/);
+ assert.match(source,/ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE/);
+});

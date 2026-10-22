@@ -183,7 +183,7 @@ async function currentDecisionLevelWatch(chart = null) {
 
 const officialCashCloseCache = { date: null, checkedAt: 0, result: null };
 async function currentOfficialCashClose(chart) {
-  if (chart?.session !== 'NIGHT') return null;
+  if (config.cru55Acceptance || chart?.session !== 'NIGHT') return null;
   const id = chart?.bars?.[0]?.sessionId || '';
   if (!/^\d{4}-\d{2}-\d{2}-NIGHT$/.test(id)) return null;
   const expectedCashDate = id.slice(0, 10);
