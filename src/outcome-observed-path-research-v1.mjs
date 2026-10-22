@@ -25,18 +25,19 @@ export function observePostEventPricePath({
       ||!Array.isArray(ticks)||ticks.length===0||ticks.length>10000)
     return unavailable('OUTCOME_RULES_OR_SOURCE_INVALID',id);
   const asOf=evidenceTimestampMs(event.asOfAvailableAt);
+  const asOfNs=evidenceTimestampNs(event.asOfAvailableAt);
   const start=governedEventIdentity({
     exchangeTimestamp:event.eventExchangeTimestamp,calendar,
     tradeDate:event.tradeDate,session:event.session,
   });
-  if(asOf===null||!start||start.sessionId!==event.sessionId
+  if(asOf===null||asOfNs===null||!start||start.sessionId!==event.sessionId
       ||start.governedCalendarHash!==event.governedCalendarHash)
     return unavailable('EVENT_GOVERNANCE_NOT_VERIFIED',id);
-  const horizonEnd=asOf+horizonMinutes*60_000;
+  const horizonEndNs=asOfNs+BigInt(horizonMinutes)*60_000_000_000n;
   const side=direction==='BUY_HYPOTHESIS'?1:-1;
-  let best=0,worst=0,timeToBest=null,timeToWorst=null,lastTime=-Infinity;
-  let lastAvailable=-Infinity,count=0,lastObservedMs=null,lastPrice=null;
-  let lastExchangeNs=null;
+  let best=0,worst=0,timeToBest=null,timeToWorst=null;
+  let count=0,lastObservedRaw=null,lastPrice=null;
+  let lastExchangeNs=null,lastAvailableNs=null;
   const seenIdentities=new Set();
   const ref=numericScalar(event.referencePrice,{positive:true});
   if(ref===null)return unavailable('ENTRY_REFERENCE_INVALID',id);
@@ -54,15 +55,16 @@ export function observePostEventPricePath({
       return unavailable('POST_EVENT_SESSION_MISMATCH',id);
     const exchange=evidenceTimestampMs(tick.exchangeTimestamp,{taipeiNaive:true});
     const exchangeNs=evidenceTimestampNs(tick.exchangeTimestamp,{taipeiNaive:true});
-    const available=evidenceTimestampMs(tick.availableAt);
+    const availableNs=evidenceTimestampNs(tick.availableAt);
     const price=numericScalar(tick.price,{positive:true});
     const identity=typeof tick.recordHash==='string'&&/^[a-f0-9]{64}$/i.test(tick.recordHash)
       ? tick.recordHash:typeof tick.eventId==='string'&&tick.eventId.length>=8
         ? tick.eventId:null;
-    if(exchange===null||exchangeNs===null||available===null||price===null
-        ||available<=asOf||exchangeNs<=BigInt(asOf)*1_000_000n
-        ||exchangeNs>BigInt(horizonEnd)*1_000_000n||exchange>available
-        ||available-exchange>5000||available<lastAvailable
+    if(exchange===null||exchangeNs===null||availableNs===null||price===null
+        ||availableNs<=asOfNs||exchangeNs<=asOfNs
+        ||exchangeNs>horizonEndNs||exchangeNs>availableNs
+        ||availableNs-exchangeNs>5_000_000_000n
+        ||(lastAvailableNs!==null&&availableNs<lastAvailableNs)
         ||(lastExchangeNs!==null&&exchangeNs<lastExchangeNs))
       return unavailable('POST_EVENT_TIME_OR_PRICE_INVALID',id);
     // High-frequency distinct trades may share a millisecond or exact exchange
@@ -73,22 +75,22 @@ export function observePostEventPricePath({
       return unavailable('POST_EVENT_DUPLICATED_LEDGER_IDENTITY',id);
     if(identity)seenIdentities.add(identity);
     const signed=side*(price-ref);
-    if(signed>best){best=signed;timeToBest=Number(exchangeNs-BigInt(asOf)*1_000_000n)/1_000_000;}
-    if(-signed>worst){worst=-signed;timeToWorst=Number(exchangeNs-BigInt(asOf)*1_000_000n)/1_000_000;}
-    lastTime=exchange;lastExchangeNs=exchangeNs;
-    lastAvailable=available;lastObservedMs=exchange;
+    if(signed>best){best=signed;timeToBest=Number(exchangeNs-asOfNs)/1_000_000;}
+    if(-signed>worst){worst=-signed;timeToWorst=Number(exchangeNs-asOfNs)/1_000_000;}
+    lastExchangeNs=exchangeNs;lastAvailableNs=availableNs;
+    lastObservedRaw=tick.exchangeTimestamp;
     lastPrice=price;count++;
   }
   // Ordered sampled ticks supply LOWER bounds on extrema; no continuous
   // tick coverage / executable fill / cost/stop policy has been proven.
-  const observedEnd=lastObservedMs===null?null:new Date(lastObservedMs).toISOString();
+  const observedEnd=lastObservedRaw;
   return Object.freeze({
     schemaVersion:'outcome-observed-path-v1',eventId:id,
     state:'OBSERVED_PATH_BOUNDS_ONLY',reason:'HORIZON_CONTINUITY_NOT_CERTIFIED',
     startAsOfAvailableAt:event.asOfAvailableAt,
     directionHypothesis:direction,horizonMinutes,
     observedTicks:count,observedThroughExchangeTime:observedEnd,
-    sourceTimeEndLessThanHorizon:lastObservedMs<horizonEnd,
+    sourceTimeEndLessThanHorizon:lastExchangeNs<horizonEndNs,
     pathCoverage:'UNVERIFIED',mfeLowerBoundPoints:best,
     maeLowerBoundPoints:worst,timeToObservedMfeMs:timeToBest,
     timeToObservedMaeMs:timeToWorst,

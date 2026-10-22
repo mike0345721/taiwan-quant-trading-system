@@ -102,3 +102,22 @@ test('path timestamps from future exchange clock before receipt reject negative 
  assert.equal(observePostEventPricePath({event:event(),calendar,
   direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[row]}).state,'UNAVAILABLE');
 });
+
+test('sub-ms source cannot arrive before its precise receipt or as-of time',()=>{
+ const earlierReceipt={...tick(1,101),
+  exchangeTimestamp:'2026-10-22T02:00:02.000900Z',
+  availableAt:'2026-10-22T02:00:02.000100Z',
+  recordHash:'d'.repeat(64)};
+ const bad=observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[earlierReceipt]});
+ assert.equal(bad.state,'UNAVAILABLE');
+ const lawful={...earlierReceipt,
+  exchangeTimestamp:'2026-10-22T02:00:02.000100Z',
+  availableAt:'2026-10-22T02:00:02.000900Z'};
+ const good=observePostEventPricePath({event:event(),calendar,
+  direction:'BUY_HYPOTHESIS',horizonMinutes:5,ticks:[lawful]});
+ assert.equal(good.state,'OBSERVED_PATH_BOUNDS_ONLY');
+ assert.equal(good.observedThroughExchangeTime,lawful.exchangeTimestamp);
+ assert.ok(Math.abs(good.timeToObservedMfeMs-1000.1)<1e-7);
+ assert.equal(good.netPoints,null);
+});
