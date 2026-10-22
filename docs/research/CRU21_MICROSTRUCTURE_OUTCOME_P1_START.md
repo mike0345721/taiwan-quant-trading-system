@@ -38,3 +38,17 @@ Seven targeted tests exercise projection, bad data, future leakage and frozen ou
 5. Persist MFE/MAE, time to extrema, first-touch ambiguity and net costs only after separate outcomes mature; stress tests, purged chronological OOS and walk-forward before paper trading.
 
 All research outputs retain `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false`, `orderRoutesEnabled=false`. No production cutover.
+## 2026-10-22 P1 independent review remediation (before any model use)
+
+CI #302 first attempt failed from an existing real-Chromium test timing out after 12,000 ms; unchanged-head second attempt passed, **both attempt records are retained**. Independent Codex reviewed initial `e37c06a` and found six P1 issues in this isolated research candidate:
+
+1. Real `sequenceGap` is a numeric count; reject positive counts, booleans, null, malformed input.
+2. Source exchange timestamps without offset are interpreted with governed **Asia/Taipei +08:00**, not runner-local timezone; receipt/as-of require explicit offset.
+3. Use `classifyTxChartSession` with the approved TAIFEX calendar to derive/verify session, trading day and sessionId rather than trusting caller labels. Frozen Outcome also requires eventExchangeTimestamp and calendar.
+4. Prices must be scalar positive finite values; each displayed volume must be scalar nonnegative safe integer; booleans/arrays/whitespace/fractional quantities refused.
+5. Gregorian timestamp dates and clock components are parsed strictly, including Feb 30, hour 25, invalid timezone offsets; no Date.parse normalization.
+6. Event ID, contract, frozen-rules hash are primitive validated strings, so Object.freeze cannot retain caller-owned mutable identity objects.
+
+New unit tests exercise these production-shaped negative controls and genuine calendar fixture; no live deployment. Re-read 2026-10-22 private ledger 8MiB tail after fixes: **771/771** TX quote sample events passed event-level eligibility using validated calendar/sequence/strict source-time semantics; spread tick histogram 1:6, 2:75, 3:161, 4:306, 5:209, 6:14. Still **not** continuous full-corpus/OOS evidence.
+
+Next: frozen Flow × price-response candidate and as-of Market State/No-Trade exploratory gates, with separate future-outcome labels; remain entirely research-only with no trading weights.
