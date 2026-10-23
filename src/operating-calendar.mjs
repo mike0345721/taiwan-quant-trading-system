@@ -4,10 +4,11 @@ import { loadGovernedTradingCalendar } from './market-state-forward-shadow-calen
 
 // Overlay operating-day evidence without rewriting the frozen base or historical
 // chart calendar. Conflicting evidence requires a new explicit governance decision.
-export function loadOperatingCalendar(calendarPath, { exceptionPaths = [], allowCandidate = false } = {}) {
+export function loadOperatingCalendar(calendarPath, { exceptionPaths = [], allowCandidate = false, dataRoot = path.resolve(path.dirname(calendarPath), "../data") } = {}) {
   const base = loadGovernedTradingCalendar(calendarPath);
   const bundled = path.join(path.dirname(calendarPath), 'taifex-emergency-closure-20261023.json');
-  const paths = [...new Set([...exceptionPaths.filter(Boolean), ...(fs.existsSync(bundled) ? [bundled] : [])])];
+  const governed = path.join(dataRoot, "market-state/forward-shadow/governance/taifex-official-calendar-exception.json");
+  const paths = [...new Set([...(fs.existsSync(governed) ? [governed] : []),...exceptionPaths.filter(Boolean), ...(fs.existsSync(bundled) ? [bundled] : [])])];
   const exceptions = new Map(base.exceptions);
   const pendingCandidateDates = new Set();
   for (const evidencePath of paths) {

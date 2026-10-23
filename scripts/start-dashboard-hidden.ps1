@@ -8,7 +8,7 @@ $projectionRoot = Join-Path $root 'data\runtime\cru34-live'
 $env:CRU34_LIVE_SNAPSHOT_PATH = Join-Path $projectionRoot 'latest.json'
 $env:CRU34_LIVE_STATUS_PATH = Join-Path $projectionRoot 'status.json'
 
-# Opening the dashboard is not approval for recovery, backfill or broker login.
+# Opening the dashboard does not authorize background data actions.
 
 try {
   $response = Invoke-WebRequest -UseBasicParsing -Uri $health -TimeoutSec 2

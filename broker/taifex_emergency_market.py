@@ -102,19 +102,49 @@ def market_data_expected(now: datetime, calendar_path: Path, evidence_path: Path
         raise ValueError("TAIFEX_OPERATING_CALENDAR_INVALID")
     local = now.astimezone(TAIPEI)
     anchor = local - timedelta(days=1) if local.time() < time(5) else local
-    if Path(evidence_path).exists():
-        evidence = json.loads(Path(evidence_path).read_text(encoding="utf-8-sig"))
-        if (evidence.get("approvalScope") == "ISOLATED_RESEARCH_CANDIDATE_ONLY" and not allow_candidate
-                and any(item.get("tradeDate") in {local.date().isoformat(), anchor.date().isoformat()}
-                        for item in evidence.get("exceptions", []) if isinstance(item, dict))):
-            raise ValueError("TAIFEX_CANDIDATE_NOT_ACTIVATED")
-    # Validate present evidence even outside its effective date.
-    governed_emergency_closure(local, evidence_path)
+    exceptions = {}
+    pending = set()
+    formal_path = Path(calendar_path).parent.parent / "data/market-state/forward-shadow/governance/taifex-official-calendar-exception.json"
+    for source_path in dict.fromkeys([formal_path, Path(evidence_path)]):
+        if not source_path.exists():
+            continue
+        if source_path.stat().st_size > MAX_EVIDENCE_BYTES:
+            raise ValueError("TAIFEX_OPERATING_EXCEPTION_OVERSIZE")
+        evidence = json.loads(source_path.read_text(encoding="utf-8-sig"))
+        source_hash = evidence.get("sourceHash", "")
+        if (evidence.get("schemaVersion") != REQUIRED_SCHEMA
+                or evidence.get("sourceType") != REQUIRED_DATE_SOURCE
+                or evidence.get("ownerApproved") is not True
+                or not isinstance(source_hash, str) or len(source_hash) != 64
+                or any(c not in "0123456789abcdef" for c in source_hash)
+                or canonical_sha256({k: v for k, v in evidence.items() if k != "fileHash"}) != evidence.get("fileHash")
+                or (evidence.get("sourceEvidence") is not None and canonical_sha256(evidence["sourceEvidence"]) != source_hash)
+                or not isinstance(evidence.get("exceptions"), list)):
+            raise ValueError("TAIFEX_OPERATING_EXCEPTION_INVALID")
+        candidate = evidence.get("approvalScope") == "ISOLATED_RESEARCH_CANDIDATE_ONLY"
+        if candidate and (evidence.get("formalWeight") != 0 or evidence.get("researchOnly") is not True
+                or evidence.get("executionAuthorized") is not False or evidence.get("orderRoutesEnabled") is not False):
+            raise ValueError("TAIFEX_OPERATING_EXCEPTION_SAFETY_INVALID")
+        seen = set()
+        for item in evidence["exceptions"]:
+            day = item.get("tradeDate") if isinstance(item, dict) else None
+            if (day not in calendar["tradingDates"] + calendar["nonTradingDates"] or day in seen
+                    or type(item.get("officialTradingDay")) is not bool):
+                raise ValueError("TAIFEX_OPERATING_EXCEPTION_DATE_INVALID")
+            seen.add(day)
+            if candidate and not allow_candidate:
+                pending.add(day)
+                continue
+            entry = {**item, "evidenceFileHash": evidence["fileHash"]}
+            if day in exceptions and exceptions[day] != entry:
+                raise ValueError("OPERATING_CALENDAR_EXCEPTION_CONFLICT")
+            exceptions[day] = entry
+    if pending.intersection({local.date().isoformat(), anchor.date().isoformat()}):
+        raise ValueError("TAIFEX_CANDIDATE_NOT_ACTIVATED")
     anchor_date = anchor.date().isoformat()
     if not calendar["coverageStart"] <= anchor_date <= calendar["coverageEnd"]:
         raise ValueError("TAIFEX_OPERATING_DATE_UNCOVERED")
-    if anchor_date not in calendar["tradingDates"]:
-        return False
-    if governed_emergency_closure(anchor.replace(hour=15, minute=0), evidence_path):
+    trading = exceptions.get(anchor_date, {}).get("officialTradingDay", anchor_date in calendar["tradingDates"])
+    if not trading:
         return False
     return local.time() < time(5) or time(8, 45) <= local.time() < time(13, 45) or local.time() >= time(15)

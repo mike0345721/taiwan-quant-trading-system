@@ -1261,8 +1261,15 @@ def startup_exit_code(error: Exception) -> tuple[int, str]:
     return 1, "UNKNOWN_INSUFFICIENT_EVIDENCE"
 
 
+def require_open_operating_session() -> None:
+    if not tx_market_data_expected():
+        print("BROKER_START_CALENDAR_BLOCKED", file=sys.stderr)
+        raise SystemExit(76)
+
+
 def main() -> None:
     global SERVER, BRIDGE_STARTED_AT, SHIOAJI_API
+    require_open_operating_session()
     instance_mutex = acquire_single_instance()
     # Acquire the singleton port before login. A second launcher therefore exits
     # without consuming another broker connection or creating duplicate subscriptions.
@@ -1289,12 +1296,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     try:
+        require_open_operating_session()
         credentials = load_credentials(CREDENTIAL_PATH)
         api_key = str(credentials["apiKey"])
         secret_key = str(credentials["secretKey"])
         simulation = not bool(credentials.get("production", False))
 
         api = sj.Shioaji(simulation=simulation)
+        require_open_operating_session()
         api.login(
             api_key=api_key,
             secret_key=secret_key,

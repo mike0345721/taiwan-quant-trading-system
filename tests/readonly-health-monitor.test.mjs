@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readLocalHealth, summarizeReadonlyHealth } from '../src/readonly-health-monitor.mjs';
 const closed = { state:'MARKET_CLOSED',marketShouldBeActive:false };
-const bridge = { mode:'market_data_only',formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false,bridgeState:'DEGRADED' };
-const dashboard = { runtimeIdentityStatus:'VERIFIED',runtimeCommit:'a'.repeat(40),runtimeReady:false };
+const bridge = { mode:'market_data_only',formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false,bridgeState:'DEGRADED',writerState:'PASS' };
+const dashboard = { runtimeIdentityStatus:'VERIFIED',runtimeCommit:'a'.repeat(40),runtimeReady:{ready:false,reasons:[]} };
 test('closed market preserves provider degradation and missing UI instead of false LIVE',()=>{
   const r=summarizeReadonlyHealth({market:closed,bridge,dashboard,expectedHead:'a'.repeat(40)});
   assert.equal(r.state,'MARKET_CLOSED_EXPECTED');assert.equal(r.bridge.reportedState,'DEGRADED');
@@ -21,4 +21,13 @@ test('monitor only GETs exact loopback health paths; bad and oversized JSON stay
   assert.equal(calls,1);
   assert.equal(await readLocalHealth('http://127.0.0.1:8790/health',{fetchImpl:async()=>new Response('x'.repeat(1048577))}),null);
   assert.equal(await readLocalHealth('http://127.0.0.1:8790/health',{fetchImpl:async()=>{throw Error('timeout')}}),null);
+});
+
+test('closed market never hides writer, disk or session failure and preserves readiness object',()=>{
+ for(const extra of [{writerState:'FAIL',writerErrors:0},{writerState:undefined},{writerThreadAlive:false},{lowDisk:true},{sessionDown:true},{reasonCode:'SESSION_TERMINATED'}]){
+  const r=summarizeReadonlyHealth({market:closed,bridge:{...bridge,...extra},dashboard,expectedHead:'a'.repeat(40)});
+  assert.equal(r.state,'ATTENTION_REQUIRED');assert.ok(r.problems.length);
+ }
+ assert.equal(summarizeReadonlyHealth({market:closed,bridge,dashboard:{...dashboard,runtimeReady:{ready:true,reasons:[]}},expectedHead:'a'.repeat(40)}).dashboard.runtimeReady,true);
+ assert.equal(summarizeReadonlyHealth({market:closed,bridge,dashboard:{...dashboard,runtimeReady:null}}).dashboard.runtimeReady,null);
 });

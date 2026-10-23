@@ -11,6 +11,8 @@ export function summarizeReadonlyHealth({ market, bridge, dashboard, expectedHea
   if (!dashboard) problems.push('DASHBOARD_UNAVAILABLE');
   else if (!sourceVerified) problems.push('DASHBOARD_IDENTITY_UNVERIFIED');
   const closed = market?.state === 'MARKET_CLOSED';
+  if (safe && (bridge.writerState !== 'PASS' || bridge.writerThreadAlive === false || bridge.lowDisk === true)) problems.push('BRIDGE_WRITER_UNHEALTHY_OR_UNKNOWN');
+  if (safe && (bridge.sessionDown === true || bridge.reasonCode === 'SESSION_TERMINATED')) problems.push('BRIDGE_SESSION_TERMINATED');
   if (safe && (bridge.writerErrors > 0 || bridge.callbackErrors > 0 || bridge.dropped > 0)) problems.push('BRIDGE_DATA_ERRORS');
   if (safe && market?.marketShouldBeActive && bridge.bridgeState !== 'HEALTHY') problems.push('ACTIVE_SESSION_BRIDGE_DEGRADED');
   return Object.freeze({
@@ -19,10 +21,11 @@ export function summarizeReadonlyHealth({ market, bridge, dashboard, expectedHea
     market: market || { state: 'UNAVAILABLE', marketShouldBeActive: false },
     quoteExpectation: closed ? 'NO_NEW_QUOTES_EXPECTED' : market?.marketShouldBeActive ? 'FRESH_QUOTES_REQUIRED' : 'NO_ACTIVE_SESSION',
     bridge: { reachable: Boolean(bridge), safetyVerified: safe, reportedState: bridge?.bridgeState ?? null,
+      reasonCode: bridge?.reasonCode ?? null, writerState: bridge?.writerState ?? null, lowDisk: bridge?.lowDisk ?? null, sessionDown: bridge?.sessionDown ?? null,
       quoteTypeDeliveryState: bridge?.quoteTypeDeliveryState ?? null },
     dashboard: { reachable: Boolean(dashboard), sourceVerified,
       runtimeCommit: SHA.test(dashboard?.runtimeCommit || '') ? dashboard.runtimeCommit : null,
-      expectedHead, runtimeReady: dashboard?.runtimeReady === true },
+      expectedHead, runtimeReady: typeof dashboard?.runtimeReady?.ready === 'boolean' ? dashboard.runtimeReady.ready : null, readinessReasons: dashboard?.runtimeReady?.reasons ?? null },
     problems, liveMarketAcceptance: false, positiveEvProven: false,
     actionsTaken: [], retries: 0, brokerLoginAttempts: 0, automaticRestart: false,
     executionAuthorized: false, orderRoutesEnabled: false,

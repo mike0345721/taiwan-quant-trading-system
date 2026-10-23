@@ -148,7 +148,7 @@ export function readSchedulerHealth({ dataRoot, outputRoot, calendar, allowCandi
   let day = null;
   try {
     if (calendar === undefined) {
-      calendar = loadOperatingCalendar(path.join(root, 'config/taifex-official-calendar-2026.json'), { allowCandidate });
+      calendar = loadOperatingCalendar(path.join(root, 'config/taifex-official-calendar-2026.json'), { dataRoot, allowCandidate });
     }
     day = resolveGovernedTradingDay(calendar, date);
   } catch { /* Unknown calendar is not proof of a missed operational day. */ }

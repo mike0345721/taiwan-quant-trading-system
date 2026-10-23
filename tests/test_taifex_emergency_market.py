@@ -104,6 +104,39 @@ class EmergencyClosureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "CANDIDATE_NOT_ACTIVATED"):
             market_data_expected(datetime.fromisoformat("2026-10-23T09:00:00+08:00"), calendar, EVIDENCE)
 
+    def test_formal_operating_exception_and_login_gate(self) -> None:
+        import shutil
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            calendar = root / "config/taifex-official-calendar-2026.json"
+            shutil.copyfile(ROOT / "config/taifex-official-calendar-2026.json", calendar)
+            formal = root / "data/market-state/forward-shadow/governance/taifex-official-calendar-exception.json"
+            formal.parent.mkdir(parents=True)
+            evidence = {"schemaVersion": "taifex-official-calendar-exception-v1", "sourceType": "TAIFEX_OFFICIAL_EXCEPTION_EVIDENCE",
+                "ownerApproved": True, "sourceHash": "a" * 64,
+                "exceptions": [{"tradeDate": "2026-10-27", "officialTradingDay": False, "reason": "TEST_ONLY"}]}
+            evidence["fileHash"] = canonical_sha256(evidence)
+            formal.write_text(json.dumps(evidence), encoding="utf-8")
+            self.assertFalse(market_data_expected(datetime.fromisoformat("2026-10-27T09:00:00+08:00"), calendar, EVIDENCE))
+            evidence["exceptions"][0]["officialTradingDay"] = True
+            formal.write_text(json.dumps(evidence), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "INVALID"):
+                market_data_expected(datetime.fromisoformat("2026-10-27T09:00:00+08:00"), calendar, EVIDENCE)
+        tree = ast.parse((ROOT / "broker/shioaji_readonly_bridge.py").read_text(encoding="utf-8"))
+        gate = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "require_open_operating_session")
+        scope = {"tx_market_data_expected": lambda: False, "sys": sys}
+        exec(compile(ast.Module(body=[gate], type_ignores=[]), "offline_gate", "exec"), scope)
+        with self.assertRaises(SystemExit) as ctx:
+            scope["require_open_operating_session"]()
+        self.assertEqual(ctx.exception.code, 76)
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+        for statements in [main.body] + [n.body for n in ast.walk(main) if isinstance(n, ast.Try)]:
+            for index, node in enumerate(statements):
+                if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == "login":
+                    self.assertEqual(ast.unparse(statements[index - 1]), "require_open_operating_session()")
+
     def test_recovery_itself_blocks_failed_stale_missing_on_closed_market(self) -> None:
         # Compile only the pure recovery function, never import the live bridge.
         tree = ast.parse((ROOT / "broker" / "shioaji_readonly_bridge.py").read_text(encoding="utf8"))

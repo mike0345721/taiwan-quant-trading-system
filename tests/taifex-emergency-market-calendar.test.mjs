@@ -256,3 +256,18 @@ test('port probe crossing the session boundary cannot spawn after its awaited re
  bridgeSpawner:()=>{spawns++;return new EventEmitter()}});
  assert.equal(probes,2);assert.equal(spawns,0);
 });
+
+test('all default operating consumers discover the separate approved governance file',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'formal-calendar-discovery-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const config=path.join(root,'config'),dataRoot=path.join(root,'data');fs.mkdirSync(config);
+ const calendarPath=path.join(config,'taifex-official-calendar-2026.json');fs.copyFileSync(mainPath,calendarPath);
+ const target=path.join(dataRoot,'market-state/forward-shadow/governance/taifex-official-calendar-exception.json');fs.mkdirSync(path.dirname(target),{recursive:true});
+ const evidence={schemaVersion:'taifex-official-calendar-exception-v1',sourceType:'TAIFEX_OFFICIAL_EXCEPTION_EVIDENCE',ownerApproved:true,sourceHash:'a'.repeat(64),exceptions:[{tradeDate:'2026-10-27',officialTradingDay:false,reason:'TEST_ONLY'}]};
+ evidence.fileHash=digest(evidence);fs.writeFileSync(target,JSON.stringify(evidence));
+ const calendar=loadOperatingCalendar(calendarPath);
+ assert.equal(assessTaifexMarketSession(now('2026-10-27T09:00:00+08:00'),calendar).state,'MARKET_CLOSED');
+ assert.equal(readSchedulerHealth({dataRoot,outputRoot:path.join(dataRoot,'quality/daily-data-operations'),now:now('2026-10-27T16:00:00+08:00')}).applicability,'NOT_EXPECTED');
+ evidence.exceptions[0].officialTradingDay=true;fs.writeFileSync(target,JSON.stringify(evidence));
+ assert.throws(()=>loadOperatingCalendar(calendarPath),/HASH/);
+});

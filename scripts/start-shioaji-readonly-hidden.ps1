@@ -37,6 +37,10 @@ $stdout = Join-Path $logDir 'shioaji-readonly.log'
 $stderr = Join-Path $logDir 'shioaji-readonly-error.log'
 $bridge = Join-Path $root 'broker\shioaji_readonly_bridge.py'
 
+# Recheck after all awaited health/file work, immediately before process creation.
+if (Get-NetTCPConnection -State Listen -LocalPort 8790 -ErrorAction SilentlyContinue) { exit 0 }
+$gate = & $node (Join-Path $PSScriptRoot 'inspect-market-start-gate.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'BROKER_START_CALENDAR_BLOCKED' }
 Start-Process -FilePath $python `
   -ArgumentList "`"$bridge`"" `
   -WorkingDirectory $root -WindowStyle Hidden `

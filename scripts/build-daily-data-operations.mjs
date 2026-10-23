@@ -95,7 +95,7 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
     if (health.schedulerPolicySha256) {
       health.schedulerTiming = scheduledTiming(health);
       health.schedulerStartIdentity = captureSchedulerStart({ dataRoot, outputRoot: target,
-        calendar: loadOperatingCalendar(calendarPath, { allowCandidate: process.env.TAIFEX_ALLOW_CANDIDATE_CLOSURE === 'true' }), health, immutable });
+        calendar: loadOperatingCalendar(calendarPath, { dataRoot, allowCandidate: process.env.TAIFEX_ALLOW_CANDIDATE_CLOSURE === 'true' }), health, immutable });
     }
     // A.2b resolves and pins input bytes inside the existing guarded job/failure lifecycle.
     // The original manual CLI and pure A.1/A.2a contracts remain unchanged.
