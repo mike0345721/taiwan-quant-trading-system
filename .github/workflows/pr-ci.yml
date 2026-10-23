@@ -42,6 +42,20 @@ jobs:
       - name: Secret scan
         run: npm run security:scan
 
+      # The hosted VM can cold-fault the Chrome binary for >10s before CDP
+      # responds. Prime only Chrome's page cache; retain the real browser test,
+      # its exact 12s deadline, all assertions and CI job time limits.
+      - name: Warm installed Chrome for hermetic browser test
+        timeout-minutes: 1
+        run: |
+          /usr/bin/google-chrome --version
+          timeout 25s /usr/bin/google-chrome \
+            --headless=new --no-sandbox --disable-gpu --disable-extensions \
+            --disable-background-networking --no-first-run --no-default-browser-check \
+            --disable-dev-shm-usage \
+            --user-data-dir="${RUNNER_TEMP}/shiheng-chrome-warmup" \
+            --dump-dom 'data:text/html,%3Ctitle%3Eready%3C/title%3E' > /dev/null
+
       # Use the installed stable Chromium-family build verified in the #294 A/B diagnostic.
       # Same full lane, real browser, isolation, assertions and 12/30 second deadlines.
       - name: Hermetic PR gate
