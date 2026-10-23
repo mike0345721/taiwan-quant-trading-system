@@ -14,6 +14,9 @@ function main(){
   if(!filename||process.argv.length!==3||!filename.endsWith('.json'))
     throw Error('USAGE: node scripts/audit-research-validation-readonly.mjs <data/research-validation/frozen-input.json>');
   const realRoot=fs.realpathSync(dataRoot);
+  const rootRelative=path.relative(fs.realpathSync(root),realRoot);
+  if(!rootRelative||rootRelative.startsWith('..')||path.isAbsolute(rootRelative))
+    throw Error('RESEARCH_DATA_ROOT_OUTSIDE_ISOLATED_WORKTREE');
   const realFile=fs.realpathSync(path.resolve(filename));
   const relative=path.relative(realRoot,realFile);
   if(!relative||relative.startsWith('..')||path.isAbsolute(relative))

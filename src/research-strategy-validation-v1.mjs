@@ -158,13 +158,27 @@ export function auditPurgedWalkForward(result,{minimumOosDays=24}={}){
     ||!Number.isSafeInteger(minimumOosDays)||minimumOosDays<24
     ||!Array.isArray(result.predictions)||result.predictions.length<minimumOosDays)
     return safe('BLOCKED','MINIMUM_OOS_EVIDENCE_MISSING',{forwardGatePassed:false});
-  const valid=result.folds.every(f=>validCalendarDate(f.trainLastDate)
+  const valid=result.folds.every(f=>f&&validCalendarDate(f.trainLastDate)
       &&validCalendarDate(f.purgedDate)&&validCalendarDate(f.testFirstDate)
       &&validCalendarDate(f.testLastDate)
       &&f.trainLastDate<f.purgedDate&&f.purgedDate<f.testFirstDate
-      &&f.testFirstDate<=f.testLastDate&&f.testDays>0);
-  return safe(valid?'OOS_STRUCTURE_CHECK_ONLY':'BLOCKED',
-    valid?null:'PURGED_FOLD_CHRONOLOGY_INVALID',{forwardGatePassed:valid,
+      &&f.testFirstDate<=f.testLastDate&&Number.isSafeInteger(f.testDays)&&f.testDays>0);
+  const fail=reason=>safe('BLOCKED',reason,{forwardGatePassed:false});
+  if(!valid)return fail('PURGED_FOLD_CHRONOLOGY_INVALID');
+  const folds=[...result.folds].sort((a,b)=>a.testFirstDate.localeCompare(b.testFirstDate));
+  if(folds.some((f,i)=>i>0&&f.testFirstDate<=folds[i-1].testLastDate))
+    return fail('OVERLAPPING_OOS_FOLDS');
+  const seen=new Set(),counts=folds.map(()=>0);
+  for(const prediction of result.predictions){
+    if(!prediction||!validCalendarDate(prediction.tradeDate)
+      ||![prediction.actual,prediction.baseline,prediction.candidate].every(finite)
+      ||seen.has(prediction.tradeDate))return fail('OOS_PREDICTION_INVALID_OR_DUPLICATED');
+    const index=folds.findIndex(f=>f.testFirstDate<=prediction.tradeDate&&prediction.tradeDate<=f.testLastDate);
+    if(index<0)return fail('OOS_PREDICTION_OUTSIDE_FOLDS');
+    seen.add(prediction.tradeDate);counts[index]++;
+  }
+  if(counts.some((count,i)=>count!==folds[i].testDays))return fail('OOS_FOLD_COUNT_MISMATCH');
+  return safe('OOS_STRUCTURE_CHECK_ONLY',null,{forwardGatePassed:true,
       oosPredictions:result.predictions.length,foldCount:result.folds.length,
       futureHoldoutNeeded:true});
 }

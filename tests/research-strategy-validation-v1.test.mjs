@@ -117,9 +117,20 @@ test('existing purged walk-forward only qualifies chronological OOS structure, n
  ].map(([trainLastDate,purgedDate,testFirstDate,testLastDate])=>({
   trainLastDate,purgedDate,testFirstDate,testLastDate,testDays:8
  }));
- const result={folds,predictions:Array.from({length:24},(_,i)=>({i}))};
+ const result={folds,predictions:folds.flatMap(f=>Array.from({length:8},(_,i)=>({
+  tradeDate:new Date(Date.parse(f.testFirstDate+'T00:00:00Z')+i*86400000).toISOString().slice(0,10),
+  actual:i,baseline:i+1,candidate:i-1,
+ })))};
  const good=auditPurgedWalkForward(result);
  assert.equal(good.forwardGatePassed,true);assert.equal(good.readyForTrading,false);
  assert.equal(auditPurgedWalkForward({...result,folds:[...folds.slice(0,2),{...folds[2],purgedDate:'2026-02-11'}]}).state,'BLOCKED');
  assert.equal(auditPurgedWalkForward({...result,predictions:result.predictions.slice(1)}).state,'BLOCKED');
+ for(const predictions of [Array(24).fill(null),Array(24).fill(result.predictions[0]),
+  result.predictions.map((p,i)=>i?p:{...p,candidate:NaN}),
+  result.predictions.map((p,i)=>i?p:{...p,tradeDate:'2025-12-01'})]){
+  assert.equal(auditPurgedWalkForward({...result,predictions}).forwardGatePassed,false);
+ }
+ assert.equal(auditPurgedWalkForward({...result,folds:Array(3).fill(folds[0])}).reason,'OVERLAPPING_OOS_FOLDS');
+ assert.equal(auditPurgedWalkForward({...result,folds:folds.map((f,i)=>i?f:{...f,testDays:7})}).reason,'OOS_FOLD_COUNT_MISMATCH');
+ assert.equal(auditPurgedWalkForward({...result,folds:[null,...folds.slice(1)]}).state,'BLOCKED');
 });

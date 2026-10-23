@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const source=fileURLToPath(new URL('..',import.meta.url));
+test('readonly research CLI refuses a data directory redirected outside its worktree',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'research-cli-boundary-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const isolated=path.join(root,'isolated'),outside=path.join(root,'outside');
+ fs.mkdirSync(path.join(isolated,'scripts'),{recursive:true});fs.mkdirSync(path.join(isolated,'data'));fs.mkdirSync(outside);
+ fs.cpSync(path.join(source,'src'),path.join(isolated,'src'),{recursive:true});
+ fs.copyFileSync(path.join(source,'scripts/audit-research-validation-readonly.mjs'),path.join(isolated,'scripts/audit-research-validation-readonly.mjs'));
+ fs.symlinkSync(outside,path.join(isolated,'data/research-validation'),process.platform==='win32'?'junction':'dir');
+ const input=path.join(outside,'frozen.json');fs.writeFileSync(input,'{}');
+ const r=spawnSync(process.execPath,['scripts/audit-research-validation-readonly.mjs','data/research-validation/frozen.json'],{cwd:isolated,encoding:'utf8'});
+ assert.equal(r.status,2,r.stderr);assert.match(r.stderr,/RESEARCH_DATA_ROOT_OUTSIDE_ISOLATED_WORKTREE/);
+ assert.equal(fs.readFileSync(input,'utf8'),'{}');assert.deepEqual(fs.readdirSync(outside),['frozen.json']);
+});
