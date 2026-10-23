@@ -30,6 +30,7 @@ import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
+import { loadOperatingCalendar } from './src/operating-calendar.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
@@ -114,11 +115,13 @@ const chartCalendarExceptionPath = path.join(readDataRoot, 'market-state', 'forw
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
 // Operating-day closures are intentionally separate from historical chart
 // trade-date/session mapping, so 10/22 night history cannot be reclassified.
-const emergencyMarketEvidencePath = path.join(config.appRoot, 'config', 'taifex-emergency-closure-20261023.json');
-const operatingCalendarExceptionPath = fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath
-  : fs.existsSync(emergencyMarketEvidencePath) ? emergencyMarketEvidencePath : null;
-const operatingCalendar = operatingCalendarExceptionPath
-  ? loadGovernedTradingCalendar(chartCalendarPath, operatingCalendarExceptionPath) : chartCalendar;
+let operatingCalendar = null;
+try {
+  operatingCalendar = loadOperatingCalendar(chartCalendarPath, {
+    exceptionPaths: fs.existsSync(chartCalendarExceptionPath) ? [chartCalendarExceptionPath] : [],
+    allowCandidate: process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW',
+  });
+} catch { /* Unknown operating governance stays unavailable; no fake open/closed. */ }
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
@@ -266,12 +269,12 @@ async function decisionWorkspacePayload(snapshot, service) {
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
   const observedFlow = currentObservedFlow();
   const marketPulse = await currentMarketPulse(chart);
-  return buildDecisionWorkspace({
+  return { ...buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
     marketPulse,
-  });
+  }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar) };
 }
 
 async function currentDiscussionWorkspace() {

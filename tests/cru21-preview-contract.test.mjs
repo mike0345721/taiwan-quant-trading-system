@@ -56,8 +56,8 @@ test('PR87 P0 candidate accepts only its real branch with all existing identity 
  }
 });
 
-test('UI P1 exact-head normal authenticated candidate preserves original isolation boundaries',()=>{
- const b='codex/cru21-ui-auth-acceptance-20261023';
+for(const b of ['codex/cru21-ui-auth-acceptance-20261023','codex/cru21-emergency-market-calendar-qa-20261023'])
+test(`UI P1 exact-head candidate preserves original isolation boundaries: ${b}`,()=>{
  const v=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch:b,dataMode:'LIVE'});
  const o={...options,actualBranch:b};
  assert.equal(validateCru21PreviewVersionTruth(v,o).ready,true);

@@ -82,6 +82,7 @@ export function loadGovernedTradingCalendar(filePath, exceptionEvidencePath = nu
 
 export function resolveGovernedTradingDay(calendar, tradeDate) {
   date(tradeDate, 'FORWARD_SHADOW_TRADE_DATE_INVALID');
+  if (calendar?.pendingCandidateDates?.has(tradeDate)) throw Error('OPERATING_CALENDAR_CANDIDATE_NOT_ACTIVATED');
   const exception = calendar.exceptions.get(tradeDate);
   if (exception) return Object.freeze({ officialTradingDay: exception.officialTradingDay === true, state: exception.officialTradingDay === true ? 'TRADING_DAY_EXCEPTION' : 'NON_TRADING_DAY_EXCEPTION', sourceHash: calendar.payload.sourceHash, fileHash: calendar.fileHash, exceptionEvidence: exception });
   if (calendar.tradingDates.has(tradeDate)) return Object.freeze({ officialTradingDay: true, state: 'TRADING_DAY', sourceHash: calendar.payload.sourceHash, fileHash: calendar.fileHash });

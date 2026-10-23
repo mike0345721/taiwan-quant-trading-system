@@ -71,6 +71,7 @@ export function resolveOperationsReader({ manifestPath, dataRoot, outputRoot, ca
   if (!manifestPath) return { dataRoot, outputRoot: outputRoot || path.join(dataRoot, 'quality/daily-data-operations'), calendar };
   const binding = readOperationsBinding(manifestPath);
   if (outputRoot && !same(outputRoot, binding.outputRoot)) fail('READER_OVERRIDE_MISMATCH');
-  return { dataRoot: binding.dataRoot, outputRoot: binding.outputRoot, calendar: binding.calendar,
+  if (calendar && calendar.fileHash !== binding.calendar.fileHash) fail('OPERATING_CALENDAR_BASE_MISMATCH');
+  return { dataRoot: binding.dataRoot, outputRoot: binding.outputRoot, calendar: calendar === undefined ? binding.calendar : calendar,
     bindingIdentity: { manifestSha256: binding.manifestSha256, calendarSha256: binding.manifest.calendarSha256 } };
 }

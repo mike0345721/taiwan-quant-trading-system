@@ -1,7 +1,22 @@
+param([switch]$OwnerApprovedStart)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $health = 'http://127.0.0.1:8790/health'
 $credentials = Join-Path $root '.shioaji.credentials.json'
+
+# A dashboard/boot invocation is not permission for another broker login.
+if (-not $OwnerApprovedStart) {
+  Write-Output 'BROKER_START_NOT_REQUESTED: existing sessions are left unchanged.'
+  exit 0
+}
+$node = (Get-Command node.exe -ErrorAction Stop).Source
+$gate = & $node (Join-Path $PSScriptRoot 'inspect-market-start-gate.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'BROKER_START_CALENDAR_BLOCKED' }
+# A slow/unhealthy incumbent must never be duplicated.
+if (Get-NetTCPConnection -State Listen -LocalPort 8790 -ErrorAction SilentlyContinue) {
+  Write-Output 'BROKER_ALREADY_LISTENING: no restart or duplicate login.'
+  exit 0
+}
 
 if (-not (Test-Path $credentials)) { exit 0 }
 

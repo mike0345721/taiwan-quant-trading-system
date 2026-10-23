@@ -10,13 +10,15 @@
   const stamp = value => Number.isFinite(time(value)) ? new Date(value).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) : '來源時間未知';
 
   // A presentation projection, never a replacement for backend eligibility or R:R rules.
-  function derive({ chart = null, flow = null, watch = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
+  function derive({ chart = null, flow = null, watch = null, marketOperating = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
+    const marketBlocked = marketOperating && marketOperating.marketShouldBeActive !== true;
+    const marketClosed = marketOperating?.state === 'MARKET_CLOSED';
     const hasChart = Boolean(chart?.bars?.length && rendered);
     const replay = chart?.mode === 'REPLAY';
     const chartFresh = chart?.mode === 'LIVE' && fresh(chart.availableAt, now) && identity(chart);
-    const chartCurrent = hasChart && chartFresh && !chartError;
+    const chartCurrent = hasChart && chartFresh && !chartError && !marketBlocked;
     const chartQualified = chartCurrent && chart.qualityStatus === 'PASS';
-    const flowCurrent = Boolean(['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
+    const flowCurrent = Boolean(!marketBlocked && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
       && (flow.source.validUntil == null || (Number.isFinite(time(flow.source.validUntil)) && time(flow.source.validUntil) >= now)));
     const flowQualified = flowCurrent && flow.sourceState === 'LIVE' && ['PASS', 'READY'].includes(flow.researchQuality?.status);
     const mismatch = Boolean(chart && flow?.identity && identity(chart) && identity(flow.identity) && !same(chart, flow.identity));
@@ -29,6 +31,9 @@
     if (failure) {
       status = chartCurrent ? '部分資料更新中斷' : '資料更新中斷'; tone = 'blocked';
       message = chartCurrent ? '圖表有獨立更新；完整盤況尚未恢復，暫停合併判讀。' : '未能取得新資料；保留畫面不是即時盤況，暫停當下判讀。';
+    } else if (marketBlocked) {
+      status = marketClosed ? '休市・保留歷史資料' : marketOperating.state === 'UNAVAILABLE' ? '開休市日曆未驗證' : '非交易時段';
+      message = marketClosed ? '本時段不預期新報價；歷史圖表可供查看，不能視為即時行情。' : '目前不提供即時判讀；保留來源時間與資料品質限制。';
     } else if (chart && !hasChart) {
       status = '圖表暫不可用'; tone = 'limited'; message = '尚無可顯示的合格圖表；不以空值或舊價位建立當下判讀。';
     } else if (replay) {
@@ -62,9 +67,9 @@
     });
   }
   // Preview 02 projects existing contracts only; never invents signals or missing values.
-  function flowRows({ chart = null, flow = null, flowDefinitions = [], now = Date.now() } = {}) {
+  function flowRows({ chart = null, flow = null, marketOperating = null, flowDefinitions = [], now = Date.now() } = {}) {
     const expires = flow?.source?.validUntil;
-    const transport = ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
+    const transport = (!marketOperating || marketOperating.marketShouldBeActive === true) && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
       && identity(flow?.identity) && fresh(flow?.source?.availableAt, now)
       && (expires == null || (Number.isFinite(time(expires)) && time(expires) >= now));
     const comparable = chart?.mode === 'LIVE' && same(chart, flow?.identity);
@@ -102,9 +107,9 @@
     });
   }
 
-  function marketContext({ chart = null, pulse = null, leadership = null, now = Date.now() } = {}) {
+  function marketContext({ chart = null, pulse = null, leadership = null, marketOperating = null, now = Date.now() } = {}) {
     const night = chart?.session === 'NIGHT';
-    const pulseCurrent = chart?.mode === 'LIVE' && pulse?.schemaVersion === 'market-pulse-live-v1'
+    const pulseCurrent = (!marketOperating || marketOperating.marketShouldBeActive === true) && chart?.mode === 'LIVE' && pulse?.schemaVersion === 'market-pulse-live-v1'
       && same(chart, pulse.identity) && fresh(pulse.generatedAt, now) && fresh(pulse.sourceAvailableAt, now);
     const basis = pulse?.basis || {};
     const basisReady = pulseCurrent && basis.state === (night ? 'SESSION_CLOSED_REFERENCE' : 'LIVE') && number(basis.points) != null;
@@ -113,7 +118,7 @@
     const l = leadership || {};
     const dated = typeof l.sourceTradeDate === 'string' && /^\d{4}-\d\d-\d\d$/.test(l.sourceTradeDate)
       && Number.isFinite(time(l.lastAvailableAt)) && time(l.lastAvailableAt) <= now + 5000;
-    const dayLive = chart?.mode === 'LIVE' && !night && l.state === 'LIVE' && l.sourceMode === 'LIVE_RAW'
+    const dayLive = (!marketOperating || marketOperating.marketShouldBeActive === true) && chart?.mode === 'LIVE' && !night && l.state === 'LIVE' && l.sourceMode === 'LIVE_RAW'
       && dated && l.sourceTradeDate === chart.tradeDate && fresh(l.lastAvailableAt, now);
     const closed = chart?.mode === 'LIVE' && dated && identity(chart) && l.sourceTradeDate <= chart.tradeDate
       && l.state === 'SESSION_CLOSED' && l.sourceMode === 'EOD_CONTEXT';
@@ -533,7 +538,9 @@
     }
     text('home-flow-state', view.flowLabel); text('home-flow-message', view.flowMessage + ' 最後來源：' + view.flowTime);
     text('home-price-caption', view.priceLabel); text('tt-top-price', view.price); text('tt-top-contract', input.chart?.actualContract ? '台指期貨 ' + input.chart.actualContract : '台指期貨');
-    text('tt-top-session', [input.chart?.tradeDate, ({ DAY: '日盤', NIGHT: '夜盤' })[input.chart?.session] || input.chart?.session].filter(Boolean).join(' · ') || '盤別尚未確認');
+    text('tt-top-session', input.marketOperating?.state === 'MARKET_CLOSED' ? '休市 · 歷史資料'
+      : input.marketOperating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
+      : [input.chart?.tradeDate, ({ DAY: '日盤', NIGHT: '夜盤' })[input.chart?.session] || input.chart?.session].filter(Boolean).join(' · ') || '盤別尚未確認');
     text('tt-top-trust', view.status); text('tt-top-updated', view.chartTime);
     text('dw-chart-mode', (view.chartCurrent ? '觀察模式' : '非即時') + ' · ' + (input.chart?.timeframe || '—') + ' · 只讀');
     text('dw-chart-status', view.chartLabel); text('home-chart-notice', view.chartCurrent ? '' : view.chartLabel + ' · 截至 ' + view.chartTime);

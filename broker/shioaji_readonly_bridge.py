@@ -26,7 +26,7 @@ from typing import Any
 
 import shioaji as sj
 from live_event_ledger import LiveEventLedger
-from taifex_emergency_market import governed_emergency_closure
+from taifex_emergency_market import market_data_expected
 from txo_live_chain import (
     contract_metadata,
     load_activation_config,
@@ -336,15 +336,11 @@ def _iso_datetime(value: Any) -> datetime | None:
 def tx_market_data_expected(now: datetime | None = None) -> bool:
     current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
     try:
-        # A verified emergency closure prevents quote-watchdog recovery retries.
-        # Previous-night historical events remain governed by the original session.
-        if governed_emergency_closure(
-            current, ROOT / "config" / "taifex-emergency-closure-20261023.json"
-        ):
-            return False
-        resolve_session_trade_date(current, TX_TRADING_CALENDAR)
-        return True
-    except (RuntimeError, ValueError):
+        return market_data_expected(current,
+            ROOT / "config" / "taifex-official-calendar-2026.json",
+            ROOT / "config" / "taifex-emergency-closure-20261023.json",
+            allow_candidate=os.environ.get("TAIFEX_ALLOW_CANDIDATE_CLOSURE") == "true")
+    except (RuntimeError, ValueError, OSError, KeyError, TypeError):
         # Invalid present governance must not trigger automatic subscriptions.
         return False
 
@@ -464,6 +460,9 @@ def _recover_missing_quote_types_locked(
     """Retry only silently missing futures quote types, with a bounded budget."""
     current = now or datetime.now().astimezone()
     recovered = 0
+    active = tx_market_data_expected(current) if market_should_be_active is None else market_should_be_active
+    if not active:
+        return 0
     for subscription in quote_delivery_snapshot(current, market_should_be_active):
         product = subscription["product"]
         contract = futures_contracts.get(product)

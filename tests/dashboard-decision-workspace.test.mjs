@@ -396,7 +396,8 @@ test('formal dashboard wiring carries posture, five evidence families and comple
   assert.match(server, /loadFlowRefresh\(\{[\s\S]*artifactPath: cru34SnapshotArtifactPath/);
   const flowRoute = fs.readFileSync(new URL('../src/dashboard-flow-refresh.mjs', import.meta.url), 'utf8');
   assert.match(flowRoute, /loadDashboardObservedFlow\(\{ \.\.\.options, now \}\)/);
-  assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
+  assert.match(server, /return \{ \.\.\.buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
+  assert.match(server, /marketOperating: assessTaifexMarketSession\(new Date\(\), operatingCalendar\)/);
   assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
   assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);
   assert.match(app, /renderDw4Evidence\(workspace\?\.evidenceConflict\)/);

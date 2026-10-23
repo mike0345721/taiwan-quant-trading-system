@@ -7,8 +7,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from typing import Any, Mapping
 
-from broker.taifex_emergency_market import governed_emergency_closure, canonical_sha256
+from broker.taifex_emergency_market import governed_emergency_closure, canonical_sha256, market_data_expected
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "config" / "taifex-emergency-closure-20261023.json"
@@ -81,11 +82,41 @@ class EmergencyClosureTests(unittest.TestCase):
         called = [node.func.id for node in ast.walk(fn)
                   if isinstance(node, ast.Call)
                   and isinstance(node.func, ast.Name)]
-        self.assertIn("governed_emergency_closure", called)
+        self.assertIn("market_data_expected", called)
         self.assertNotIn("subscribe", called)
         self.assertNotIn("place_order", called)
         self.assertIn("broker/taifex_emergency_market.py",
             "broker/taifex_emergency_market.py")
+
+    def test_operating_clock_matches_js_without_changing_event_mapping(self) -> None:
+        calendar = ROOT / "config" / "taifex-official-calendar-2026.json"
+        for text, expected in [
+            ("2026-10-22T19:00:00+08:00", True),
+            ("2026-10-23T04:59:59+08:00", True),
+            ("2026-10-23T05:00:00+08:00", False),
+            ("2026-10-24T16:00:00+08:00", False),
+            ("2026-10-26T16:00:00+08:00", False),
+            ("2026-10-27T02:00:00+08:00", False),
+            ("2026-10-27T08:45:00+08:00", True),
+        ]:
+            self.assertEqual(market_data_expected(datetime.fromisoformat(text), calendar,
+                EVIDENCE, allow_candidate=True), expected, text)
+        with self.assertRaisesRegex(ValueError, "CANDIDATE_NOT_ACTIVATED"):
+            market_data_expected(datetime.fromisoformat("2026-10-23T09:00:00+08:00"), calendar, EVIDENCE)
+
+    def test_recovery_itself_blocks_failed_stale_missing_on_closed_market(self) -> None:
+        # Compile only the pure recovery function, never import the live bridge.
+        tree = ast.parse((ROOT / "broker" / "shioaji_readonly_bridge.py").read_text(encoding="utf8"))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_recover_missing_quote_types_locked")
+        for state in ["FAILED", "STALE", "MISSING"]:
+            calls = []
+            namespace = {"datetime": datetime, "Any": Any, "Mapping": Mapping,
+                "tx_market_data_expected": lambda _: False,
+                "quote_delivery_snapshot": lambda *_: calls.append(state)}
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), "offline-recovery", "exec"), namespace)
+            result = namespace[fn.name](object(), {"TX": object()}, datetime.fromisoformat("2026-10-23T09:00:00+08:00"))
+            self.assertEqual(result, 0)
+            self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

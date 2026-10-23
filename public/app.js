@@ -3539,7 +3539,7 @@ function renderHomeWorkspace() {
   const watch = state.levelWatch, chart = state.txChartPayload;
   const matches = Boolean(watch && chart && levelWatchIsFresh(watch) && levelWatchMatchesChart(watch, chart));
   return globalThis.HomeWorkspace.render($('decision-workspace'), {
-    chart, watch, flow: lastObservedFlowValue,
+    chart, watch, flow: lastObservedFlowValue, marketOperating: state.decisionWorkspace?.marketOperating,
     flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY, selectedFlowWindow: observedFlowSelectedWindow,
     pulse: state.marketPulse, leadership: state.indexLeadership,
     dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
@@ -4901,7 +4901,12 @@ function renderDecisionWorkspace(workspace) {
   const forward = workspace?.forwardShadowStatus || {};
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
-  dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
+  const operating = workspace?.marketOperating;
+  const closed = operating?.state === 'MARKET_CLOSED';
+  dwText('dw-global-session', closed
+    ? `休市 · ${dwHumanize(operating.reasonCode)}（歷史資料保留）`
+    : operating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
+    : global.session ? `時段 ${global.session}` : '時段目前無法取得');
   dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
   dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
   dwText('dw-global-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');

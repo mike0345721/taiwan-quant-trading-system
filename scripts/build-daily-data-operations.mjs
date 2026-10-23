@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { buildDailyDataOperations, validateDailyDataOperations } from '../src/daily-data-operations.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 import { stableDailyAcceptanceJson } from '../src/daily-collection-acceptance.mjs';
 import { recordAutomaticCheckpoint, captureSchedulerStart, scheduledTiming } from '../src/data-operations-scheduler-health.mjs';
 
@@ -94,7 +95,7 @@ function executeManualRun({ inputPath, acceptanceInputsPath = null, dueRulesPath
     if (health.schedulerPolicySha256) {
       health.schedulerTiming = scheduledTiming(health);
       health.schedulerStartIdentity = captureSchedulerStart({ dataRoot, outputRoot: target,
-        calendar: loadGovernedTradingCalendar(calendarPath), health, immutable });
+        calendar: loadOperatingCalendar(calendarPath, { allowCandidate: process.env.TAIFEX_ALLOW_CANDIDATE_CLOSURE === 'true' }), health, immutable });
     }
     // A.2b resolves and pins input bytes inside the existing guarded job/failure lifecycle.
     // The original manual CLI and pure A.1/A.2a contracts remain unchanged.

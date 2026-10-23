@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { digest } from '../src/market-state-forward-shadow.mjs';
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from '../src/taifex-market-operation.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 import { classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
 import { runContinuitySupervisor, governedMarketSession } from '../scripts/run-shioaji-market-data-continuity.mjs';
 import { readSchedulerHealth } from '../src/data-operations-scheduler-health.mjs';
@@ -181,7 +182,7 @@ test('daily market applicability and scheduler suppress false missing-data alert
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const databasePath = path.join(dir, 'not-present.sqlite');
   const candidate = inspectDailyMarket({
-    tradeDate: '2026-10-23', databasePath, calendarPath: mainPath,
+    tradeDate: '2026-10-23', databasePath, calendarPath: mainPath, allowCandidate: true,
   });
   assert.equal(candidate.status, 'NOT_EXPECTED');
   assert.equal(candidate.reasonCode, 'MARKET_CLOSED');
@@ -189,6 +190,7 @@ test('daily market applicability and scheduler suppress false missing-data alert
   assert.match(candidate.calendarExceptionHash, /^[a-f0-9]{64}$/);
   assert.equal(fs.existsSync(databasePath), false);
   const schedule = readSchedulerHealth({
+    calendar: closed,
     dataRoot: dir, outputRoot: path.join(dir, 'quality/daily-data-operations'),
     now: now('2026-10-23T07:00:00Z'),
   });
@@ -202,7 +204,7 @@ test('daily market applicability and scheduler suppress false missing-data alert
   });
   assert.equal(monday.applicability, 'NOT_EXPECTED');
   const tuesday = inspectDailyMarket({
-    tradeDate: '2026-10-27', databasePath, calendarPath: mainPath,
+    tradeDate: '2026-10-27', databasePath, calendarPath: mainPath, allowCandidate: true,
   });
   assert.equal(tuesday.applicability, 'EXPECTED');
   assert.equal(tuesday.status, 'UNKNOWN');
@@ -219,5 +221,38 @@ test('Python Bridge emergency-closure guard passes independent offline validatio
     cwd: root, encoding: 'utf8', timeout: 30_000,
   });
   assert.equal(result.status, 0, [result.stdout, result.stderr].join('\n'));
-  assert.match(result.stderr, /Ran 6 tests/);
+  assert.match(result.stderr, /Ran \d+ tests/);
+});
+
+test('unactivated candidate stays unknown only on its dates; explicit overlay cannot be shadowed',()=>{
+  const inactive=loadOperatingCalendar(mainPath);
+  assert.throws(()=>resolveGovernedTradingDay(inactive,'2026-10-23'),/NOT_ACTIVATED/);
+  assert.equal(resolveGovernedTradingDay(inactive,'2026-10-22').officialTradingDay,true);
+  const combined=loadOperatingCalendar(mainPath,{exceptionPaths:[evidencePath],allowCandidate:true});
+  assert.equal(resolveGovernedTradingDay(combined,'2026-10-23').officialTradingDay,false);
+  assert.equal(combined.fileHash,base.fileHash);
+});
+
+test('backoff crossing closure boundary and absent calendar never spawn a broker',async t=>{
+  for(const calendar of [closed,null]){
+    const dir=fs.mkdtempSync(path.join(os.tmpdir(),'closure-race-'));
+    t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+    let clock=Date.parse('2026-10-23T04:59:59+08:00'),spawns=0;
+    await runContinuitySupervisor({root:dir,calendar,now:()=>new Date(clock),maxCycles:2,
+      healthProbe:async()=>null,occupiedProbe:async()=>false,
+      wait:async()=>{clock=Date.parse('2026-10-23T05:00:01+08:00')},
+      bridgeSpawner:()=>{spawns++;return new EventEmitter()}});
+    assert.equal(spawns,0);
+  }
+});
+
+
+test('port probe crossing the session boundary cannot spawn after its awaited result',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'closure-probe-race-'));
+ t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ let clock=Date.parse('2026-10-23T04:59:59+08:00'), probes=0, spawns=0;
+ await runContinuitySupervisor({root:dir,calendar:closed,now:()=>new Date(clock),maxCycles:1,
+ healthProbe:async()=>null,wait:async()=>{},occupiedProbe:async()=>{if(++probes===2)clock+=2000;return false},
+ bridgeSpawner:()=>{spawns++;return new EventEmitter()}});
+ assert.equal(probes,2);assert.equal(spawns,0);
 });

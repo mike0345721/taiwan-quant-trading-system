@@ -16,6 +16,7 @@ import {
 } from '../src/shioaji-market-data-continuity.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from '../src/taifex-market-operation.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.dirname(SCRIPT_DIR);
@@ -123,7 +124,7 @@ export async function runContinuitySupervisor({
     // An exchange-confirmed closure is not a streaming outage. Never spend a
     // login/recovery attempt on missing Tick/BidAsk while trading is suspended.
     // Preserve the fail-closed unsafe-runtime gate even on market holidays.
-    if (session.state === 'MARKET_CLOSED' || (calendar && session.state === 'UNAVAILABLE')) {
+    if (!session.marketShouldBeActive) {
       const calendarUnknown = session.state === 'UNAVAILABLE';
       const unsafe = evaluated.reasonCode === 'UNSAFE_RUNTIME_RESPONSE';
       emit({
@@ -194,9 +195,14 @@ export async function runContinuitySupervisor({
       await wait(Math.min(CONTINUITY_RETRY_POLICY.healthPollMs, Math.max(1, Date.parse(cooldownUntil) - now().getTime())));
       continue;
     }
-    attemptsUsed = decision.attempt;
     await wait(decision.delayMs);
     if (stopSignal.requested) break;
+    // Backoff may cross a closing boundary. Revalidate immediately before any
+    // broker process mutation, without consuming an attempt for a closed session.
+    if (!governedMarketSession(now(), calendar).marketShouldBeActive) continue;
+    if (await occupiedProbe(host, port)) continue;
+    if (stopSignal.requested || !governedMarketSession(now(), calendar).marketShouldBeActive) continue;
+    attemptsUsed = decision.attempt;
     recoveryStartedAt ||= now().toISOString();
     emit({ state: 'RECOVERING', reasonCode: lastFailureReason, recoveryAttempt: attemptsUsed, recoveryResult: 'ATTEMPT_STARTED', writerStatus: evaluated.writerStatus });
     try {
@@ -244,13 +250,13 @@ async function main() {
   const stopSignal = { requested: false };
   process.once('SIGINT', () => { stopSignal.requested = true; });
   process.once('SIGTERM', () => { stopSignal.requested = true; });
-  const calendarPath = path.join(root, 'config', 'taifex-official-calendar-2026.json');
-  const exceptionPath = path.join(root, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
-  const candidateEmergencyClosure = path.join(root, 'config', 'taifex-emergency-closure-20261023.json');
-  const evidence = fs.existsSync(exceptionPath) ? exceptionPath
-    : fs.existsSync(candidateEmergencyClosure) ? candidateEmergencyClosure : null;
-  const calendar = loadGovernedTradingCalendar(calendarPath, evidence);
   try {
+    const calendarPath = path.join(root, 'config', 'taifex-official-calendar-2026.json');
+    const exceptionPath = path.join(root, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
+    const calendar = loadOperatingCalendar(calendarPath, {
+      exceptionPaths: fs.existsSync(exceptionPath) ? [exceptionPath] : [],
+      allowCandidate: process.env.TAIFEX_ALLOW_CANDIDATE_CLOSURE === 'true',
+    });
     await runContinuitySupervisor({ root, stopSignal, calendar });
   } finally {
     lock.release();
