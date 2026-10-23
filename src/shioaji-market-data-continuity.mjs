@@ -8,6 +8,7 @@ export const CONTINUITY_STATES = Object.freeze([
   'RECOVERING',
   'RECOVERY_FAILED',
   'STOPPED_EXPECTED',
+  'MARKET_CLOSED',
   'UNAVAILABLE',
   'UNKNOWN',
 ]);
@@ -29,6 +30,8 @@ export const CONTINUITY_REASONS = Object.freeze([
   'DATA_RESUME_NOT_OBSERVED',
   'UNSAFE_RUNTIME_RESPONSE',
   'EXPECTED_STOP',
+  'MARKET_CLOSED_EXPECTED',
+  'CALENDAR_UNVERIFIED',
   'UNKNOWN_INSUFFICIENT_EVIDENCE',
 ]);
 
@@ -277,6 +280,18 @@ export function buildContinuityStatus(input = {}) {
     recoveryAttempt: Math.max(0, Number(input.recoveryAttempt) || 0),
     recoveryLimit: CONTINUITY_RETRY_POLICY.maxAttempts,
     recoveryResult: typeof input.recoveryResult === 'string' ? input.recoveryResult : null,
+    operatingSession: input.operatingSession?.state === 'MARKET_CLOSED'
+      ? Object.freeze({
+        state: 'MARKET_CLOSED',
+        marketShouldBeActive: false,
+        reasonCode: ['EXCHANGE_EMERGENCY_CLOSURE', 'SCHEDULED_MARKET_HOLIDAY'].includes(input.operatingSession.reasonCode)
+          ? input.operatingSession.reasonCode : 'CALENDAR_UNVERIFIED',
+        calendarDate: /^\d{4}-\d{2}-\d{2}$/.test(input.operatingSession.calendarDate || '')
+          ? input.operatingSession.calendarDate : null,
+        evidenceFileHash: /^[a-f0-9]{64}$/.test(input.operatingSession.evidenceFileHash || '')
+          ? input.operatingSession.evidenceFileHash : null,
+      })
+      : null,
     requiredSubscriptions: Object.freeze(subscriptionStatus),
     writerStatus: input.writerStatus === 'PASS' ? 'PASS' : input.writerStatus === 'FAIL' ? 'FAIL' : 'UNKNOWN',
     dataTrust: input.dataTrust === 'PASS' ? 'PASS' : input.dataTrust === 'QUALITY_INSUFFICIENT' ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',

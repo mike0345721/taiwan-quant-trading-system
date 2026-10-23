@@ -146,7 +146,13 @@ export function readSchedulerHealth({ dataRoot, outputRoot, calendar, now = new 
   const policy = loadSchedulerPolicy(), date = schedulerDate(now);
   let day = null;
   try {
-    calendar ||= loadGovernedTradingCalendar(path.join(root, 'config/taifex-official-calendar-2026.json'));
+    if (!calendar) {
+      const emergencyEvidence = path.join(root, 'config/taifex-emergency-closure-20261023.json');
+      calendar = loadGovernedTradingCalendar(
+        path.join(root, 'config/taifex-official-calendar-2026.json'),
+        fs.existsSync(emergencyEvidence) ? emergencyEvidence : null,
+      );
+    }
     day = resolveGovernedTradingDay(calendar, date);
   } catch { /* Unknown calendar is not proof of a missed operational day. */ }
   const result = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(), tradeDate: date,

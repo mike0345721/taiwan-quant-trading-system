@@ -14,7 +14,8 @@ import {
   recoveryDecision,
   writeContinuityStatusAtomic,
 } from '../src/shioaji-market-data-continuity.mjs';
-import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from '../src/market-state-forward-shadow-calendar.mjs';
+import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
+import { assessTaifexMarketSession } from '../src/taifex-market-operation.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.dirname(SCRIPT_DIR);
@@ -32,25 +33,8 @@ export function acquireSupervisorPort(host = '127.0.0.1', port = 8791) {
   });
 }
 
-function taipeiParts(now = new Date()) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
-  return {
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    minutes: Number(parts.hour) * 60 + Number(parts.minute),
-  };
-}
-
 export function governedMarketSession(now, calendar) {
-  const local = taipeiParts(now);
-  let officialTradingDay = false;
-  try { officialTradingDay = resolveGovernedTradingDay(calendar, local.date).officialTradingDay === true; } catch { return { state: 'UNAVAILABLE', marketShouldBeActive: false }; }
-  if (!officialTradingDay) return { state: 'SESSION_CLOSED', marketShouldBeActive: false };
-  if (local.minutes >= 8 * 60 + 45 && local.minutes < 13 * 60 + 45) return { state: 'DAY', marketShouldBeActive: true };
-  if (local.minutes >= 15 * 60 || local.minutes < 5 * 60) return { state: 'NIGHT', marketShouldBeActive: true };
-  return { state: 'SESSION_CLOSED', marketShouldBeActive: false };
+  return assessTaifexMarketSession(now, calendar);
 }
 
 async function fetchHealth(baseUrl, timeoutMs = 1_200) {
@@ -136,6 +120,25 @@ export async function runContinuitySupervisor({
     try { healthPayload = await healthProbe(healthBaseUrl); } catch { healthPayload = null; }
     const session = calendar ? governedMarketSession(now(), calendar) : { state: 'UNAVAILABLE', marketShouldBeActive: false };
     const evaluated = evaluateBridgeContinuity(healthPayload, { marketShouldBeActive: false, recoveryStartedAt });
+    // An exchange-confirmed closure is not a streaming outage. Never spend a
+    // login/recovery attempt on missing Tick/BidAsk while trading is suspended.
+    // Preserve the fail-closed unsafe-runtime gate even on market holidays.
+    if (session.state === 'MARKET_CLOSED' || (calendar && session.state === 'UNAVAILABLE')) {
+      const calendarUnknown = session.state === 'UNAVAILABLE';
+      const unsafe = evaluated.reasonCode === 'UNSAFE_RUNTIME_RESPONSE';
+      emit({
+        state: unsafe || calendarUnknown ? 'UNAVAILABLE' : 'MARKET_CLOSED',
+        reasonCode: unsafe ? 'UNSAFE_RUNTIME_RESPONSE'
+          : calendarUnknown ? 'CALENDAR_UNVERIFIED' : 'MARKET_CLOSED_EXPECTED',
+        recoveryAttempt: attemptsUsed,
+        recoveryResult: 'NO_RETRY_EXCHANGE_CALENDAR',
+        writerStatus: evaluated.writerStatus,
+        requiredSubscriptions: healthPayload?.requiredSubscriptions,
+        operatingSession: session,
+      });
+      await wait(CONTINUITY_RETRY_POLICY.healthPollMs);
+      continue;
+    }
     if (evaluated.state === 'HEALTHY') {
       const current = now();
       if (recoveryStartedAt) {
@@ -243,7 +246,10 @@ async function main() {
   process.once('SIGTERM', () => { stopSignal.requested = true; });
   const calendarPath = path.join(root, 'config', 'taifex-official-calendar-2026.json');
   const exceptionPath = path.join(root, 'data', 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
-  const calendar = loadGovernedTradingCalendar(calendarPath, fs.existsSync(exceptionPath) ? exceptionPath : null);
+  const candidateEmergencyClosure = path.join(root, 'config', 'taifex-emergency-closure-20261023.json');
+  const evidence = fs.existsSync(exceptionPath) ? exceptionPath
+    : fs.existsSync(candidateEmergencyClosure) ? candidateEmergencyClosure : null;
+  const calendar = loadGovernedTradingCalendar(calendarPath, evidence);
   try {
     await runContinuitySupervisor({ root, stopSignal, calendar });
   } finally {

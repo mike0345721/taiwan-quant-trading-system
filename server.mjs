@@ -29,6 +29,7 @@ import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
+import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
 import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
@@ -111,6 +112,13 @@ const shioajiContinuityStatusPath = path.join(readDataRoot, 'runtime', 'shioaji-
 const chartCalendarPath = path.join(config.appRoot, 'config', 'taifex-official-calendar-2026.json');
 const chartCalendarExceptionPath = path.join(readDataRoot, 'market-state', 'forward-shadow', 'governance', 'taifex-official-calendar-exception.json');
 const chartCalendar = loadGovernedTradingCalendar(chartCalendarPath, fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath : null);
+// Operating-day closures are intentionally separate from historical chart
+// trade-date/session mapping, so 10/22 night history cannot be reclassified.
+const emergencyMarketEvidencePath = path.join(config.appRoot, 'config', 'taifex-emergency-closure-20261023.json');
+const operatingCalendarExceptionPath = fs.existsSync(chartCalendarExceptionPath) ? chartCalendarExceptionPath
+  : fs.existsSync(emergencyMarketEvidencePath) ? emergencyMarketEvidencePath : null;
+const operatingCalendar = operatingCalendarExceptionPath
+  ? loadGovernedTradingCalendar(chartCalendarPath, operatingCalendarExceptionPath) : chartCalendar;
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
@@ -428,6 +436,7 @@ const server = http.createServer(async (req, res) => {
         runtimeEvidence: { vendor: readiness.vendor, producer: readiness.producer,
           chart: readiness.chart, observedFlow: readiness.observedFlow, parity: readiness.parity, browser: readiness.browser },
         productSurface: productSurfaceContract,
+        marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar),
       });
       return;
     }

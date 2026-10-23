@@ -26,6 +26,7 @@ from typing import Any
 
 import shioaji as sj
 from live_event_ledger import LiveEventLedger
+from taifex_emergency_market import governed_emergency_closure
 from txo_live_chain import (
     contract_metadata,
     load_activation_config,
@@ -333,13 +334,18 @@ def _iso_datetime(value: Any) -> datetime | None:
 
 
 def tx_market_data_expected(now: datetime | None = None) -> bool:
+    current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
     try:
-        resolve_session_trade_date(
-            (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE),
-            TX_TRADING_CALENDAR,
-        )
+        # A verified emergency closure prevents quote-watchdog recovery retries.
+        # Previous-night historical events remain governed by the original session.
+        if governed_emergency_closure(
+            current, ROOT / "config" / "taifex-emergency-closure-20261023.json"
+        ):
+            return False
+        resolve_session_trade_date(current, TX_TRADING_CALENDAR)
         return True
-    except RuntimeError:
+    except (RuntimeError, ValueError):
+        # Invalid present governance must not trigger automatic subscriptions.
         return False
 
 

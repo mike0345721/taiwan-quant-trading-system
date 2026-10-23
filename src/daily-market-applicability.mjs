@@ -1,17 +1,24 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
 
 // Classify the requested date before testing row presence. Never substitute the
 // last stored date for today, and never treat uncovered dates as missing data.
-export function inspectDailyMarket({ tradeDate, databasePath, calendarPath }) {
+export function inspectDailyMarket({ tradeDate, databasePath, calendarPath, exceptionEvidencePath = null }) {
   let day, calendar;
   try {
-    calendar = loadGovernedTradingCalendar(calendarPath);
+    const defaultException = path.basename(calendarPath || '') === 'taifex-official-calendar-2026.json'
+      ? path.join(path.dirname(calendarPath), 'taifex-emergency-closure-20261023.json') : null;
+    const evidencePath = exceptionEvidencePath || (defaultException && fs.existsSync(defaultException) ? defaultException : null);
+    calendar = loadGovernedTradingCalendar(calendarPath, evidencePath);
     day = resolveGovernedTradingDay(calendar, tradeDate);
   } catch { return { status: 'UNKNOWN', tradeDate, applicability: 'UNKNOWN', reasonCode: 'CALENDAR_UNVERIFIED' }; }
-  const identity = { tradeDate, calendarHash: calendar.fileHash, applicability: day.officialTradingDay ? 'EXPECTED' : 'NOT_EXPECTED' };
-  if (!day.officialTradingDay) return { ...identity, status: 'NOT_EXPECTED', reasonCode: 'MARKET_CLOSED' };
+  const identity = { tradeDate, calendarHash: calendar.fileHash,
+    calendarExceptionHash: day.exceptionEvidence?.evidenceFileHash || null,
+    applicability: day.officialTradingDay ? 'EXPECTED' : 'NOT_EXPECTED' };
+  if (!day.officialTradingDay) return { ...identity, status: 'NOT_EXPECTED', reasonCode: 'MARKET_CLOSED',
+    closureReasonCode: day.exceptionEvidence ? 'EXCHANGE_EMERGENCY_CLOSURE' : 'SCHEDULED_MARKET_HOLIDAY' };
   let db;
   try {
     if (!fs.existsSync(databasePath)) return { ...identity, status: 'UNKNOWN' };
