@@ -107,6 +107,9 @@ class EmergencyClosureTests(unittest.TestCase):
     def test_formal_operating_exception_and_login_gate(self) -> None:
         import shutil
         import sys
+        with self.assertRaisesRegex(ValueError, "DATE_UNCOVERED"):
+            market_data_expected(datetime.fromisoformat("2027-01-01T02:00:00+08:00"),
+                ROOT / "config/taifex-official-calendar-2026.json", EVIDENCE, allow_candidate=True)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "config").mkdir()

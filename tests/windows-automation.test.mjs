@@ -16,7 +16,8 @@ test('Windows automation remains local-only and does not store credentials', () 
   assert.match(installer, /08:30/);
   assert.match(installer, /21:15/);
   assert.match(installer, /open-dashboard\.ps1/);
-  assert.match(starter, /run-startup-recovery-hidden\.ps1/);
+  assert.doesNotMatch(starter, /run-startup-recovery-hidden\.ps1|start-shioaji-readonly-hidden\.ps1/);
+  assert.match(starter, /DASHBOARD_ALREADY_LISTENING_BUT_HEALTH_UNVERIFIED/);
   assert.match(recovery, /run-daily-update-hidden\.ps1/);
   assert.match(recovery, /v3-daily-update-status\.json/);
 });

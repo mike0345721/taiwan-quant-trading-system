@@ -142,7 +142,8 @@ def market_data_expected(now: datetime, calendar_path: Path, evidence_path: Path
     if pending.intersection({local.date().isoformat(), anchor.date().isoformat()}):
         raise ValueError("TAIFEX_CANDIDATE_NOT_ACTIVATED")
     anchor_date = anchor.date().isoformat()
-    if not calendar["coverageStart"] <= anchor_date <= calendar["coverageEnd"]:
+    if not all(calendar["coverageStart"] <= day <= calendar["coverageEnd"]
+               for day in (local.date().isoformat(), anchor_date)):
         raise ValueError("TAIFEX_OPERATING_DATE_UNCOVERED")
     trading = exceptions.get(anchor_date, {}).get("officialTradingDay", anchor_date in calendar["tradingDates"])
     if not trading:
