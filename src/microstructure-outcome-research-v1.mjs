@@ -1,5 +1,5 @@
 // Research only. No mutating source ledgers, broker calls or trade authorization.
-import {numericScalar, evidenceTimestampMs, governedEventIdentity}
+import {numericScalar, evidenceTimestampMs, evidenceTimestampNs, governedEventIdentity}
   from './research-evidence-contract-v1.mjs';
 
 const unqualified = (reason) => Object.freeze({
@@ -31,11 +31,11 @@ export function projectGovernedL5(record,{
   if(p.simtrade!==false||record.duplicate!==false
       ||!Number.isSafeInteger(record.sequenceGap)||record.sequenceGap!==0)
     return unqualified('SIMULATED_DUPLICATE_OR_SEQUENCE_GAP');
-  const asOf=evidenceTimestampMs(asOfAvailableAt);
-  const available=evidenceTimestampMs(record.receivedAt);
-  const source=evidenceTimestampMs(record.exchangeTimestamp,{taipeiNaive:true});
+  const asOf=evidenceTimestampNs(asOfAvailableAt);
+  const available=evidenceTimestampNs(record.receivedAt);
+  const source=evidenceTimestampNs(record.exchangeTimestamp,{taipeiNaive:true});
   if(asOf===null||available===null||source===null
-      ||available>asOf||Math.abs(source-available)>5_000)
+      ||source>available||available>asOf||asOf-source>5_000_000_000n)
     return unqualified('SOURCE_TIME_NOT_KNOWN_AS_OF');
   const skew=numericScalar(record.clockSkewMs);
   if(skew===null||Math.abs(skew)>5_000)return unqualified('SOURCE_CLOCK_UNVERIFIED');
@@ -81,9 +81,9 @@ export function freezeOutcomeCandidate({
   eventExchangeTimestamp,asOfAvailableAt,lastSourceAvailableAt,
   referencePrice,frozenRuleHash,calendar,
 }={}) {
-  const asOf=evidenceTimestampMs(asOfAvailableAt);
-  const source=evidenceTimestampMs(lastSourceAvailableAt);
-  const exchange=evidenceTimestampMs(eventExchangeTimestamp,{taipeiNaive:true});
+  const asOf=evidenceTimestampNs(asOfAvailableAt);
+  const source=evidenceTimestampNs(lastSourceAvailableAt);
+  const exchange=evidenceTimestampNs(eventExchangeTimestamp,{taipeiNaive:true});
   const classified=governedEventIdentity({
     exchangeTimestamp:eventExchangeTimestamp,calendar,tradeDate,session,
   });
@@ -92,7 +92,7 @@ export function freezeOutcomeCandidate({
       ||!['FLOW_RESPONSE','NO_CHASE_LIQUIDITY','MARKET_STATE'].includes(observationKind)
       ||typeof actualContract!=='string'||!/^TX[A-Z0-9]{2,12}$/.test(actualContract)
       ||!classified||asOf===null||source===null||exchange===null
-      ||source>asOf||exchange>source+5_000||price===null
+      ||source>asOf||exchange>source||price===null
       ||typeof frozenRuleHash!=='string'||!/^[a-f0-9]{64}$/i.test(frozenRuleHash))
     return Object.freeze({state:'UNAVAILABLE',reason:'EVENT_AS_OF_OR_RULES_INVALID',
       researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false});

@@ -11,6 +11,7 @@ on:
       - codex/cru21-decision-quality-p0-20261016
       - codex/cru21-microstructure-outcome-p1-20261022
       - codex/cru21-blave-validation-qa-20261023
+      - codex/cru21-research-outcomes-oos-20261023
 
 permissions:
   contents: read

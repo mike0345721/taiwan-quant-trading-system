@@ -44,6 +44,7 @@ import {
 } from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
 import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
+import {buildResearchEvidence,readLatestResearchQuote,readResearchResult} from './src/dashboard-research-evidence.mjs';
 import { loadFlowRefresh } from './src/dashboard-flow-refresh.mjs';
 import { buildMarketPulseLive } from './src/market-pulse-live.mjs';
 import {
@@ -495,6 +496,15 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/observed-flow') {
         sendJson(res, 200, { ok: true, data: currentObservedFlow() });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/research-evidence') {
+        const now=new Date();
+        sendJson(res,200,{ok:true,data:buildResearchEvidence({now,calendar:chartCalendar,
+          flow:currentObservedFlow(),quote:readLatestResearchQuote(cru34LiveDataRoot,now),
+          result:readResearchResult(path.join(config.dataDir,'research-validation','result.json'))})},
+          {'Cache-Control':'no-store'});
         return;
       }
 
