@@ -494,7 +494,7 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 200, { ok: true, data: readDataOperations(resolveOperationsReader({
             manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH,
             dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
-            outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT, calendar: chartCalendar })) },
+            outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT, calendar: operatingCalendar })) },
             { 'Cache-Control': 'no-store' });
         } catch {
           sendJson(res, 503, { ok: false, error: 'OPERATIONS_BINDING_UNVERIFIED' }, { 'Cache-Control': 'no-store' });
