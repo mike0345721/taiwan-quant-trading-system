@@ -55,3 +55,23 @@ test('PR87 P0 candidate accepts only its real branch with all existing identity 
   assert.equal(result.ready,false);assert.ok(result.reasons.includes('CRU21_BRANCH_MISMATCH'));
  }
 });
+
+test('UI P1 exact-head normal authenticated candidate preserves original isolation boundaries',()=>{
+ const b='codex/cru21-ui-auth-acceptance-20261023';
+ const v=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch:b,dataMode:'LIVE'});
+ const o={...options,actualBranch:b};
+ assert.equal(validateCru21PreviewVersionTruth(v,o).ready,true);
+ assert.equal(v.complete,false);
+ for(const override of [{host:'0.0.0.0'},{host:'localhost'},{port:8787},{port:8790},{port:18723},
+   {inlineEnabled:false},{candidateReadRoot:null},{expectedHead:base},{expectedBaseMain:head},{sourceClean:false},{actualDataMode:'MOCK'}]){
+    assert.equal(validateCru21PreviewVersionTruth(v,{...o,...override}).ready,false,JSON.stringify(override));
+ }
+ for(const [declared,actual] of [[b,'main'],[b,b+'-lookalike'],[b,'codex/cru21-ui-clarity-p1-20261022'],
+   ['codex/cru21-ui-clarity-p1-20261022','codex/cru21-ui-clarity-p1-20261022']]){
+    const bad=validateCru21PreviewVersionTruth({...v,branch:declared},{...o,actualBranch:actual});
+    assert.equal(bad.ready,false);assert.ok(bad.reasons.includes('CRU21_BRANCH_MISMATCH'));
+ }
+ for(const override of [{runtimeCommit:base},{buildCommit:base},{exactHead:base},{approvedMainCommit:head},
+  {baseMainCommit:head},{complete:true},{dataMode:'MOCK'},{previewType:'INTEGRATION_OWNER_PREVIEW'}])
+    assert.equal(validateCru21PreviewVersionTruth({...v,...override},o).ready,false,JSON.stringify(override));
+});

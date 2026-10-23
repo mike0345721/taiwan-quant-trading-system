@@ -146,7 +146,7 @@ export const CRU21_EVIDENCE_HOME_PRODUCT_SURFACE = Object.freeze({
 
 export function selectDashboardProductSurface({ previewType, actualBranch } = {}) {
   if (previewType === 'CRU21_OWNER_PREVIEW'
-      && actualBranch === 'codex/cru21-decision-quality-p0-20261016') {
+      && ['codex/cru21-decision-quality-p0-20261016', 'codex/cru21-ui-auth-acceptance-20261023'].includes(actualBranch)) {
     return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;
   }
   return previewType === 'CRU44_OWNER_PREVIEW'

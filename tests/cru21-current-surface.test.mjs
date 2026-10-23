@@ -33,3 +33,18 @@ test('server publishes one selected contract to health, workspace and discussion
  assert.match(s,/validateCru21PreviewVersionTruth\(runtimeVersion, cru21IdentityOptions\)/);
  assert.match(s,/if \(!requireCsrf\(req, res, session\)\) return/);
 });
+
+test('UI P1 normal authenticated candidate retains the same frozen research-only product surface',()=>{
+ const gate='codex/cru21-ui-auth-acceptance-20261023';
+ const p=contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:gate});
+ assert.equal(p,contracts.CRU21_EVIDENCE_HOME_PRODUCT_SURFACE);
+ assert.equal(p.schemaVersion,'cru21-evidence-home-product-surface-v1');
+ assert.equal(p.safety.executionAuthorized,false);
+ assert.equal(p.safety.orderRoutesEnabled,false);
+ assert.equal(p.safety.formalWeight,0);
+ assert.equal(p.deliveryAccepted,false);
+ assert.deepEqual(p.observedFlow.governed,['1m','5m','15m','30m','1h','4h']);
+ for(const fake of [gate+'-lookalike','codex/cru21-ui-clarity-p1-20261022','main']){
+   assert.equal(contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:fake}),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
+ }
+});

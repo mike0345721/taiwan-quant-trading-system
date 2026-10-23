@@ -3,6 +3,7 @@ const allowedPreviewBranches = new Set([
   'codex/cru21-chatgpt-plan-preflight-v1',
   'codex/cru21-unified-release-20261014',
   'codex/cru21-decision-quality-p0-20261016',
+  'codex/cru21-ui-auth-acceptance-20261023',
 ]);
 
 export function buildCru21PreviewVersion({ runtimeVersion, branch, dataMode } = {}) {
