@@ -5,6 +5,7 @@ const allowedPreviewBranches = new Set([
   'codex/cru21-decision-quality-p0-20261016',
   'codex/cru21-ui-auth-acceptance-20261023',
   'codex/cru21-emergency-market-calendar-qa-20261023',
+  'codex/cru21-preopen-integrated-candidate-20261023',
 ]);
 
 export function buildCru21PreviewVersion({ runtimeVersion, branch, dataMode } = {}) {
