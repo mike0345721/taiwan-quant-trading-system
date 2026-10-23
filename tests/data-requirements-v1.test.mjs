@@ -19,10 +19,13 @@ test('CRU-39 registry baseline is internally valid and has no blocking gaps', ()
   assert.ok(result.counts.datasets >= 40);
 });
 
-test('generated master views are byte-identical to the canonical registry', () => {
+test('generated master views match the canonical registry across Git checkout line endings', () => {
   for (const [relativePath, expected] of generatedArtifacts(registry)) {
     const actual = fs.readFileSync(path.join(root, relativePath), 'utf8');
-    assert.equal(actual, expected, `${relativePath} is stale`);
+    // Windows Git checkout may turn LF into CRLF; normalize *only* that
+    // transport difference. Every other character and the final newline
+    // still have to match the canonical generated artifact exactly.
+    assert.equal(actual.replace(/\r\n/g, '\n'), expected, `${relativePath} is stale`);
   }
 });
 
