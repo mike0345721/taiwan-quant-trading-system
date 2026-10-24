@@ -67,6 +67,9 @@ test('database NULLs stay unknown through the dashboard risk summary and recomme
       CREATE TABLE futures_positions_daily(trade_date TEXT, foreign_net REAL, foreign_short REAL);
       INSERT INTO futures_positions_daily VALUES ('2026-10-22',10,NULL), ('2026-10-21',5,100);
       CREATE TABLE research_input_registry_daily(dataset_key TEXT, collection_status TEXT, trade_date TEXT);`);
+    // Seven market date slots: missing position rows/values may not pull in older dates.
+    const insertMarket = db.prepare('INSERT INTO market_daily VALUES (?, ?)');
+    for(let i=1;i<7;i++) insertMarket.run(`2026-10-${22-i}`,30000);
     const result = buildV362RiskSummary(db);
     assert.equal(result.volatilityRisk, 'unknown');
     assert.equal(result.recommendation, '資料不足，暫停採取方向部位');
@@ -78,7 +81,7 @@ test('database NULLs stay unknown through the dashboard risk summary and recomme
     const insert = db.prepare('INSERT INTO futures_positions_daily VALUES (?, ?, ?)');
     for (const [latest, oldest] of [[' ',100],[200,' '],['invalid',100],[200,'invalid'],[null,100],[200,null]]) {
       db.exec('DELETE FROM futures_positions_daily');
-      for(let i=0;i<6;i++) insert.run(`2026-10-${22-i}`,i===0?latest:i===5?oldest:50,100);
+      for(let i=0;i<7;i++) insert.run(`2026-10-${22-i}`,i===0?latest:i===5?oldest:50,100);
       const missing = buildV362RiskSummary(db,{v3:{thresholds:{foreignAbs70:50}}});
       assert.equal(missing.foreignFutures.delta5d,null,`${latest}/${oldest}`);
       assert.equal(missing.foreignFutures.direction,'unknown');
@@ -88,5 +91,17 @@ test('database NULLs stay unknown through the dashboard risk summary and recomme
     const zero = buildV362RiskSummary(db,{v3:{thresholds:{foreignAbs70:50}}});
     assert.equal(zero.foreignFutures.delta5d,-100);
     assert.equal(zero.foreignFutures.direction,'bearish_watch');
+    for (const missingIndex of [0,1,3,5]) {
+      for (const missingRow of [false,true]) {
+        db.exec('DELETE FROM futures_positions_daily');
+        for(let i=0;i<7;i++) {
+          if(missingRow && i===missingIndex) continue;
+          insert.run(`2026-10-${22-i}`,i===missingIndex?null:200-i*10,i===missingIndex?null:300-i*10);
+        }
+        const slots = buildV362RiskSummary(db,{v3:{thresholds:{foreignAbs70:50,shortAdd70:100}}});
+        assert.equal(slots.foreignFutures.delta5d,[0,5].includes(missingIndex)?null:50);
+        assert.equal(slots.foreignFutures.shortAdd1d,[0,1].includes(missingIndex)?null:10);
+      }
+    }
   } finally { db.close(); }
 });

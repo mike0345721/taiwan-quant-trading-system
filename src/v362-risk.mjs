@@ -112,9 +112,12 @@ export function buildV362RiskSummary(db, { v3 = {}, extendedReport = null, final
   const atmThreshold = studyThreshold(extendedReport, 'weeklyAtmIv');
   const skewThreshold = studyThreshold(extendedReport, 'weeklySkew25d');
   const foreignRows = marketDate ? db.prepare(`
-    SELECT trade_date AS tradeDate, foreign_net AS foreignNet, foreign_short AS foreignShort
-    FROM futures_positions_daily WHERE trade_date<=? AND foreign_net IS NOT NULL
-    ORDER BY trade_date DESC LIMIT 6
+    SELECT m.trade_date AS tradeDate, f.foreign_net AS foreignNet, f.foreign_short AS foreignShort
+    FROM (
+      SELECT trade_date FROM market_daily WHERE trade_date<=? AND tx_close IS NOT NULL
+      ORDER BY trade_date DESC LIMIT 6
+    ) AS m LEFT JOIN futures_positions_daily AS f ON f.trade_date=m.trade_date
+    ORDER BY m.trade_date DESC
   `).all(marketDate) : [];
   const latestForeign = finite(foreignRows[0]?.foreignNet);
   const previousForeign = finite(foreignRows[5]?.foreignNet);
