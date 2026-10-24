@@ -48,6 +48,9 @@ test('real zero and numeric database strings keep their meaning; missing thresho
   assert.equal(classifyV362Risk({vix5dPct: '12'}).level, 'high');
   const risk = classifyV362Risk({vix: null, atmIv: 0.15, atmHigh: null, foreign5d: 0, foreignThreshold: null, shortAdd1d: 0, shortAddThreshold: 100});
   assert.equal(risk.atmAlert, false);
+  assert.equal(risk.optionLevel, 'unknown');
+  assert.equal(risk.level, 'unknown');
+  assert.equal(classifyV362Risk({vix: 15, vixThreshold: null}).vixLevel, 'unknown');
   assert.equal(risk.foreignDirection, 'unknown');
   assert.equal(risk.shortAlert, 'flat');
 });

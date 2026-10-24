@@ -38,8 +38,9 @@ export function classifyV362Risk(input = {}) {
   const atmAlert = atmIv != null && atmHigh != null && atmIv >= atmHigh;
   const skewAlert = skew != null && skewHigh != null && skew >= skewHigh;
   const optionAlert = atmAlert || skewAlert;
-  const availableRiskInputs = [vix, vix5dPct, atmIv, skew].filter((value) => value != null).length;
-  const level = availableRiskInputs === 0 ? 'unknown' : (vixHigh || optionAlert ? 'high' : (vixMedium ? 'medium' : 'low'));
+  const vixEvaluable = vix5dPct != null || (vix != null && vixThreshold != null);
+  const optionEvaluable = (atmIv != null && atmHigh != null) || (skew != null && skewHigh != null);
+  const level = !vixEvaluable && !optionEvaluable ? 'unknown' : (vixHigh || optionAlert ? 'high' : (vixMedium ? 'medium' : 'low'));
 
   let foreignDirection = 'unknown';
   if (foreign5d != null && foreignThreshold != null) {
@@ -54,8 +55,8 @@ export function classifyV362Risk(input = {}) {
 
   return {
     level,
-    vixLevel: vixHigh ? 'high' : vixMedium ? 'medium' : vix == null && vix5dPct == null ? 'unknown' : 'low',
-    optionLevel: optionAlert ? 'high' : atmIv == null && skew == null ? 'unknown' : 'normal',
+    vixLevel: vixHigh ? 'high' : vixMedium ? 'medium' : vixEvaluable ? 'low' : 'unknown',
+    optionLevel: optionAlert ? 'high' : optionEvaluable ? 'normal' : 'unknown',
     atmAlert,
     skewAlert,
     foreignDirection,
