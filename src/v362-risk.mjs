@@ -116,7 +116,9 @@ export function buildV362RiskSummary(db, { v3 = {}, extendedReport = null, final
     FROM futures_positions_daily WHERE trade_date<=? AND foreign_net IS NOT NULL
     ORDER BY trade_date DESC LIMIT 6
   `).all(marketDate) : [];
-  const foreign5d = foreignRows.length >= 6 ? finite(foreignRows[0].foreignNet - foreignRows[5].foreignNet) : null;
+  const latestForeign = finite(foreignRows[0]?.foreignNet);
+  const previousForeign = finite(foreignRows[5]?.foreignNet);
+  const foreign5d = latestForeign != null && previousForeign != null ? latestForeign - previousForeign : null;
   const latestShort = finite(foreignRows[0]?.foreignShort);
   const previousShort = finite(foreignRows[1]?.foreignShort);
   const shortAdd1d = latestShort != null && previousShort != null ? latestShort - previousShort : null;

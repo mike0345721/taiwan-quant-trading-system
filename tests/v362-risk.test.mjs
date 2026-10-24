@@ -75,5 +75,18 @@ test('database NULLs stay unknown through the dashboard risk summary and recomme
     assert.equal(result.options.ivRvSpread, null);
     assert.equal(result.foreignFutures.shortAdd1d, null);
     assert.equal(result.foreignFutures.shortAlert, 'unknown');
+    const insert = db.prepare('INSERT INTO futures_positions_daily VALUES (?, ?, ?)');
+    for (const [latest, oldest] of [[' ',100],[200,' '],['invalid',100],[200,'invalid'],[null,100],[200,null]]) {
+      db.exec('DELETE FROM futures_positions_daily');
+      for(let i=0;i<6;i++) insert.run(`2026-10-${22-i}`,i===0?latest:i===5?oldest:50,100);
+      const missing = buildV362RiskSummary(db,{v3:{thresholds:{foreignAbs70:50}}});
+      assert.equal(missing.foreignFutures.delta5d,null,`${latest}/${oldest}`);
+      assert.equal(missing.foreignFutures.direction,'unknown');
+    }
+    db.exec('DELETE FROM futures_positions_daily');
+    for(let i=0;i<6;i++) insert.run(`2026-10-${22-i}`,i===0?0:100,100);
+    const zero = buildV362RiskSummary(db,{v3:{thresholds:{foreignAbs70:50}}});
+    assert.equal(zero.foreignFutures.delta5d,-100);
+    assert.equal(zero.foreignFutures.direction,'bearish_watch');
   } finally { db.close(); }
 });
