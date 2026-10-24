@@ -14,6 +14,8 @@ const SOURCE_LABELS = Object.freeze({
 const TRACKED_SOURCES = Object.keys(SOURCE_LABELS);
 
 function finite(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -114,7 +116,9 @@ export function buildV362RiskSummary(db, { v3 = {}, extendedReport = null, final
     ORDER BY trade_date DESC LIMIT 6
   `).all(marketDate) : [];
   const foreign5d = foreignRows.length >= 6 ? finite(foreignRows[0].foreignNet - foreignRows[5].foreignNet) : null;
-  const shortAdd1d = foreignRows.length >= 2 ? finite(foreignRows[0].foreignShort - foreignRows[1].foreignShort) : null;
+  const latestShort = finite(foreignRows[0]?.foreignShort);
+  const previousShort = finite(foreignRows[1]?.foreignShort);
+  const shortAdd1d = latestShort != null && previousShort != null ? latestShort - previousShort : null;
   const classification = classifyV362Risk({
     vix,
     vix5dPct,
