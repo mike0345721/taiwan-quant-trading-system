@@ -9,6 +9,30 @@
   const schedulerLabels = { NOT_DUE: '尚未到時間', WAITING_FOR_RUN: '寬限內等待執行', ON_TIME_SUCCEEDED: '準時完成',
     LATE_SUCCEEDED: '補跑成功 ⚠', ACCEPTANCE_JOB_FAILED: '驗收工作失敗', OVERDUE_NO_RECEIPT: '逾時未見執行結果', UNKNOWN: '排程證據未知' };
   const pill = value => `<span class="dop-state" data-state="${escape(value)}">${escape(value)} · ${escape(labels[value] || '尚未驗證')}</span>`;
+  const eligibilityLabels = { READY: '符合既有用途資格', READY_WITH_LIMITATION: '有限制，須依原因使用', NOT_READY: '不可用於既定研究', UNKNOWN: '資格未知', NOT_APPLICABLE: '不適用' };
+  const measurement = value => value == null ? '未知／尚無量測' : escape(value);
+  function renderBrief(b) {
+    if (!b) return '';
+    const current = b.assessmentScope === 'CURRENT_DAY_SNAPSHOT';
+    const completion = { COMPLETE: '各階段工作完成', COMPLETE_WITH_LATE_RECOVERY: '含延遲補跑', INCOMPLETE: '尚未全數完成', NOT_APPLICABLE: '依日曆不需執行', UNKNOWN: '排程證據未知' };
+    return `<section aria-label="每日資料健康摘要"><h3>每日資料健康摘要 · ${escape(b.tradeDate || '日期未知')}</h3>
+      ${current ? `<p>以下是 ${escape(checkpoints[b.cutoffAssessment.checkpointType])} 已保存的資料評估。</p>`
+        : `<p>今日資料完整性未知；${b.assessmentTradeDate ? `最近評估屬 ${escape(b.assessmentTradeDate)}，不能當成今日證據。` : '尚無有效評估。'}</p>`}
+      <dl class="dop-times"><div><dt>排程工作</dt><dd>${escape(completion[b.scheduler.completion] || '排程證據未知')}</dd></div>
+      <div><dt>實收證據（資料／時段列）</dt><dd>${current ? `有資料 ${escape(b.received.withRecords)} · 零筆 ${escape(b.received.zeroRecords)} · 未知 ${escape(b.received.unknown)}` : '未知'}</dd></div>
+      <div><dt>cutoff 截止時點驗收</dt><dd>${pill(b.cutoffAssessment.state)}<br>${time(b.cutoffAssessment.at)}</dd></div>
+      <div><dt>既有研究前置資格</dt><dd>${pill(b.researchPrerequisites.state)}</dd></div></dl>
+      <p class="dop-muted">有列數不代表 cutoff 前已收到或完整；研究欄僅涵蓋壓力／價格反應／效率的既有前置條件。此摘要不驗證 MSI 即時運行狀態。</p></section>`;
+  }
+  function renderEvidence(row) {
+    const e = row.evidenceSummary || {};
+    return `實收筆數：${measurement(e.recordCount)}；應收筆數：${measurement(e.expectedRecordCount)}<br>
+      首筆接收：${time(e.firstReceivedAt)}<br>末筆接收：${time(e.lastReceivedAt)}<br>
+      來源日期：${escape(e.sourceDate)}<br>已驗證觀測時間：${time(e.observedAt)}<br>已驗證可用時間：${time(e.availableAt)}<br>
+      缺段數：${measurement(e.missingIntervalCount)}；重複數：${measurement(e.duplicateCount)}；時間錯誤數：${measurement(e.timestampErrorCount)}<br>
+      擷取 ${escape(row.captureState)}／涵蓋 ${escape(row.coverageState)}／保存 ${escape(row.persistenceState)}／完整性 ${escape(row.integrityState)}<br>
+      用途資格：${escape(eligibilityLabels[row.researchEligibility] || '資格未知')}`;
+  }
   function renderScheduler(s, view) {
     if (!s) return '<p>今日排程進度尚未取得。</p>';
     const today = view.availability === 'AVAILABLE' && view.tradeDate === s.tradeDate;
@@ -35,7 +59,7 @@
     const allGaps = v.gaps || [];
     const gaps = allGaps.slice(0, 6);
     const rows = v.rows || [];
-    return `${renderScheduler(v.schedulerHealth, v)}<div class="dop-summary">
+    return `${renderBrief(v.dailyHealthBrief)}${renderScheduler(v.schedulerHealth, v)}<div class="dop-summary">
       <div><h3>${v.schedulerHealth && v.tradeDate !== v.schedulerHealth.tradeDate ? '最近一次資料營運評估' : '今日資料營運'}</h3><strong>${pill(v.overallState || 'UNKNOWN')}</strong>
       <p>${available ? `交易日 ${escape(v.tradeDate)} · ${escape(checkpoints[v.checkpointType])} · ${v.finalized ? '已 FINAL（不等於 PASS）' : '尚未 FINAL'}` : '尚無有效驗收產物，無法判定資料是否完整'}</p>
       <p class="dop-muted">${available ? `此評估資料截止：${time(v.inputGeneratedAt)}` : '等待首次有效驗收'}；驗收成功只表示完成檢查與保存。</p></div>
@@ -55,9 +79,10 @@
       : `<p>${available ? '本次評估沒有列出的營運缺口；仍須依研究資格使用資料。' : '尚無驗收列可供確認；先核對驗收工作與受控 A.1 輸入。'}</p>`}
       ${allGaps.length > gaps.length ? `<p class="dop-muted">另有 ${allGaps.length - gaps.length} 列，請展開全部明細。</p>` : ''}
       <details class="dop-details"><summary>全部資料列、原始原因、處置與工作身分</summary>
-        <div class="table-wrap"><table><thead><tr><th>資料／時段</th><th>狀態／應到</th><th>原因與處置</th></tr></thead><tbody>${rows.map(r => `<tr>
+        <p>筆數只描述驗收引用的資料檔；盤後補入不會改寫截止時點。缺段、重複及時間錯誤沒有量測時保留未知。</p>
+        <div class="table-wrap"><table><thead><tr><th>資料／時段</th><th>狀態／應到</th><th>實收、時間與用途資格</th><th>原因與處置</th></tr></thead><tbody>${rows.map(r => `<tr>
           <td>${escape(r.ownerLabelZh)}<br>${escape(r.session)} · ${escape(r.operationalRole)}${r.inCheckpointScope ? '' : '（本 checkpoint 範圍外）'}</td>
-          <td>${pill(r.operationalState)}<br>${escape(r.dueState)}</td><td>${(r.reasonsZh || []).map(escape).join('；')}<br>
+          <td>${pill(r.operationalState)}<br>${escape(r.dueState)}</td><td>${renderEvidence(r)}</td><td>${(r.reasonsZh || []).map(escape).join('；')}<br>
           <code>${(r.reasonCodes || []).map(escape).join(' / ') || '無原因碼'}</code><br>${(r.remediation || []).map(a => `${escape(a.ownerLane)} / ${escape(a.actionClass)}：${escape(a.smallestNextCheck)}`).join('<br>')}</td></tr>`).join('')}</tbody></table></div>
         <h4>驗收工作、歷史指標與 lineage</h4><pre>${escape(JSON.stringify({ jobHealth: h, bindingIdentity: v.bindingIdentity ?? null, artifactIdentity: v.artifactIdentity ?? null,
           checkpoint: v.checkpointDetail ?? null, countsScope: v.countScope ?? null, history: v.history || [] }, null, 2))}</pre>

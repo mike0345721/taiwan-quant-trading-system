@@ -15,6 +15,9 @@ const STATES = ['PASS', 'PARTIAL', 'UNKNOWN', 'PENDING', 'FAIL', 'NOT_EXPECTED']
 const checkpointKind = { DAY_CHECKPOINT: 'day', EOD_CHECKPOINT: 'eod', FINAL_TRADEDATE_CHECKPOINT: 'final' };
 const code = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,150}$/.test(value) ? value : 'OPERATIONS_JOB_FAILURE';
 const countRows = rows => Object.fromEntries(STATES.map(s => [s, rows.filter(r => r.inCheckpointScope && r.operationalState === s).length]));
+const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+const timestamp = value => typeof value === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(value)
+  && Number.isFinite(Date.parse(value)) ? value : null;
 function projectRow(row, report) {
   const remediation = report.remediationActions.filter(a => a.datasetId === row.datasetId && a.feedIdentity === row.feedIdentity && a.session === row.session);
   const impacts = [row.blocksCoreLive && '盤中資料與 Dashboard 證據', row.blocksCoreEod && '盤後資料與日級背景',
@@ -26,7 +29,20 @@ function projectRow(row, report) {
     impactZh: impacts.length ? impacts : ['補充背景／後續能力；不納入核心分母'],
     remediation, minimumNextAction: remediation[0]?.smallestNextCheck || '核對此資料列的既有來源證據',
     captureState: row.evidence?.captureState ?? null, coverageState: row.evidence?.coverageState ?? null,
-    persistenceState: row.evidence?.persistenceState ?? null, integrityState: row.evidence?.integrityState ?? null };
+    persistenceState: row.evidence?.persistenceState ?? null, integrityState: row.evidence?.integrityState ?? null,
+    researchEligibility: row.evidence?.researchEligibility ?? 'UNKNOWN',
+    evidenceSummary: {
+      mode: row.evidence?.mode ?? null, expectedWindow: row.evidence?.expectedWindow ?? null,
+      // A.1 counts describe the selected artifact; EOD rows may be observed after
+      // the cutoff. Counts alone never attest availability or completeness.
+      recordCount: count(row.evidence?.recordCount), expectedRecordCount: null,
+      firstReceivedAt: timestamp(row.evidence?.firstReceivedAt), lastReceivedAt: timestamp(row.evidence?.lastReceivedAt),
+      observedAt: timestamp(row.evidence?.observedAt), availableAt: timestamp(row.evidence?.availableAt),
+      sourceDate: row.evidence?.sourceDate ?? null, evidenceStrength: row.evidence?.evidenceStrength ?? 'NONE',
+      // A.1 does not publish these measurements. Do not infer zero from PASS or
+      // from the absence of a reason code, or expose private ledger/DB paths.
+      missingIntervalCount: null, duplicateCount: null, timestampErrorCount: null,
+    } };
 }
 export function projectDataOperations(report, jobHealth = null, history = []) {
   if (report) validateDailyDataOperations(report);
@@ -36,7 +52,7 @@ export function projectDataOperations(report, jobHealth = null, history = []) {
     generatedAt: report?.generatedAt ?? null, inputGeneratedAt: report?.inputGeneratedAt ?? null,
     overallState: report?.overallState ?? 'UNKNOWN', requiredAndDueCount: report?.requiredAndDueCount ?? null,
     counts: null, countScope: 'IN_CHECKPOINT_OPERATIONAL_PROFILE_ROWS', rows: [], gaps: [],
-    acceptanceJobHealth: jobHealth || { jobState: 'NOT_RUN', runMode: null, runId: null, lastAttemptAt: null,
+    acceptanceJobHealth: jobHealth || { jobState: 'UNKNOWN', jobReason: 'JOB_HEALTH_UNAVAILABLE', runMode: null, runId: null, lastAttemptAt: null,
       lastSuccessAt: null, lastAutomaticAttemptAt: null, lastAutomaticSuccessAt: null, lastFinalizedTradeDate: null, lastFinalizedAt: null },
     artifactIdentity: report ? { reportHash: report.reportHash, invocationHash: report.invocationHash,
       inputReportHash: report.inputReportHash, inputArtifactSha256: report.inputArtifactIdentity?.sha256 ?? null,
@@ -57,6 +73,34 @@ export function projectDataOperations(report, jobHealth = null, history = []) {
   result.counts = countRows(result.rows);
   result.gaps = result.rows.filter(r => r.inCheckpointScope && !['PASS', 'NOT_EXPECTED'].includes(r.operationalState));
   return result;
+}
+
+// Read-only presentation of existing assessments, never a new qualification gate.
+// Today's scheduler and the latest saved assessment can refer to different dates.
+export function buildDailyDataHealthBrief(view) {
+  const scheduler = view.schedulerHealth;
+  const current = Boolean(scheduler?.tradeDate && view.availability === 'AVAILABLE' && view.tradeDate === scheduler.tradeDate);
+  const raw = current ? view.rows.filter(r => r.inCheckpointScope && r.operationalState !== 'NOT_EXPECTED'
+    && !['DERIVED_RESEARCH_READINESS', 'FUTURE_NOT_ENABLED'].includes(r.operationalRole)) : null;
+  return {
+    schemaVersion: 'daily-data-health-brief-v1', tradeDate: scheduler?.tradeDate ?? null,
+    observedAt: scheduler?.observedAt ?? null,
+    assessmentScope: current ? 'CURRENT_DAY_SNAPSHOT' : view.availability === 'AVAILABLE' ? 'OTHER_DATE_SNAPSHOT' : 'UNAVAILABLE',
+    assessmentTradeDate: view.tradeDate, reportHash: view.artifactIdentity?.reportHash ?? null,
+    scheduler: { completion: scheduler?.completion ?? 'UNKNOWN', punctuality: scheduler?.punctuality ?? 'UNKNOWN',
+      checkpoints: (scheduler?.checkpoints || []).map(c => ({ checkpointType: c.checkpointType, state: c.state })) },
+    received: { scope: 'IN_CHECKPOINT_RAW_ARTIFACT_ROWS_NOT_CUTOFF_PROOF',
+      assessedRows: raw?.length ?? null,
+      withRecords: raw ? raw.filter(r => r.evidenceSummary.recordCount > 0).length : null,
+      zeroRecords: raw ? raw.filter(r => r.evidenceSummary.recordCount === 0).length : null,
+      unknown: raw ? raw.filter(r => r.evidenceSummary.recordCount === null).length : null },
+    cutoffAssessment: { state: current ? view.overallState : 'UNKNOWN',
+      at: current ? view.inputGeneratedAt : null, checkpointType: current ? view.checkpointType : null,
+      requiredAndDueCount: current ? view.requiredAndDueCount : null },
+    researchPrerequisites: { state: current ? view.researchReadiness?.state ?? 'UNKNOWN' : 'UNKNOWN',
+      scope: 'EXISTING_PRESSURE_RESPONSE_EFFICIENCY_PREREQUISITES_ONLY' },
+    runtimeVerified: false, executionAuthorized: false,
+  };
 }
 function readJson(file) { return JSON.parse(readBoundedFile(file).toString('utf8')); }
 function projectHealth(h) {
@@ -110,5 +154,6 @@ export function readDataOperations({ dataRoot, outputRoot, calendar, bindingIden
   catch { view.schedulerHealth = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(),
     tradeDate: null, applicability: 'UNKNOWN', checkpoints: [], reasonZh: '排程政策無法驗證，今日進度未知。' }; }
   if (unavailableReason) view.unavailableReason = unavailableReason;
+  view.dailyHealthBrief = buildDailyDataHealthBrief(view);
   return view;
 }

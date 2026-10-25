@@ -353,7 +353,8 @@ test('legacy manual writer preserves automatic history after scheduled invocatio
 test('missing/tampered canonical artifact returns unavailable UNKNOWN and null counts', t => {
   const f = fixture(t); let v = readDataOperations(f.options);
   assert.equal(v.availability, 'UNAVAILABLE'); assert.equal(v.overallState, 'UNKNOWN'); assert.equal(v.counts, null);
-  assert.equal(v.requiredAndDueCount, null); assert.equal(v.acceptanceJobHealth.jobState, 'NOT_RUN');
+  assert.equal(v.requiredAndDueCount, null); assert.equal(v.acceptanceJobHealth.jobState, 'UNKNOWN');
+  assert.equal(v.acceptanceJobHealth.jobReason, 'JOB_HEALTH_UNAVAILABLE');
   runAcceptance(f.options); fs.writeFileSync(path.join(f.options.outputRoot, 'latest.json'), '{"overallState":"PASS"}');
   v = readDataOperations(f.options); assert.equal(v.availability, 'UNAVAILABLE'); assert.equal(v.overallState, 'UNKNOWN');
 });
