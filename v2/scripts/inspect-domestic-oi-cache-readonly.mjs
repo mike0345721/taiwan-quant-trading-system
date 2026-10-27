@@ -98,7 +98,12 @@ function readMonthlyCaches(cacheDir, tradeDate, filenames, memo) {
 
 export function inspectDefaultOiCacheReadOnly() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const root = path.dirname(scriptDir);
+  // Optional process-local source root lets an isolated candidate inspect the
+  // original approved read-only receipts without copying any source bytes.
+  // Only the two allowlisted report/cache subpaths below will be opened.
+  const root = process.env.CRU21_OI_READONLY_SOURCE_ROOT
+    ? path.resolve(process.env.CRU21_OI_READONLY_SOURCE_ROOT)
+    : path.dirname(scriptDir);
   const qualityReport = JSON.parse(
     fs.readFileSync(path.join(root, 'reports', 'latest-quality.json'), 'utf8'),
   );
