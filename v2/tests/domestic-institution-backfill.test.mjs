@@ -132,6 +132,7 @@ test('net-only reconciliation requires independent long-minus-short parity with 
   const db = openDatabase(path.join(dir, 'test.sqlite'));
   try {
     applyMigrations(db, migrationsPath);
+    db.prepare("INSERT INTO raw_snapshots(trade_date,generated_at,as_of_date,data_mode,payload_json,payload_sha256,imported_at) VALUES ('2026-07-16','2026-07-16T10:00:00.000Z','2026-07-16','official-history','{}','test','2026-07-16T10:00:00.000Z')").run();
     db.prepare("INSERT INTO futures_positions_daily(trade_date,dealer_net) VALUES ('2026-07-16',-15)").run();
     upsertDomesticInstitutionRows(db, new Map([['2026-07-16', {
       dealer: { tradeLong: 1, tradeShort: 2, tradeNet: -1, long: 5, short: 20, net: 1 },
