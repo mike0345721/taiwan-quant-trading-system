@@ -42,3 +42,30 @@ test('window and chart controls invoke independent original selectors',()=>{cons
 test('production adapter receives actual six-window and independently refreshed market sources',()=>{assert.match(app,/flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY/);assert.match(app,/selectedFlowWindow: observedFlowSelectedWindow/);assert.match(app,/pulse: state\.marketPulse, leadership: state\.indexLeadership/);for(const name of ['selectObservedFlowWindow','renderLiveMarketPulse','renderIndexLeadership']){const b=app.indexOf('function '+name+'('),e=app.indexOf('\n}',b)+2;assert.match(app.slice(b,e),/renderHomeWorkspace\(\)/,name);}assert.doesNotMatch(home,/SYNTHETIC|TX-TEST|window\.__homeScenario|\.innerHTML\s*=|\bfetch\s*\(/);});
 
 test('future-dated closed context and negative RVOL are not eligible summary values',()=>{const x=fixture();x.pulse.rvol.ratio=-1;assert.equal(H.marketContext(x).rvol,null);x.leadership.state='SESSION_CLOSED';x.leadership.sourceMode='EOD_CONTEXT';x.leadership.sourceTradeDate='2026-10-22';assert.equal(H.marketContext(x).leaders.length,0);x.leadership.sourceTradeDate='2026-10-20';assert.equal(H.marketContext(x).leaders.length,2);});
+
+
+test('expired flow explains source age and retains only separately labelled historical facts',()=>{
+ const x=fixture();x.flow.sourceState='STALE';x.flow.source.availableAt=new Date(now-65000).toISOString();x.flow.source.validUntil=new Date(now-35000).toISOString();
+ const row=H.flowRows(x)[0];assert.equal(row.available,false);assert.equal(row.qualified,false);
+ assert.equal(row.state,'已過期');assert.equal(row.freshness.ageSeconds,65);assert.equal(row.freshness.overdueSeconds,35);
+ assert.equal(row.ratio,null);assert.equal(row.net,null);assert.equal(row.side,'不作方向判定');
+ assert.equal(row.historical.current,false);assert.match(row.historical.label,/非即時/);
+ assert.equal(row.historical.buy,125);assert.equal(row.historical.total,200);
+ assert.equal('pressureRatio' in row.historical,false);assert.equal('direction' in row.historical,false);
+ const quick=H.quickFlowView(row,{flow:x.flow,now});assert.equal(quick.colorEligible,false);assert.equal(quick.hasRatio,false);
+ assert.match(H.derive(x).flowMessage,/落後 65 秒/);assert.match(H.derive(x).flowMessage,/35 秒/);
+});
+test('historical fallback refuses changed identity, invalid expiry and unavailable source',()=>{
+ for(const change of [x=>x.chart.actualContract='OTHER',x=>x.chart.session='NIGHT',x=>x.chart.mode='REPLAY',x=>x.flow.sourceState='UNAVAILABLE',x=>x.flow.source.validUntil='invalid',x=>x.flow.source.availableAt=new Date(now+6000).toISOString(),x=>x.flow.unavailableReason='LIVE_SNAPSHOT_INVALID']){
+  const x=fixture();x.flow.sourceState='STALE';x.flow.source.availableAt=new Date(now-65000).toISOString();x.flow.source.validUntil=new Date(now-35000).toISOString();change(x);
+  assert.equal(H.flowRows(x)[0].historical,null);
+ }
+});
+test('stale snapshot null volume remains unknown while a real zero is preserved',()=>{
+ const x=fixture();x.flow.sourceState='STALE';x.flow.source.validUntil=new Date(now-1).toISOString();x.flow.source.availableAt=new Date(now-10000).toISOString();
+ x.flow.windows.primary60s.pressure.unknownVolume=null;
+ assert.equal(H.flowRows(x)[0].historical.unknown,null);
+ x.flow.windows.primary60s.pressure.unknownVolume=0;
+ assert.equal(H.flowRows(x)[0].historical.unknown,0);
+ assert.equal(H.flowFreshness(null,now).ageSeconds,null);
+});

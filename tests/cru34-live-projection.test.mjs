@@ -311,7 +311,8 @@ test('continuity, contract, session, and trade-date boundaries reset rolling ide
     { kind: 'futures_tick', receivedAt: boundaryAt, payload: { code: 'TXFJ6', productFamily: 'TX', actualContract: 'TXFJ6', tradeDate: '2026-09-08', session: 'NIGHT', datetime: boundaryAt, close: 111, volume: 1, tick_type: 1 } },
   ], lastHash);
   const value = fixture([...base, ...suffix]);
-  const result = projectCru34LiveBatch({ ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000 });
+  // This test is for boundary warmup, not expiry against the real wall clock.
+  const result = projectCru34LiveBatch({ ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000, now: new Date(boundaryAt) });
   assert.equal(result.status, 'WARMING_UP');
   assert.equal(result.checkpoint.actualContract, 'TXFJ6');
   assert.equal(result.checkpoint.tradeDate, '2026-09-08');
@@ -331,4 +332,33 @@ test('projection runner remains resident for continuous bounded polling', () => 
   const workerLock = fs.readFileSync(new URL('../src/cru34-worker-lock.mjs', import.meta.url), 'utf8');
   assert.match(workerLock, /signalProcess\(record.pid, 0\)/);
   assert.match(workerLock, /STALE_TAKEOVER_BUSY/);
+});
+
+
+test('publication clock is sampled after calculation and never renews source TTL', () => {
+  const value=fixture(); const sourceBefore=fs.readFileSync(value.ledgerPath); let calls=0;
+  const publicationAt=new Date('2026-09-07T01:06:15.000Z');
+  const result=projectCru34LiveBatch({...value,instrumentProfile:profile,clock:()=>{calls++;return publicationAt;}});
+  assert.equal(calls,1); assert.equal(result.status,'STALE');
+  assert.equal(result.snapshot.observedAt,publicationAt.toISOString());
+  assert.equal(result.snapshot.heartbeatAgeMs,45000);
+  assert.equal(result.snapshot.validUntil,'2026-09-07T01:06:00.000Z');
+  assert.equal(result.snapshot.semanticPayload.availableAt,'2026-09-07T01:05:30.000Z');
+  assert.equal(readCru34LiveSnapshot({snapshotPath:value.snapshotPath,now:publicationAt}).truthState,'STALE');
+  assert.deepEqual(fs.readFileSync(value.ledgerPath),sourceBefore);
+});
+
+test('expired warming input is stale at publication, not newly live by computation time',()=>{
+ const value=fixture(records({seconds:30}));
+ const result=projectCru34LiveBatch({...value,clock:()=>new Date('2026-09-07T01:02:00.000Z')});
+ assert.equal(result.snapshot.warmup.context300sComplete,false);
+ assert.equal(result.status,'STALE');
+ assert.equal(result.snapshot.validUntil,'2026-09-07T01:01:00.000Z');
+});
+
+test('invalid publication clock fails before snapshot or checkpoint commit',()=>{
+ const value=fixture();
+ assert.throws(()=>projectCru34LiveBatch({...value,clock:()=>new Date('invalid')}),/PUBLICATION_CLOCK_INVALID/);
+ assert.equal(fs.existsSync(value.snapshotPath),false);
+ assert.equal(fs.existsSync(value.checkpointPath),false);
 });

@@ -75,3 +75,13 @@ test(`UI P1 exact-head candidate preserves original isolation boundaries: ${b}`,
   {baseMainCommit:head},{complete:true},{dataMode:'MOCK'},{previewType:'INTEGRATION_OWNER_PREVIEW'}])
     assert.equal(validateCru21PreviewVersionTruth({...v,...override},o).ready,false,JSON.stringify(override));
 });
+
+test('Flow freshness repair preview is exact-source restricted and cannot use formal port',()=>{
+ const branch='codex/cru21-flow-freshness-repair-20261027';
+ const version=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch,dataMode:'LIVE'});
+ const o={...options,actualBranch:branch};
+ assert.equal(validateCru21PreviewVersionTruth(version,o).ready,true);
+ for(const change of [{port:8787},{host:'0.0.0.0'},{actualBranch:branch+'-other'},{sourceClean:false},{expectedHead:'a'.repeat(40)},{actualDataMode:'MOCK'}])
+  assert.equal(validateCru21PreviewVersionTruth(version,{...o,...change}).ready,false,JSON.stringify(change));
+ assert.equal(version.complete,false);
+});
