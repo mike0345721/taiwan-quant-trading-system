@@ -5042,7 +5042,7 @@ function renderJournalHistory(rows, outcomes = []) {
     personal.textContent = `原始自評信心：${confidenceLabels[entry.confidence] || '未填'}（非勝率） · 原始是否執行：${executionLabels[entry.executionStatus] || '未知'}`;
     const result = document.createElement('details'); result.className = 'dw-journal-outcomes';
     const resultTitle = document.createElement('summary'); resultTitle.textContent = '人工結果與執行紀錄';
-    const resultNotice = document.createElement('p'); resultNotice.textContent = '僅人工追加，不修改原決策或快照；不計算績效、MAE/MFE或交易建議。';
+    const resultNotice = document.createElement('p'); resultNotice.textContent = '僅人工追加，不修改原決策或快照；不計算績效、MAE/MFE或交易建議。只列近期20筆決策相關的最新200筆結果；未列出不代表從未記錄。';
     const history = document.createElement('div');
     const relatedResults = items => (Array.isArray(items) ? items : []).filter(item => item.decisionRecordHash === entry.recordHash && item.snapshotHash === entry.snapshotHash)
       .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
@@ -5053,7 +5053,7 @@ function renderJournalHistory(rows, outcomes = []) {
       return text;
     };
     if (linked.length) history.append(...linked.map(resultText));
-    else { const empty = document.createElement('p'); empty.textContent = '尚無人工結果；未知不代表成功或失敗。'; history.append(empty); }
+    else { const empty = document.createElement('p'); empty.textContent = '本次讀取未列出人工結果；不代表從未記錄，請勿據此重送。'; history.append(empty); }
     result.append(resultTitle, resultNotice, history);
     if (/^[a-f0-9]{64}$/.test(entry.recordHash || '')) {
       const form = document.createElement('form'); form.className = 'dw-journal-outcome-form';
@@ -5093,8 +5093,8 @@ function renderJournalHistory(rows, outcomes = []) {
           const saved = relatedResults(payload.outcomes);
           linked.splice(0, linked.length, ...saved);
           history.replaceChildren(...saved.map(resultText));
-          if (!saved.length) { const empty = document.createElement('p'); empty.textContent = '目前查回尚無人工結果；保留未送出內容。'; history.append(empty); }
-          feedback.textContent = '已查回目前已存結果；請核對時間與內容，未自動重送或清除草稿。';
+          if (!saved.length) { const empty = document.createElement('p'); empty.textContent = '本次查回未列出結果，不表示從未記錄；保留未送出內容。'; history.append(empty); }
+          feedback.textContent = '已查回本次可見結果（最多200筆），可能不完整；請核對時間與內容，未自動重送或清除草稿。';
         } catch (error) { feedback.textContent = `結果尚無法確認，保留草稿且不重送。原因：${error.message}`; }
         finally { recover.disabled = false; submit.disabled = false; clear.disabled = false; pending.delete(entry.recordHash); }
       });

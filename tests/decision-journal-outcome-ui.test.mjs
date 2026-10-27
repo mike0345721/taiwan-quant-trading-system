@@ -92,8 +92,23 @@ test('legacy entries keep unknown personal fields and never invent an outcome or
   const h = harness({ entries: [row] }); assert.ok(h.form);
   assert.match(h.target.textContent, /信心.*未填/);
   assert.match(h.target.textContent, /原始.*未知/);
-  assert.match(h.target.textContent, /尚無人工結果/);
+  assert.match(h.target.textContent, /未列出人工結果/);
   assert.deepEqual(h.calls, []); h.unchanged();
+});
+
+test('bounded history and recovery never claim that an omitted older outcome does not exist', async () => {
+  const row = decision(), other = 'd'.repeat(64);
+  const latest200 = Array.from({ length: 200 }, (_, i) => ({ decisionRecordHash: other, snapshotHash: 'e'.repeat(64),
+    sequence: i + 2, outcomeNote: 'newer result for another decision' }));
+  const h = harness({ entries: [row], outcomes: latest200,
+    request: async () => ({ data: [row], outcomes: latest200 }) });
+  assert.match(h.target.textContent, /近期20筆.*最新200筆/);
+  assert.match(h.target.textContent, /不代表從未記錄/);
+  assert.doesNotMatch(h.target.textContent, /尚無人工結果/);
+  await all(h.form).find(node => node.name === 'recoverOutcome').events.click();
+  assert.match(h.target.textContent, /本次查回未列出結果，不表示從未記錄/);
+  assert.match(h.target.textContent, /可能不完整/);
+  assert.equal(h.calls.length, 1); assert.ok(!h.calls[0].options?.method);
 });
 
 test('an empty manual result remains unknown and cannot produce a write', async () => {
