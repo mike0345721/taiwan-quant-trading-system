@@ -20,3 +20,9 @@
 5. 2026-09-02／09-03／09-09 仍各為 `AUDIT_INCOMPLETE`；`Market State` 既存 Manifest HEAD 不符與 10/23 例外治理亦各自保持 HOLD，不因本 PR 通過改稱修復。
 
 **授權邊界：**不讀取憑證、不 Broker 登入、不啟停 Bridge/Producer/Dashboard、不改原始帳本或正式排程、不合併／部署、不啟用下單路由。CI 成功不代表 10/27 日資料合格或 Owner UI 接受。
+
+## 2026-10-27 MSI 實際只讀來源對照收據（後續補充）
+- 在**隔離候選程式副本**執行 `node v2/scripts/inspect-domestic-oi-cache-readonly.mjs`，以程序內環境變數 `CRU21_OI_READONLY_SOURCE_ROOT` 指向原有 `v2` 報告與期交所 CSV 快取。工具只開啟固定 `reports/latest-quality.json` 與 `data/domestic-institution-cache/*.csv.gz`，不讀憑證、不搬移任何原始資料、不改 SQLite、行情帳本或快取。
+- 收據：`READ_ONLY=true`，`STATUS=REVIEW_ONLY_HOLD`，`INSPECT_EXIT=2`，`REVIEWED=38`，`REPAIRED=0`；全部 **38/38** 在本機既有 CSV 快取中找到算術一致且淨額匹配的候選三欄，分類 `CANDIDATE_PENDING_SOURCE_VERIFICATION`。不是 `PASS`，沒有真實修復。
+- 來源真偽與「當前最新」仍須從期交所官方回查、檔案 SHA/日期/型別逐筆綁定；即使 38/38 在快取吻合，也**不得自動 UPDATE DB**。未核准前原有 38 筆 QC FAIL 持續存在。
+- 隔離測試（截至本次候選更新前）：`domestic-institution-backfill.test.mjs`、`taifex-position-parser.test.mjs`、`inspect-domestic-oi-cache-readonly.test.mjs` 共 **10 PASS / 0 FAIL / 0 SKIP**；之後版本須重驗。
