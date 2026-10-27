@@ -7,6 +7,7 @@ const allowedPreviewBranches = new Set([
   'codex/cru21-emergency-market-calendar-qa-20261023',
   'codex/cru21-preopen-integrated-candidate-20261023',
   'codex/cru21-flow-freshness-repair-20261027',
+  'codex/cru21-offline-compatibility-20261027',
 ]);
 
 export function buildCru21PreviewVersion({ runtimeVersion, branch, dataMode } = {}) {

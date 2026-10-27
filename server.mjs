@@ -123,7 +123,7 @@ try {
     allowCandidate: process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW',
   });
 } catch { /* Unknown operating governance stays unavailable; no fake open/closed. */ }
-const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
+const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || readDataRoot);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
@@ -139,8 +139,8 @@ const lightweightChartsPath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHA
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist', 'lightweight-charts.standalone.production.js'));
 const lightweightChartsPackagePath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHARTS_PACKAGE_PATH
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'package.json'));
-const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || path.join(config.appRoot, 'data'));
-const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(config.appRoot, 'data', 'runtime', 'cru34-live', 'latest.json'));
+const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || readDataRoot);
+const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(cru34LiveDataRoot, 'runtime', 'cru34-live', 'latest.json'));
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
