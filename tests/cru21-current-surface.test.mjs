@@ -48,3 +48,12 @@ test('UI P1 normal authenticated candidate retains the same frozen research-only
    assert.equal(contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:fake}),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
  }
 });
+
+test('offline compatibility follow-up selects current candidate metadata only for its exact preview branch',()=>{
+ const branch='codex/cru21-offline-compatibility-20261027';
+ assert.equal(contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch}),contracts.CRU21_EVIDENCE_HOME_PRODUCT_SURFACE);
+ for(const inputs of [{actualBranch:branch},{previewType:'INTEGRATION_OWNER_PREVIEW',actualBranch:branch},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch+'-lookalike'},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:'main'}])
+   assert.equal(contracts.selectDashboardProductSurface(inputs),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
+});

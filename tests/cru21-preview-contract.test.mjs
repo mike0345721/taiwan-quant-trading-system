@@ -85,3 +85,19 @@ test('Flow freshness repair preview is exact-source restricted and cannot use fo
   assert.equal(validateCru21PreviewVersionTruth(version,{...o,...change}).ready,false,JSON.stringify(change));
  assert.equal(version.complete,false);
 });
+
+test('offline compatibility follow-up candidate retains all exact-source and isolation gates',()=>{
+ const branch='codex/cru21-offline-compatibility-20261027';
+ const v=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch,dataMode:'LIVE'});
+ const o={...options,actualBranch:branch};
+ assert.equal(validateCru21PreviewVersionTruth(v,o).ready,true);
+ assert.equal(v.complete,false);assert.equal(v.syncState,'MISMATCH');
+ for(const patch of [{expectedHead:null},{expectedHead:base},{expectedBaseMain:null},{expectedBaseMain:head},
+  {actualBranch:'main'},{actualBranch:branch+'-lookalike'},{sourceClean:false},{host:'0.0.0.0'},
+  {port:8787},{port:18723},{inlineEnabled:false},{candidateReadRoot:null},{actualDataMode:'MOCK'}])
+   assert.equal(validateCru21PreviewVersionTruth(v,{...o,...patch}).ready,false,JSON.stringify(patch));
+ for(const patch of [{runtimeCommit:base},{exactHead:base},{buildCommit:base},{approvedMainCommit:head},
+  {baseMainCommit:head},{branch:branch+'-lookalike'},{previewType:null},{dataMode:'MOCK'},{complete:true}])
+   assert.equal(validateCru21PreviewVersionTruth({...v,...patch},o).ready,false,JSON.stringify(patch));
+ assert.equal(validateCru21PreviewVersionTruth({...v,branch:branch+'-lookalike'},{...o,actualBranch:branch+'-lookalike'}).ready,false);
+});

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 import { resolveDashboardReadDataRoot } from '../src/dashboard-source-binding.mjs';
 
 function sourceFixture(t) {
@@ -82,4 +83,61 @@ test('candidate source selection preserves the existing inline isolated-port con
 test('isolated defaults remain unchanged without a formal override', () => {
   const dataDir = path.resolve('isolated-data');
   assert.equal(resolveDashboardReadDataRoot({ dataDir, isolatedMode: true }), dataDir);
+});
+
+// Evaluate the server's shipped path declarations without opening a socket,
+// starting upstream polling, or evaluating any private configuration file.
+function serverSourcePaths(config, env = {}) {
+  const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
+  const names = ['txChartDataRoot', 'txChartCacheRoot', 'cru34LiveSnapshotPath',
+    'cru34LiveStatusPath', 'cru34LiveDataRoot', 'cru34LiveProjectionRoot', 'decisionJournalPath'];
+  const root = source.match(/const readDataRoot = resolveDashboardReadDataRoot\(\{[\s\S]*?\n\}\);/);
+  assert.ok(root, 'server source binding must remain inspectable');
+  const declarations = names.map(name => {
+    const declaration = source.match(new RegExp(`const ${name} = [\\s\\S]*?;`));
+    assert.ok(declaration, name);
+    return declaration[0];
+  });
+  return vm.runInNewContext(root[0] + '\n' + declarations.join('\n')
+    + '\n({' + ['readDataRoot', ...names].join(',') + '})', {
+    config, process: { env }, path, cru55: null, expectedDataMode: 'live', resolveDashboardReadDataRoot,
+  });
+}
+
+test('server bound sources share the selected read root while output stays private', t => {
+  const { root, local, shared } = sourceFixture(t);
+  const config = { appRoot: root, dataDir: local, host: '127.0.0.1', port: 8787 };
+  for (const env of [
+    { DASHBOARD_FORMAL_READ_ROOT: shared },
+    { ASK_GPT_CANDIDATE_READ_ROOT: shared, ASK_GPT_INLINE_ENABLED: '1', DASHBOARD_PREVIEW_TYPE: 'CRU21_OWNER_PREVIEW' },
+  ]) {
+    const paths = serverSourcePaths({ ...config, port: env.ASK_GPT_CANDIDATE_READ_ROOT ? 18722 : 8787 }, env);
+    assert.equal(paths.readDataRoot, shared);
+    assert.equal(paths.txChartDataRoot, shared, 'chart must read the bound source, not private writes');
+    assert.equal(paths.cru34LiveDataRoot, shared, 'Flow and research quote must use the bound source');
+    assert.equal(paths.cru34LiveProjectionRoot, path.join(shared, 'runtime', 'cru34-live'));
+    assert.equal(paths.txChartCacheRoot, path.join(local, 'dashboard-chart-cache'));
+    assert.equal(paths.decisionJournalPath, path.join(local, 'decision-workspace', 'journal.ndjson'));
+    assert.deepEqual(fs.readdirSync(local), []);
+    assert.deepEqual(fs.readdirSync(shared), []);
+  }
+});
+
+test('server source defaults and explicit projection bindings remain independent of private outputs', t => {
+  const { root, local, shared } = sourceFixture(t);
+  const config = { appRoot: root, dataDir: local, host: '127.0.0.1', port: 8787 };
+  const defaults = serverSourcePaths(config);
+  assert.equal(defaults.txChartDataRoot, local);
+  assert.equal(defaults.cru34LiveDataRoot, local);
+  assert.equal(defaults.cru34LiveProjectionRoot, path.join(local, 'runtime', 'cru34-live'));
+  assert.equal(defaults.cru34LiveSnapshotPath, null, 'a read root alone must not select a live snapshot');
+  const projection = path.join(root, 'projection');
+  const explicit = serverSourcePaths(config, { DASHBOARD_FORMAL_READ_ROOT: shared,
+    TX_CHART_DATA_ROOT: path.join(root, 'chart'), CRU34_LIVE_DATA_ROOT: path.join(root, 'flow'),
+    CRU34_LIVE_SNAPSHOT_PATH: path.join(projection, 'latest.json'),
+    CRU34_LIVE_STATUS_PATH: path.join(projection, 'status.json') });
+  assert.equal(explicit.txChartDataRoot, path.join(root, 'chart'));
+  assert.equal(explicit.cru34LiveDataRoot, path.join(root, 'flow'));
+  assert.equal(explicit.cru34LiveProjectionRoot, projection);
+  assert.equal(explicit.txChartCacheRoot, path.join(local, 'dashboard-chart-cache'));
 });
