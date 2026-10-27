@@ -183,8 +183,29 @@ export function reconcileDomesticInstitutionNets(db, { fetchedAt = new Date().to
   const update = db.prepare(`UPDATE institutional_futures_detail_daily SET open_interest_net=?, fetched_at=?
     WHERE trade_date=? AND institution_type=?`);
   const reconciled = [];
+  const blocked = [];
   for (const row of before.mismatchDates) {
     if (row.detail_net == null || !row.cross_table_mismatch) continue;
+    // The final net may be refreshed from a different official-data vintage.
+    // A net-only correction is valid ONLY if the existing detail long/short
+    // can independently reproduce that target. Otherwise preserve the source
+    // evidence and leave the quality gate red until governed source reimport.
+    const componentsMatchFinal = Number.isSafeInteger(row.open_interest_long)
+      && Number.isSafeInteger(row.open_interest_short)
+      && Number.isSafeInteger(row.final_net)
+      && row.open_interest_long - row.open_interest_short === row.final_net;
+    if (!componentsMatchFinal) {
+      blocked.push({
+        tradeDate: row.trade_date,
+        institutionType: row.institution_type,
+        reportedLong: row.open_interest_long,
+        reportedShort: row.open_interest_short,
+        reportedNet: row.detail_net,
+        finalNet: row.final_net,
+        reason: 'SOURCE_LONG_SHORT_FINAL_NET_CONFLICT',
+      });
+      continue;
+    }
     update.run(row.final_net, fetchedAt, row.trade_date, row.institution_type);
     reconciled.push({
       tradeDate: row.trade_date,
@@ -193,5 +214,5 @@ export function reconcileDomesticInstitutionNets(db, { fetchedAt = new Date().to
       finalNet: row.final_net,
     });
   }
-  return { reconciled, audit: auditInstitutionalFuturesOiConsistency(db) };
+  return { reconciled, blocked, audit: auditInstitutionalFuturesOiConsistency(db) };
 }
