@@ -107,18 +107,41 @@ test('final institutional snapshot overwrites OI and quality audit compares deta
     const before = auditInstitutionalFuturesOiConsistency(db);
     assert.equal(before.summary.cross_table_mismatch_rows, 1);
     const repaired = reconcileDomesticInstitutionNets(db, { fetchedAt: '2026-07-15T10:00:00.000Z' });
-    assert.deepEqual(repaired.reconciled.map((row) => row.institutionType), ['dealer']);
-    assert.equal(repaired.audit.summary.cross_table_mismatch_rows, 0);
-    assert.equal(repaired.audit.summary.internal_mismatch_rows, 1);
+    assert.deepEqual(repaired.reconciled, []);
+    assert.deepEqual(repaired.blocked.map((row) => row.reason), ['SOURCE_LONG_SHORT_FINAL_NET_CONFLICT']);
+    assert.equal(repaired.audit.summary.cross_table_mismatch_rows, 1);
+    assert.equal(repaired.audit.summary.internal_mismatch_rows, 0);
+    assert.equal(db.prepare("SELECT open_interest_net FROM institutional_futures_detail_daily WHERE trade_date='2026-07-15' AND institution_type='dealer'").get().open_interest_net, 0);
 
     const failedQuality = runQualityChecks(db);
-    assert.equal(failedQuality.byRule.some((row) => row.rule_code === 'INSTITUTIONAL_OI_ARITHMETIC_MISMATCH'), true);
+    assert.equal(failedQuality.byRule.some((row) => row.rule_code === 'INSTITUTIONAL_OI_NET_MISMATCH'), true);
     db.prepare(`UPDATE institutional_futures_detail_daily
       SET open_interest_long=10,open_interest_short=30,open_interest_net=-20
       WHERE trade_date='2026-07-15' AND institution_type='dealer'`).run();
     const passedQuality = runQualityChecks(db);
     assert.equal(passedQuality.institutionalFuturesOiConsistency.summary.passed, true);
     assert.equal(passedQuality.byRule.some((row) => row.rule_code.startsWith('INSTITUTIONAL_OI_') && row.rule_code.endsWith('MISMATCH')), false);
+  } finally {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('net-only reconciliation requires independent long-minus-short parity with final net', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-domestic-gated-reconcile-'));
+  const db = openDatabase(path.join(dir, 'test.sqlite'));
+  try {
+    applyMigrations(db, migrationsPath);
+    db.prepare("INSERT INTO futures_positions_daily(trade_date,dealer_net) VALUES ('2026-07-16',-15)").run();
+    upsertDomesticInstitutionRows(db, new Map([['2026-07-16', {
+      dealer: { tradeLong: 1, tradeShort: 2, tradeNet: -1, long: 5, short: 20, net: 1 },
+    }]]));
+    const result = reconcileDomesticInstitutionNets(db);
+    assert.equal(result.reconciled.length, 1);
+    assert.deepEqual(result.blocked, []);
+    assert.equal(result.audit.summary.cross_table_mismatch_rows, 0);
+    assert.equal(result.audit.summary.internal_mismatch_rows, 0);
+    assert.equal(db.prepare("SELECT open_interest_net FROM institutional_futures_detail_daily WHERE trade_date='2026-07-16' AND institution_type='dealer'").get().open_interest_net, -15);
   } finally {
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
