@@ -79,3 +79,9 @@ and nativeAuthorityIntegrated=false. Exit 2 means functional assertions passed
 but native candidate qualification remains HOLD; exit 1 means a functional
 failure. This fixture cannot open a real candidate, remove a runtime guard,
 initialize AI state or authorize a previously refused operation.
+
+An escaping guardian error appends `guardian-error.json` only after its owned
+Job/handles have been cleaned. That exclusive diagnostic contains a fixed phase,
+exception type, HResult and optional native error code; no environment, secret,
+stack or external path is included. It does not replace a missing terminal or
+turn a failed native case into a pass.

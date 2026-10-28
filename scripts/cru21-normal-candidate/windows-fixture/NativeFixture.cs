@@ -17,6 +17,7 @@ internal static class NativeFixture
     const string Product = "807f940e4195153b9c2c83fc2ba0923ec0049203";
     const uint SyncQuery = 0x00101000, DuplicateAccess = 0x40;
     static string Root, Exe;
+    static string GuardianPhase = "NOT_ENTERED";
     static FileStream BinaryLease;
     static string BinaryHash;
     static int SpawnCount;
@@ -224,6 +225,7 @@ internal static class NativeFixture
 
     static int Guardian(string[] a)
     {
+        GuardianPhase = "VALIDATING_ARGUMENTS";
         Require(a.Length == 9, "GUARDIAN_ARGUMENTS_INVALID"); string name = a[2], nonce = Nonce(a[3]); long budget = Budget(name);
         IntPtr parent = Handle(a[4]), driver = Handle(a[6]); long parentCreation = Number(a[5]), start = Number(a[7]), wallStart = Number(a[8]);
         Require(Creation(parent) == parentCreation && !Exited(parent), "PARENT_HANDLE_IDENTITY_REJECTED");
@@ -231,6 +233,7 @@ internal static class NativeFixture
         {
             Require(Read(dir, "nonce.txt").Trim() == nonce, "GUARDIAN_NONCE_REJECTED");
             Require(Read(authority, "binary-sha256.txt").Trim() == BinaryHash, "FIXTURE_BINARY_CHANGED");
+            GuardianPhase = "VALIDATING_INTENT";
             ValidateIntent(dir, name, start, wallStart);
             Write(dir, "guardian-consumed.json", Json("nonce", nonce, "startMonoMs", start, "startUtcTicks", wallStart, "budgetMs", budget, "runtimeAllowed", false));
             IntPtr job = NewJob(); Proc child = null;
@@ -280,6 +283,7 @@ internal static class NativeFixture
                 lock (admission)
                 {
                     Require(!stopRequested && Mono - start < budget - margin && Wall < wallStart + (budget - margin) * TimeSpan.TicksPerMillisecond && !Exited(parent), "EXPIRED_BEFORE_DUMMY");
+                    GuardianPhase = "CREATING_FIXED_DUMMY";
                     child = SpawnCore(job, new IntPtr[0], true, "dummy", Root, name, nonce);
                     // Native creation can itself be slow. Recheck the original
                     // budget before the only resume while still holding admission.
@@ -290,6 +294,7 @@ internal static class NativeFixture
                     }
                     Require(N.ResumeThread(child.Thread) != UInt32.MaxValue, "DUMMY_RESUME_FAILED");
                 }
+                GuardianPhase = "WAITING_DUMMY_ACK";
                 WaitReceipt(dir, "dummy-ack.json", child);
                 VerifyAck(dir, "dummy", nonce, child.Process);
                 lock (admission) { Require(!stopRequested && !child.Exited, "DUMMY_EXITED_BEFORE_READY"); Interlocked.Exchange(ref childActivated, 1); }
@@ -298,17 +303,23 @@ internal static class NativeFixture
                 Write(dir, "ready.json", Json("mode", "ISOLATED_NATIVE_FIXTURE", "pidEvidenceOnly", child.Pid, "monitoredParentIsOsParent", false, "budgetMs", budget, "startMonoMs", start, "runtimeAllowed", false));
                 // Clock fault injection begins only after both the actual
                 // dummy and the observing driver have acknowledged readiness.
+                GuardianPhase = "WAITING_DRIVER_READY";
                 long readyUntil = Mono + 10000;
                 while (!Exists(dir, "driver-ready.json"))
                 { Require(!stop.WaitOne(0) && Mono < readyUntil, "DRIVER_READY_UNAVAILABLE"); Thread.Sleep(10); }
+                GuardianPhase = "READING_DRIVER_READY";
                 Require(Read(dir, "driver-ready.json").Trim() == Json("nonce", nonce, "dummyCreationFileTime", Creation(child.Process)), "DRIVER_READY_INVALID");
                 Interlocked.Exchange(ref injectClock, 1);
-                stop.WaitOne(); if (monitorError != null) throw new InvalidOperationException("MONITOR_UNVERIFIED", monitorError);
+                GuardianPhase = "WAITING_MONITOR_STOP";
+                stop.WaitOne(); if (monitorError != null) { GuardianPhase = "MONITOR_ERROR"; throw new InvalidOperationException("MONITOR_UNVERIFIED", monitorError); }
+                GuardianPhase = "TERMINATING_ORIGINAL_DUMMY";
                 Kill(child.Process); long exit = Mono; bool timely = exit - start <= budget;
+                GuardianPhase = "READING_NATIVE_EXIT_TIME";
                 bool early = stopReason == "DUMMY_UNEXPECTED_EXIT" || ExitUtc(child.Process) < stopUtc;
                 string terminal = Json("reason", stopReason, "configuredBudgetMs", budget, "earlyStopMarginMs", margin, "stopElapsedMs", stopAt - start, "observedExitElapsedMs", exit - start, "timelyObservedExit", timely, "dummyAckValidated", true, "childExitedBeforeStop", early, "childExited", true, "runtimeAllowed", false);
+                GuardianPhase = "WRITING_TERMINAL_RECEIPT";
                 try { Write(dir, "terminal.json", terminal); }
-                catch (IOException) { Write(dir, "unknown.json", Json("reason", "TERMINAL_RECEIPT_UNCERTAIN", "childExited", true, "runtimeAllowed", false)); return 3; }
+                catch (IOException) { GuardianPhase = "WRITING_UNKNOWN_RECEIPT"; Write(dir, "unknown.json", Json("reason", "TERMINAL_RECEIPT_UNCERTAIN", "childExited", true, "runtimeAllowed", false)); return 3; }
                 return timely && !early ? 0 : 4;
             }
             finally { monitorDone.Set(); if (!monitor.Join(2000)) ExitUnknown(); if (job != IntPtr.Zero) N.CloseHandle(job); if (child != null) child.Dispose(); N.CloseHandle(parent); N.CloseHandle(driver); }
@@ -484,6 +495,21 @@ internal static class NativeFixture
     {
         try { action(); } catch (Exception error) { failed++; Record(authority, name, "FAIL", error.GetType().Name + ":" + error.Message); }
     }
+    static void GuardianErrorReceipt(string[] a, Exception error)
+    {
+        if (a.Length != 9 || a[0] != "guardian" || Root == null || GuardianPhase == "NOT_ENTERED") return;
+        // Called only after Guardian's finally/using scopes have cleaned its
+        // owned Job and handles. Diagnostics never control another process.
+        try
+        {
+            Budget(a[2]);
+            var native = error as Win32Exception;
+            if (native == null) native = error.InnerException as Win32Exception;
+            using (Dir root = Dir.Open(Root)) using (Dir authority = root.ExistingDirectory("native-authority")) using (Dir dir = authority.ExistingDirectory(a[2]))
+                Write(dir, "guardian-error.json", Json("phase", GuardianPhase, "type", error.GetType().Name, "hresult", error.HResult, "win32code", native == null ? null : (object)native.NativeErrorCode));
+        }
+        catch { Console.Error.WriteLine("ISOLATED_GUARDIAN_ERROR_RECEIPT_UNAVAILABLE"); }
+    }
     static int Main(string[] a)
     {
         try
@@ -509,7 +535,7 @@ internal static class NativeFixture
             }
             while (true) Thread.Sleep(1000); // Fixed uncooperative, non-network test process.
         }
-        catch (Exception e) { Console.Error.WriteLine("ISOLATED_FIXTURE_HOLD " + e.GetType().Name + ":" + e.Message); return 1; }
+        catch (Exception e) { GuardianErrorReceipt(a, e); Console.Error.WriteLine("ISOLATED_FIXTURE_HOLD " + e.GetType().Name + ":" + e.Message); return 1; }
     }
 
     internal static class N
