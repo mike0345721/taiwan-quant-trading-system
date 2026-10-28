@@ -105,9 +105,16 @@ export function createProtectedPlanStore({dir, encrypt, decrypt, initialize=true
 
 const SID=/^S-1-(?:[0-9]+-)*[0-9]+$/;
 const SYSTEM_SID='S-1-5-18',ADMIN_SID='S-1-5-32-544';
-// Only these read/execute rights may be granted directly to other ancestor SIDs.
-// Unknown rights, ACCESS_SYSTEM_SECURITY, write/delete and ACL/owner changes deny.
+// Exact Windows servicing identity, used only for ancestor ownership. The
+// existing trust boundary already includes privileged SYSTEM/Admin servicing;
+// this is not a wildcard for service SIDs or a privileged ACE/leaf exception.
+const TRUSTED_INSTALLER_SID='S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464';
 const READ_RIGHTS=(1|8|32|128|131072|1048576|0x80000000|0x20000000)>>>0;
+// On an existing directory ancestor, 4 means ADD_SUBDIRECTORY: creating a
+// sibling cannot replace the selected existing child. DELETE on any child,
+// parent DELETE_CHILD, write-data/attributes, ACL/owner changes and unknown
+// rights still deny; the protected directory/file/lock policy is unchanged.
+const ANCESTOR_RIGHTS=(READ_RIGHTS|4)>>>0;
 const DPAPI_HEADER=Buffer.from('01000000d08c9ddf0115d1118c7a00c04fc297eb','hex');
 function rejectStore(code){throw new PlanError(code);}
 function readWindowsSecurity({paths}){
@@ -128,18 +135,18 @@ function ancestors(target){const out=[];let current=target;for(;;){out.unshift(c
 function checkSecurity(inspector,paths){
   let result;try{result=inspector({paths:paths.map(({path:target,kind})=>({path:target,kind}))});}catch(error){if(error instanceof PlanError)throw error;rejectStore('CREDENTIAL_SECURITY_INSPECTION_FAILED');}
   if(!result||typeof result.then==='function'||!SID.test(result.currentUserSid??'')||!Array.isArray(result.entries)||result.entries.length!==paths.length)rejectStore('LOCAL_IDENTITY_UNVERIFIED');
-  const principals=new Set([result.currentUserSid,SYSTEM_SID]),ancestorsAllowed=new Set([...principals,ADMIN_SID]);
+  const principals=new Set([result.currentUserSid,SYSTEM_SID]),ancestorsAllowed=new Set([...principals,ADMIN_SID]),ancestorOwners=new Set([...ancestorsAllowed,TRUSTED_INSTALLER_SID]);
   for(const item of paths){
     const matches=result.entries.filter(entry=>entry&&typeof entry.path==='string'&&pathEqual(entry.path,item.path));
     if(matches.length!==1)rejectStore('CREDENTIAL_ACL_UNSAFE');
-    const entry=matches[0],allowed=item.kind==='ancestor'?ancestorsAllowed:principals;
-    if(!allowed.has(entry.ownerSid)||entry.reparsePoint!==false||typeof entry.protected!=='boolean'||!Array.isArray(entry.rules)||entry.rules.length===0)rejectStore('CREDENTIAL_ACL_UNSAFE');
+    const entry=matches[0],allowed=item.kind==='ancestor'?ancestorsAllowed:principals,owners=item.kind==='ancestor'?ancestorOwners:principals;
+    if(!owners.has(entry.ownerSid)||entry.reparsePoint!==false||typeof entry.protected!=='boolean'||!Array.isArray(entry.rules)||entry.rules.length===0)rejectStore('CREDENTIAL_ACL_UNSAFE');
     for(const rule of entry.rules){
       if(!rule||!SID.test(rule.sid??'')||!['Allow','Deny'].includes(rule.type)||typeof rule.inherited!=='boolean'||!Number.isInteger(rule.inheritance)||rule.inheritance<0||rule.inheritance>3||!Number.isInteger(rule.propagation)||rule.propagation<0||rule.propagation>3||(rule.propagation!==0&&rule.inheritance===0)||!Number.isSafeInteger(rule.rights)||rule.rights< -2147483648||rule.rights>4294967295)rejectStore('CREDENTIAL_ACL_UNSAFE');
       // InheritOnly is not an effective ACE on this ancestor. Each child in the
       // chain is still inspected, and store/credential leaves keep the SID rule.
       if(item.kind==='ancestor'&&(rule.propagation&2)!==0)continue;
-      if(rule.type==='Allow'&&!allowed.has(rule.sid)&&(item.kind!=='ancestor'||Boolean((rule.rights>>>0)&~READ_RIGHTS)))rejectStore('CREDENTIAL_ACL_UNSAFE');
+      if(rule.type==='Allow'&&!allowed.has(rule.sid)&&(item.kind!=='ancestor'||Boolean((rule.rights>>>0)&~ANCESTOR_RIGHTS)))rejectStore('CREDENTIAL_ACL_UNSAFE');
     }
   }
 }

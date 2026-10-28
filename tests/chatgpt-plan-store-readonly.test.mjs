@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import * as stores from '../src/chatgpt-plan-store.mjs';
 
 const USER = 'S-1-5-21-100-200-300-1001', SYSTEM = 'S-1-5-18', ADMINS = 'S-1-5-32-544';
+const TRUSTED_INSTALLER = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464';
 const HEADER = Buffer.from('01000000d08c9ddf0115d1118c7a00c04fc297eb', 'hex');
 const opaque = () => Buffer.concat([HEADER, Buffer.alloc(96, 7)]).toString('base64');
 const plain = () => ({ schema: 'cru21-siwc-vault-v1', hostId: `urn:uuid:${randomUUID()}`, registrations: {} });
@@ -99,10 +100,118 @@ test('unsafe store or file ACLs fail closed without repair, decryption or leaked
 });
 
 test('ancestor delete-child, write-data, ACL and owner permissions cannot be granted to other SIDs', t => {
-  for (const rights of [2, 4, 16, 64, 256, 65536, 262144, 524288, 0x40000000, 0x10000000]) {
+  for (const rights of [2, 16, 64, 256, 65536, 262144, 524288, 0x40000000, 0x10000000, 1245631]) {
     const f = fixture(t);
     const status = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) { const result = security(request); result.entries.find(entry => entry.path === f.localAppData).rules.push({ sid: 'S-1-1-0', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights }); return result; } }));
     assert.equal(status.reason, 'CREDENTIAL_ACL_UNSAFE', String(rights));
+  }
+});
+
+test('exact TrustedInstaller ancestor ownership permits existing read-only records without repair', t => {
+  const data = plain(), f = fixture(t, { cipher: encodeFixture(JSON.stringify(data)) }), before = snapshot(f.root), mutations = [];
+  const securityInspector = request => { const result = security(request); result.entries[0].ownerSid = TRUSTED_INSTALLER; return result; };
+  assert.equal(stores.inspectWindowsPlanStore(options(f, { securityInspector, fs: readonlyFs(mutations) })).state, 'PRESENT_UNVERIFIED');
+  const store = stores.openExistingWindowsPlanStore(options(f, { securityInspector, fs: readonlyFs(mutations), decrypt: decodeFixture, encrypt() { throw new Error('ENCRYPT_FORBIDDEN'); } }));
+  assert.equal(store.hostId, data.hostId); assert.deepEqual(store.list(), []);
+  assert.deepEqual(mutations, []); assert.deepEqual(snapshot(f.root), before);
+});
+
+test('ancestor create-subdirectory permission creates no replacement capability on the selected path', t => {
+  for (const variant of ['direct', 'read-and-create', 'no-propagate']) {
+    const f = fixture(t), before = snapshot(f.root), mutations = [];
+    const result = stores.inspectWindowsPlanStore(options(f, { fs: readonlyFs(mutations), securityInspector(request) {
+      const result = security(request), ancestor = result.entries.find(entry => entry.path === f.localAppData);
+      ancestor.rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: variant === 'no-propagate' ? 3 : 0, propagation: variant === 'no-propagate' ? 1 : 0, rights: variant === 'read-and-create' ? (1179817 | 4) : 4 });
+      if (variant === 'no-propagate') result.entries.find(entry => entry.path === f.parent).rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: true, inheritance: 0, propagation: 0, rights: 4 });
+      return result;
+    } }));
+    assert.equal(result.state, 'PRESENT_UNVERIFIED', variant);
+    assert.deepEqual(mutations, []); assert.deepEqual(snapshot(f.root), before);
+  }
+});
+
+test('Windows servicing owner and sibling creation coexist with an inherit-only creator grant', t => {
+  const f = fixture(t);
+  const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
+    const result = security(request), root = result.entries[0]; root.ownerSid = TRUSTED_INSTALLER;
+    root.rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights: 4 });
+    root.rules.push({ sid: 'S-1-3-0', type: 'Allow', inherited: false, inheritance: 3, propagation: 2, rights: -536805376 });
+    return result;
+  } }));
+  assert.equal(result.state, 'PRESENT_UNVERIFIED');
+});
+
+test('unknown owners and lookalike service SIDs remain unsafe even with only read grants', t => {
+  for (const ownerSid of [TRUSTED_INSTALLER.slice(0, -1) + '5', 'S-1-5-80-1-2-3-4-5', 'S-1-5-21-999-999-999-999']) {
+    const f = fixture(t);
+    const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) { const result = security(request); result.entries[0].ownerSid = ownerSid; result.entries[0].rules = [{ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights: 1179817 }]; return result; } }));
+    assert.equal(result.reason, 'CREDENTIAL_ACL_UNSAFE');
+  }
+});
+
+test('TrustedInstaller identity never grants leaf ownership or an ancestor privileged ACE bypass', t => {
+  for (const variant of ['directory-owner', 'file-owner', 'ancestor-full-ace', 'directory-read-ace', 'file-read-ace']) {
+    const f = fixture(t);
+    const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
+      const result = security(request), dir = result.entries.find(entry => entry.path === f.dir), file = result.entries.find(entry => entry.path === f.file);
+      if (variant === 'directory-owner') dir.ownerSid = TRUSTED_INSTALLER;
+      else if (variant === 'file-owner') file.ownerSid = TRUSTED_INSTALLER;
+      else (variant === 'ancestor-full-ace' ? result.entries[0] : variant === 'directory-read-ace' ? dir : file).rules.push({ sid: TRUSTED_INSTALLER, type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights: variant === 'ancestor-full-ace' ? 2032127 : 1179817 });
+      return result;
+    } }));
+    assert.equal(result.reason, 'CREDENTIAL_ACL_UNSAFE', variant);
+  }
+});
+
+test('TrustedInstaller cannot own an otherwise exact writer lease before decryption or persistence', t => {
+  const f = fixture(t, { cipher: encodeFixture(JSON.stringify(plain())) }), original = fs.readFileSync(f.file); let decryptions = 0, encryptions = 0;
+  const store = stores.openExistingWindowsPlanStore(options(f, { decrypt(value) { decryptions++; return decodeFixture(value); }, encrypt(value) { encryptions++; return encodeFixture(value); }, securityInspector(request) {
+    const result = security(request), lock = result.entries.find(entry => entry.path === f.lock); if (lock) lock.ownerSid = TRUSTED_INSTALLER; return result;
+  } }));
+  const beforeDecryptions = decryptions;
+  assert.throws(() => store.save({ issuer: 'fixture', client_id: 'fixture', subject: 'fixture' }), /CREDENTIAL_ACL_UNSAFE/);
+  assert.equal(decryptions, beforeDecryptions); assert.equal(encryptions, 0);
+  assert.deepEqual(fs.readFileSync(f.file), original); assert.equal(fs.existsSync(f.lock), false);
+});
+
+test('create-subdirectory permission is still forbidden on protected directory and file leaves', t => {
+  for (const target of ['directory', 'file']) {
+    const f = fixture(t);
+    const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
+      const result = security(request); result.entries.find(entry => entry.path === (target === 'directory' ? f.dir : f.file)).rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights: 4 }); return result;
+    } }));
+    assert.equal(result.reason, 'CREDENTIAL_ACL_UNSAFE', target);
+  }
+});
+
+test('parent delete-child and child delete grants remain unsafe despite a child delete denial', t => {
+  for (const variant of ['parent-delete-child', 'child-directory-delete', 'child-file-delete']) {
+    const f = fixture(t);
+    const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
+      const result = security(request), dir = result.entries.find(entry => entry.path === f.dir), file = result.entries.find(entry => entry.path === f.file);
+      dir.rules.unshift({ sid: 'S-1-5-11', type: 'Deny', inherited: false, inheritance: 0, propagation: 0, rights: 65536 });
+      file.rules.unshift({ sid: 'S-1-5-11', type: 'Deny', inherited: false, inheritance: 0, propagation: 0, rights: 65536 });
+      const target = variant === 'parent-delete-child' ? result.entries.find(entry => entry.path === f.parent) : variant === 'child-directory-delete' ? dir : file;
+      target.rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights: variant === 'parent-delete-child' ? 64 : 65536 });
+      return result;
+    } }));
+    assert.equal(result.reason, 'CREDENTIAL_ACL_UNSAFE', variant);
+  }
+});
+
+test('effective inherited child creation and no-propagate dangerous writes do not inherit ancestor exceptions', t => {
+  for (const variant of ['effective-leaf-create', 'effective-child-delete', 'no-propagate-write']) {
+    const f = fixture(t);
+    const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
+      const result = security(request), ancestor = result.entries.find(entry => entry.path === f.localAppData);
+      if (variant === 'no-propagate-write') ancestor.rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 3, propagation: 1, rights: 2 });
+      else {
+        ancestor.rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: false, inheritance: 3, propagation: 2, rights: variant === 'effective-leaf-create' ? 4 : 65536 });
+        result.entries.find(entry => entry.path === (variant === 'effective-leaf-create' ? f.dir : f.parent)).rules.push({ sid: 'S-1-5-11', type: 'Allow', inherited: true, inheritance: 0, propagation: 0, rights: variant === 'effective-leaf-create' ? 4 : 65536 });
+      }
+      return result;
+    } }));
+    assert.equal(result.reason, 'CREDENTIAL_ACL_UNSAFE', variant);
   }
 });
 
@@ -282,7 +391,7 @@ test('ancestor CREATOR OWNER inherit-only permission does not grant direct acces
 });
 
 test('unknown ancestor rights including ACCESS_SYSTEM_SECURITY cannot be treated as read-only', t => {
-  for (const rights of [0x01000000, 0x2000]) {
+  for (const rights of [0x01000000, 0x2000, 0x01000004, 0x2004]) {
     const f = fixture(t);
     const result = stores.inspectWindowsPlanStore(options(f, { securityInspector(request) {
       const result = security(request); result.entries.find(entry => entry.path === f.localAppData).rules.push({ sid: 'S-1-1-0', type: 'Allow', inherited: false, inheritance: 0, propagation: 0, rights }); return result;
