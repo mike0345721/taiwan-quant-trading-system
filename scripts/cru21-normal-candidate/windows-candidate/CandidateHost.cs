@@ -719,7 +719,7 @@ internal static class CandidateHost
         string parent = Path.GetDirectoryName(Path.GetFullPath(path)); HoldParents(parent);
         for (string current = parent; current != null; current = Path.GetDirectoryName(current))
         {
-            CheckCodeSecurity(Directories[current].Handle, true, true);
+            CheckCodeSecurity(Directories[current].Handle, true, !SamePath(current, parent));
             if (current == Path.GetPathRoot(current)) break;
         }
         CheckCodeSecurity(file.SafeFileHandle.DangerousGetHandle(), false);

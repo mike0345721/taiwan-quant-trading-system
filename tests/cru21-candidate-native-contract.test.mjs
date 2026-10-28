@@ -76,6 +76,7 @@ test('native code namespace policy separates outer ancestors from source and ven
   // Regression lint for the reviewed role distinction; not a Windows ACL test.
   assert.match(host, /if \(directory && existingAncestor\) allowed \|= 4u;/);
   assert.match(host, /CheckCodeSecurity\(Directories\[p\]\.Handle, true, !SamePath\(p, current\)\)/);
+  assert.match(host, /CheckCodeSecurity\(Directories\[current\]\.Handle, true, !SamePath\(current, parent\)\)/);
   assert.match(host, /dir = Child\(dir, parts\[i\], false\); CheckCodeSecurity\(dir\.Handle, true\)/);
   assert.match(host, /EnumerateVendor\(Dir dir[\s\S]*?CheckCodeSecurity\(dir\.Handle, true\)/);
   assert.match(host, /ace != null && !ace\.IsCallback/);
