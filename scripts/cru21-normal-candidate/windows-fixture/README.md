@@ -85,3 +85,11 @@ Job/handles have been cleaned. That exclusive diagnostic contains a fixed phase,
 exception type, HResult and optional native error code; no environment, secret,
 stack or external path is included. It does not replace a missing terminal or
 turn a failed native case into a pass.
+
+After successful Job termination, the guardian only waits on the original dummy
+handle; it does not issue a second TerminateProcess while native exit is in
+progress. The shared cleanup helper likewise makes at most one termination
+request: if it fails, only a signaled original handle can establish successful
+exit. No PID lookup or termination retry is allowed. A five-second observation
+bound is not deadline grace: timelyObservedExit still compares the observation
+against the immutable original configured budget.

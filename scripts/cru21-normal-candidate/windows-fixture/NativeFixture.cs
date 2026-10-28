@@ -108,7 +108,18 @@ internal static class NativeFixture
     }
     static bool Exited(IntPtr handle) { uint result = N.WaitForSingleObject(handle, 0); Require(result == 0 || result == 258, "FIXTURE_WAIT_FAILED"); return result == 0; }
     static void AwaitExit(IntPtr handle, int millis) { Require(N.WaitForSingleObject(handle, (uint)millis) == 0, "FIXTURE_EXIT_UNVERIFIED"); }
-    static void Kill(IntPtr handle) { if (!Exited(handle)) N.Check(N.TerminateProcess(handle, 0xc021)); AwaitExit(handle, 5000); }
+    static void Kill(IntPtr handle)
+    {
+        if (!Exited(handle) && !N.TerminateProcess(handle, 0xc021))
+        {
+            int originalError = Marshal.GetLastWin32Error();
+            // The original process may already be terminating between the
+            // first wait and TerminateProcess. Never reacquire it or retry.
+            if (N.WaitForSingleObject(handle, 5000) != 0) throw new Win32Exception(originalError);
+            return;
+        }
+        AwaitExit(handle, 5000);
+    }
     static void ExitUnknown() { Environment.Exit(71); throw new InvalidOperationException("FIXTURE_EXIT_DID_NOT_TERMINATE"); }
 
     // Original handles only. A process ID is evidence and never a control selector.
@@ -312,8 +323,11 @@ internal static class NativeFixture
                 Interlocked.Exchange(ref injectClock, 1);
                 GuardianPhase = "WAITING_MONITOR_STOP";
                 stop.WaitOne(); if (monitorError != null) { GuardianPhase = "MONITOR_ERROR"; throw new InvalidOperationException("MONITOR_UNVERIFIED", monitorError); }
-                GuardianPhase = "TERMINATING_ORIGINAL_DUMMY";
-                Kill(child.Process); long exit = Mono; bool timely = exit - start <= budget;
+                GuardianPhase = "WAITING_ORIGINAL_DUMMY_EXIT";
+                // The monitor already successfully terminated this exact Job.
+                // A second TerminateProcess can fail during native exit; only
+                // observe the original handle here, without a second request.
+                AwaitExit(child.Process, 5000); long exit = Mono; bool timely = exit - start <= budget;
                 GuardianPhase = "READING_NATIVE_EXIT_TIME";
                 bool early = stopReason == "DUMMY_UNEXPECTED_EXIT" || ExitUtc(child.Process) < stopUtc;
                 string terminal = Json("reason", stopReason, "configuredBudgetMs", budget, "earlyStopMarginMs", margin, "stopElapsedMs", stopAt - start, "observedExitElapsedMs", exit - start, "timelyObservedExit", timely, "dummyAckValidated", true, "childExitedBeforeStop", early, "childExited", true, "runtimeAllowed", false);
