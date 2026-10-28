@@ -3,8 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const PRODUCT = Object.freeze({
-  head: '807f940e4195153b9c2c83fc2ba0923ec0049203',
-  tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f',
+  head: 'f221ee21448987ea5c675e36d82573c65dbbe09b',
+  tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d',
   branch: 'codex/cru21-offline-compatibility-20261027',
   main: '4d8251686bdb4abbdb469bc00ae798717c0fd583',
 });
@@ -15,8 +15,8 @@ export function deepFreeze(value) {
 }
 export function runtimeGate() {
   return deepFreeze({ allowed: false, status: 'WINDOW_HOLD', evidenceClass: 'ISOLATED_FIXTURE', reasons: [
-    'Windows native held-handle, parent-death and hard-deadline evidence is unavailable.',
-    'Read-only AI status is fixed in the product source; native Windows behavior remains unverified.',
+    'No live authority or accepted deadline fault model is active; isolated native evidence is not a live grant.',
+    'Read-only AI status has scoped Windows evidence; normal account and browser behavior remain unverified.',
     'Prior controller and health-operation refusals remain unresolved; no retry is authorized.',
     'No real candidate window, startup adapter, login or network operation is authorized.',
   ] });

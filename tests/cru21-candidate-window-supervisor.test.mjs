@@ -68,8 +68,8 @@ function fixture(t, options = {}) {
 
 test('real window gate never inherits fixture capability or product CI as launch permission', () => {
   const gate = realWindowGate(); assert.equal(gate.allowed, false);
-  assert.ok(gate.reasons.includes('WINDOWS_NORMAL_STATUS_READONLY_NOT_VERIFIED'));
-  assert.ok(gate.reasons.includes('WINDOWS_HANDLE_AND_PARENT_DEATH_NOT_VERIFIED'));
+  assert.ok(gate.reasons.includes('NORMAL_ACCOUNT_AND_BROWSER_NOT_VERIFIED'));
+  assert.ok(gate.reasons.includes('HARD_DEADLINE_FAULT_MODEL_UNRESOLVED'));
   assert.ok(Object.isFrozen(gate));
 });
 
@@ -85,11 +85,11 @@ test('wrong product version rejects before durable consumption or fixture spawn'
 });
 
 for (const [name, product] of [
-  ['old a4 pair', { head: 'a4afb07f659a13c3b5dbc1510f6894af13fb4b28', tree: 'c05f38aa90e9c1b89cc7c9a314fc029da325ebba' }],
-  ['old head with new tree', { head: 'a4afb07f659a13c3b5dbc1510f6894af13fb4b28', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
-  ['new head with old tree', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'c05f38aa90e9c1b89cc7c9a314fc029da325ebba' }],
+  ['old 807 pair', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
+  ['old head with new tree', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d' }],
+  ['new head with old tree', { head: 'f221ee21448987ea5c675e36d82573c65dbbe09b', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
 ]) {
-  test(`807 candidate rejects ${name} without consuming or rewriting evidence`, async t => {
+  test(`f221 candidate rejects ${name} without consuming or rewriting evidence`, async t => {
     const f = fixture(t);
     const ticketFile = path.join(f.root, 'authority', 'windows', f.ticket.windowId, 'ticket.json');
     const before = fs.readFileSync(ticketFile);
