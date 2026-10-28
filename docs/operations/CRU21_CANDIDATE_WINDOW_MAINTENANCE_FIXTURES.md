@@ -4,9 +4,20 @@ This revision implements the original normal-guard, preparation and supervisor
 contracts in an isolated, fixture-only package. It is not installed on MSI, and
 does not change the previous private helpers or their historical receipts.
 
-The product remains PR103 `a4afb07f659a13c3b5dbc1510f6894af13fb4b28`, tree
-`c05f38aa90e9c1b89cc7c9a314fc029da325ebba`. The maintenance branch has its own
-commit/tree and test evidence. Product CI335 does not validate this revision.
+The fixed external product target is PR103
+`807f940e4195153b9c2c83fc2ba0923ec0049203`, tree
+`a2075b623e7045ca64725c02efcb141690b7eb0f`. The maintenance branch has its own
+commit/tree and test evidence; it does not incorporate the product changes into
+its older source baseline. A synthetic target observation is not proof that a
+live checkout contains this product. The earlier `9765c78` fixture revision and
+its a4 pin remain historical artifacts; their tickets/receipts are not migrated,
+reissued or reopened by this source update. Old and mixed head/tree observations
+are rejected before fixture consumption.
+
+Owner elected to skip this product's GitHub CI on 2026-10-28: remote CI for 807 is
+NOT_RUN. Its recorded focused product result remains 115 PASS / 0 FAIL / 1 SKIP
+(native Windows DPAPI). No product tests are rerun by this fixture maintenance.
+Product CI335 belongs to old a4 and validates neither 807 nor this maintenance.
 
 ## Revised components
 
@@ -71,11 +82,21 @@ isolated tests only. It excludes real windows, formal services, Producer/Bridge,
 deployment, merge, permission/credential/vault operations, OAuth, model calls,
 receipt deletion, window extension and retrying refused operations.
 
-The fixed a4 normal page automatically requests AI status after login. The first
-store construction in that process invokes `icacls`, even when a vault already
-exists; later successful calls may reuse the cached store. This known boundary
-has not been modified or exercised. The previous controller/health refusals and
-local listen/Chromium restrictions remain in effect.
+The 807 product source separates automatic status from initialization/ACL writes,
+as covered by its isolated tests and scoped reviews. Native Windows ACL/path
+compatibility, DPAPI and normal-page behavior remain unverified for this version;
+this pin update does not authorize or exercise them. Explicit setup/account/model
+actions retain their separate boundaries and must not be triggered by a fixture.
+The previous controller/health refusals and local listen/Chromium restrictions
+remain in effect. Skipping remote CI does not relax a release or runtime gate.
+
+No further native capability is hidden behind a missing environment: Windows
+held-directory/file identity and durability, child handles, parent-death
+containment and a hard deadline adapter are not implemented here. Implementing
+or executing such an adapter needs its own bounded review and authorization;
+passing additional synthetic tests cannot supply that capability. The existing
+guard, 900000ms budget, one-time consumption and all real-execution refusals stay
+in force.
 
 Before any further decision, report the maintenance commit/tree, actual fixture
 PASS/FAIL/SKIP, non-author implementation review, and unavailable Windows dynamic

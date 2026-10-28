@@ -14,7 +14,7 @@ function number(value) { return Number.isSafeInteger(value) && value >= 0; }
 export function realWindowGate() {
   return Object.freeze({ allowed: false, reasons: Object.freeze([
     'REAL_WINDOW_NOT_AUTHORIZED', 'WINDOWS_HANDLE_AND_PARENT_DEATH_NOT_VERIFIED',
-    'A4_AUTOMATIC_STATUS_ACL_VAULT_SCOPE_BLOCKED', 'PRIOR_OPERATION_SCOPE_UNRESOLVED',
+    'WINDOWS_NORMAL_STATUS_READONLY_NOT_VERIFIED', 'PRIOR_OPERATION_SCOPE_UNRESOLVED',
   ]) });
 }
 

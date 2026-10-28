@@ -68,7 +68,7 @@ function fixture(t, options = {}) {
 
 test('real window gate never inherits fixture capability or product CI as launch permission', () => {
   const gate = realWindowGate(); assert.equal(gate.allowed, false);
-  assert.ok(gate.reasons.includes('A4_AUTOMATIC_STATUS_ACL_VAULT_SCOPE_BLOCKED'));
+  assert.ok(gate.reasons.includes('WINDOWS_NORMAL_STATUS_READONLY_NOT_VERIFIED'));
   assert.ok(gate.reasons.includes('WINDOWS_HANDLE_AND_PARENT_DEATH_NOT_VERIFIED'));
   assert.ok(Object.isFrozen(gate));
 });
@@ -83,6 +83,24 @@ test('wrong product version rejects before durable consumption or fixture spawn'
   const f = fixture(t); f.args.observation = { ...f.observation, product: { ...f.ticket.product, head: '0'.repeat(40) } };
   await assert.rejects(startFixture(f.args)); assert.deepEqual(f.events, []);
 });
+
+for (const [name, product] of [
+  ['old a4 pair', { head: 'a4afb07f659a13c3b5dbc1510f6894af13fb4b28', tree: 'c05f38aa90e9c1b89cc7c9a314fc029da325ebba' }],
+  ['old head with new tree', { head: 'a4afb07f659a13c3b5dbc1510f6894af13fb4b28', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
+  ['new head with old tree', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'c05f38aa90e9c1b89cc7c9a314fc029da325ebba' }],
+]) {
+  test(`807 candidate rejects ${name} without consuming or rewriting evidence`, async t => {
+    const f = fixture(t);
+    const ticketFile = path.join(f.root, 'authority', 'windows', f.ticket.windowId, 'ticket.json');
+    const before = fs.readFileSync(ticketFile);
+    f.args.observation = { ...f.observation, product: { ...f.ticket.product, ...product } };
+    await assert.rejects(startFixture(f.args), { code: 'CANDIDATE_OBSERVATION_INVALID' });
+    assert.deepEqual(f.events, []);
+    assert.deepEqual(fs.readFileSync(ticketFile), before);
+    assert.equal(fs.existsSync(path.join(f.root, 'authority', 'active.guard')), false);
+    assert.equal(fs.existsSync(path.join(path.dirname(ticketFile), 'intent.json')), false);
+  });
+}
 
 test('a real driver or incomplete containment never reaches a fixture spawn', async t => {
   const f = fixture(t); f.driver.kind = 'REAL';
