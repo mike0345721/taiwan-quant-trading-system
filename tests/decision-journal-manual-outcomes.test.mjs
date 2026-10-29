@@ -29,6 +29,25 @@ const rows = file => fs.readFileSync(file, 'utf8').trim().split('\n').map(line =
 const writeRows = (file, values) => fs.writeFileSync(file, values.map(value => JSON.stringify(value)).join('\n') + '\n');
 const rehash = value => { const { recordHash, ...rest } = value; return { ...rest, recordHash: decisionDigest(rest) }; };
 
+test('an unterminated original decision row is rejected before append and CRLF stays compatible', t => {
+  const f = fixture(t), complete = bytes(f.journalPath);
+  for (const suffix of ['', '\r']) {
+    const unterminated = complete.slice(0, -1) + suffix;
+    fs.writeFileSync(f.journalPath, unterminated);
+    assert.equal(journal.readDecisionJournal(f.journalPath).length, 1);
+    assert.throws(() => journal.appendDecisionJournal(f.journalPath,
+      { intent: 'NO_TRADE', snapshot: f.snapshot }, { now }), /DECISION_JOURNAL_LINE_INCOMPLETE/);
+    assert.equal(bytes(f.journalPath), unterminated);
+    assert.equal(bytes(f.outcomesPath), null);
+  }
+  const prefix = complete.replaceAll('\n', '\r\n');
+  fs.writeFileSync(f.journalPath, prefix);
+  const second = journal.appendDecisionJournal(f.journalPath, { intent: 'NO_TRADE', snapshot: f.snapshot }, { now });
+  assert.ok(bytes(f.journalPath).startsWith(prefix));
+  assert.equal(second.previousHash, f.entry.recordHash);
+  assert.equal(journal.auditDecisionJournal(rows(f.journalPath)).ok, true);
+});
+
 test('an unterminated outcome row is rejected before append without changing either chain', t => {
   const f = fixture(t), original = bytes(f.journalPath);
   journal.appendDecisionOutcome(f.outcomesPath, f.journalPath, body(f.entry), { now });

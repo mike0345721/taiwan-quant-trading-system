@@ -24,9 +24,10 @@ function assertJournalPath(filePath) {
   const normalized = path.resolve(filePath).toLowerCase().replaceAll('/', '\\');
   if (normalized.includes('\\data\\market-state\\forward-shadow\\')) throw new Error('DECISION_JOURNAL_FORWARD_SHADOW_PATH_FORBIDDEN');
 }
-function readLines(filePath) {
+function readLines(filePath, { requireDelimiter = false } = {}) {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, 'utf8');
+  if (requireDelimiter && raw && !raw.endsWith('\n')) throw new Error('DECISION_JOURNAL_LINE_INCOMPLETE');
   return raw.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
@@ -63,7 +64,7 @@ export function appendDecisionJournal(filePath, input, { now = new Date() } = {}
   if (!INTENTS.includes(input?.intent)) throw new Error('DECISION_JOURNAL_INTENT_INVALID');
   validateDecisionSnapshot(input.snapshot);
   const manual = manualFields(input);
-  const rows = readLines(filePath);
+  const rows = readLines(filePath, { requireDelimiter: true });
   const audit = auditDecisionJournal(rows);
   if (!audit.ok) throw new Error(`DECISION_JOURNAL_${audit.reason}`);
   const body = {
