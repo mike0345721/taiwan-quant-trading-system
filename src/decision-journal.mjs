@@ -186,6 +186,9 @@ function outcomeState(outcomesPath, decisions) {
   if (identity && (!identity.isFile() || identity.isSymbolicLink() || identity.nlink !== 1)) throw new Error('DECISION_OUTCOME_PATH_REJECTED');
   const raw = identity ? fs.readFileSync(outcomesPath, 'utf8') : '';
   if (!sameOutcomeIdentity(identity, outcomeIdentity(outcomesPath))) throw new Error('DECISION_OUTCOME_STATE_CHANGED');
+  // A complete JSON row can survive an interrupted write without its delimiter.
+  // Preserve those bytes; appending directly would concatenate and corrupt rows.
+  if (raw && !raw.endsWith('\n')) throw new Error('DECISION_OUTCOME_LINE_INCOMPLETE');
   let rows;
   try { rows = raw.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)); }
   catch { throw new Error('DECISION_OUTCOME_READ_INVALID'); }
