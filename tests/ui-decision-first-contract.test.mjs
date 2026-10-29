@@ -19,7 +19,7 @@ test('checkbox width is bounded independently of the global input style and text
 });
 test('presentation convergence keeps submit authorization and puts existing conditions before optional context',()=>{
  const js=read('public/ask-gpt-inline.js'),shell=read('public/trader-terminal-shell.js');
- assert.match(js,/\$\('ai-submit'\)\.disabled=busy\|\|!enabled\|\|!csrf\|\|!\$\('ai-account'\)\.value\|\|!\$\('ai-model'\)\.value\|\|!\$\('ai-credits'\)\.checked/);
+ assert.match(js,/\$\('ai-submit'\)\.disabled=busy\|\|!enabled\|\|!csrf\|\|!accountsLoaded\|\|!\$\('ai-account'\)\.value\|\|!\$\('ai-model'\)\.value\|\|!\$\('ai-credits'\)\.checked/);
  assert.match(js,/creditsDisabledConfirmed:\$\('ai-credits'\)\.checked/);
  assert.doesNotMatch(js,/\$\('ai-credits'\)\.checked\s*=\s*true/);
  assert.match(shell,/focus\.append\(summary, primary, observations, aiWorkspace, background, progressive\)/);
