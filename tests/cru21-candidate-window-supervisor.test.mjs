@@ -86,10 +86,11 @@ test('wrong product version rejects before durable consumption or fixture spawn'
 
 for (const [name, product] of [
   ['old 807 pair', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
-  ['old head with new tree', { head: '807f940e4195153b9c2c83fc2ba0923ec0049203', tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d' }],
-  ['new head with old tree', { head: 'f221ee21448987ea5c675e36d82573c65dbbe09b', tree: 'a2075b623e7045ca64725c02efcb141690b7eb0f' }],
+  ['old f221 pair', { head: 'f221ee21448987ea5c675e36d82573c65dbbe09b', tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d' }],
+  ['old head with PR104 tree', { head: 'f221ee21448987ea5c675e36d82573c65dbbe09b', tree: 'ac2d522e6d42934dbb563599a04df61f56fc9145' }],
+  ['PR104 head with old tree', { head: '4ae16de9a5af0166744626d44a49cb5bcebed675', tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d' }],
 ]) {
-  test(`f221 candidate rejects ${name} without consuming or rewriting evidence`, async t => {
+  test(`PR104 candidate rejects ${name} without consuming or rewriting evidence`, async t => {
     const f = fixture(t);
     const ticketFile = path.join(f.root, 'authority', 'windows', f.ticket.windowId, 'ticket.json');
     const before = fs.readFileSync(ticketFile);

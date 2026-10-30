@@ -3,9 +3,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const PRODUCT = Object.freeze({
-  head: 'f221ee21448987ea5c675e36d82573c65dbbe09b',
-  tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d',
-  branch: 'codex/cru21-offline-compatibility-20261027',
+  head: '4ae16de9a5af0166744626d44a49cb5bcebed675',
+  tree: 'ac2d522e6d42934dbb563599a04df61f56fc9145',
+  branch: 'codex/cru21-repository-closeout-20261029',
   main: '4d8251686bdb4abbdb469bc00ae798717c0fd583',
 });
 export const DURATION_MS = 900_000;

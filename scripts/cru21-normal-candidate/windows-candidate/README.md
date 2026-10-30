@@ -1,8 +1,8 @@
 # Fixed Windows normal-application integration host
 
 This is a separate, fixed integration artifact. It does not modify the older
-Linux authority or frozen native dummy fixture. The product is PR103 f221,
-tree fae6e3c9fda81fd4632fa5f3900542ade257ea1d.
+Linux authority or frozen native dummy fixture. The product is PR104 4ae16de,
+tree ac2d522e6d42934dbb563599a04df61f56fc9145.
 
 Only these public commands exist:
 
@@ -27,8 +27,8 @@ The manifest has exactly these fields:
       "schema": "cru21-candidate-integration-manifest-v1",
       "mode": "ISOLATED_NORMAL_APPLICATION",
       "runtimeAllowed": false,
-      "productHead": "f221ee21448987ea5c675e36d82573c65dbbe09b",
-      "productTree": "fae6e3c9fda81fd4632fa5f3900542ade257ea1d",
+      "productHead": "4ae16de9a5af0166744626d44a49cb5bcebed675",
+      "productTree": "ac2d522e6d42934dbb563599a04df61f56fc9145",
       "windowId": "<UUID>",
       "nonce": "<64 lowercase hex>",
       "durationMs": 10000,
@@ -77,7 +77,7 @@ real normal-handler HTTP observations, Session/CSRF rejection and zero prohibite
 effects, then writes the handshake receipt itself. A preexisting path receipt
 cannot authenticate a writer and causes a CreateNew failure instead.
 
-The app executes hash-frozen f221 server.mjs and normal authentication through a
+The app executes hash-frozen PR104 server.mjs and normal authentication through a
 captured HTTP callback, with no socket or browser. Market, Git, chart/flow and
 credential-inspector dependencies are explicitly synthetic. It is a real Node
 application integration, not the prior dummy; it does not prove real credentials,
@@ -196,3 +196,35 @@ Self-host-death tests also check the complete executable namespace and fail clos
 on unsafe Temp ACLs. This is not permission to move to a new path, alter ACLs or
 bypass an execution refusal. A fault-model decision, exact site configuration and
 Owner window authorization cannot be replaced by flipping a fixture flag.
+
+
+PR104 source binding (2026-10-30)
+--------------------------------
+
+This maintenance branch pins product HEAD
+4ae16de9a5af0166744626d44a49cb5bcebed675, tree
+ac2d522e6d42934dbb563599a04df61f56fc9145 and branch
+codex/cru21-repository-closeout-20261029. The main pin remains
+4d8251686bdb4abbdb469bc00ae798717c0fd583; a GitHub ref observation does not
+prove any MSI-loaded identity. This update changes pins and their hash chain,
+not lifecycle, authorization, deadlines or cleanup. All native compile/run and
+real candidate/browser checks for this repin remain NOT_RUN.
+
+The 356-file normal source inventory hashes to
+b1391d7e3a971d72741053c159ea95acf772ca2a9d8f3970a4af098408fa947a.
+It includes the changed decision journal and public inline JavaScript bytes.
+Inventory/hash verification does not execute those behaviors. The separate VM
+bundle still has exactly 12 files, including the two updated preview contracts;
+it excludes src/decision-journal.mjs and public/ask-gpt-inline.js. Its UTF-8
+JSON.stringify(bundle) plus LF bytes hash to
+44cef1c049569d38508c9b3e0abbcfd824c0b8278cc42f7c85f2b4805ad74961
+(210729 bytes). The synthetic-memory, captured-handler VM tests do not qualify
+full V1 journal behavior, browser UI, genuine credential reads or a real listener.
+
+Local tests may select a raw-byte product snapshot with
+CRU21_APPLICATION_SOURCE_ROOT and CRU21_PRODUCT_SOURCE_ROOT. These are test
+fixture selectors, not runtime root overrides or fabricated Git identities.
+Mixed-version negative tests additionally use CRU21_PREVIOUS_APPLICATION_SOURCE_ROOT
+and check every selected previous file against its known f221 hash before use.
+The source snapshot is not modified, given a .git directory or reported as a
+checked-out HEAD by these tests. The normal launch gates remain closed.

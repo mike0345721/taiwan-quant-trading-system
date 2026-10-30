@@ -1,4 +1,6 @@
-// Fixed f221 normal application, evaluated without sockets or external inputs.
+// Fixed PR104 normal-handler slice, evaluated without sockets or external inputs.
+// These 12 files exclude decision-journal.mjs and public/ask-gpt-inline.js;
+// their V1 behavior and browser UI are not exercised by this VM evidence.
 // This VM executes trusted hash-frozen source; it is not a sandbox for arbitrary JS.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,12 +11,12 @@ import { EventEmitter } from 'node:events';
 import { URL, pathToFileURL } from 'node:url';
 
 export const APPLICATION_PRODUCT = Object.freeze({
-  head: 'f221ee21448987ea5c675e36d82573c65dbbe09b',
-  tree: 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d',
-  branch: 'codex/cru21-offline-compatibility-20261027',
+  head: '4ae16de9a5af0166744626d44a49cb5bcebed675',
+  tree: 'ac2d522e6d42934dbb563599a04df61f56fc9145',
+  branch: 'codex/cru21-repository-closeout-20261029',
   main: '4d8251686bdb4abbdb469bc00ae798717c0fd583',
 });
-export const APPLICATION_BUNDLE_SHA256 = '87e3ee54d783ab3d25fa784a522198c79959f452df96be03f927f212995e0b58';
+export const APPLICATION_BUNDLE_SHA256 = '44cef1c049569d38508c9b3e0abbcfd824c0b8278cc42f7c85f2b4805ad74961';
 export const APPLICATION_FILES = Object.freeze({
   'server.mjs': '170afc0c9af5c68155eacf963a44948519803f469f99e1b0a7a291a036ba334f',
   'src/security.mjs': '0c5cb1e5c6cf655ee6f7513d51dc069134dd039570656865d4cf47871abcf7b7',
@@ -23,9 +25,9 @@ export const APPLICATION_FILES = Object.freeze({
   'src/ask-gpt-inline-http.mjs': '4219801bc410e9805556e3ab945cfb9c590f009d2bf44b7d8d78f30d35d673cd',
   'src/chatgpt-plan-auth.mjs': '984485936c4a66c6299322e08d0868abb7370addaf3f84a370ed731a3d62b8e6',
   'src/ask-gpt-inline-verification.mjs': 'f4b8dac5edeee1f0bd451b30b392975ab6b21ba8edba4274d71d43209896b011',
-  'src/cru21-preview-contract.mjs': '3618966816f44ac1979da3be18f26eb7b5c731d710bde06defec743b47114d20',
+  'src/cru21-preview-contract.mjs': '82e9144db49c2a0e63dc31bd1dccb351becf6bf262be742e890f867df00b078a',
   'src/dashboard-source-binding.mjs': 'f228f50c7692faa5945f1c3bbb0c53a2d71a1fdf2b0d2f1fe705a3ea3c1bd4c1',
-  'src/dashboard-integration-contract.mjs': '30d651095e4432d544fd7b918427437a0b12f5af812a2b8de8ad4bc945313c9b',
+  'src/dashboard-integration-contract.mjs': '6a0384918e88e555775dd4b6e1fb396368e4b571251df223e1006fe24c55ae5f',
   'src/cache-store.mjs': 'c376cee85fc1b3c87cb5b3fe499e39cb3b3fe68e0af76855e1a059730a35fa5f',
   'public/index.html': '72959ff2fe1488b2e0ddd8a7f092c49f07f134b3883a5fa976b4e6cba2070e7f',
 });

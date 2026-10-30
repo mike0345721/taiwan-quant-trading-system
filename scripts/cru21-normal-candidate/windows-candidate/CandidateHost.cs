@@ -19,17 +19,17 @@ using Microsoft.Win32.SafeHandles;
 internal static class CandidateHost
 {
     const string Prefix = "cru21-candidate-integration-20261028-";
-    const string ProductHead = "f221ee21448987ea5c675e36d82573c65dbbe09b";
-    const string ProductTree = "fae6e3c9fda81fd4632fa5f3900542ade257ea1d";
+    const string ProductHead = "4ae16de9a5af0166744626d44a49cb5bcebed675";
+    const string ProductTree = "ac2d522e6d42934dbb563599a04df61f56fc9145";
     const string NodePath = @"C:\Program Files\nodejs\node.exe";
     const string GitPath = @"C:\Program Files\Git\cmd\git.exe";
-    const string NormalSourceManifestSHA256 = "97cdaf7df9e946a6dfe5e594d2abe884398bb6f0db04377aed71985f57c8108d";
+    const string NormalSourceManifestSHA256 = "b1391d7e3a971d72741053c159ea95acf772ca2a9d8f3970a4af098408fa947a";
     // The coordinating reviewer freezes these after the application artifacts.
     // An unfrozen build cannot prepare, consume or spawn a window.
     const string ExpectedRunnerSHA256 = "9868a913e43342145da2ea54a43689c193ecc27c8475139c993c6c86bb89be39";
-    const string ExpectedIsolationSHA256 = "d7acc89e747df63afaa79804e40766524d354e9c8bf32b679ce1d8c2db93b7c4";
-    const string ExpectedBundleSHA256 = "87e3ee54d783ab3d25fa784a522198c79959f452df96be03f927f212995e0b58";
-    const string ExpectedNormalEntrySHA256 = "f5ba018a49fb559780b200a35be5b8bfe532dce233945ad2c7f1e50bb76a17e9";
+    const string ExpectedIsolationSHA256 = "9442959e74dce51de9fed82021bcd91a31cd79e00cc7673b099ff4d796e2cdaf";
+    const string ExpectedBundleSHA256 = "44cef1c049569d38508c9b3e0abbcfd824c0b8278cc42f7c85f2b4805ad74961";
+    const string ExpectedNormalEntrySHA256 = "5f82c7574beeb2ea3b079090e1b360fc732b787bb058e6bdf7ade8a73c5efc7f";
     const string ExpectedEntrySHA256 = "170afc0c9af5c68155eacf963a44948519803f469f99e1b0a7a291a036ba334f";
     const string Mode = "ISOLATED_NORMAL_APPLICATION";
     const string ExpectedNormalOwnerApprovalSHA256 = "NOT_APPROVED";

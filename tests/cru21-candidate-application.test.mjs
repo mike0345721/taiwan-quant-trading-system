@@ -11,7 +11,9 @@ import { APPLICATION_FILES, APPLICATION_PRODUCT, buildApplicationBundle, verifyA
 
 const productRoot = process.env.CRU21_APPLICATION_SOURCE_ROOT;
 const bundle = productRoot ? buildApplicationBundle(productRoot) : null;
-const sourceMissing = !bundle ? 'NOT_RUN: CRU21_APPLICATION_SOURCE_ROOT must name the frozen f221 source' : false;
+const sourceMissing = !bundle ? 'NOT_RUN: CRU21_APPLICATION_SOURCE_ROOT must name the frozen PR104 source' : false;
+const previousProductRoot = process.env.CRU21_PREVIOUS_APPLICATION_SOURCE_ROOT;
+const previousSourceMissing = sourceMissing || (!previousProductRoot ? 'NOT_RUN: previous raw source fixture required for mixed-version bytes' : false);
 function fixture(t) {
   const root = path.join(os.tmpdir(), 'cru21-candidate-integration-20261028-' + randomUUID());
   const windowId = randomUUID(), nonce = randomBytes(32).toString('hex');
@@ -30,16 +32,22 @@ function packetFor(f) {
     bundle: { sha256: applicationSHA256(bundleUTF8), contentUTF8: bundleUTF8 } };
 }
 
-test('application bundle is exactly the frozen f221 source subset and HTML', { skip: sourceMissing }, () => {
+test('application bundle is exactly the frozen PR104 source subset and HTML', { skip: sourceMissing }, () => {
   const files = verifyApplicationBundle(bundle);
   assert.equal(bundle.productHead, APPLICATION_PRODUCT.head);
   assert.equal(bundle.productTree, APPLICATION_PRODUCT.tree);
   assert.deepEqual(Object.keys(files), Object.keys(APPLICATION_FILES));
   assert.match(files['server.mjs'], /new SessionStore/);
   assert.match(files['server.mjs'], /createInlineHandler/);
+  assert.equal(Object.keys(files).length, 12);
+  assert.equal('src/decision-journal.mjs' in files, false);
+  assert.equal('public/ask-gpt-inline.js' in files, false);
 });
 for (const edit of [
   copy => { copy.productHead = '807f940e4195153b9c2c83fc2ba0923ec0049203'; },
+  copy => { copy.productHead = 'f221ee21448987ea5c675e36d82573c65dbbe09b'; copy.productTree = 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d'; },
+  copy => { copy.productHead = 'f221ee21448987ea5c675e36d82573c65dbbe09b'; },
+  copy => { copy.productTree = 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d'; },
   copy => { copy.productTree = '0'.repeat(40); },
   copy => { copy.files['server.mjs'].content += '\n// changed'; },
   copy => { copy.files['src/security.mjs'].sha256 = '0'.repeat(64); },
@@ -51,6 +59,15 @@ for (const edit of [
     assert.throws(() => verifyApplicationBundle(copy), /APPLICATION_(BUNDLE_IDENTITY_REJECTED|SOURCE_HASH_MISMATCH)/);
   });
 }
+for (const [name, oldSHA256] of [
+  ['src/cru21-preview-contract.mjs', '3618966816f44ac1979da3be18f26eb7b5c731d710bde06defec743b47114d20'],
+  ['src/dashboard-integration-contract.mjs', '30d651095e4432d544fd7b918427437a0b12f5af812a2b8de8ad4bc945313c9b'],
+]) test('PR104 VM slice rejects mixed f221 source for ' + name, {skip: previousSourceMissing}, () => {
+  const content = fs.readFileSync(path.join(previousProductRoot, name), 'utf8');
+  assert.equal(applicationSHA256(content), oldSHA256);
+  const copy = structuredClone(bundle); copy.files[name] = {content, sha256: oldSHA256};
+  assert.throws(() => verifyApplicationBundle(copy), /APPLICATION_SOURCE_HASH_MISMATCH/);
+});
 test('fixed authority rejects foreign roots, nonces and window identities', t => {
   const f = fixture(t);
   assert.throws(() => validateApplicationRoot('/workspace', f.windowId, f.nonce), /APPLICATION_TEMP_ROOT_REQUIRED/);

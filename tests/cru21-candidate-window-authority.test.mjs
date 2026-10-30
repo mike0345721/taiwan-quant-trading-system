@@ -24,8 +24,8 @@ test('fixture authority returns an immutable fixed-version ticket and runtime al
   const { PRODUCT, runtimeGate, assertObservation } = await import('../scripts/cru21-normal-candidate/normal-guard.mjs');
   const f = fixture(t), authority = createAuthority({ root: f.root, mode: 'ISOLATED_FIXTURE' });
   const ticket = authority.prepare(input(f));
-  assert.equal(ticket.product.head, 'f221ee21448987ea5c675e36d82573c65dbbe09b');
-  assert.equal(ticket.product.tree, 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d');
+  assert.equal(ticket.product.head, '4ae16de9a5af0166744626d44a49cb5bcebed675');
+  assert.equal(ticket.product.tree, 'ac2d522e6d42934dbb563599a04df61f56fc9145');
   assert.deepEqual(ticket.product, PRODUCT);
   assert.equal(ticket.runtimeAllowed, false);
   assert.ok(Object.isFrozen(ticket.bindings.sourceRoot));

@@ -16,9 +16,11 @@ import { buildApplicationBundle, runIsolatedApplication } from '../scripts/cru21
 
 const productRoot = process.env.CRU21_APPLICATION_SOURCE_ROOT;
 const gitExecutable = process.env.CRU21_APPLICATION_GIT_EXECUTABLE || (process.platform === 'linux' ? '/usr/bin/git' : null);
-const sourceMissing = !productRoot ? 'NOT_RUN: CRU21_APPLICATION_SOURCE_ROOT must select frozen f221'
+const sourceMissing = !productRoot ? 'NOT_RUN: CRU21_APPLICATION_SOURCE_ROOT must select frozen PR104'
   : !gitExecutable ? 'NOT_RUN: CRU21_APPLICATION_GIT_EXECUTABLE must select the test Git binary' : false;
 const vmMissing = sourceMissing || (typeof vm.SourceTextModule !== 'function' ? 'NOT_RUN: --experimental-vm-modules required' : false);
+const previousProductRoot = process.env.CRU21_PREVIOUS_APPLICATION_SOURCE_ROOT;
+const previousSourceMissing = sourceMissing || (!previousProductRoot ? 'NOT_RUN: previous raw source fixture required for mixed-version bytes' : false);
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const helper = fileURLToPath(new URL('../scripts/cru21-normal-candidate/application-normal-entry.mjs', import.meta.url));
 function fixture(t) {
@@ -118,6 +120,10 @@ for (const edit of [
   ticket => { ticket.runtimeAllowed = true; },
   ticket => { ticket.approved = true; },
   ticket => { ticket.productHead = '0'.repeat(40); },
+  ticket => { ticket.productHead = 'f221ee21448987ea5c675e36d82573c65dbbe09b'; ticket.productTree = 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d'; },
+  ticket => { ticket.productHead = 'f221ee21448987ea5c675e36d82573c65dbbe09b'; },
+  ticket => { ticket.productTree = 'fae6e3c9fda81fd4632fa5f3900542ade257ea1d'; },
+  ticket => { ticket.sourceManifestSHA256 = '97cdaf7df9e946a6dfe5e594d2abe884398bb6f0db04377aed71985f57c8108d'; },
   ticket => { ticket.sourceManifestSHA256 = '0'.repeat(64); },
   ticket => { ticket.roots.privateDataRoot = path.join(os.tmpdir(), 'foreign-private'); },
   ticket => { ticket.roots.producerDataRoot = ticket.roots.chartReadRoot; },
@@ -129,7 +135,36 @@ for (const edit of [
   const f = fixture(t); edit(f.ticket);
   assert.throws(() => verifyNormalEntryTicket(f.ticket), /NORMAL_(TICKET|SPLIT_ROOT|AUTH_BOUNDARY|HELPER_HASH)/);
 });
-test('same normal observer attaches to f221 captured server listening event and preserves authenticated handler', { skip: vmMissing }, async t => {
+
+for (const [name, oldSHA256] of [
+  ['public/ask-gpt-inline.js', '3e668da76dfbd179876e3a8ff9157d40136fb20fafbf96ec012b9791bc7ad7c9'],
+  ['src/cru21-preview-contract.mjs', '3618966816f44ac1979da3be18f26eb7b5c731d710bde06defec743b47114d20'],
+  ['src/dashboard-integration-contract.mjs', '30d651095e4432d544fd7b918427437a0b12f5af812a2b8de8ad4bc945313c9b'],
+  ['src/decision-journal.mjs', '6559132538a3a4e66613a74a09ded663e715de0cd5bea3e75aa049c991c1b010'],
+]) test('PR104 normal inventory rejects f221 bytes mixed into ' + name, {skip: previousSourceMissing}, t => {
+  const f = fixture(t), closure = normalSourceClosure(), mixed = path.join(f.root, 'mixed-source-fixture');
+  // Previous bytes are a read-only, per-file hash-checked test fixture. The
+  // maintenance tree is not itself claimed to be the f221 product checkout.
+  // Never mutate either selected source root or manufacture a Git identity.
+  const previous = fs.readFileSync(path.join(previousProductRoot, name));
+  assert.equal(sha(previous), oldSHA256);
+  assert.notEqual(closure.files[name], oldSHA256);
+  for (const file of Object.keys(closure.files)) {
+    const target = path.join(mixed, file); fs.mkdirSync(path.dirname(target), {recursive: true});
+    fs.copyFileSync(path.join(productRoot, file), target, fs.constants.COPYFILE_EXCL);
+  }
+  fs.writeFileSync(path.join(mixed, name), previous);
+  const data = path.join(mixed, 'data');
+  Object.assign(f.ticket.roots, {sourceRoot: mixed, privateDataRoot: data,
+    localAppDataRoot: path.join(data, 'candidate-local-appdata'),
+    chartCacheRoot: path.join(data, 'dashboard-chart-cache'),
+    evidenceRoot: path.join(data, 'cru21-normal-candidate', f.windowId)});
+  f.ticket.normalAuth.sessionPath = path.join(data, 'sessions.json');
+  assert.throws(() => verifyNormalEntryTicket(f.ticket), /NORMAL_SOURCE_HASH_REJECTED/);
+  assert.equal(fs.existsSync(path.join(data, 'cru21-normal-candidate', f.windowId)), false);
+});
+
+test('same normal observer attaches to PR104 captured server listening event and preserves authenticated handler', { skip: vmMissing }, async t => {
   const f = fixture(t), bundle = buildApplicationBundle(productRoot);
   const result = await exerciseNormalBootstrap({ executeIsolatedApplication: ({ captureObserver }) => runIsolatedApplication({
     root: f.root, windowId: f.windowId, nonce: f.nonce, bundle, intentHash: 'a'.repeat(64), captureObserver }) });
