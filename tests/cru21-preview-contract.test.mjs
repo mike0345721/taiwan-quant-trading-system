@@ -56,7 +56,7 @@ test('PR87 P0 candidate accepts only its real branch with all existing identity 
  }
 });
 
-for(const b of ['codex/cru21-ui-auth-acceptance-20261023','codex/cru21-emergency-market-calendar-qa-20261023'])
+for(const b of ['codex/cru21-ui-auth-acceptance-20261023','codex/cru21-emergency-market-calendar-qa-20261023','codex/cru21-preopen-integrated-candidate-20261023','codex/cru21-repository-closeout-20261029'])
 test(`UI P1 exact-head candidate preserves original isolation boundaries: ${b}`,()=>{
  const v=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch:b,dataMode:'LIVE'});
  const o={...options,actualBranch:b};
@@ -74,4 +74,30 @@ test(`UI P1 exact-head candidate preserves original isolation boundaries: ${b}`,
  for(const override of [{runtimeCommit:base},{buildCommit:base},{exactHead:base},{approvedMainCommit:head},
   {baseMainCommit:head},{complete:true},{dataMode:'MOCK'},{previewType:'INTEGRATION_OWNER_PREVIEW'}])
     assert.equal(validateCru21PreviewVersionTruth({...v,...override},o).ready,false,JSON.stringify(override));
+});
+
+test('Flow freshness repair preview is exact-source restricted and cannot use formal port',()=>{
+ const branch='codex/cru21-flow-freshness-repair-20261027';
+ const version=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch,dataMode:'LIVE'});
+ const o={...options,actualBranch:branch};
+ assert.equal(validateCru21PreviewVersionTruth(version,o).ready,true);
+ for(const change of [{port:8787},{host:'0.0.0.0'},{actualBranch:branch+'-other'},{sourceClean:false},{expectedHead:'a'.repeat(40)},{actualDataMode:'MOCK'}])
+  assert.equal(validateCru21PreviewVersionTruth(version,{...o,...change}).ready,false,JSON.stringify(change));
+ assert.equal(version.complete,false);
+});
+
+test('offline compatibility follow-up candidate retains all exact-source and isolation gates',()=>{
+ const branch='codex/cru21-offline-compatibility-20261027';
+ const v=buildCru21PreviewVersion({runtimeVersion:{runtimeCommit:head,approvedMainCommit:base,syncState:'MISMATCH'},branch,dataMode:'LIVE'});
+ const o={...options,actualBranch:branch};
+ assert.equal(validateCru21PreviewVersionTruth(v,o).ready,true);
+ assert.equal(v.complete,false);assert.equal(v.syncState,'MISMATCH');
+ for(const patch of [{expectedHead:null},{expectedHead:base},{expectedBaseMain:null},{expectedBaseMain:head},
+  {actualBranch:'main'},{actualBranch:branch+'-lookalike'},{sourceClean:false},{host:'0.0.0.0'},
+  {port:8787},{port:18723},{inlineEnabled:false},{candidateReadRoot:null},{actualDataMode:'MOCK'}])
+   assert.equal(validateCru21PreviewVersionTruth(v,{...o,...patch}).ready,false,JSON.stringify(patch));
+ for(const patch of [{runtimeCommit:base},{exactHead:base},{buildCommit:base},{approvedMainCommit:head},
+  {baseMainCommit:head},{branch:branch+'-lookalike'},{previewType:null},{dataMode:'MOCK'},{complete:true}])
+   assert.equal(validateCru21PreviewVersionTruth({...v,...patch},o).ready,false,JSON.stringify(patch));
+ assert.equal(validateCru21PreviewVersionTruth({...v,branch:branch+'-lookalike'},{...o,actualBranch:branch+'-lookalike'}).ready,false);
 });

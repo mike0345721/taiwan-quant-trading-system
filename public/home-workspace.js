@@ -9,6 +9,18 @@
   const same = (a, b) => identity(a) && identity(b) && identityKeys.every(key => a[key] === b[key]);
   const stamp = value => Number.isFinite(time(value)) ? new Date(value).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) : '來源時間未知';
 
+  function flowFreshness(flow, now = Date.now()) {
+    const at = time(flow?.source?.availableAt), until = time(flow?.source?.validUntil);
+    const known = Number.isFinite(at) && at <= now + 5000;
+    const ageSeconds = known ? Math.max(0, Math.floor((now - at) / 1000)) : null;
+    const expired = flow?.sourceState === 'STALE' || (known && now - at > 120000)
+      || (Number.isFinite(until) && until < now);
+    const overdueSeconds = Number.isFinite(until) && until < now ? Math.ceil((now - until) / 1000) : null;
+    const summary = !known ? '來源時間未知，不能判定即時性'
+      : '來源落後 ' + ageSeconds + ' 秒' + (overdueSeconds == null ? '' : '；已超過有效期限 ' + overdueSeconds + ' 秒');
+    return Object.freeze({ known, expired, ageSeconds, overdueSeconds, summary });
+  }
+
   // A presentation projection, never a replacement for backend eligibility or R:R rules.
   function derive({ chart = null, flow = null, watch = null, marketOperating = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
     const marketBlocked = marketOperating && marketOperating.marketShouldBeActive !== true;
@@ -50,7 +62,7 @@
     const flowReason = String(flow?.unavailableReason || '');
     const flowMessage = mismatch ? '資料身分不同，暫停合併判讀。'
       : /PROCESS_MISSING/.test(flowReason) ? '所綁定的力道處理程序未運行；不提供成交壓力判讀。'
-        : flow?.sourceState === 'STALE' ? '力道資料已過期；最後資料僅供追溯。'
+        : flowFreshness(flow, now).expired ? '力道資料已過期；' + flowFreshness(flow, now).summary + '。最後快照僅供追溯，不作方向判定。'
           : flowQualified ? '研究觀測，非交易訊號。'
             : flowCurrent ? '部分研究證據不足；數值依各欄品質限制呈現。' : '尚無合格力道資料；原因與最後來源時間可在明細查看。';
     return Object.freeze({
@@ -73,6 +85,7 @@
       && identity(flow?.identity) && fresh(flow?.source?.availableAt, now)
       && (expires == null || (Number.isFinite(time(expires)) && time(expires) >= now));
     const comparable = chart?.mode === 'LIVE' && same(chart, flow?.identity);
+    const freshness = flowFreshness(flow, now);
     const rawState = ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT'];
     return flowDefinitions.filter(d => d.data === 'GOVERNED').map(d => {
       const w = flow?.windows?.[d.source], p = w?.pressure || {};
@@ -93,8 +106,20 @@
         && ratio != null && response != null && efficiency != null;
       const directional = available && flow.sourceState === 'LIVE' && p.status === 'READY' && coverage === 1 && ratio != null;
       const side = !directional ? '不作方向判定' : ratio > 0 ? '偏買方' : ratio < 0 ? '偏賣方' : '均衡';
+      const historyAllowed = comparable && freshness.known && freshness.expired
+        && ['LIVE', 'STALE'].includes(flow?.sourceState) && !flow?.unavailableReason
+        && Number.isFinite(time(expires)) && time(expires) >= time(flow?.source?.availableAt)
+        && w?.truthState !== 'WARMING_UP' && rawState.includes(w?.status) && rawState.includes(p.status);
+      // Last-snapshot facts have a separate namespace. Current numeric cells,
+      // direction labels, colors and decision gates remain empty/disabled.
+      const historical = historyAllowed ? Object.freeze({ current: false,
+        label: '最後快照・非即時・不作方向判定', at: flow.source.availableAt,
+        buy: quantity(p.buyProxyVolume), sell: quantity(p.sellProxyVolume),
+        unknown: quantity(p.unknownVolume), total: quantity(p.totalExecutedVolume),
+        net: number(p.netAggressiveFlowProxy) }) : null;
       return Object.freeze({ key: d.key, label: d.label, available, qualified,
-        state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
+        historical, freshness,
+        state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : !available && comparable && freshness.expired ? '已過期' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
         reason: reason || p.unavailableReason || w.pathEfficiency?.unavailableReason || (qualified ? null : 'WINDOW_FIELDS_LIMITED'),
         ratio, net: pressureAvailable ? number(p.netAggressiveFlowProxy) : null, response, efficiency, coverage,
         buy: pressureAvailable ? quantity(p.buyProxyVolume) : null,
@@ -314,7 +339,11 @@
       const v = key === 'path' ? value?.efficiency : value?.[key];
       text('home-flow-'+key, key === 'coverage' ? number(v) == null ? '—' : metricText(v * 100, 1) + '%' : metricText(v, key === 'path' ? 3 : 0, ['net','response'].includes(key)) + (key === 'response' && number(v) != null ? ' 點' : ''));
     }
-    text('home-flow-selection-note', (value ? value.state + ' · ' + value.side + ' · ' + stamp(value.sourceTime) : '本交易日語意尚未開放。') + '；分類覆蓋不等於收集完整率。');
+    const historicalNote = value?.historical ? ' ' + value.historical.label + '：買方代理量 ' + metricText(value.historical.buy)
+      + '／賣方代理量 ' + metricText(value.historical.sell) + '／未知 ' + metricText(value.historical.unknown)
+      + '／已收量 ' + metricText(value.historical.total) + '／淨差 ' + metricText(value.historical.net, 0, true) + '。' : '';
+    text('home-flow-selection-note', (value ? value.state + ' · ' + value.side + ' · ' + stamp(value.sourceTime)
+      + ' · ' + value.freshness.summary : '本交易日語意尚未開放。') + '；分類覆蓋不等於收集完整率。' + historicalNote);
     const context = marketContext(input);
     text('home-context-mode', context.night ? '夜盤・現貨收盤背景，非同步即時現貨' : '日盤・每項依來源時間與品質呈現');
     text('home-context-spot-label', context.night ? '現貨收盤參考' : '現貨指數');
@@ -406,11 +435,15 @@
     const heading = el('span', 'home-research-heading');
     heading.append(el('span', 'home-research-kicker', 'RESEARCH DESK · 研究工作區'),
       el('strong', 'home-research-title', '從盤中觀察到可驗證決策'));
-    summary.append(heading, el('span', 'home-research-summary-state', '4 項研究 · 不作交易訊號'));
+    summary.append(heading, el('span', 'home-research-summary-state', '4 項研究 · 唯讀證據入口'));
+    const evidenceLink = el('a', 'home-research-evidence-link', '開啟研究證據：五檔、Flow／價格反應、Outcome 與樣本外比較');
+    evidenceLink.href = '/research.html';
+    evidenceLink.setAttribute('aria-label', '開啟正常認證的唯讀研究證據頁；缺資料仍為不可用');
+    panel.append(evidenceLink);
     const grid = el('div', 'home-research-grid', null, 'home-research-grid');
     for (const [key, label, stage, detail] of [
-      ['depth', '五檔流動性', '待全日資料資格',
-        '研究樣本已見五檔欄位；當前深度與全時段連續性尚未取得資格。'],
+      ['depth', '五檔流動性', '唯讀證據頁已接入',
+        '證據頁依來源時間與品質顯示五檔；單次有效報價不等於全日連續性通過。'],
       ['flow', 'Flow × 價格反應', '方向資格待確認',
         '推進／受阻只是候選研究；必須同窗、同截止與來源品質合格。'],
       ['state', '市場狀態／不追價', '分類規則待校準',
@@ -555,5 +588,5 @@
     renderResearchDrawer(root, input);
     aiSummary(); return view;
   }
-  global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
+  global.HomeWorkspace = Object.freeze({ derive, flowRows, flowFreshness, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
 })(window);

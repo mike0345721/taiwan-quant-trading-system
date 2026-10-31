@@ -12,6 +12,8 @@ on:
       - codex/cru21-ui-clarity-p1-20261022
       - codex/cru21-ui-auth-acceptance-20261023
       - codex/cru21-emergency-market-calendar-qa-20261023
+      - codex/cru21-preopen-integrated-candidate-20261023
+      - codex/cru21-flow-freshness-repair-20261027
 
 permissions:
   contents: read

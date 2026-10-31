@@ -757,11 +757,11 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-journal-bar { padding: 13px 14px; }
 .dw-journal-actions { display: flex; gap: 7px; }
 .dw-snapshot-status { margin: 6px 0 9px; color: var(--muted); font-size: 9px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-#dw-journal-form { display: grid; grid-template-columns: auto 1fr 1.5fr 1fr auto; gap: 8px; align-items: end; }
+#dw-journal-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: end; }
 #dw-journal-form label { margin: 0; color: var(--muted); font-size: 9px; }
-#dw-journal-form input { margin-top: 4px; padding: 8px 9px; font-size: 10px; border-radius: 8px; }
+#dw-journal-form input, #dw-journal-form select { margin-top: 4px; padding: 8px 9px; font-size: 12px; border-radius: 8px; min-width: 0; }
 #dw-journal-form > button { width: auto; margin: 0; padding: 9px 12px; }
-.dw-journal-intents { display: flex; gap: 4px; }
+.dw-journal-intents { display: flex; gap: 4px; grid-column: 1 / -1; }
 .dw-journal-intents button { padding: 9px 8px; background: #192335; color: var(--muted); font-size: 8px; }
 .dw-journal-intents button.is-selected { color: #07110f; background: var(--accent); }
 #dw-journal-feedback { margin: 8px 0 0; min-height: 1em; color: var(--accent); font-size: 10px; }
@@ -770,6 +770,16 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-journal-history { display: grid; gap: 8px; }
 .dw-journal-history article { display: grid; grid-template-columns: 110px 150px 1fr auto; gap: 10px; padding: 10px; border: 1px solid var(--dw-line); border-radius: 10px; font-size: 10px; }
 .dw-journal-history code { color: var(--muted); }
+.dw-journal-snapshot { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+.dw-journal-snapshot summary { cursor: pointer; color: var(--accent); }
+.dw-journal-snapshot p { margin: 5px 0; color: var(--muted); }
+.dw-journal-personal, .dw-journal-outcomes { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.dw-journal-outcomes summary { cursor: pointer; color: var(--accent); }
+.dw-journal-outcomes p { margin: 6px 0; }
+.dw-journal-outcome-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.dw-journal-outcome-form label { min-width: 0; font-size: 12px; }
+.dw-journal-outcome-form select, .dw-journal-outcome-form textarea { width: 100%; min-width: 0; font-size: 12px; }
+.dw-journal-outcome-note, .dw-journal-outcome-form [role="status"] { grid-column: 1 / -1; }
 
 @media (min-width: 1900px) {
   .app-shell { width: min(1760px, calc(100% - 48px)); }

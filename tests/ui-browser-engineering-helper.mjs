@@ -5,13 +5,17 @@ import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-export async function inspectEngineeringDocument({binary,html,width,height=1000,evidenceDir}){
+export async function inspectEngineeringDocument({binary,html,width,height=1000,evidenceDir,hostedLinuxResearchTest=false}){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cru21-ui-cdp-test-')),profile=path.join(dir,'profile'),file=path.join(dir,'fixture.html');
  fs.writeFileSync(file,html,'utf8');
  let child,socket,stderr='',sequence=0;const pending=new Map();
  const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP_TEST_TIMEOUT '+method));},10000);pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
  try{
-  child=spawn(binary,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking','--disable-component-update','--disable-default-apps','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
+  // Only the explicit synthetic research test on a disposable hosted Linux CI runner.
+  // Other callers and local/user browsers retain the original launch behavior.
+  const hostedArgs=hostedLinuxResearchTest&&process.platform==='linux'&&process.env.GITHUB_ACTIONS==='true'
+    ?['--no-sandbox','--disable-dev-shm-usage']:[];
+  child=spawn(binary,['--headless=new',...hostedArgs,'--disable-gpu','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking','--disable-component-update','--disable-default-apps','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
   let startupError=null;child.once('error',e=>{startupError=e;});child.stderr.on('data',b=>{stderr=(stderr+b).slice(-3000);});
   const portFile=path.join(profile,'DevToolsActivePort'),deadline=Date.now()+10000;
   let port;
@@ -35,16 +39,6 @@ export async function inspectEngineeringDocument({binary,html,width,height=1000,
   if(evidenceDir){fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.json'),JSON.stringify(result,null,2)+'\n');fs.writeFileSync(path.join(evidenceDir,'preview-'+width+'.html'),html);
    await send('Runtime.evaluate',{expression:"document.querySelector('.tt-context-section').open=false;document.querySelector('.tt-copy-fallback').open=false;document.getElementById('ai-settings').open=false;if(document.getElementById('home-ai'))document.getElementById('home-ai').open=false;window.scrollTo(0,0);"});
    const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(evidenceDir,'layout-'+width+'.png'),Buffer.from(shot.data,'base64'));
-    if(width===390||width===1366){
-      await send('Runtime.evaluate',{expression:"if(document.getElementById('home-research-drawer')){document.getElementById('home-research-drawer').open=true;document.getElementById('home-research-drawer').scrollIntoView({block:'start'});}"});
-       await send('Runtime.evaluate',{expression:"(function(){const mark=document.createElement('div');mark.id='cru21-synthetic-evidence-watermark';mark.textContent='工程版面預覽 · 合成資料／測試帳號 · 非即時行情／非產品驗收';mark.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483600;background:#713449;color:#fff;padding:7px 12px;font:600 12px/1.55 system-ui,sans-serif;box-shadow:0 2px 7px rgba(0,0,0,.5)';document.body.append(mark)})()"});
-       const watermarkVisible=await send('Runtime.evaluate',{expression:"(function(){const node=document.getElementById('cru21-synthetic-evidence-watermark');if(!node)return false;const box=node.getBoundingClientRect();return getComputedStyle(node).position==='fixed'&&Math.abs(box.top)<1&&box.width>=document.documentElement.clientWidth-1&&box.height>=24&&node.textContent.includes('合成資料')})()",returnByValue:true});
-       if(watermarkVisible.result?.value!==true)throw Error('SYNTHETIC_WATERMARK_NOT_VISIBLE');
-      const research=await send('Page.captureScreenshot',{format:'png'});
-      fs.writeFileSync(path.join(evidenceDir,'research-'+width+'.png'),Buffer.from(research.data,'base64'));
-       await send('Runtime.evaluate',{expression:"document.getElementById('cru21-synthetic-evidence-watermark')?.remove();"});
-      await send('Runtime.evaluate',{expression:"if(document.getElementById('home-research-drawer'))document.getElementById('home-research-drawer').open=false;"});
-    }
    await send('Runtime.evaluate',{expression:"if(document.getElementById('home-ai'))document.getElementById('home-ai').open=true;document.getElementById('ai-inline').scrollIntoView({block:'start'});"});
    const consent=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(evidenceDir,'consent-'+width+'.png'),Buffer.from(consent.data,'base64'));
   }

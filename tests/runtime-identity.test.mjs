@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { buildRuntimeVersionStatus, readRuntimeIdentity, validateFormalRuntimeVersionTruth } from '../src/runtime-identity.mjs';
 
 test('runtime identity uses exact process-local safe.directory and exposes only the commit', () => {
   let observed = null;
-  const identity = readRuntimeIdentity('D:\\Taiwan stock\\standalone-v1', {
+  const projectRoot = path.resolve('synthetic project', 'standalone-v1');
+  const identity = readRuntimeIdentity(projectRoot, {
     exec(command, args, options) {
       observed = { command, args, options };
       return 'CE014639DF478317678B345347A107D8A9133CC6\n';
@@ -16,9 +21,9 @@ test('runtime identity uses exact process-local safe.directory and exposes only 
   });
   assert.equal(observed.command, 'git');
   assert.deepEqual(observed.args, [
-    '-c', 'safe.directory=D:\\Taiwan stock\\standalone-v1', 'rev-parse', 'HEAD',
+    '-c', `safe.directory=${projectRoot}`, 'rev-parse', 'HEAD',
   ]);
-  assert.equal(observed.options.cwd, 'D:\\Taiwan stock\\standalone-v1');
+  assert.equal(observed.options.cwd, projectRoot);
   assert.equal(observed.args.includes('safe.directory=*'), false);
 });
 
@@ -108,4 +113,31 @@ test('formal identity rejects absent, invalid and future runtime start times', (
   }
   assert.ok(validateFormalRuntimeVersionTruth(version, { ...options, now: new Date(NaN) }).reasons.includes('FORMAL_RUNTIME_START_TIME_INVALID'));
   assert.equal(validateFormalRuntimeVersionTruth(null).ready, false);
+});
+
+test('linked candidate worktree reads shared local main without mistaking candidate HEAD for approved main', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-identity-'));
+  const primary = path.join(root, 'primary'), candidate = path.join(root, 'candidate');
+  const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  try {
+    fs.mkdirSync(primary);
+    git(primary, ['init', '--quiet', '--initial-branch=main']);
+    git(primary, ['-c', 'user.name=Synthetic Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'synthetic main']);
+    const main = git(primary, ['rev-parse', 'HEAD']);
+    git(primary, ['worktree', 'add', '-b', 'synthetic-candidate', candidate]);
+    git(candidate, ['-c', 'user.name=Synthetic Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'synthetic candidate']);
+    const runtimeIdentity = readRuntimeIdentity(candidate);
+    const approvedMainIdentity = readRuntimeIdentity(candidate, { ref: 'refs/heads/main' });
+    assert.equal(runtimeIdentity.status, 'VERIFIED');
+    assert.notEqual(runtimeIdentity.commit, main);
+    assert.deepEqual(approvedMainIdentity, { status: 'VERIFIED', commit: main });
+    const version = buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt: '2026-10-27T00:00:00Z' });
+    assert.equal(version.syncState, 'MISMATCH');
+    const result = validateFormalRuntimeVersionTruth(version, { expectedRuntimeCommit: runtimeIdentity.commit,
+      expectedApprovedMainCommit: main, actualDataMode: 'LIVE', sourceClean: true, host: '127.0.0.1', port: 8787,
+      now: new Date('2026-10-27T00:00:01Z') });
+    assert.ok(result.reasons.includes('FORMAL_APPROVED_MAIN_MISMATCH'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

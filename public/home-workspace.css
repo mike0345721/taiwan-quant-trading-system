@@ -611,3 +611,7 @@
     transition:none;
   }
 }
+
+/* Research page is a normal-session, read-only evidence surface, not a live signal. */
+.home-research-evidence-link { display:block; margin:12px 0; padding:10px 12px; color:inherit; border:1px solid currentColor; border-radius:8px; text-decoration:underline; overflow-wrap:anywhere; }
+.home-research-evidence-link:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
