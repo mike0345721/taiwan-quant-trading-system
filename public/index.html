@@ -385,9 +385,9 @@
                     <details id="ai-settings" open>
                     <summary id="ai-settings-summary">帳號與模型設定</summary>
                     <p id="ai-version"></p>
-                    <div class="ai-actions"><button id="ai-refresh" type="button" class="secondary">讀取連線狀態</button><button id="ai-connect" type="button" class="secondary" disabled>連接／重新授權</button></div>
+                    <div class="ai-actions"><button id="ai-refresh" type="button" class="secondary">讀取已儲存帳號</button><button id="ai-connect" type="button" class="secondary" disabled>連接／重新授權</button></div>
                     <a id="ai-setup-link" class="hidden" target="_blank" rel="noopener noreferrer">開啟本機訂閱授權設定</a>
-                    <label for="ai-account">已授權的 ChatGPT 帳號</label><select id="ai-account" disabled><option value="">尚未讀取</option></select>
+                    <label for="ai-account">已儲存的 ChatGPT 帳號</label><select id="ai-account" disabled><option value="">尚未讀取</option></select>
                     <div id="ai-model-row"><button id="ai-models" type="button" class="secondary" disabled>載入帳號可用模型</button><label for="ai-model">本次使用模型（不會自動升級）</label><select id="ai-model" disabled><option value="">請先載入模型</option></select></div>
                     </details>
                     <label for="ai-question">想了解什麼？</label><textarea id="ai-question" maxlength="1000" rows="3" disabled>現在市場發生什麼？請分開事實、可能解讀與資料缺口。</textarea>
@@ -491,6 +491,8 @@
               <label>交易條件<input id="dw-journal-setup" maxlength="500" placeholder="例如：等待回測，不是下單指令"></label>
               <label>決策理由<input id="dw-journal-reason" maxlength="1000" placeholder="為什麼做這個人工決策"></label>
               <label>失效條件<input id="dw-journal-invalidation" maxlength="500" placeholder="什麼情況代表判斷失效"></label>
+              <label>自評信心（非勝率）<select id="dw-journal-confidence"><option value="">未填</option><option value="LOW">低</option><option value="MEDIUM">中</option><option value="HIGH">高</option></select></label>
+              <label>是否執行（自行登錄）<select id="dw-journal-execution"><option value="UNKNOWN">未知</option><option value="EXECUTED">已執行</option><option value="NOT_EXECUTED">未執行</option></select></label>
               <button id="dw-journal-submit" type="submit">儲存決策紀錄</button>
             </form>
             <p id="dw-journal-feedback" role="status"></p>
@@ -498,8 +500,8 @@
         </div>
 
         <section id="dw-review-mode" class="dw-mode-panel hidden" aria-labelledby="dw-review-title">
-          <div class="dw-review-heading"><div><p class="eyebrow">決策回顧</p><h3 id="dw-review-title">已鎖定的決策</h3></div><span class="dw-status-pill is-unavailable">結果回顧尚未實作</span></div>
-          <p>DW-1 只提供日誌與 snapshot 導覽，不計算 MAE/MFE、PnL 或新的研究連結。</p>
+          <div class="dw-review-heading"><div><p class="eyebrow">決策回顧</p><h3 id="dw-review-title">已鎖定的決策</h3></div><span class="dw-status-pill">人工結果回顧</span></div>
+          <p>查看當時快照摘要，追加自行觀察的執行與結果紀錄；不修改原決策，不計算 MAE/MFE、PnL 或新的研究連結。</p>
           <div id="dw-journal-history" class="dw-journal-history"><p>尚無人工決策紀錄。</p></div>
         </section>
       </section>

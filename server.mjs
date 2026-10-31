@@ -27,7 +27,7 @@ import { resolveOperationsReader } from './src/data-operations-binding.mjs';
 import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
 import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
-import { appendDecisionJournal, readDecisionJournal } from './src/decision-journal.mjs';
+import { appendDecisionJournal, readDecisionJournal, appendDecisionOutcome, readDecisionOutcomes } from './src/decision-journal.mjs';
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
 import { loadOperatingCalendar } from './src/operating-calendar.mjs';
@@ -108,6 +108,7 @@ const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
 const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');
 const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
+const decisionOutcomesPath = path.join(config.dataDir, 'decision-workspace', 'journal-outcomes.ndjson');
 const forwardShadowBaseRoot = path.join(readDataRoot, 'market-state', 'forward-shadow');
 const futuresAuditPath = path.join(readDataRoot, 'live-events', 'futures-audits', 'latest.json');
 const shioajiContinuityStatusPath = path.join(readDataRoot, 'runtime', 'shioaji-continuity', 'status.json');
@@ -123,7 +124,7 @@ try {
     allowCandidate: process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW',
   });
 } catch { /* Unknown operating governance stays unavailable; no fake open/closed. */ }
-const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || config.dataDir);
+const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || readDataRoot);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
@@ -139,8 +140,8 @@ const lightweightChartsPath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHA
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'dist', 'lightweight-charts.standalone.production.js'));
 const lightweightChartsPackagePath = path.resolve(process.env.DASHBOARD_LIGHTWEIGHT_CHARTS_PACKAGE_PATH
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'package.json'));
-const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || path.join(config.appRoot, 'data'));
-const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(config.appRoot, 'data', 'runtime', 'cru34-live', 'latest.json'));
+const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || readDataRoot);
+const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(cru34LiveDataRoot, 'runtime', 'cru34-live', 'latest.json'));
 const runtimeIdentity = readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = new Date().toISOString();
@@ -638,12 +639,15 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/decision-journal') {
         const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit') || '20', 10) || 20));
-        sendJson(res, 200, {
-          ok: true,
-          data: readDecisionJournal(decisionJournalPath, { limit }),
-          storage: 'LOCAL_APPEND_ONLY_ISOLATED',
-          executionAuthorized: false,
-        });
+        try {
+          const data = readDecisionJournal(decisionJournalPath, { limit });
+          const outcomes = readDecisionOutcomes(decisionOutcomesPath, { journalPath: decisionJournalPath,
+            decisionRecordHashes: data.map(row => row.recordHash) });
+          sendJson(res, 200, { ok: true, data, outcomes,
+            storage: 'LOCAL_APPEND_ONLY_ISOLATED', executionAuthorized: false });
+        } catch {
+          sendJson(res, 503, { ok: false, error: 'DECISION_JOURNAL_UNAVAILABLE' });
+        }
         return;
       }
 
@@ -682,11 +686,29 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/api/v1/decision-journal/outcomes') {
+        if (!requireCsrf(req, res, session)) return;
+        try {
+          const body = await readJson(req, { maxBytes: 16 * 1024 });
+          const entry = appendDecisionOutcome(decisionOutcomesPath, decisionJournalPath, body);
+          sendJson(res, 201, { ok: true, data: entry, executionAuthorized: false });
+        } catch (error) {
+          const known = /^DECISION_(?:JOURNAL|OUTCOME)_[A-Z0-9_]+$/.test(error.message || '');
+          sendJson(res, known ? 400 : 503, { ok: false, error: known ? error.message : 'DECISION_OUTCOME_UNAVAILABLE' });
+        }
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/api/v1/decision-journal') {
         if (!requireCsrf(req, res, session)) return;
         const body = await readJson(req, { maxBytes: 512 * 1024 });
-        const entry = appendDecisionJournal(decisionJournalPath, body);
-        sendJson(res, 201, { ok: true, data: entry, executionAuthorized: false });
+        try {
+          const entry = appendDecisionJournal(decisionJournalPath, body);
+          sendJson(res, 201, { ok: true, data: entry, executionAuthorized: false });
+        } catch (error) {
+          if (!/^DECISION_JOURNAL_(?:INTENT|CONFIDENCE|EXECUTION)_INVALID$/.test(error.message || '')) throw error;
+          sendJson(res, 400, { ok: false, error: error.message });
+        }
         return;
       }
 
