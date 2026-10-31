@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readBoundedFile, sha256, assertOperationsOutputRoot } from './daily-data-operations-files.mjs';
 import { loadGovernedTradingCalendar, resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
+import { loadOperatingCalendar } from './operating-calendar.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const kinds = ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'];
@@ -142,11 +143,13 @@ export function captureSchedulerStart({ dataRoot, outputRoot, calendar, health, 
     previousReceipt: before.receipt,
   });
 }
-export function readSchedulerHealth({ dataRoot, outputRoot, calendar, now = new Date() }) {
+export function readSchedulerHealth({ dataRoot, outputRoot, calendar, allowCandidate = false, now = new Date() }) {
   const policy = loadSchedulerPolicy(), date = schedulerDate(now);
   let day = null;
   try {
-    calendar ||= loadGovernedTradingCalendar(path.join(root, 'config/taifex-official-calendar-2026.json'));
+    if (calendar === undefined) {
+      calendar = loadOperatingCalendar(path.join(root, 'config/taifex-official-calendar-2026.json'), { dataRoot, allowCandidate });
+    }
     day = resolveGovernedTradingDay(calendar, date);
   } catch { /* Unknown calendar is not proof of a missed operational day. */ }
   const result = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(), tradeDate: date,

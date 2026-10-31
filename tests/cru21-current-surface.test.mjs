@@ -48,3 +48,29 @@ test('UI P1 normal authenticated candidate retains the same frozen research-only
    assert.equal(contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:fake}),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
  }
 });
+
+test('offline compatibility follow-up selects current candidate metadata only for its exact preview branch',()=>{
+ const branch='codex/cru21-offline-compatibility-20261027';
+ assert.equal(contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch}),contracts.CRU21_EVIDENCE_HOME_PRODUCT_SURFACE);
+ for(const inputs of [{actualBranch:branch},{previewType:'INTEGRATION_OWNER_PREVIEW',actualBranch:branch},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch+'-lookalike'},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:'main'}])
+   assert.equal(contracts.selectDashboardProductSurface(inputs),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
+});
+
+test('repository closeout preview preserves six-window metadata without granting formal acceptance',()=>{
+ const branch='codex/cru21-repository-closeout-20261029';
+ const selected=contracts.selectDashboardProductSurface({previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch});
+ assert.equal(selected,contracts.CRU21_EVIDENCE_HOME_PRODUCT_SURFACE);
+ assert.deepEqual(selected.observedFlow.governed,['1m','5m','15m','30m','1h','4h']);
+ assert.equal(selected.dataQualificationDeclared,false);
+ assert.equal(selected.deliveryAccepted,false);
+ assert.equal(selected.safety.formalWeight,0);
+ assert.equal(selected.safety.researchOnly,true);
+ assert.equal(selected.safety.executionAuthorized,false);
+ assert.equal(selected.safety.orderRoutesEnabled,false);
+ for(const inputs of [{actualBranch:branch},{previewType:'INTEGRATION_OWNER_PREVIEW',actualBranch:branch},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:branch+'-lookalike'},
+  {previewType:'CRU21_OWNER_PREVIEW',actualBranch:'main'}])
+   assert.equal(contracts.selectDashboardProductSurface(inputs),contracts.CRU46_PRODUCT_SURFACE_CONTRACT);
+});

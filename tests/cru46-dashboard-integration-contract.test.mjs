@@ -186,3 +186,16 @@ test('Rev-B runtime gates reject null chart bars, identity drift, and stale or r
     { ...lock, workerInstanceId: '00000000-0000-4000-8000-000000000002' }, paths).reasons.join(','),
   /LIVE_PRODUCER_INSTANCE_MISMATCH/);
 });
+
+test('render-ready stale Flow has an explicit separate freshness failure',()=>{
+ const now=new Date('2026-10-27T05:00:00Z');
+ const flow={sourceState:'STALE',source:{availableAt:'2026-10-27T04:59:00Z',validUntil:'2026-10-27T04:59:30Z'},windows:{primary60s:{status:'READY'},context300s:{status:'QUALITY_INSUFFICIENT'}}};
+ const r=inspectObservedFlowPayload(flow,{now});assert.equal(r.ready,true);
+ assert.equal(r.sourceFreshness.ready,false);assert.equal(r.sourceFreshness.ageMs,60000);
+ assert.ok(r.sourceFreshness.reasons.includes('FLOW_SOURCE_EXPIRED'));
+ const current=inspectObservedFlowPayload({...flow,sourceState:'LIVE',source:{availableAt:'2026-10-27T04:59:59Z',validUntil:'2026-10-27T05:00:29Z'}},{now});
+ assert.equal(current.sourceFreshness.ready,true);assert.equal(current.sourceFreshness.ageMs,1000);
+ assert.match(current.sourceFreshness.scope,/NOT_DIRECTION/);
+ for(const source of [{},{availableAt:'2026-10-27T05:00:01Z',validUntil:'2026-10-27T05:00:31Z'},{availableAt:'invalid',validUntil:'invalid'}])
+  assert.equal(inspectObservedFlowPayload({...flow,sourceState:'LIVE',source},{now}).sourceFreshness.ready,false);
+});

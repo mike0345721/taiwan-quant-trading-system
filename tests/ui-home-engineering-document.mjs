@@ -54,6 +54,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
  base.leadership={indexCode:'IX0001',session:'DAY',state:'SESSION_CLOSED',sourceMode:'EOD_CONTEXT',quality:'PASS',sourceTradeDate:identity.tradeDate,lastAvailableAt:chartPayload.availableAt,indexLeadership:{topAbsolute:[{name:'測試成分甲',points:12},{name:'測試成分乙',points:-4}]}};
  state.txChartBarCount=72;state.txChartTimeframe='5m';
  window.__homeScenario=name=>{const x=structuredClone(base);x.now=Date.now();
+   if(name==='closed')x.marketOperating={state:'MARKET_CLOSED',marketShouldBeActive:false,reasonCode:'EXCHANGE_EMERGENCY_CLOSURE'};
    if(name==='limited'){x.chart.qualityStatus='QUALITY_INSUFFICIENT';x.chart.qualityReasons=['TIMESTAMP_LINEAGE_INSUFFICIENT'];x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='LIVE_PRODUCER_PROCESS_MISSING';x.focusAllowed=false;}
    if(name==='offline'){x.chartError='Failed to fetch';x.dashboardError='DASHBOARD_REFRESH: Failed to fetch';x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='Failed to fetch';}
    if(name==='offline'){x.pulse=null;x.leadership={state:'UNAVAILABLE'};}
@@ -154,6 +155,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   result.quickFinal=quickButtons.map(b=>({key:b.dataset.homeQuickKey,value:b.querySelector('.home-flow-quick-value').textContent,status:b.querySelector('.home-flow-quick-state').textContent,visible:rect(b).h>0,filled:b.querySelectorAll('.home-flow-quick-segments i.is-filled').length,direction:b.dataset.direction,segments:b.querySelectorAll('.home-flow-quick-segments i').length}));
   result.finalFlowRows=[...r.querySelectorAll('[data-home-window]')].map(n=>({key:n.dataset.homeWindow,state:n.querySelector('[data-home-field="state"]').textContent,net:n.querySelector('[data-home-field="net"]').textContent}));
   result.finalContextBasisLabel=$('home-context-basis-label').textContent;result.finalContextBasis=$('home-context-basis').textContent;
+  result.operatingLabel=$('tt-top-session').textContent;result.homeStatus=$('home-status').textContent;
   result.runtimeErrors=window.__runtimeErrors;result.finalScenario=${JSON.stringify(scenario)};
   result.overflowElements=[...document.querySelectorAll('body *')].filter(n=>n.getBoundingClientRect().width>0&&n.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(n=>({id:n.id,class:n.className,rect:rect(n)}));
   output.textContent=JSON.stringify(result);window.scrollTo(0,0);

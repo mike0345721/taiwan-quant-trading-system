@@ -26,6 +26,11 @@ function available(value, sourceId, availableAt) {
   return Object.freeze({ availability: 'AVAILABLE', value, sourceId, availableAt: availableAt || null });
 }
 
+function priceValue(value) {
+  if (typeof value !== 'number' && !(typeof value === 'string' && value.trim())) return null;
+  return Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
 function legalForwardState(runtimeTruth) {
   const row = runtimeTruth?.stateRecord;
   if (!row || row.recordType !== 'STATE' || !row.axisStateSnapshot) return null;
@@ -125,7 +130,7 @@ function buildDecisionSummary(marketState, dataHealth, evidenceConflict, chart =
         ? 'DEGRADED'
         : 'UNAVAILABLE';
   const visibleFacts = [];
-  if (chart?.lastPrice != null && Number.isFinite(Number(chart.lastPrice))) visibleFacts.push('TX 價格');
+  if (priceValue(chart?.lastPrice) !== null) visibleFacts.push('TX 價格');
   if (chart?.openingRange?.status === 'READY') visibleFacts.push('Opening Range');
   if (chart?.levels?.vwap?.availability === 'AVAILABLE') visibleFacts.push(`${chart.levels.vwap.vwapSession || chart.session || 'Session'} VWAP`);
   const factSummary = visibleFacts.length
@@ -225,6 +230,8 @@ export function createDecisionSnapshot({
   }
   const tx = snapshot?.futuresMarket?.data?.txDay || {};
   const futuresHealth = healthItem(dataHealth, 'futuresMarket');
+  // An explicit chart owns its price and provenance, including an unavailable price.
+  const price = priceValue(chart == null ? tx.close : chart.lastPrice);
   const marketState = safeMarketState(runtimeTruth);
   const identity = currentWorkspaceIdentity(chart);
   const body = {
@@ -236,8 +243,8 @@ export function createDecisionSnapshot({
     tradeDate: identity.tradeDate,
     contract: identity.contract,
     session: identity.session,
-    price: Number.isFinite(Number(chart?.lastPrice ?? tx.close))
-      ? available(Number(chart?.lastPrice ?? tx.close), chart?.source || 'futuresMarket', chart?.availableAt || futuresHealth?.availableAt)
+    price: price !== null
+      ? available(price, chart == null ? 'futuresMarket' : chart.source || null, chart == null ? futuresHealth?.availableAt : chart.availableAt)
       : unavailable('PRICE_UNAVAILABLE'),
     marketState,
     dataHealth,

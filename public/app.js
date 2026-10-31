@@ -2596,6 +2596,9 @@ const DW_REASON_LABELS = Object.freeze({
   DERIVATION_FAILURE: '衍生計算失敗',
   QUALITY_INSUFFICIENT: '資料品質不足',
   SESSION_TERMINATED: '行情連線已中斷',
+  MARKET_CLOSED_EXPECTED: '交易所休市，未收到新行情屬正常（不代表行情連線已驗證正常）',
+  EXCHANGE_EMERGENCY_CLOSURE: '交易所公告臨時休市',
+  SCHEDULED_MARKET_HOLIDAY: '交易所例定休市',
   BRIDGE_NOT_RUNNING: '即時行情服務未執行',
   BRIDGE_HEALTH_UNAVAILABLE: '即時行情健康狀態無法取得',
   SUBSCRIPTION_RESTORE_FAILED: '必要行情訂閱尚未完整恢復',
@@ -3536,7 +3539,7 @@ function renderHomeWorkspace() {
   const watch = state.levelWatch, chart = state.txChartPayload;
   const matches = Boolean(watch && chart && levelWatchIsFresh(watch) && levelWatchMatchesChart(watch, chart));
   return globalThis.HomeWorkspace.render($('decision-workspace'), {
-    chart, watch, flow: lastObservedFlowValue,
+    chart, watch, flow: lastObservedFlowValue, marketOperating: state.decisionWorkspace?.marketOperating,
     flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY, selectedFlowWindow: observedFlowSelectedWindow,
     pulse: state.marketPulse, leadership: state.indexLeadership,
     dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
@@ -4898,7 +4901,12 @@ function renderDecisionWorkspace(workspace) {
   const forward = workspace?.forwardShadowStatus || {};
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
-  dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
+  const operating = workspace?.marketOperating;
+  const closed = operating?.state === 'MARKET_CLOSED';
+  dwText('dw-global-session', closed
+    ? `休市 · ${dwHumanize(operating.reasonCode)}（歷史資料保留）`
+    : operating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
+    : global.session ? `時段 ${global.session}` : '時段目前無法取得');
   dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
   dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
   dwText('dw-global-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');
@@ -4975,9 +4983,13 @@ function renderDecisionWorkspace(workspace) {
   if (healthTarget) healthTarget.replaceChildren(...rows);
 }
 
-function renderJournalHistory(rows) {
+function renderJournalHistory(rows, outcomes = []) {
   const target = $('dw-journal-history');
   if (!target) return;
+  const dirty = target._journalDirty || (target._journalDirty = new Set());
+  const pending = target._journalPending || (target._journalPending = new Set());
+  // Background reads must not discard personal drafts or unlock an active append.
+  if (dirty.size || pending.size) return;
   if (!rows?.length) {
     const empty = document.createElement('p'); empty.textContent = '尚無人工決策紀錄。'; target.replaceChildren(empty); return;
   }
@@ -4986,19 +4998,149 @@ function renderJournalHistory(rows) {
     const time = document.createElement('span'); time.textContent = timeLabel(entry.recordedAt);
     const intent = document.createElement('strong'); intent.textContent = entry.intent;
     const reason = document.createElement('span'); reason.textContent = entry.reason || entry.setup || '未填寫說明';
-    const hash = document.createElement('code'); hash.textContent = `${entry.snapshotHash.slice(0, 10)}…`;
-    row.append(time, intent, reason, hash); return row;
+    const hash = document.createElement('code'); hash.textContent = typeof entry.snapshotHash === 'string' ? `${entry.snapshotHash.slice(0, 10)}…` : '快照雜湊不可用';
+    const details = document.createElement('details'); details.className = 'dw-journal-snapshot';
+    const summary = document.createElement('summary'); summary.textContent = '查看當時快照（摘要）';
+    const notice = document.createElement('p'); notice.textContent = '歷史快照・非即時・唯讀，不代表結果回顧或交易建議。';
+    details.append(summary, notice);
+    const valueText = value => value == null || value === '' || !['string', 'number', 'boolean'].includes(typeof value)
+      || (typeof value === 'number' && !Number.isFinite(value)) ? '不可用' : String(value);
+    const line = (label, value) => {
+      const text = document.createElement('p'); text.textContent = `${label}：${valueText(value)}`; details.append(text);
+    };
+    line('快照雜湊', entry.snapshotHash);
+    const snapshot = entry.snapshot;
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      const unavailable = document.createElement('p'); unavailable.textContent = '原始快照不可用；不以目前盤況代替。'; details.append(unavailable);
+    } else {
+      line('快照時間', snapshot.snapshotTime);
+      line('契約', snapshot.contract); line('盤別', snapshot.session); line('交易日', snapshot.tradeDate);
+      line('價格', snapshot.price?.value); line('價格來源時間', snapshot.price?.availableAt);
+      line('價格狀態', snapshot.price?.availability); line('價格限制', snapshot.price?.reason);
+      line('OR 高', snapshot.OR?.value?.high); line('OR 低', snapshot.OR?.value?.low);
+      line('OR 狀態', snapshot.OR?.availability); line('OR 限制', snapshot.OR?.reason);
+      line('VWAP', snapshot.VWAP?.value); line('VWAP 狀態', snapshot.VWAP?.availability); line('VWAP 限制', snapshot.VWAP?.reason);
+      line('Market State 方向', snapshot.marketState?.direction); line('Market State 限制', snapshot.marketState?.reason);
+      line('Flow 來源狀態', snapshot.observedFlow?.sourceState);
+      line('Flow 來源時間', snapshot.observedFlow?.source?.availableAt);
+      for (const [label, key] of [['1分', 'primary60s'], ['5分', 'context300s']]) {
+        const window = snapshot.observedFlow?.windows?.[key];
+        line(`${label} Flow 比率`, window?.pressure?.pressureRatio);
+        line(`${label} 分類覆蓋`, window?.pressure?.classifiedCoverage);
+        line(`${label} 價格反應`, window?.response?.displacementPoints);
+        line(`${label} Flow 狀態`, window?.status);
+      }
+      line('資料品質', snapshot.dataHealth?.overall);
+      for (const item of (Array.isArray(snapshot.dataHealth?.items) ? snapshot.dataHealth.items : [])) {
+        line(`來源 ${valueText(item?.sourceId)}`, [valueText(item?.freshnessState), valueText(item?.quality), valueText(item?.reason)].join(' · '));
+      }
+    }
+    const confidenceLabels = { LOW: '低', MEDIUM: '中', HIGH: '高' };
+    const executionLabels = { UNKNOWN: '未知', EXECUTED: '已執行', NOT_EXECUTED: '未執行' };
+    const thesisLabels = { UNKNOWN: '未知', FOLLOWED: '已遵守', VIOLATED: '未遵守', NOT_APPLICABLE: '不適用' };
+    const personal = document.createElement('p'); personal.className = 'dw-journal-personal';
+    personal.textContent = `原始自評信心：${confidenceLabels[entry.confidence] || '未填'}（非勝率） · 原始是否執行：${executionLabels[entry.executionStatus] || '未知'}`;
+    const result = document.createElement('details'); result.className = 'dw-journal-outcomes';
+    const resultTitle = document.createElement('summary'); resultTitle.textContent = '人工結果與執行紀錄';
+    const resultNotice = document.createElement('p'); resultNotice.textContent = '僅人工追加，不修改原決策或快照；不計算績效、MAE/MFE或交易建議。只列近期20筆決策相關的最新200筆結果；未列出不代表從未記錄。';
+    const history = document.createElement('div');
+    const relatedResults = items => (Array.isArray(items) ? items : []).filter(item => item.decisionRecordHash === entry.recordHash && item.snapshotHash === entry.snapshotHash)
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+    const linked = relatedResults(outcomes);
+    const resultText = item => {
+      const text = document.createElement('p');
+      text.textContent = `${timeLabel(item.recordedAt)} · 是否執行：${executionLabels[item.executionStatus] || '未知'} · 原判斷／條件是否遵守：${thesisLabels[item.thesisStatus] || '未知'} · ${item.outcomeNote || '未填結果說明'}`;
+      return text;
+    };
+    if (linked.length) history.append(...linked.map(resultText));
+    else { const empty = document.createElement('p'); empty.textContent = '本次讀取未列出人工結果；不代表從未記錄，請勿據此重送。'; history.append(empty); }
+    result.append(resultTitle, resultNotice, history);
+    if (/^[a-f0-9]{64}$/.test(entry.recordHash || '')) {
+      const form = document.createElement('form'); form.className = 'dw-journal-outcome-form';
+      const select = (name, title, labels) => {
+        const label = document.createElement('label'); label.textContent = title;
+        const field = document.createElement('select'); field.name = name;
+        for (const [value, text] of Object.entries(labels)) {
+          const option = document.createElement('option'); option.value = value; option.textContent = text; field.append(option);
+        }
+        field.value = 'UNKNOWN'; label.append(field); form.append(label); return field;
+      };
+      const execution = select('executionStatus', '是否執行（自行登錄）', executionLabels);
+      const thesis = select('thesisStatus', '原判斷／條件是否遵守（自行登錄）', thesisLabels);
+      const noteLabel = document.createElement('label'); noteLabel.className = 'dw-journal-outcome-note'; noteLabel.textContent = '結果說明（自行觀察，不計算損益）';
+      const note = document.createElement('textarea'); note.name = 'outcomeNote'; note.maxLength = 1000; note.rows = 3;
+      noteLabel.append(note); form.append(noteLabel);
+      const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = '追加人工結果';
+      const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'secondary'; clear.textContent = '清除未送出內容';
+      const recover = document.createElement('button'); recover.type = 'button'; recover.className = 'secondary'; recover.name = 'recoverOutcome'; recover.textContent = '查回已存結果';
+      const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+      const markDirty = () => {
+        if (execution.value !== 'UNKNOWN' || thesis.value !== 'UNKNOWN' || note.value) dirty.add(entry.recordHash);
+        else dirty.delete(entry.recordHash);
+      };
+      execution.addEventListener('change', markDirty); thesis.addEventListener('change', markDirty); note.addEventListener('input', markDirty);
+      clear.addEventListener('click', () => {
+        if (pending.has(entry.recordHash)) return;
+        note.value = ''; execution.value = 'UNKNOWN'; thesis.value = 'UNKNOWN'; markDirty(); feedback.textContent = '未送出內容已清除；原紀錄保持不變。';
+      });
+      recover.addEventListener('click', async () => {
+        if (pending.has(entry.recordHash) || recover.disabled) return;
+        recover.disabled = true; submit.disabled = true; clear.disabled = true; pending.add(entry.recordHash);
+        try {
+          const payload = await api('/api/v1/decision-journal?limit=20');
+          if (!payload.data?.some(item => item.recordHash === entry.recordHash)) throw new Error('DECISION_NOT_IN_RECENT_HISTORY');
+          target._journalLoadTicket = (target._journalLoadTicket || 0) + 1;
+          const saved = relatedResults(payload.outcomes);
+          linked.splice(0, linked.length, ...saved);
+          history.replaceChildren(...saved.map(resultText));
+          if (!saved.length) { const empty = document.createElement('p'); empty.textContent = '本次查回未列出結果，不表示從未記錄；保留未送出內容。'; history.append(empty); }
+          feedback.textContent = '已查回本次可見結果（最多200筆），可能不完整；請核對時間與內容，未自動重送或清除草稿。';
+        } catch (error) { feedback.textContent = `結果尚無法確認，保留草稿且不重送。原因：${error.message}`; }
+        finally { recover.disabled = false; submit.disabled = false; clear.disabled = false; pending.delete(entry.recordHash); }
+      });
+      form.append(submit, clear, recover, feedback);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (submit.disabled || pending.has(entry.recordHash)) return;
+        markDirty();
+        if (execution.value === 'UNKNOWN' && thesis.value === 'UNKNOWN' && !note.value.trim()) {
+          feedback.textContent = '請選擇一項結果或填寫說明；不會把未知補成結果。'; return;
+        }
+        submit.disabled = true; clear.disabled = true; recover.disabled = true; execution.disabled = true; thesis.disabled = true; note.disabled = true; pending.add(entry.recordHash);
+        try {
+          const payload = await api('/api/v1/decision-journal/outcomes', { method: 'POST', body: JSON.stringify({
+            decisionRecordHash: entry.recordHash, executionStatus: execution.value, thesisStatus: thesis.value, outcomeNote: note.value,
+          }) });
+          const saved = payload.data;
+          if (!saved || saved.decisionRecordHash !== entry.recordHash || saved.snapshotHash !== entry.snapshotHash) throw new Error('OUTCOME_RESPONSE_IDENTITY_MISMATCH');
+          // Reject any history GET that began before this append completed.
+          target._journalLoadTicket = (target._journalLoadTicket || 0) + 1;
+          if (!linked.length) history.replaceChildren();
+          linked.push(saved); history.append(resultText(saved));
+          note.value = ''; execution.value = 'UNKNOWN'; thesis.value = 'UNKNOWN'; markDirty();
+          feedback.textContent = '已追加人工結果；原決策及快照保持不變。';
+        } catch (error) { feedback.textContent = `尚未確認追加結果，沒有自動重送；請先查回已存結果再決定。原決策保持不變。原因：${error.message}`; }
+        finally { submit.disabled = false; clear.disabled = false; recover.disabled = false; execution.disabled = false; thesis.disabled = false; note.disabled = false; pending.delete(entry.recordHash); }
+      });
+      result.append(form);
+    } else {
+      const unavailable = document.createElement('p'); unavailable.textContent = '此筆紀錄識別不可用，無法追加結果。'; result.append(unavailable);
+    }
+    row.append(time, intent, reason, hash, personal, details, result); return row;
   });
   target.replaceChildren(...nodes);
 }
 
 async function loadDecisionJournal() {
+  const target = $('dw-journal-history');
+  const ticket = (target?._journalLoadTicket || 0) + 1;
+  if (target) target._journalLoadTicket = ticket;
   try {
     const payload = await api('/api/v1/decision-journal?limit=20');
-    renderJournalHistory(payload.data || []);
+    if (target && target._journalLoadTicket !== ticket) return;
+    renderJournalHistory(payload.data || [], payload.outcomes || []);
   } catch (error) {
-    const target = $('dw-journal-history');
-    if (target) target.textContent = `Journal UNAVAILABLE · ${error.message}`;
+    if (target && target._journalLoadTicket === ticket && !target._journalDirty?.size && !target._journalPending?.size) target.textContent = `Journal UNAVAILABLE · ${error.message}`;
   }
 }
 
@@ -5203,6 +5345,8 @@ $('dw-journal-form').addEventListener('submit', async (event) => {
         setup: $('dw-journal-setup').value,
         reason: $('dw-journal-reason').value,
         invalidation: $('dw-journal-invalidation').value,
+        confidence: $('dw-journal-confidence').value || null,
+        executionStatus: $('dw-journal-execution').value,
         snapshot: state.lockedDecisionSnapshot,
       }),
     });
