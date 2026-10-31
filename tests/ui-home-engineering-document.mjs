@@ -54,6 +54,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
  base.leadership={indexCode:'IX0001',session:'DAY',state:'SESSION_CLOSED',sourceMode:'EOD_CONTEXT',quality:'PASS',sourceTradeDate:identity.tradeDate,lastAvailableAt:chartPayload.availableAt,indexLeadership:{topAbsolute:[{name:'測試成分甲',points:12},{name:'測試成分乙',points:-4}]}};
  state.txChartBarCount=72;state.txChartTimeframe='5m';
  window.__homeScenario=name=>{const x=structuredClone(base);x.now=Date.now();
+   if(name==='closed')x.marketOperating={state:'MARKET_CLOSED',marketShouldBeActive:false,reasonCode:'EXCHANGE_EMERGENCY_CLOSURE'};
    if(name==='limited'){x.chart.qualityStatus='QUALITY_INSUFFICIENT';x.chart.qualityReasons=['TIMESTAMP_LINEAGE_INSUFFICIENT'];x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='LIVE_PRODUCER_PROCESS_MISSING';x.focusAllowed=false;}
    if(name==='offline'){x.chartError='Failed to fetch';x.dashboardError='DASHBOARD_REFRESH: Failed to fetch';x.flow.sourceState='UNAVAILABLE';x.flow.windows=null;x.flow.unavailableReason='Failed to fetch';}
    if(name==='offline'){x.pulse=null;x.leadership={state:'UNAVAILABLE'};}
@@ -95,6 +96,17 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   if(modal){modalInertPreserved=pages.inert===true;document.querySelector('#side-nav button').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep();escapeRestoresFocus=nav.hidden&&document.activeElement===menu&&pages.inert===false;}
   else{$('side-nav-toggle').click();await sleep();}
   const navigationCloses=nav.hidden,canvasIdentityPreserved=canvas===$('dw-chart-canvas').querySelector('canvas'),hiddenRailReclaimsWidth=rect(r.querySelector('.dw-price-region')).w>=beforeWidth-1;
+  const research=$('home-research-drawer'),researchInitiallyClosed=research?.open===false;
+  const researchSummary=research?.querySelector('summary');
+  const researchSummaryKeyboard=researchSummary?.tabIndex>=0 && researchSummary?.tagName==='SUMMARY';
+  const researchBeforeCalls=window.__calls.length;
+  research.open=true;await sleep();
+  const researchCards=[...research.querySelectorAll('[data-research-module]')];
+  const researchExpandable=researchCards.length===4
+    && researchCards.every(card=>rect(card).h>0);
+  const researchNoModelFetch=window.__calls.length===researchBeforeCalls;
+  const researchNoHorizontalOverflow=document.documentElement.scrollWidth<=innerWidth+1;
+  research.open=false;
   const ai=$('home-ai'),aiInitiallyClosed=!ai.open;ai.open=true;await sleep();
   const background=r.querySelector('.tt-context-section'),fallback=r.querySelector('.tt-copy-fallback');
   const checkbox=$('ai-credits'),consent=checkbox.closest('label'),span=consent.querySelector('span');
@@ -119,15 +131,22 @@ export function homeEngineeringDocument({scenario='normal'}={}){
    quickInitial,quickBeforeChart,quickSelectionSync,quickKeyboardReachable,quickTableToStrip,quickCanvasPreserved,quickMirrorValues,quickSegmentsValid,quickQualifiedColor,quickMountIdempotent,
    evidenceRowsVisible:[...r.querySelectorAll('[data-home-window]')].every(n=>rect(n).h>0&&!n.closest('details:not([open])')),
    relatedMarketVisible:rect($('home-related-market')).h>0&&!$('home-related-market').closest('details:not([open])'),
-   navigationInitiallyHidden,menuInitiallyReachable,navigationOpens,navigationCloses,escapeRestoresFocus,modalInertPreserved,canvasIdentityPreserved,hiddenRailReclaimsWidth,aiInitiallyClosed};
+   navigationInitiallyHidden,menuInitiallyReachable,navigationOpens,navigationCloses,escapeRestoresFocus,modalInertPreserved,canvasIdentityPreserved,hiddenRailReclaimsWidth,aiInitiallyClosed,
+   researchInitiallyClosed,researchSummaryKeyboard,researchExpandable,researchNoModelFetch,researchNoHorizontalOverflow};
   background.open=true;fallback.open=true;result.backgroundExpandable=rect(background.querySelector('.tt-card-global')).h>0;result.fallbackExpandable=rect($('dw-copy-gpt-prompt')).h>0;result.docWidthExpanded=document.documentElement.scrollWidth;
   background.open=false;fallback.open=false;ai.open=false;
   $('tt-chart-expand').click();result.quickExpandedVisible=rect($('home-flow-quick')).h>0&&rect($('home-flow-quick')).bottom<=rect(r.querySelector('.dw-chart-stage')).y+1;result.expandHidesRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display==='none';$('tt-chart-expand').click();result.restoreShowsRail=getComputedStyle(r.querySelector('.tt-tier-one-grid')).display!=='none';
   window.__homeScenario('offline');result.quickOfflineCleared=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='—'&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===0&&!b.querySelector('.home-flow-quick-segments').classList.contains('is-positive')&&!b.querySelector('.home-flow-quick-segments').classList.contains('is-negative'));result.offlineSnapshotVisible=!$('home-chart-notice').hidden&&$('dw-chart-status').textContent.includes('非即時');result.offlineFocusBlocked=r.dataset.homeFocus==='blocked';
   result.offlineNoPriceError=!/fetch|UNAVAILABLE/i.test($('tt-top-price').textContent);result.offlineTimeUnchanged=$('tt-top-updated').textContent.includes(new Date(chartPayload.availableAt).getFullYear());
   result.offlineCanvasRetained=canvas===$('dw-chart-canvas').querySelector('canvas');
+  result.researchOfflineGated=research.dataset.flowQuality==='limited'
+    && $('home-research-flow-status').textContent.includes('資料受限');
   window.__homeScenario('limited');result.limitedStateVisible=$('home-status').textContent==='資料受限'&&r.dataset.homeFlow==='unavailable';
-  window.__homeScenario('normal');result.quickRecoveryRestores=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='+0.250'&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===1&&b.querySelector('.home-flow-quick-segments').classList.contains('is-positive'));result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
+  window.__homeScenario('normal');
+  result.researchQualifiedStillNotSignal=research.dataset.flowQuality==='observed-qualified'
+    && $('home-research-flow-status').textContent.includes('候選待驗證')
+    && research.querySelector('[data-research-module="outcome"] .home-research-card-note').textContent.includes('不展示虛構績效');
+  result.quickRecoveryRestores=quickButtons.every(b=>b.querySelector('.home-flow-quick-value').textContent==='+0.250'&&b.querySelectorAll('.home-flow-quick-segments i.is-filled').length===1&&b.querySelector('.home-flow-quick-segments').classList.contains('is-positive'));result.recoveryClearsSnapshot=$('home-chart-notice').hidden&&r.dataset.homeFocus==='active';
   const longInput=structuredClone(base);longInput.dashboardError='FAILED_'+ 'x'.repeat(3000);window.HomeWorkspace.render(r,longInput);$('home-data-details').open=true;
   result.longErrorNoOverflow=document.documentElement.scrollWidth<=innerWidth+1;$('home-data-details').open=false;
   window.__homeScenario(${JSON.stringify(scenario)});$('ai-account').value='a'.repeat(64);$('ai-model').value='gpt-5.6-terra';$('ai-settings').open=false;HomeWorkspace.aiSummary();
@@ -136,6 +155,7 @@ export function homeEngineeringDocument({scenario='normal'}={}){
   result.quickFinal=quickButtons.map(b=>({key:b.dataset.homeQuickKey,value:b.querySelector('.home-flow-quick-value').textContent,status:b.querySelector('.home-flow-quick-state').textContent,visible:rect(b).h>0,filled:b.querySelectorAll('.home-flow-quick-segments i.is-filled').length,direction:b.dataset.direction,segments:b.querySelectorAll('.home-flow-quick-segments i').length}));
   result.finalFlowRows=[...r.querySelectorAll('[data-home-window]')].map(n=>({key:n.dataset.homeWindow,state:n.querySelector('[data-home-field="state"]').textContent,net:n.querySelector('[data-home-field="net"]').textContent}));
   result.finalContextBasisLabel=$('home-context-basis-label').textContent;result.finalContextBasis=$('home-context-basis').textContent;
+  result.operatingLabel=$('tt-top-session').textContent;result.homeStatus=$('home-status').textContent;
   result.runtimeErrors=window.__runtimeErrors;result.finalScenario=${JSON.stringify(scenario)};
   result.overflowElements=[...document.querySelectorAll('body *')].filter(n=>n.getBoundingClientRect().width>0&&n.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(n=>({id:n.id,class:n.className,rect:rect(n)}));
   output.textContent=JSON.stringify(result);window.scrollTo(0,0);

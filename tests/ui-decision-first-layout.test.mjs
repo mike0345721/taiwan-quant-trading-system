@@ -6,7 +6,7 @@ import path from 'node:path';
 import {inspectEngineeringDocument} from './ui-browser-engineering-helper.mjs';
 import {homeEngineeringDocument,homeBootstrapDocument} from './ui-home-engineering-document.mjs';
 const binary=[process.env.BROWSER_BINARY,'C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/usr/bin/chromium','/usr/bin/google-chrome'].filter(Boolean).find(fs.existsSync);
-for(const [width,height,scenario] of [[1536,864,'normal'],[1366,768,'normal'],[1920,1080,'normal'],[2560,1440,'normal'],[3440,1440,'normal'],[2560,1440,'offline'],[720,1024,'normal'],[390,844,'normal'],[1366,768,'limited'],[1366,768,'offline'],[390,844,'offline'],[1366,768,'warming'],[1366,768,'noFocus'],[1366,768,'day'],[1366,768,'seller'],[1366,768,'partial']])test('decision-first real CSS layout and consent at '+width+'px / '+scenario+' (synthetic engineering only)',{skip:!binary,timeout:40000},async()=>{
+for(const [width,height,scenario] of [[390,844,'closed'],[1366,768,'closed'],[1536,864,'normal'],[1366,768,'normal'],[1920,1080,'normal'],[2560,1440,'normal'],[3440,1440,'normal'],[2560,1440,'offline'],[720,1024,'normal'],[390,844,'normal'],[1366,768,'limited'],[1366,768,'offline'],[390,844,'offline'],[1366,768,'warming'],[1366,768,'noFocus'],[1366,768,'day'],[1366,768,'seller'],[1366,768,'partial']])test('decision-first real CSS layout and consent at '+width+'px / '+scenario+' (synthetic engineering only)',{skip:!binary,timeout:40000},async()=>{
  const r=await inspectEngineeringDocument({binary,html:homeEngineeringDocument({scenario}),width,height,evidenceDir:process.env.UI_LAYOUT_EVIDENCE_DIR ? path.join(process.env.UI_LAYOUT_EVIDENCE_DIR,scenario) : undefined});assert.equal(r.engineeringOnly,true);assert.equal(r.layout,'decision-first');assert.equal(r.viewport,width,'Test must use the exact CSS viewport');
  assert.ok(r.docWidth<=r.viewport+1,JSON.stringify(r));assert.ok(r.docWidthExpanded<=r.viewport+1,JSON.stringify(r));
  assert.ok(r.chart.h>=(width<=720?319:359),JSON.stringify(r));assert.ok(r.focusFont>=18);assert.ok(r.consentFont>=14);
@@ -24,14 +24,20 @@ for(const [width,height,scenario] of [[1536,864,'normal'],[1366,768,'normal'],[1
  for(const key of ['quickInitial','quickBeforeChart','quickSelectionSync','quickKeyboardReachable','quickTableToStrip','quickCanvasPreserved','quickMirrorValues','quickSegmentsValid','quickQualifiedColor','quickMountIdempotent','quickExpandedVisible','quickOfflineCleared','quickRecoveryRestores'])assert.equal(r[key],true,key+' '+JSON.stringify(r));
  assert.equal(r.quickFinal.length,6);assert.ok(r.quickFinal.every(b=>b.visible&&b.segments===9));
  if(scenario==='warming'){assert.equal(r.quickFinal[5].value,'—');assert.match(r.quickFinal[5].status,/暖機中/);assert.equal(r.quickFinal[5].filled,0);assert.equal(r.quickFinal[0].value,'+0.250');assert.equal(r.quickFinal[0].filled,1);}
- if(scenario==='offline'||scenario==='limited')assert.ok(r.quickFinal.every(b=>b.value==='—'));
+ if(scenario==='closed'){assert.match(r.operatingLabel,/休市/);assert.match(r.homeStatus,/休市/);}
+ if(scenario==='offline'||scenario==='limited'||scenario==='closed')assert.ok(r.quickFinal.every(b=>b.value==='—'));
  if(scenario==='seller')assert.ok(r.quickFinal.every(b=>b.value==='-0.400'&&b.filled===2&&b.direction==='sell'));
  if(scenario==='partial')assert.ok(r.quickFinal.every(b=>b.value==='+0.250'&&b.filled===1&&b.direction==='none'&&/方向色停用/.test(b.status)));
  assert.equal(r.finalFlowRows.length,6);
  if(scenario==='warming'){assert.equal(r.finalFlowRows[5].state,'暖機中');assert.equal(r.finalFlowRows[5].net,'—');assert.equal(r.finalFlowRows[0].net,'+50');}
- if(scenario==='offline'||scenario==='limited')assert.ok(r.finalFlowRows.every(row=>row.net==='—'));
+ if(scenario==='offline'||scenario==='limited'||scenario==='closed')assert.ok(r.finalFlowRows.every(row=>row.net==='—'));
  assert.equal(r.finalContextBasisLabel,scenario==='day'?'期現貨差':'夜盤對現貨收盤差');
  if(scenario==='offline')assert.equal(r.finalContextBasis,'—');
+ for(const k of ['researchInitiallyClosed','researchSummaryKeyboard','researchExpandable',
+   'researchNoModelFetch','researchNoHorizontalOverflow','researchOfflineGated',
+   'researchQualifiedStillNotSignal'])assert.equal(r[k],true,k+' '+JSON.stringify(r));
+ if(width===390&&scenario==='normal')
+   assert.ok(r.chart.y<670,'Mobile chart should enter first screen '+JSON.stringify(r));
  assert.equal(r.modelCalls,0);assert.deepEqual(r.duplicateCriticalIds,[]);assert.match(r.summaryAfterModels,/SYNTHETIC TEST MODEL/);
  assert.equal(r.productionChartFactory,true);assert.ok(r.canvasCount>=5);assert.deepEqual(r.runtimeErrors,[]);
  for(const key of ['navigationInitiallyHidden','menuInitiallyReachable','navigationOpens','navigationCloses','escapeRestoresFocus','modalInertPreserved','canvasIdentityPreserved','hiddenRailReclaimsWidth','aiInitiallyClosed','offlineSnapshotVisible','offlineFocusBlocked','offlineNoPriceError','offlineTimeUnchanged','offlineCanvasRetained','limitedStateVisible','recoveryClearsSnapshot','longErrorNoOverflow']) assert.equal(r[key],true,key+' '+JSON.stringify(r));

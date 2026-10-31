@@ -348,6 +348,69 @@ function latestEligibleQuote(events, tick, maxQuoteAgeMs) {
   return { quote: null, eligibility: null };
 }
 
+// Query a quote's physical position, not its timestamp order. Range bounds only
+// prune impossible candidates; the frozen eligibility predicate remains final.
+// No global cache: each lookup belongs to one immutable evaluation input.
+export function createBestQuoteLookup(events, { maxQuoteAgeMs = 2_000 } = {}) {
+  const empty = () => ({ quote: null, eligibility: null });
+  const key = event => JSON.stringify([event.actualContract, event.tradeDate,
+    event.session, event.continuityEpoch, event.sourceLedgerIdentity]);
+  const groups = new Map();
+  let fallback = !Number.isFinite(maxQuoteAgeMs) || maxQuoteAgeMs < 0;
+  for (let index = 0; index < events.length; index += 1) {
+    const quote = events[index];
+    if (quote.kind !== 'futures_bidask' || quote.identityStatus !== 'USABLE'
+        || quote.availabilityLineageStatus !== 'USABLE' || !quote.recordHash) continue;
+    if (![quote.eventMs, quote.availableMs, quote.ledgerOrdinal].every(Number.isFinite)) {
+      fallback = true; continue;
+    }
+    const id = key(quote);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push({ quote, index });
+  }
+  function build(items, lo = 0, hi = items.length) {
+    if (hi - lo === 1) {
+      const { quote } = items[lo];
+      return { lo, hi, minTime: quote.eventMs, maxTime: quote.eventMs,
+        minAvailable: quote.availableMs, minOrdinal: quote.ledgerOrdinal };
+    }
+    const mid = lo + Math.floor((hi - lo) / 2);
+    const left = build(items, lo, mid), right = build(items, mid, hi);
+    return { lo, hi, left, right,
+      minTime: Math.min(left.minTime, right.minTime),
+      maxTime: Math.max(left.maxTime, right.maxTime),
+      minAvailable: Math.min(left.minAvailable, right.minAvailable),
+      minOrdinal: Math.min(left.minOrdinal, right.minOrdinal) };
+  }
+  const trees = new Map([...groups].map(([id, items]) => [id, { items, tree: build(items) }]));
+  return (tick, beforeIndex = events.length) => {
+    if (fallback || ![tick?.eventMs, tick?.availableMs, tick?.ledgerOrdinal].every(Number.isFinite)) {
+      return latestEligibleQuote(beforeIndex === events.length ? events : events.slice(0, beforeIndex),
+        tick, maxQuoteAgeMs);
+    }
+    if (tick.kind !== 'futures_tick' || tick.joinedContinuityStatus !== 'USABLE'
+        || tick.identityStatus !== 'USABLE' || tick.availabilityLineageStatus !== 'USABLE'
+        || !tick.recordHash) return empty();
+    const group = trees.get(key(tick));
+    if (!group) return empty();
+    const lower = tick.eventMs - maxQuoteAgeMs;
+    function search(node) {
+      if (group.items[node.lo].index >= beforeIndex || node.maxTime < lower
+          || node.minTime > tick.eventMs || node.minAvailable > tick.availableMs
+          || node.minOrdinal >= tick.ledgerOrdinal) return null;
+      if (node.hi - node.lo === 1) {
+        const candidate = group.items[node.lo].quote;
+        const eligibility = evaluateBestQuoteEligibility(candidate, tick, { maxQuoteAgeMs });
+        return eligibility.eligible ? { quote: candidate, eligibility } : null;
+      }
+      // Right-first preserves the legacy reverse physical-array selection,
+      // including regressing event times and equal timestamps.
+      return search(node.right) || search(node.left);
+    }
+    return search(group.tree) || empty();
+  };
+}
+
 export function buildExecutedPressureWindow(events, cutoffEvent, {
   windowMs = 60_000,
   maxQuoteAgeMs = 2_000,
@@ -386,6 +449,7 @@ export function buildExecutedPressureWindow(events, cutoffEvent, {
   let bestQuoteMatchedTicks = 0;
   let classificationConflictCount = 0;
   const usedEvents = [...ticks];
+  const quoteFor = createBestQuoteLookup(events, { maxQuoteAgeMs });
 
   for (const tick of ticks) {
     const volume = finitePositive(tick.payload?.executedVolume ?? tick.payload?.volume);
@@ -403,7 +467,7 @@ export function buildExecutedPressureWindow(events, cutoffEvent, {
     else if (side === 'SELL_PROXY') sellProxyVolume += volume;
     else unknownVolume += volume;
 
-    const { quote } = latestEligibleQuote(events, tick, maxQuoteAgeMs);
+    const { quote } = quoteFor(tick);
     if (!quote) {
       bestQuoteUnavailableVolume += volume;
       continue;

@@ -60,7 +60,10 @@ test('fixed bridge GET has no credentials/redirects/arbitrary routes and enforce
 test('file scans reject links/oversize inputs instead of writing or following them',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'guest-read-'));try{
   fs.writeFileSync(path.join(root,'a.json'),'{}');guardGuestReadTree(root,['a.json']);
-  fs.symlinkSync(path.join(root,'a.json'),path.join(root,'link.json'));assert.throws(()=>guardGuestReadTree(root,['link.json']),/REDIRECTION/);
+  // Windows junctions exercise reparse-point rejection without Developer Mode.
+  if(process.platform !== 'win32'){
+    fs.symlinkSync(path.join(root,'a.json'),path.join(root,'link.json'));assert.throws(()=>guardGuestReadTree(root,['link.json']),/REDIRECTION/);
+  }
   fs.mkdirSync(path.join(root,'dir'));fs.symlinkSync(path.join(root,'dir'),path.join(root,'alias'),'junction');assert.throws(()=>guardGuestReadTree(root,['alias/missing.json']),/REDIRECTION/);
   fs.linkSync(path.join(root,'a.json'),path.join(root,'hard.json'));assert.throws(()=>guardGuestReadTree(root,['hard.json']),/REDIRECTION/);
  }finally{fs.rmSync(root,{recursive:true,force:true});}

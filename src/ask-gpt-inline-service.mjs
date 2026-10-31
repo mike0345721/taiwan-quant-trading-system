@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { PlanError, publicError } from './chatgpt-plan-auth.mjs';
-import { createWindowsPlanStore } from './chatgpt-plan-store.mjs';
+import { createWindowsPlanStore, inspectWindowsPlanStore, openExistingWindowsPlanStore } from './chatgpt-plan-store.mjs';
 import { configurePlanTransport } from './chatgpt-plan-transport.mjs';
 import { startPlanSetup } from './chatgpt-plan-setup.mjs';
 import { freshPlanRecord, planCatalog, analysePlan, analysisError } from './chatgpt-plan-inference.mjs';
@@ -13,6 +13,9 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
 const ownerHash=s=>createHash('sha256').update(s).digest('hex');
 const accountFingerprint=s=>createHash('sha256').update(String(s||'')).digest('hex').slice(0,16);
 const reject=code=>{throw new PlanError(code);};
+const statusStates=new Set(['PRESENT_UNVERIFIED','MISSING','BUSY','UNSAFE','UNREADABLE','UNAVAILABLE']);
+const statusReasons=new Set(['ACCOUNT_METADATA_NOT_LOADED','CREDENTIAL_STORE_MISSING','CREDENTIAL_STORE_BUSY','CREDENTIAL_ACL_UNSAFE','CREDENTIAL_STORE_UNREADABLE','CREDENTIAL_STORE_INVALID','CREDENTIAL_PATH_REJECTED','CREDENTIAL_FILE_REJECTED','LOCAL_IDENTITY_UNVERIFIED','WINDOWS_PROTECTED_STORE_REQUIRED','CREDENTIAL_SECURITY_UNVERIFIED','CREDENTIAL_SECURITY_INSPECTION_FAILED','REQUEST_FAILED']);
+const safeStatusReason=reason=>statusReasons.has(reason)?reason:'REQUEST_FAILED';
 function validateBody(body){
  if(!body||Array.isArray(body)||Object.keys(body).some(k=>!['requestId','account','model','question','creditsDisabledConfirmed'].includes(k)))reject('ANALYSIS_REQUEST_INVALID');
  if(!uuid.test(body.requestId||'')||!/^[a-f0-9]{64}$/.test(body.account||'')||!/^[A-Za-z0-9._-]{1,100}$/.test(body.model||''))reject('ANALYSIS_REQUEST_INVALID');
@@ -20,21 +23,35 @@ function validateBody(body){
  if(body.creditsDisabledConfirmed!==true)reject('CREDITS_SETTING_CONFIRMATION_REQUIRED');
 }
 export class InlineAssistant {
- constructor({enabled=false,root,runtimeCommit,snapshotProvider,storeFactory=createWindowsPlanStore,operations={},now=Date.now,timeoutMs=120000,dailyLimit=60,minIntervalMs=10000,configureTransport=configurePlanTransport}){
-  this.enabled=enabled;this.root=root;this.runtimeCommit=runtimeCommit;this.snapshotProvider=snapshotProvider;this.storeFactory=storeFactory;this.now=now;this.timeoutMs=timeoutMs;this.dailyLimit=dailyLimit;this.minIntervalMs=minIntervalMs;this.instance=randomUUID();this.active=null;this.store=null;this.setup=null;
+ constructor({enabled=false,root,runtimeCommit,snapshotProvider,storeFactory=openExistingWindowsPlanStore,initializeStoreFactory=createWindowsPlanStore,inspectStore=inspectWindowsPlanStore,setupStarter=startPlanSetup,operations={},now=Date.now,timeoutMs=120000,dailyLimit=60,minIntervalMs=10000,configureTransport=configurePlanTransport}){
+  this.enabled=enabled;this.root=root;this.runtimeCommit=runtimeCommit;this.snapshotProvider=snapshotProvider;this.storeFactory=storeFactory;this.initializeStoreFactory=initializeStoreFactory;this.inspectStore=inspectStore;this.setupStarter=setupStarter;this.now=now;this.timeoutMs=timeoutMs;this.dailyLimit=dailyLimit;this.minIntervalMs=minIntervalMs;this.instance=randomUUID();this.active=null;this.store=null;this.setup=null;
   this.ops={freshPlanRecord,planCatalog,analysePlan,...operations};this.configureTransport=configureTransport;
-  if(enabled){fs.mkdirSync(root,{recursive:true});if(fs.lstatSync(root).isSymbolicLink())reject('ANALYSIS_STORAGE_PATH_REJECTED');}
+  if(enabled&&fs.existsSync(root)&&fs.lstatSync(root).isSymbolicLink())reject('ANALYSIS_STORAGE_PATH_REJECTED');
  }
- ensure(){if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');if(!this.store){this.configureTransport();this.store=this.storeFactory();}return this.store;}
+ ensure(){if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');if(!this.store)this.store=this.storeFactory();return this.store;}
+ ensureReceiptRoot(){
+  if(fs.existsSync(this.root)&&fs.lstatSync(this.root).isSymbolicLink())reject('ANALYSIS_STORAGE_PATH_REJECTED');
+  fs.mkdirSync(this.root,{recursive:true});
+  if(fs.lstatSync(this.root).isSymbolicLink())reject('ANALYSIS_STORAGE_PATH_REJECTED');
+ }
+ connectionBase(){return{enabled:this.enabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false,remainingPlanQuota:null,automaticModelRouting:false,runtimeCommit:this.runtimeCommit,accounts:[],accountMetadataLoaded:false,credentialsLoaded:false};}
  connection(){
-  const base={enabled:this.enabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false,remainingPlanQuota:null,automaticModelRouting:false,runtimeCommit:this.runtimeCommit};
-  if(!this.enabled)return{...base,accounts:[],reason:'INLINE_ASSISTANT_NOT_ACTIVATED'};
-  try{const store=this.ensure();store.reload?.();return{...base,accounts:store.list().map(a=>{const r=store.get(a.key);return{...a,planPermission:Boolean(r?.scopes?.includes('chatgpt.tokens.use.direct')),accessReady:r?.expiresAt>this.now()+90000,renewable:Boolean(r?.refresh_token)};}),reason:null};}
-  catch(e){return{...base,accounts:[],reason:publicError(e)};}
+  const base=this.connectionBase();
+  if(!this.enabled)return{...base,storeState:'DISABLED',reason:'INLINE_ASSISTANT_NOT_ACTIVATED'};
+  try{const observed=this.inspectStore();return{...base,storeState:statusStates.has(observed?.state)?observed.state:'UNAVAILABLE',reason:safeStatusReason(observed?.reason)};}
+  catch(e){return{...base,storeState:'UNAVAILABLE',reason:safeStatusReason(publicError(e))};}
+ }
+ loadAccounts(){
+  if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');
+  // Fresh validated reader, not a cached initializer or the active job's store.
+  // Opening the existing reader already loads once; do not decrypt it twice.
+  const store=this.storeFactory();
+  return{...this.connectionBase(),accountMetadataLoaded:true,credentialsLoaded:true,storeState:'ACCOUNT_METADATA_LOADED',
+   accounts:store.list().map(a=>{const r=store.get(a.key);return{key:a.key,label:a.label,expiresAt:a.expiresAt,planPermission:Boolean(r?.scopes?.includes('chatgpt.tokens.use.direct')),accessReady:r?.expiresAt>this.now()+90000,renewable:Boolean(r?.refresh_token)};}),reason:null};
  }
  async models(account){
   if(!/^[a-f0-9]{64}$/.test(account||''))reject('ACCOUNT_SELECTION_REQUIRED');if(this.active)reject('ANALYSIS_ALREADY_RUNNING');
-  const record=await this.ops.freshPlanRecord(this.ensure(),account);const models=await this.ops.planCatalog(record);return{models,account,checkedAt:new Date(this.now()).toISOString()};
+  const store=this.ensure();this.configureTransport();const record=await this.ops.freshPlanRecord(store,account);const models=await this.ops.planCatalog(record);return{models,account,checkedAt:new Date(this.now()).toISOString()};
  }
  file(id){if(!uuid.test(id||''))reject('REQUEST_NOT_FOUND');return path.join(this.root,id+'.json');}
  clearDeadLease(){
@@ -48,17 +65,19 @@ export class InlineAssistant {
   fs.renameSync(file,path.join(this.root,'interrupted-lease-'+randomUUID()+'.json'));return false;
  }
  readStored(id){
-  this.ensure();const file=this.file(id);if(!fs.existsSync(file))reject('REQUEST_NOT_FOUND');
+  if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');
+  if(fs.existsSync(this.root)&&fs.lstatSync(this.root).isSymbolicLink())reject('ANALYSIS_STORAGE_PATH_REJECTED');
+  const file=this.file(id);if(!fs.existsSync(file))reject('REQUEST_NOT_FOUND');
   if(fs.lstatSync(file).isSymbolicLink()||fs.statSync(file).size>262144)reject('ANALYSIS_RECEIPT_INVALID');
   try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{reject('ANALYSIS_RECEIPT_INVALID');}
  }
  read(id,owner){
-  const r=this.readStored(id);
+  let r=this.readStored(id);
   if(r.ownerHash!==ownerHash(owner))reject('REQUEST_NOT_FOUND');
-  if(!terminal.has(r.phase)&&(!this.active||this.active.record.requestId!==id)&&!this.clearDeadLease()){
-   r.phase='INTERRUPTED';r.error={code:'PREVIOUS_REQUEST_INTERRUPTED'};r.updatedAt=new Date(this.now()).toISOString();this.persist(r);
-  }
-  if(!terminal.has(r.phase)&&r.instance!==this.instance)return this.public({...r,phase:'INTERRUPTED',error:{code:'PREVIOUS_REQUEST_STATE_UNVERIFIED'}});
+  // GET/recovery never initializes credentials, probes a PID, archives a lease,
+  // or rewrites original evidence. Unowned unfinished state is a response copy.
+  if(!terminal.has(r.phase)&&(!this.active||this.active.record.requestId!==id||r.instance!==this.instance))
+   r={...r,phase:'INTERRUPTED',error:{code:'PREVIOUS_REQUEST_STATE_UNVERIFIED'}};
   return this.public(r);
  }
  public(r){
@@ -83,7 +102,7 @@ export class InlineAssistant {
   fs.appendFileSync(file,JSON.stringify({id,at:this.now()})+'\n',{mode:0o600});return{attempt:rows.length+1,dailyLimit:this.dailyLimit,day,meaning:'LOCAL_REQUEST_GUARD_NOT_OPENAI_QUOTA'};
  }
  async run(body,owner,{signal,onEvent=()=>{}}={}){
-  validateBody(body);this.ensure();
+  validateBody(body);this.ensure();this.ensureReceiptRoot();
   if(fs.existsSync(this.file(body.requestId))){const stored=this.readStored(body.requestId);if(stored.ownerHash!==ownerHash(owner))reject('REQUEST_NOT_FOUND');if(stored.question!==body.question.trim()||stored.requestedModel!==body.model||stored.accountFingerprint!==accountFingerprint(body.account))reject('REQUEST_ID_PAYLOAD_MISMATCH');const prior=this.read(body.requestId,owner);onEvent({type:'receipt',data:prior});return prior;}
   if(this.active)reject('ANALYSIS_ALREADY_RUNNING');
   this.clearDeadLease();
@@ -105,7 +124,7 @@ export class InlineAssistant {
    fs.writeFileSync(this.file(r.requestId),JSON.stringify(r),{flag:'wx',mode:0o600});ownsReceipt=true;emit();
    const workspace=await this.snapshotProvider();check();const prepared=buildInlineContext(workspace?.snapshot||workspace,{now:this.now()});
    Object.assign(r,prepared);update('CHECKING_SUBSCRIPTION');
-   const record=await this.ops.freshPlanRecord(this.store,body.account,{signal:controller.signal});check();
+   this.configureTransport();const record=await this.ops.freshPlanRecord(this.store,body.account,{signal:controller.signal});check();
    const models=await this.ops.planCatalog(record,{signal:controller.signal});check();
    if(!models.some(m=>m.slug===body.model))reject('MODEL_NOT_IN_ACCOUNT_CATALOG');
    r.localUsage=this.reserveAttempt(r.requestId);update('ANALYSING');
@@ -132,14 +151,15 @@ export class InlineAssistant {
   return this.public(r);
  }
  cancel(id,owner){
-  this.ensure();if(this.active?.record.requestId===id&&this.active.record.ownerHash===ownerHash(owner)){this.active.controller.abort('CANCELLED');return{requested:true};}
+  if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');if(this.active?.record.requestId===id&&this.active.record.ownerHash===ownerHash(owner)){this.active.controller.abort('CANCELLED');return{requested:true};}
   return{requested:false,receipt:this.read(id,owner)};
  }
  async openSetup(){
-  this.ensure();if(this.active)reject('ANALYSIS_ALREADY_RUNNING');
+  if(!this.enabled)reject('INLINE_ASSISTANT_NOT_ACTIVATED');if(this.active)reject('ANALYSIS_ALREADY_RUNNING');
   if(this.setup?.server.listening)reject('SETUP_ALREADY_OPEN');
   // User-activated, bounded account setup only; never generates a model request.
-  this.setup=await startPlanSetup({store:this.store,port:18721});
+  const store=this.initializeStoreFactory();this.configureTransport();
+  this.setup=await this.setupStarter({store,port:18721});
   return{url:this.setup.launchUrl,expiresAt:this.setup.expiresAt};
  }
  async close(){this.active?.controller.abort('CANCELLED');if(this.setup?.server.listening)await this.setup.close();}

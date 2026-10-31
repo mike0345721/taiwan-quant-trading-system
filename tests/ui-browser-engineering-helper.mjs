@@ -5,13 +5,17 @@ import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-export async function inspectEngineeringDocument({binary,html,width,height=1000,evidenceDir}){
+export async function inspectEngineeringDocument({binary,html,width,height=1000,evidenceDir,hostedLinuxResearchTest=false}){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cru21-ui-cdp-test-')),profile=path.join(dir,'profile'),file=path.join(dir,'fixture.html');
  fs.writeFileSync(file,html,'utf8');
  let child,socket,stderr='',sequence=0;const pending=new Map();
  const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP_TEST_TIMEOUT '+method));},10000);pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
  try{
-  child=spawn(binary,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking','--disable-component-update','--disable-default-apps','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
+  // Only the explicit synthetic research test on a disposable hosted Linux CI runner.
+  // Other callers and local/user browsers retain the original launch behavior.
+  const hostedArgs=hostedLinuxResearchTest&&process.platform==='linux'&&process.env.GITHUB_ACTIONS==='true'
+    ?['--no-sandbox','--disable-dev-shm-usage']:[];
+  child=spawn(binary,['--headless=new',...hostedArgs,'--disable-gpu','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking','--disable-component-update','--disable-default-apps','--remote-debugging-address=127.0.0.1','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
   let startupError=null;child.once('error',e=>{startupError=e;});child.stderr.on('data',b=>{stderr=(stderr+b).slice(-3000);});
   const portFile=path.join(profile,'DevToolsActivePort'),deadline=Date.now()+10000;
   let port;
