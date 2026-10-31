@@ -4,6 +4,9 @@ import { readManagedConfig } from './cru55-managed-plan.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
+// Refuse incompatible managed inputs before opening an acceptance/binding file.
+if (process.env.DASHBOARD_RELEASE_SCOPE && Object.entries(process.env)
+  .some(([key,value]) => value && /^(CRU55_|FORWARD_SHADOW_)/i.test(key))) throw Error('LOCAL_MARKET_MODE_REJECTED');
 if (process.env.CRU21_GUEST_ENABLED && !['0','1'].includes(process.env.CRU21_GUEST_ENABLED)) throw Error('GUEST_FLAG_INVALID');
 // Reject incompatible modes before evaluating any managed acceptance file.
 if (process.env.CRU21_GUEST_ENABLED === '1' && ['CRU55_ACCEPTANCE_CONFIG','CRU55_INTEGRATION_CANDIDATE','CRU55_RUNTIME_BINDING','CRU55_DYNAMIC_ROOT','DASHBOARD_FORMAL_READ_ROOT','FORWARD_SHADOW_RUNTIME_ROOT']

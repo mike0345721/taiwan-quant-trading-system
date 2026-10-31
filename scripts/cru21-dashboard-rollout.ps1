@@ -3,7 +3,8 @@ param([ValidateSet('Preflight','Deploy','Rollback')][string]$Mode='Preflight',
 $ErrorActionPreference='Stop'
 $plan=Get-Content -LiteralPath $PlanPath -Raw | ConvertFrom-Json
 $receiptRoot=Split-Path -Parent (Resolve-Path -LiteralPath $PlanPath).Path
-$formalOnly=$plan.schema -eq 'cru21-rollout-plan-v3-formal-only'
+$localMarket=$plan.schema -eq 'cru21-rollout-plan-v4-local-market'
+$formalOnly=$localMarket -or $plan.schema -eq 'cru21-rollout-plan-v3-formal-only'
 if(-not $formalOnly -and $plan.schema -ne 'cru21-rollout-plan-v2'){throw 'Fresh v2 plan required; or an explicit v3 formal-only plan; historical plans are not executable'}
 $node='C:\Program Files\nodejs\node.exe'
 function Git([string]$Root,[string[]]$Arguments){$value=& git.exe -C $Root @Arguments; if($LASTEXITCODE -ne 0){throw 'Git operation failed'}; return ($value -join "`n").Trim()}
@@ -40,13 +41,20 @@ function Assert-PrimaryPinned {
  if((Hash (Join-Path $plan.primary '.env')) -ne $plan.primaryEnvHash){throw 'V3 preserved development environment changed'}
 }
 function Assert-TargetRouting {
- $checker=Join-Path $plan.candidate 'scripts/check-cru21-rollout-target-env.mjs'
+ $checkerName=if($localMarket){'scripts/check-cru21-local-market-target-env.mjs'}else{'scripts/check-cru21-rollout-target-env.mjs'}
+ $checker=Join-Path $plan.candidate $checkerName
  $savedNodeOptions=$env:NODE_OPTIONS
+ $savedTlsEnvironment=@{}
+ if($localMarket){foreach($key in @('NODE_PATH','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR')){$savedTlsEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}}
  try {
   $env:NODE_OPTIONS=''
+  foreach($key in $savedTlsEnvironment.Keys){[Environment]::SetEnvironmentVariable($key,$null,'Process')}
   & $node $checker $PlanPath (Join-Path $receiptRoot 'formal-target.env') (Join-Path $receiptRoot 'formal-original.env') | Out-Null
   if($LASTEXITCODE -ne 0){throw 'V3 target routing rejected'}
- } finally { $env:NODE_OPTIONS=$savedNodeOptions }
+ } finally {
+  $env:NODE_OPTIONS=$savedNodeOptions
+  foreach($key in $savedTlsEnvironment.Keys){[Environment]::SetEnvironmentVariable($key,$savedTlsEnvironment[$key],'Process')}
+ }
 }
 function Assert-V3Gates($Gates) {
  foreach($key in @('candidateModelContentPassed','windowsPassed','ciPassed','independentReviewPassed','runtimeAcceptancePassed','rollbackReviewed','ownerDeploymentApproved')){
@@ -54,8 +62,65 @@ function Assert-V3Gates($Gates) {
  }
  if($Gates.candidateHead -ne $plan.head -or $Gates.expectedMain -ne $ExpectedMain){throw 'V3 Owner approved version differs'}
 }
+# V4 has its own market/research prerequisites. It never changes the V3 AI gates.
+# These receipts attest real, reviewed observations; this controller cannot create
+# certificates, establish trust, fabricate proof, or declare browser acceptance.
+function Assert-LocalMarketFile([string]$File) {
+ if(-not $File -or $File -notmatch '^[a-zA-Z]:[\\/]' -or $File -match '[\r\n\x00]'){throw 'V4 local file required'}
+ $full=[IO.Path]::GetFullPath($File)
+ $current=$full
+ while($current){
+  $item=Get-Item -LiteralPath $current -Force
+  if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'V4 path alias rejected'}
+  $parent=[IO.Path]::GetDirectoryName($current.TrimEnd([char[]]'\/'))
+  if(-not $parent -or $parent -eq $current){break};$current=$parent
+ }
+ $leaf=Get-Item -LiteralPath $full -Force
+ if($leaf.PSIsContainer){throw 'V4 regular file required'}
+ return $full
+}
+function Assert-LocalMarketPlan {
+ if($plan.scope -cne 'MARKET_RESEARCH_AI_DISABLED'){throw 'V4 release scope rejected'}
+ $formal=Local-Root $plan.formal;$candidate=Local-Root $plan.candidate
+ if($candidate.StartsWith($formal+'\',[StringComparison]::OrdinalIgnoreCase) -or $formal.StartsWith($candidate+'\',[StringComparison]::OrdinalIgnoreCase) -or $receiptRoot.StartsWith($formal+'\',[StringComparison]::OrdinalIgnoreCase) -or $receiptRoot -eq $formal){throw 'V4 formal and control paths overlap'}
+ foreach($file in @($PlanPath,(Join-Path $plan.primary '.env'),(Join-Path $plan.formal '.env'),(Join-Path $plan.primary $plan.dirtyReportPath))){Assert-LocalMarketFile $file|Out-Null}
+ if($plan.tlsCertSha256 -cnotmatch '^[a-f0-9]{64}$' -or $plan.tlsBundleSha256 -cnotmatch '^[a-f0-9]{64}$' -or $plan.tlsEvidenceSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'V4 TLS identity incomplete'}
+}
+function Assert-LocalMarketTls {
+ $bundle=Assert-LocalMarketFile $plan.tlsBundle
+ $size=(Get-Item -LiteralPath $bundle).Length
+ if($size -lt 1 -or $size -gt 131072 -or (Hash $bundle) -cne $plan.tlsBundleSha256){throw 'V4 TLS material missing or changed'}
+ $file=Assert-LocalMarketFile (Join-Path $receiptRoot 'local-tls-preflight.json')
+ if((Hash $file) -cne $plan.tlsEvidenceSha256){throw 'V4 TLS evidence changed'}
+ $proof=Get-Content -LiteralPath $file -Raw|ConvertFrom-Json
+ if($proof.schema -cne 'cru21-local-tls-preflight-v1' -or $proof.scope -cne $plan.scope -or $proof.candidateHead -cne $plan.head -or $proof.tlsCertSha256 -cne $plan.tlsCertSha256 -or $proof.tlsBundleSha256 -cne $plan.tlsBundleSha256){throw 'V4 TLS evidence identity mismatch'}
+ foreach($key in @('windowsTrustVerified','pfxLeafPinVerified','loopbackHandshakeVerified','hostnameVerified')){
+  if($proof.$key -isnot [bool] -or $proof.$key -ne $true){throw 'V4 TLS prerequisites incomplete'}
+ }
+ $observed=[DateTimeOffset]::MinValue
+ if(-not [DateTimeOffset]::TryParse([string]$proof.observedAt,[ref]$observed)){throw 'V4 TLS observation time missing'}
+ $age=([DateTimeOffset]::UtcNow-$observed.ToUniversalTime()).TotalSeconds
+ if($age -lt -5 -or $age -gt 3600){throw 'V4 TLS observation expired'}
+ if($plan.cookieMigration -and $plan.cookieMigration.transportEvidenceSha256 -cne $plan.tlsEvidenceSha256){throw 'V4 cookie evidence differs from TLS proof'}
+}
+function Assert-LocalMarketGates($Gates) {
+ if($Gates.schema -cne 'cru21-local-market-hard-gates-v1' -or $Gates.scope -cne $plan.scope -or $Gates.candidateHead -cne $plan.head -or $Gates.expectedMain -cne $ExpectedMain){throw 'V4 gate identity mismatch'}
+ foreach($key in @('windowsPassed','ciPassed','authorReviewPassed','rollbackReviewed','ownerDeploymentApproved')){
+  if($Gates.$key -isnot [bool] -or $Gates.$key -ne $true){throw 'V4 exact evidence and Owner gates incomplete'}
+ }
+ $reviews=@($Gates.independentReviews)
+ if($reviews.Count -ne 2){throw 'V4 two independent reviews required'}
+ foreach($review in $reviews){
+  if(-not $review.reviewer -or $review.candidateHead -cne $plan.head -or $review.verdict -cne 'APPROVE' -or $review.evidenceSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'V4 independent review incomplete'}
+ }
+ if($reviews[0].reviewer -eq $reviews[1].reviewer){throw 'V4 reviewers must be independent'}
+ # A pre-cutover receipt must never claim the new formal service is accepted.
+ if($Gates.runtimeAcceptancePassed -eq $true -or $Gates.candidateModelContentPassed -eq $true){throw 'V4 pre-cutover acceptance or model claim rejected'}
+ Assert-LocalMarketTls
+}
 function Assert-Backups {
  foreach($item in @(@('primary-original.env',$plan.primaryEnvHash),@('formal-original.env',$plan.formalEnvHash),@('formal-target.env',$plan.targetEnvHash),@('primary-dirty-report.md',$plan.dirtyReportHash))){
+  if($localMarket){Assert-LocalMarketFile (Join-Path $receiptRoot $item[0])|Out-Null}
   if($item[1] -notmatch '^[0-9a-fA-F]{64}$' -or (Hash (Join-Path $receiptRoot $item[0])) -ne $item[1]){throw 'Backup hash mismatch; no mutation allowed'}
  }
 }
@@ -115,6 +180,7 @@ function Assert-SourceBaseline {
  Assert-Report
  if((Hash (Join-Path $plan.primary '.env')) -ne $plan.primaryEnvHash -or (Hash (Join-Path $plan.formal '.env')) -ne $plan.formalEnvHash){throw 'Environment changed'}
  if((Hash (Join-Path $receiptRoot 'formal-target.env')) -ne $plan.targetEnvHash){throw 'Prepared environment changed'}
+ if($localMarket){Assert-LocalMarketTls}
 }
 function Start-Dashboard([string]$Root,[string]$Label){
  # Direct server entry works at the old baseline too and has no bridge spawn path.
@@ -128,6 +194,7 @@ function Start-Dashboard([string]$Root,[string]$Label){
   $env:CRU21_GUEST_ENABLED=$null;$env:NODE_OPTIONS='';$env:NODE_TLS_REJECT_UNAUTHORIZED=$null
   foreach($key in @('TRUST_PROXY','COOKIE_SECURE','NODE_ENV','SESSION_TTL_MINUTES','REMEMBER_SESSION_DAYS','REFRESH_INTERVAL_SECONDS','UPSTREAM_TIMEOUT_MS')){[Environment]::SetEnvironmentVariable($key,$null,'Process')}
  }
+ if($localMarket){foreach($key in @('NODE_PATH','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR')){[Environment]::SetEnvironmentVariable($key,$null,'Process')}}
  $env:HOST='127.0.0.1';$env:PORT='8787';$env:MOCK_DATA='0'
  $env:PSModulePath="$env:USERPROFILE\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
  $logTag=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Label
@@ -138,6 +205,7 @@ $rolloutMutex=$null;$mutexHeld=$false
 try {
  if($formalOnly){
   Assert-FormalOnlyPlan
+  if($localMarket){Assert-LocalMarketPlan}
   $sha=[Security.Cryptography.SHA256]::Create()
   try{$key=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes((Local-Root $plan.formal).ToLowerInvariant())))).Replace('-','')}finally{$sha.Dispose()}
   $rolloutMutex=[Threading.Mutex]::new($false,('Local\CRU21FormalRollout-'+$key))
@@ -161,8 +229,11 @@ try {
   $worker=Assert-ExistingServices
   $old=Assert-OldDashboard
   $gates=Get-Content -LiteralPath (Join-Path $receiptRoot 'hard-gates.json') -Raw | ConvertFrom-Json
-  if($gates.candidateHead -ne $plan.head -or $gates.candidateModelContentPassed -ne $true -or $gates.windowsPassed -ne $true -or $gates.ciPassed -ne $true -or $gates.independentReviewPassed -ne $true -or $gates.runtimeAcceptancePassed -ne $true -or $gates.rollbackReviewed -ne $true){throw 'Hard gates incomplete'}
-  if($formalOnly){Assert-V3Gates $gates}
+  if($localMarket){Assert-LocalMarketGates $gates}
+  else {
+   if($gates.candidateHead -ne $plan.head -or $gates.candidateModelContentPassed -ne $true -or $gates.windowsPassed -ne $true -or $gates.ciPassed -ne $true -or $gates.independentReviewPassed -ne $true -or $gates.runtimeAcceptancePassed -ne $true -or $gates.rollbackReviewed -ne $true){throw 'Hard gates incomplete'}
+   if($formalOnly){Assert-V3Gates $gates}
+  }
   if((Git $plan.formal @('rev-parse','origin/main')) -ne $ExpectedMain -or (Git $plan.formal @('rev-parse',($ExpectedMain+'^{tree}'))) -ne $plan.tree){throw 'Merged tree or origin/main differs from reviewed candidate'}
   if(((Git $plan.primary @('diff','--name-only',$plan.base,$ExpectedMain)) -split "`n") -contains $plan.dirtyReportPath){throw 'Incoming source overlaps preserved report'}
   $state=@{expectedMain=$ExpectedMain;oldPid=$plan.formalPid;newPid=$null;startedAt=[DateTime]::UtcNow.ToString('o');phase='PREFLIGHT_PASSED';planHash=(Hash $PlanPath);formalOnly=$formalOnly}
@@ -180,7 +251,9 @@ try {
   Copy-Item -LiteralPath (Join-Path $receiptRoot 'formal-target.env') -Destination (Join-Path $plan.formal '.env')
   $started=Start-Dashboard $plan.formal 'formal'
   $state.newPid=$started.Id;$state.phase='LAUNCHED_IDENTITY_PENDING';$state|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $statePath -Encoding UTF8
-  $state.newProcess=Process-Identity (Get-CimInstance Win32_Process -Filter "ProcessId = $($started.Id)");$state.phase='STARTED';$state|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $statePath -Encoding UTF8
+  $state.newProcess=Process-Identity (Get-CimInstance Win32_Process -Filter "ProcessId = $($started.Id)");$state.phase=if($localMarket){'STARTED_UNACCEPTED'}else{'STARTED'}
+  if($localMarket){$state.scope=$plan.scope;$state.accepted=$false;$state.requiredPostCutoverEvidence=@('trustedHttpsServedPin','normalBrowserLoginAndSecureCookie','dataReadIdentityAndTruth','originalServiceRecovery')}
+  $state|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $statePath -Encoding UTF8
   Record 'dashboard-started' $state
   Write-Output "Formal dashboard launched PID=$($started.Id), exact=$ExpectedMain; verify before acceptance."
   return

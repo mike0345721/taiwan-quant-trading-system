@@ -14,6 +14,7 @@
         "cru55-binding-launcher-windows.test.mjs",
         "cru55-dynamic-local.test.mjs",
         "cru21-rollout-windows.test.mjs",
+        "cru21-local-market-rollout.test.mjs",
         "daily-use-bootstrap.test.mjs",
         "cru49-windows-status-lock.test.mjs",
         "market-state-forward-shadow-governance.test.mjs",

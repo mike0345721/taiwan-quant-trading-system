@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
+import { Socket } from 'node:net';
+import { createSecureContext, TLSSocket } from 'node:tls';
 import { X509Certificate, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
@@ -20,8 +22,10 @@ export function assertLocalMarketMode(env, config) {
       || env.ASK_GPT_INLINE_ENABLED !== '0' || config.trustProxy
       || config.cru55Candidate || config.cru55Acceptance
       || env.DASHBOARD_PREVIEW_TYPE || env.CRU21_GUEST_ENABLED === '1'
+      || Object.entries(env).some(([key,value]) => value && /^(CRU55_|FORWARD_SHADOW_)/i.test(key))
       || env.NODE_TLS_REJECT_UNAUTHORIZED === '0' || env.NODE_OPTIONS) fail('LOCAL_MARKET_MODE_REJECTED');
   if (!path.isAbsolute(env.DASHBOARD_TLS_BUNDLE || '')
+      || /^[\\/]{2}/.test(env.DASHBOARD_TLS_BUNDLE || '')
       || !/^[a-f0-9]{64}$/.test(env.DASHBOARD_TLS_CERT_SHA256 || '')) fail('LOCAL_TLS_IDENTITY_REQUIRED');
   return true;
 }
@@ -41,6 +45,7 @@ export function unprotectLocalBytes(encrypted) {
 }
 
 export function readLocalProtectedBytes(file, unprotect=unprotectLocalBytes) {
+  if (!path.isAbsolute(file) || /^[\\/]{2}/.test(file)) fail('LOCAL_TLS_PATH_ALIAS');
   const absolute=path.resolve(file);
   let current=absolute;
   for (;;) {
@@ -59,6 +64,22 @@ export function readLocalProtectedBytes(file, unprotect=unprotectLocalBytes) {
   } finally {fs.closeSync(fd);}
 }
 
+// Inspect the actual PFX leaf through documented TLS APIs without opening a
+// listener or making a connection. A separate PEM cannot attest another PFX.
+export function assertLocalPfxIdentity(pfx, passphrase, certificate) {
+  const options={pfx,passphrase,minVersion:'TLSv1.2'};
+  let socket, transport;
+  try {
+    const secureContext=createSecureContext(options);
+    transport=new Socket();
+    socket=new TLSSocket(transport,{isServer:true,secureContext});
+    const actual=socket.getX509Certificate();
+    if(!actual || !actual.raw.equals(certificate.raw)) fail('LOCAL_TLS_PFX_IDENTITY_REJECTED');
+    return options;
+  } catch { fail('LOCAL_TLS_PFX_IDENTITY_REJECTED'); }
+  finally {socket?.destroy();transport?.destroy();}
+}
+
 export function loadLocalTls(env, config, {readProtected=readLocalProtectedBytes, now=Date.now()}={}) {
   if(!assertLocalMarketMode(env,config))return null;
   let plain;
@@ -72,7 +93,7 @@ export function loadLocalTls(env, config, {readProtected=readLocalProtectedBytes
         || cert.ca || !cert.checkIP('127.0.0.1') || !cert.checkHost('localhost')
         || now<Date.parse(cert.validFrom) || now>=Date.parse(cert.validTo)
         || !cert.keyUsage?.includes('1.3.6.1.5.5.7.3.1')) fail('LOCAL_TLS_CERTIFICATE_REJECTED');
-    return {pfx:Buffer.from(value.pfx,'base64'),passphrase:value.passphrase,minVersion:'TLSv1.2'};
+    return assertLocalPfxIdentity(Buffer.from(value.pfx,'base64'),value.passphrase,cert);
   } catch { fail('LOCAL_TLS_CONFIGURATION_REJECTED'); }
   finally {if(plain)plain.fill(0);}
 }
