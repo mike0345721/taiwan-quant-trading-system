@@ -21,7 +21,7 @@ function fixture(){
     levels:{vwap:level(100),nightHigh:level(130),nightLow:level(70)},openingRange:{status:'NOT_APPLICABLE'}};
 }
 test('LIVE source-time geometry yields real formula without promoting clock quality or price/Flow confirmation',()=>{
-  const chart=fixture(), before=structuredClone(chart);
+  const chart=fixture(); chart.lastPrice=100; const before=structuredClone(chart);
   const observedFlow={identity:{actualContract:'TXFJ6',tradeDate:'2026-10-14',session:'NIGHT'},sourceState:'LIVE',
     source:{availableAt:at},researchQuality:{status:'QUALITY_INSUFFICIENT'},
     windows:{primary60s:{pressure:{pressureRatio:.6},response:{displacementPoints:10}}}};
@@ -40,13 +40,26 @@ test('LIVE source-time geometry yields real formula without promoting clock qual
   assert.equal(result.executionAuthorized,false);assert.equal(result.orderRoutesEnabled,false);
   assert.deepEqual(chart,before);
 });
-test('an empty directional universe stays null with a concrete reason under descriptive eligibility',()=>{
+test('live focus near an upper reference does not fabricate a still-ahead long target',()=>{
+  const chart=fixture();
+  const watch=buildDecisionLevelWatch({chart,snapshotTime:at});
+  assert.equal(watch.decisionFocus.state,'ACTIVE_REFERENCE');
+  assert.equal(watch.decisionFocus.activeNodeId,'SESSION_HIGH');
+  assert.equal(watch.nextWatch.id,'SESSION_HIGH');
+  assert.equal(watch.scenarioWatch.node.id,'SESSION_HIGH');
+  assert.equal(watch.scenarioWatch.long.target,null);
+  assert.equal(watch.scenarioWatch.long.rr.ratio,null);
+  assert.equal(watch.evidenceGate.directionConfirmed,false);
+  assert.equal(watch.executionAuthorized,false);
+});
+
+test('no near qualified direction level retains a null current scenario with observable context',()=>{
   const chart=fixture(); delete chart.levels.nightHigh; delete chart.levels.nightLow;
   const result=buildDecisionLevelWatch({chart,snapshotTime:at});
-  for(const side of [result.scenarioWatch.long,result.scenarioWatch.short]){
-    assert.equal(side.target,null);assert.equal(side.rr.ratio,null);
-    assert.ok(side.targetDiagnostics.reasonCodes.includes('NO_OTHER_VALIDATED_LEVEL'));
-  }
+  assert.equal(result.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(result.nextWatch,null);assert.equal(result.scenarioWatch,null);
+  assert.equal(result.evidenceGate.directionConfirmed,false);
+  assert.equal(result.executionAuthorized,false);
 });
 test('unknown restrictions, missing proof, replay and future proof cannot borrow descriptive eligibility',()=>{
   for(const mutate of [
@@ -79,9 +92,12 @@ test('a clean pivot center retains restrictions from both neighboring dependency
   chart.bars[3].qualityStatus='PASS';chart.bars[3].qualityReasons=[];
   chart.bars[2].timeLineageViolationCount=2;chart.bars[4].timeLineageViolationCount=3;
   const r=buildDecisionLevelWatch({chart,snapshotTime:at});
-  assert.equal(r.nextWatch.id,'SWING_HIGH');
-  assert.equal(r.nextWatch.qualityStatus,'QUALITY_INSUFFICIENT');
-  assert.deepEqual(r.nextWatch.qualityReasons,['TIMESTAMP_LINEAGE_INSUFFICIENT']);
-  assert.equal(r.nextWatch.timeLineageViolationCount,5);
-  assert.equal(r.nextWatch.structureEligibility.inputBarTimes.length,3);
+  const pivot=r.levels.find(row=>row.id==='SWING_HIGH');
+  assert.ok(pivot,'historical swing remains traceable when it is not near current price');
+  assert.equal(r.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+  assert.equal(r.nextWatch,null);assert.equal(r.scenarioWatch,null);
+  assert.equal(pivot.qualityStatus,'QUALITY_INSUFFICIENT');
+  assert.deepEqual(pivot.qualityReasons,['TIMESTAMP_LINEAGE_INSUFFICIENT']);
+  assert.equal(pivot.timeLineageViolationCount,5);
+  assert.equal(pivot.structureEligibility.inputBarTimes.length,3);
 });

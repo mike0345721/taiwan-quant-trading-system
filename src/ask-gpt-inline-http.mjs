@@ -19,6 +19,10 @@ export function createInlineHandler({assistant,port,requireCsrf}){
    if(req.method!=='POST')throw new PlanError('ROUTE_NOT_FOUND');
    const body=await readJson(req,{maxBytes:8192});
    if(!body||Array.isArray(body)||typeof body!=='object')throw new PlanError('ANALYSIS_REQUEST_INVALID');
+   if(url.pathname==='/api/v1/ask-gpt/accounts'){
+    if(Object.keys(body).length)throw new PlanError('ANALYSIS_REQUEST_INVALID');
+    sendJson(res,200,{ok:true,data:assistant.loadAccounts()});return true;
+   }
    if(url.pathname==='/api/v1/ask-gpt/models'){sendJson(res,200,{ok:true,data:await assistant.models(body.account)});return true;}
    if(url.pathname==='/api/v1/ask-gpt/cancel'){sendJson(res,200,{ok:true,data:assistant.cancel(body.requestId,session.id)});return true;}
    if(url.pathname==='/api/v1/ask-gpt/setup'){sendJson(res,200,{ok:true,data:await assistant.openSetup()});return true;}

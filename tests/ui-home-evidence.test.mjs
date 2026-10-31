@@ -1,0 +1,71 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {buildDashboardObservedFlow} from '../src/dashboard-observed-flow.mjs';
+const read=f=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8').replaceAll('\r\n','\n');
+const home=read('public/home-workspace.js'),app=read('public/app.js');
+const sandbox={window:{}};vm.runInNewContext(home,sandbox);const H=sandbox.window.HomeWorkspace;
+const start=app.indexOf('const OBSERVED_FLOW_WINDOW_REGISTRY ='),end=app.indexOf('\n]);',start)+4;
+const registryHost={};vm.runInNewContext(app.slice(start,end)+'\nthis.value=OBSERVED_FLOW_WINDOW_REGISTRY;',registryHost);
+const definitions=JSON.parse(JSON.stringify(registryHost.value));
+const now=Date.parse('2026-10-21T02:00:00Z'),at=new Date(now-1000).toISOString();
+const identity={actualContract:'TEST-TX',tradeDate:'2026-10-21',session:'DAY'};
+function fixture(){const windows=Object.fromEntries(definitions.filter(d=>d.data==='GOVERNED').map(d=>[d.source,{status:'READY',truthState:'LIVE',pressure:{status:'READY',pressureRatio:.25,classifiedCoverage:1,direction:'BUY_SIDE',buyProxyVolume:125,sellProxyVolume:75,unknownVolume:0,totalExecutedVolume:200,netAggressiveFlowProxy:50},response:{status:'READY',displacementPoints:12},pathEfficiency:{status:'READY',value:.4}}]));return{now,chart:{...identity,mode:'LIVE',availableAt:at},flowDefinitions:definitions,flow:{identity:{...identity},sourceState:'LIVE',source:{availableAt:at,validUntil:new Date(now+5000).toISOString()},researchQuality:{status:'READY'},windows},pulse:{schemaVersion:'market-pulse-live-v1',identity:{...identity},generatedAt:at,sourceAvailableAt:at,basis:{state:'LIVE',points:12,spotPrice:27000,spotTradeDate:identity.tradeDate},rvol:{state:'READY',ratio:1.2,sampleDays:20}},leadership:{indexCode:'IX0001',session:'DAY',state:'LIVE',sourceMode:'LIVE_RAW',sourceTradeDate:identity.tradeDate,lastAvailableAt:at,quality:'PASS',indexLeadership:{topAbsolute:[{name:'測試甲',points:10},{name:'測試乙',points:-3}]}}};}
+
+test('six rows come from the original governed registry, not a seventh trading-day invention',()=>{const x=fixture(),before=JSON.stringify(x);const rows=H.flowRows(x);assert.equal(rows.length,6);assert.deepEqual(Array.from(rows,r=>r.key),['1m','5m','15m','30m','1h','4h']);assert.equal(rows[0].net,50);assert.equal(rows[0].buy,125);assert.equal(rows[0].side,'偏買方');assert.equal(JSON.stringify(x),before);});
+test('governed adapter direction is derived from published pressureRatio sign, not an omitted direction field',()=>{
+ const x=fixture(),liveWindow=ratio=>({windowMs:60000,status:'READY',pressure:{status:'READY',pressureRatio:ratio,classifiedCoverage:1,buyProxyVolume:ratio>0?125:75,sellProxyVolume:ratio>0?75:125,unknownVolume:0,totalExecutedVolume:200,netAggressiveFlowProxy:ratio>0?50:-50},response:{status:'READY',displacementPoints:ratio>0?12:-12},pathEfficiency:{status:'READY',value:.4}});
+ const read={truthState:'LIVE',snapshot:{sourceMode:'LIVE',instrument:'TX',actualContract:identity.actualContract,tradeDate:identity.tradeDate,session:identity.session,continuityEpoch:'TX:2',tickSize:1,availableAt:at,primary60s:liveWindow(.25),context300s:liveWindow(-.4),window900s:{truthState:'LIVE',evidence:liveWindow(.25)},window1800s:{truthState:'LIVE',evidence:liveWindow(.25)},window3600s:{truthState:'LIVE',evidence:liveWindow(.25)},window14400s:{truthState:'LIVE',evidence:liveWindow(.25)},quality:{status:'READY',reasons:[]},qualityReasons:[],promotionState:{marketState:'NOT_PROVIDED'},cutoffLedgerOrdinal:1,cutoffRecordHash:'a'.repeat(64),maxUsedLedgerOrdinal:1,maxUsedRecordHash:'a'.repeat(64),sourceLedgerIdentity:'sha256:'+('b'.repeat(64)),semanticContentHash:'c'.repeat(64),methodology:{},limitations:[]},operational:{checkpointIdentity:'d'.repeat(64),validUntil:new Date(now+5000).toISOString(),observedAt:at}};
+ const contract=buildDashboardObservedFlow(read);assert.equal('direction' in contract.windows.primary60s.pressure,false);
+ const rows=H.flowRows({chart:x.chart,flow:contract,flowDefinitions:definitions,now});
+ assert.equal(rows[0].side,'偏買方');assert.equal(rows[1].side,'偏賣方');
+ assert.equal(H.quickFlowView(rows[0],{flow:contract,now}).visualDirection,'buy');
+ const sell=H.quickFlowView(rows[1],{flow:contract,now});assert.equal(sell.visualDirection,'sell');assert.equal(sell.cells,2);
+});
+test('warming long windows do not clear qualified short-window evidence',()=>{const x=fixture();x.flow.windows.window14400s.truthState='WARMING_UP';const r=H.flowRows(x);assert.equal(r[0].ratio,.25);assert.equal(r[5].state,'暖機中');for(const k of ['ratio','net','buy','sell','unknown','response','efficiency'])assert.equal(r[5][k],null,k);});
+test('partial parent preserves lawful child numbers without promoting a direction',()=>{const x=fixture();x.flow.sourceState='WARMING_UP';x.flow.windows.window3600s.truthState='WARMING_UP';const r=H.flowRows(x);assert.equal(r[0].ratio,.25);assert.equal(r[0].side,'不作方向判定');assert.equal(r[4].ratio,null);});
+test('missing one window does not borrow another window or become zero',()=>{const x=fixture();delete x.flow.windows.window1800s;const r=H.flowRows(x);assert.equal(r[3].reason,'WINDOW_MISSING');assert.equal(r[3].net,null);assert.equal(r[2].net,50);});
+test('stale, future, missing timestamps, expiry and source failure all clear current numeric cells',()=>{for(const change of [x=>x.flow.sourceState='STALE',x=>x.flow.sourceState='UNAVAILABLE',x=>x.flow.source.availableAt=new Date(now-120001).toISOString(),x=>x.flow.source.availableAt=new Date(now+5001).toISOString(),x=>delete x.flow.source.availableAt,x=>x.flow.source.validUntil=new Date(now-1).toISOString(),x=>x.flow.source.validUntil='invalid']){const x=fixture();change(x);for(const r of H.flowRows(x)){assert.equal(r.available,false);assert.equal(r.ratio,null);assert.equal(r.net,null);}}});
+test('replay, contract, trade-date and session mismatches never mix current flow with a different chart',()=>{for(const change of [{mode:'REPLAY'},{actualContract:'OTHER'},{tradeDate:'2026-10-20'},{session:'NIGHT'}]){const x=fixture();Object.assign(x.chart,change);assert.equal(H.flowRows(x)[0].available,false);}});
+test('independent current flow remains observable during unrelated dashboard transport failure',()=>{const x=fixture();x.dashboardError='DASHBOARD_DOWN';assert.equal(H.flowRows(x)[0].ratio,.25);});
+test('unknown classification and partial coverage cannot acquire directional labels',()=>{const x=fixture();const p=x.flow.windows.primary60s.pressure;p.classifiedCoverage=.5;p.unknownVolume=200;p.totalExecutedVolume=400;p.status='PARTIAL';const r=H.flowRows(x)[0];assert.equal(r.coverage,.5);assert.equal(r.unknown,200);assert.equal(r.side,'不作方向判定');assert.equal(r.state,'部分受限');});
+test('valid zero and absent values remain different',()=>{const x=fixture(),p=x.flow.windows.primary60s.pressure;p.netAggressiveFlowProxy=0;p.pressureRatio=0;p.direction='BALANCED';x.flow.windows.primary60s.response.displacementPoints=0;const r=H.flowRows(x)[0];assert.equal(r.net,0);assert.equal(r.ratio,0);assert.equal(r.response,0);assert.equal(r.unknown,0);p.unknownVolume=null;assert.equal(H.flowRows(x)[0].unknown,null);});
+test('malformed numbers and unavailable component outputs are not rendered as legal measurements',()=>{const x=fixture(),w=x.flow.windows.primary60s;w.pressure.pressureRatio=2;w.pressure.buyProxyVolume=-1;w.pressure.classifiedCoverage=2;w.response.status='UNAVAILABLE';w.pathEfficiency.value=1.2;const r=H.flowRows(x)[0];for(const k of ['ratio','buy','coverage','response','efficiency'])assert.equal(r[k],null,k);w.pressure.pressureRatio='';assert.equal(H.flowRows(x)[0].ratio,null);});
+test('long gap invalidates path only, not independently qualified pressure and price displacement',()=>{const x=fixture(),w=x.flow.windows.primary60s;w.pathEfficiency={status:'UNAVAILABLE',value:null,unavailableReason:'PATH_GAP'};const r=H.flowRows(x)[0];assert.equal(r.efficiency,null);assert.equal(r.ratio,.25);assert.equal(r.response,12);assert.equal(r.reason,'PATH_GAP');});
+test('unknown market source never creates zero price, sample count, or constituent names',()=>{const x=fixture();x.pulse=null;x.leadership=null;const r=H.marketContext(x);assert.equal(r.spot,null);assert.equal(r.basis,null);assert.equal(r.rvol,null);assert.equal(r.leaders.length,0);});
+test('day pulse and leadership use their own source data, not simulated labels',()=>{const r=H.marketContext(fixture());assert.equal(r.spot,27000);assert.equal(r.basis,12);assert.equal(r.rvol,1.2);assert.equal(r.leaders[0].name,'測試甲');assert.equal(r.leaders[1].points,-3);assert.equal(r.leadershipMode,'日盤即時貢獻');});
+test('night uses closed-spot reference, never labels a LIVE day basis as synchronized',()=>{const x=fixture();x.chart.session=x.pulse.identity.session='NIGHT';assert.equal(H.marketContext(x).basis,null);x.pulse.basis.state='SESSION_CLOSED_REFERENCE';x.leadership.state='SESSION_CLOSED';x.leadership.sourceMode='EOD_CONTEXT';const r=H.marketContext(x);assert.equal(r.basis,12);assert.equal(r.basisLabel,'夜盤對現貨收盤差');assert.equal(r.leadershipMode,'已收盤背景・非即時');});
+test('independent pulse freshness and identity fail closed without clearing other qualified sources',()=>{const x=fixture();x.pulse.sourceAvailableAt=new Date(now-120001).toISOString();const r=H.marketContext(x);assert.equal(r.basis,null);assert.equal(r.rvol,null);assert.equal(r.leaders.length,2);x.pulse.sourceAvailableAt=at;x.pulse.identity.actualContract='OTHER';assert.equal(H.marketContext(x).spot,null);});
+test('stale live leadership, invalid quality and future times cannot retain rankings',()=>{for(const change of [x=>x.leadership.lastAvailableAt=new Date(now-120001).toISOString(),x=>x.leadership.lastAvailableAt=new Date(now+6000).toISOString(),x=>x.leadership.quality='QUALITY_INSUFFICIENT',x=>x.leadership.state='UNAVAILABLE',x=>x.leadership.sourceTradeDate='2026-10-20']){const x=fixture();change(x);assert.equal(H.marketContext(x).leaders.length,0);}});
+test('window and chart controls invoke independent original selectors',()=>{const begin=app.indexOf('function bindObservationControls('),end=app.indexOf('\n}',begin)+2;assert.ok(begin>=0);const listeners={},calls=[];const buttons={chart:{dataset:{chartTimeframe:'15m'},addEventListener:(_e,fn)=>listeners.chart=fn},flow:{dataset:{flowWindow:'1h'},addEventListener:(_e,fn)=>listeners.flow=fn}};const c={document:{querySelectorAll:s=>s.includes('chart')?[buttons.chart]:[buttons.flow]},selectChartTimeframe:k=>calls.push('chart:'+k),selectObservedFlowWindow:k=>calls.push('flow:'+k)};vm.runInNewContext(app.slice(begin,end)+'\nbindObservationControls();',c);listeners.chart();assert.deepEqual(calls,['chart:15m']);listeners.flow();assert.deepEqual(calls,['chart:15m','flow:1h']);});
+test('production adapter receives actual six-window and independently refreshed market sources',()=>{assert.match(app,/flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY/);assert.match(app,/selectedFlowWindow: observedFlowSelectedWindow/);assert.match(app,/pulse: state\.marketPulse, leadership: state\.indexLeadership/);for(const name of ['selectObservedFlowWindow','renderLiveMarketPulse','renderIndexLeadership']){const b=app.indexOf('function '+name+'('),e=app.indexOf('\n}',b)+2;assert.match(app.slice(b,e),/renderHomeWorkspace\(\)/,name);}assert.doesNotMatch(home,/SYNTHETIC|TX-TEST|window\.__homeScenario|\.innerHTML\s*=|\bfetch\s*\(/);});
+
+test('future-dated closed context and negative RVOL are not eligible summary values',()=>{const x=fixture();x.pulse.rvol.ratio=-1;assert.equal(H.marketContext(x).rvol,null);x.leadership.state='SESSION_CLOSED';x.leadership.sourceMode='EOD_CONTEXT';x.leadership.sourceTradeDate='2026-10-22';assert.equal(H.marketContext(x).leaders.length,0);x.leadership.sourceTradeDate='2026-10-20';assert.equal(H.marketContext(x).leaders.length,2);});
+
+
+test('expired flow explains source age and retains only separately labelled historical facts',()=>{
+ const x=fixture();x.flow.sourceState='STALE';x.flow.source.availableAt=new Date(now-65000).toISOString();x.flow.source.validUntil=new Date(now-35000).toISOString();
+ const row=H.flowRows(x)[0];assert.equal(row.available,false);assert.equal(row.qualified,false);
+ assert.equal(row.state,'已過期');assert.equal(row.freshness.ageSeconds,65);assert.equal(row.freshness.overdueSeconds,35);
+ assert.equal(row.ratio,null);assert.equal(row.net,null);assert.equal(row.side,'不作方向判定');
+ assert.equal(row.historical.current,false);assert.match(row.historical.label,/非即時/);
+ assert.equal(row.historical.buy,125);assert.equal(row.historical.total,200);
+ assert.equal('pressureRatio' in row.historical,false);assert.equal('direction' in row.historical,false);
+ const quick=H.quickFlowView(row,{flow:x.flow,now});assert.equal(quick.colorEligible,false);assert.equal(quick.hasRatio,false);
+ assert.match(H.derive(x).flowMessage,/落後 65 秒/);assert.match(H.derive(x).flowMessage,/35 秒/);
+});
+test('historical fallback refuses changed identity, invalid expiry and unavailable source',()=>{
+ for(const change of [x=>x.chart.actualContract='OTHER',x=>x.chart.session='NIGHT',x=>x.chart.mode='REPLAY',x=>x.flow.sourceState='UNAVAILABLE',x=>x.flow.source.validUntil='invalid',x=>x.flow.source.availableAt=new Date(now+6000).toISOString(),x=>x.flow.unavailableReason='LIVE_SNAPSHOT_INVALID']){
+  const x=fixture();x.flow.sourceState='STALE';x.flow.source.availableAt=new Date(now-65000).toISOString();x.flow.source.validUntil=new Date(now-35000).toISOString();change(x);
+  assert.equal(H.flowRows(x)[0].historical,null);
+ }
+});
+test('stale snapshot null volume remains unknown while a real zero is preserved',()=>{
+ const x=fixture();x.flow.sourceState='STALE';x.flow.source.validUntil=new Date(now-1).toISOString();x.flow.source.availableAt=new Date(now-10000).toISOString();
+ x.flow.windows.primary60s.pressure.unknownVolume=null;
+ assert.equal(H.flowRows(x)[0].historical.unknown,null);
+ x.flow.windows.primary60s.pressure.unknownVolume=0;
+ assert.equal(H.flowRows(x)[0].historical.unknown,0);
+ assert.equal(H.flowFreshness(null,now).ageSeconds,null);
+});

@@ -1,3 +1,5 @@
+import { projectGuest,watchSchema,chartSchema,pulseSchema } from '../src/cru21-guest-projection.mjs';
+import { buildMarketPulseLive } from '../src/market-pulse-live.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -86,8 +88,8 @@ function ui(){
 const identity={actualContract:'TXFJ6',tradeDate:'2026-10-05',session:'DAY'};
 function displayWatch(){
   const levels=[['OR_HIGH',120],['SESSION_HIGH',160],['OR_LOW',80]].map(([id,price])=>({id,price,label:id,state:'TESTING',basisReasons:['結構','形成時間','反應','資料品質限制']}));
-  const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
-  return{state:'READY',snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
+  const scenario=(target)=>({target:{...target,sourceId:'SOURCE',availableAt:'2026-10-05T10:29:00Z',qualityStatus:'PASS',why:'合法結構'},rr:{state:'AVAILABLE',ratio:2,riskPoints:12,rewardPoints:24,applicability:{state:'NEAR_REFERENCE_UNCONFIRMED',currentEntryRr:null,confirmationReferencePrice:120,currentPrice:120,gapFromConfirmationPoints:0,entryAuthorized:false}},priceGateState:'NOT_MET',flowConfirmationState:'QUALITY_INSUFFICIENT',confirm:'確認條件',invalidate:'失效條件'});
+  return{state:'READY',decisionFocus:{state:'ACTIVE_REFERENCE',activeNodeId:'OR_HIGH'},snapshotTime:'2026-10-05T10:30:00Z',sourceAvailableAt:'2026-10-05T10:29:30Z',identity,levels,nextWatch:levels[0],scenarioWatch:{directionState:'BIDIRECTIONAL_TEST',node:levels[0],long:scenario(levels[1]),short:scenario(levels[2])}};
 }
 function displayChart(){return{...identity,mode:'LIVE',status:'READY',qualityStatus:'PASS',availableAt:'2026-10-05T10:29:30Z',levels:{vwap:{availability:'AVAILABLE',value:100},openingRangeHigh:{availability:'AVAILABLE',value:120},openingRangeLow:{availability:'AVAILABLE',value:80},previousClose:{availability:'AVAILABLE',value:95}}};}
 test('executed chart render caps all overlays including VWAP and optional references at three',()=>{
@@ -142,8 +144,8 @@ function sourceTimeFixture(){
 test('source-time structural RR needs matching chart and watch contracts and visibly retains raw quality restrictions',()=>{
   const h=ui(),{watch,chart}=sourceTimeFixture(),before=JSON.stringify({watch,chart});
   h.state.txChartPayload=chart;h.context.renderDecisionLevelWatch(watch);h.context.renderTxChartLevels(chart);
-  assert.equal(h.node('dw-long-rr').textContent,'R:R 2.00');
-  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+  assert.equal(h.node('dw-long-rr').textContent,'結構 R:R 2.00 · 尚未確認');
+  assert.equal(h.node('dw-short-rr').textContent,'結構 R:R 2.00 · 尚未確認');
   assert.match(h.node('dw-next-watch-label').textContent,/來源時間結構/);
   assert.match(h.node('dw-next-watch-distance').textContent,/跨時計品質受限／不等於可交易/);
   for(const id of ['dw-next-watch-why','dw-long-target-why','dw-short-target-why','dw-long-evidence','dw-short-evidence','dw-scenario-rr-note']){
@@ -205,7 +207,7 @@ test('an absent side target reuses its specific backend exclusion and wait reaso
   h.state.txChartPayload=displayChart();h.context.renderDecisionLevelWatch(watch);
   assert.equal(h.node('dw-long-target').textContent,'目前無合法目標');assert.equal(h.node('dw-long-rr').textContent,'R:R —');
   assert.match(h.node('dw-long-target-why').textContent,/低優先級背景結構.*等待形成後有效反應/);
-  assert.equal(h.node('dw-short-rr').textContent,'R:R 2.00');
+  assert.equal(h.node('dw-short-rr').textContent,'結構 R:R 2.00 · 尚未確認');
 });
 test('executed drawer keeps complete target evidence and distinguishes candidate from confirmation',()=>{
   const h=ui();h.context.renderDecisionLevelWatch(displayWatch());
@@ -224,11 +226,19 @@ test('bounded GPT context preserves exact backend scenarios and unavailable thre
     const levelWatch=buildDecisionLevelWatch({chart,snapshotTime});
     const snapshot=createDecisionSnapshot({chart,levelWatch,snapshotTime,dataHealth:{items:[],overall:'PARTIAL',unavailableCount:0,staleCount:0}});
     const result=buildInlineContext(snapshot,{now:Date.parse(snapshotTime)+1000});
-    for(const side of ['long','short']){
-      const actual=result.context.levelWatch.scenarioWatch[side],expected=levelWatch.scenarioWatch[side];
-      assert.equal(actual.confirmationThreshold,expected.confirmationThreshold);assert.equal(actual.invalidationThreshold,expected.invalidationThreshold);
-      assert.deepEqual(actual.target,expected.target);assert.deepEqual(actual.rr,expected.rr);
-      assert.equal(actual.rr.state,qualityStatus==='PASS'?'AVAILABLE':'UNAVAILABLE');
+    if(qualityStatus==='PASS'){
+      for(const side of ['long','short']){
+        const actual=result.context.levelWatch.scenarioWatch[side],expected=levelWatch.scenarioWatch[side];
+        assert.equal(actual.confirmationThreshold,expected.confirmationThreshold);
+        assert.equal(actual.invalidationThreshold,expected.invalidationThreshold);
+        assert.deepEqual(actual.target,expected.target);assert.deepEqual(actual.rr,expected.rr);
+        assert.equal(actual.rr.state,'AVAILABLE');
+      }
+    }else{
+      assert.equal(levelWatch.decisionFocus.state,'NO_ACTIVE_REFERENCE');
+      assert.equal(levelWatch.nextWatch,null);
+      assert.equal(levelWatch.scenarioWatch,null);
+      assert.equal(result.context.levelWatch.scenarioWatch,null);
     }
     assert.ok(result.inputBytes<40000);
     for(const [key,value]of Object.entries({formalWeight:0,researchOnly:true,recommendation:false,systemDirectionalSignal:false,executionAuthorized:false,orderRoutesEnabled:false}))assert.equal(result.context[key],value);
@@ -275,4 +285,93 @@ test('a freshly generated AI snapshot keeps stale market source time and cannot 
   assert.equal(result.context.levelWatch.state,'UNAVAILABLE');assert.equal(result.context.levelWatch.reason,'CHART_SOURCE_STALE');
   assert.equal(result.context.levelWatch.sourceAvailableAt,new Date(sourceAvailableAt).toISOString());
   assert.equal(result.context.levelWatch.scenarioWatch,null);assert.equal(result.context.levelWatch.nextWatch,null);
+});
+
+test('P0 production DOM omits distant hypothetical nodes and RR from the current focus and overlays',()=>{
+  const h=ui(), watch=displayWatch(), chart=displayChart();
+  watch.decisionFocus={
+    state:'NO_ACTIVE_REFERENCE',activeNodeId:null,activityRadiusPoints:12,
+    nearestBackground:{id:'OR_HIGH',label:'歷史參考',price:120,distancePoints:360},
+  };
+  h.state.txChartPayload=chart;
+  h.context.renderDecisionLevelWatch(watch);
+  h.context.renderTxChartLevels(chart);
+  assert.match(h.node('dw-next-watch-label').textContent,/沒有合格且接近現價的主要觀察節點/);
+  assert.match(h.node('dw-next-watch-why').textContent,/不是當前測試/);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+  assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+  assert.equal(h.state.txChartLevelLines.some(x=>/雙向|下一關/.test(x.title)),false);
+});
+
+for (const focus of [undefined, null, {}, {state:'UNKNOWN'}, {state:'FUTURE_STATE'}, {state:'NO_ACTIVE_REFERENCE'}]) {
+  test(`missing or unqualified focus hides legacy UI and scenario chart overlays: ${JSON.stringify(focus)}`,()=>{
+    const h=ui(), watch=displayWatch(), chart=displayChart();
+    watch.decisionFocus=focus;
+    h.state.txChartPayload=chart;
+    h.context.renderDecisionLevelWatch(watch);
+    h.context.renderTxChartLevels(chart);
+    assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+    assert.equal(h.node('dw-short-rr').textContent,'R:R —');
+    assert.equal(h.node('dw-long-target').textContent,'目前無合法目標');
+    assert.equal(h.node('dw-next-watch').dataset.state,'UNAVAILABLE');
+    assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+  });
+}
+
+test('applicability gap stays unavailable unless finite and consistent with both prices',()=>{
+  for (const gap of [undefined,null,NaN,Infinity,'0',0,345]) {
+    const h=ui(), watch=displayWatch();
+    Object.assign(watch.scenarioWatch.long.rr.applicability,{
+      currentPrice:47243,confirmationReferencePrice:46897,gapFromConfirmationPoints:gap,
+    });
+    h.context.renderDecisionLevelWatch(watch);
+    const text=h.node('dw-long-evidence').textContent;
+    assert.match(text,/現價進場適用性不可用/);
+    assert.doesNotMatch(text,/相距 .* 點/);
+  }
+  for (const [currentPrice,confirmationReferencePrice,gap] of [[47243,46897,346],[46897,47243,-346],[46897,46897,0]]) {
+    const h=ui(), watch=displayWatch();
+    Object.assign(watch.scenarioWatch.long.rr.applicability,{currentPrice,confirmationReferencePrice,gapFromConfirmationPoints:gap});
+    h.context.renderDecisionLevelWatch(watch);
+    assert.match(h.node('dw-long-evidence').textContent,new RegExp('相距 '+Math.abs(gap).toFixed(2)+' 點'));
+  }
+});
+
+
+test('guest projection executes real scenario renderer: affirmative focus and unknown gap stay fail-closed',()=>{
+ for(const focus of [undefined,null,{}, {state:'UNKNOWN'},{state:'NO_ACTIVE_REFERENCE'}]) {
+  const h=ui(),watch=displayWatch();watch.decisionFocus=focus;
+  h.state.guestReadOnly=true;h.state.csrfToken='';h.state.txChartPayload=projectGuest(displayChart(),chartSchema);
+  h.context.renderDecisionLevelWatch(projectGuest(watch,watchSchema));h.context.renderTxChartLevels(h.state.txChartPayload);
+  assert.equal(h.node('dw-long-rr').textContent,'R:R —');
+  assert.equal(h.state.txChartLevelLines.some(x=>/下一關|雙向/.test(x.title)),false);
+ }
+ for(const gap of [undefined,null,NaN,345,346]) {
+  const h=ui(),watch=displayWatch();Object.assign(watch.scenarioWatch.long.rr.applicability,{currentPrice:47243,confirmationReferencePrice:46897,gapFromConfirmationPoints:gap});
+  h.context.renderDecisionLevelWatch(projectGuest(watch,watchSchema));
+  assert.match(h.node('dw-long-rr').textContent,/2\.00/);
+  if(gap===346)assert.match(h.node('dw-long-evidence').textContent,/346\.00/);
+  else {assert.match(h.node('dw-long-evidence').textContent,/現價進場適用性不可用/);assert.doesNotMatch(h.node('dw-long-evidence').textContent,/相距 .* 點/);}
+ }
+});
+
+test('guest chart projection preserves production interrupted-capture warning instead of calling a bar complete',()=>{
+ const h=ui(),chart=displayChart();chart.bars=[{time:'2026-10-05T10:25:00Z',open:100,high:120,low:90,close:110,volume:10,captureCoverage:{state:'KNOWN_INTERRUPTION'},qualityReasons:['KNOWN_CAPTURE_INTERRUPTION']}];
+ chart.levels.currentDayHigh={availability:'AVAILABLE',value:120,reason:'KNOWN_CAPTURE_INTERRUPTION'};
+ const p=projectGuest(chart,chartSchema);
+ vm.runInContext(app.slice(app.indexOf('function txBarObservationLabel('),app.indexOf('function ensureTxChart(')),h.context);
+ assert.match(h.context.txBarObservationLabel(p,Date.parse(p.bars[0].time)),/行情缺口/);
+ assert.match(h.context.captureCoverageWarning(p.levels.currentDayHigh),/行情缺口/);
+});
+
+test('guest projection keeps actual Pulse producer metadata accepted by production live renderer',()=>{
+ const h=ui(),chart=displayChart();h.state.txChartPayload=chart;
+ h.context.signed=(value,suffix='',n=2)=>Number(value).toFixed(n)+suffix;h.context.tone=()=>{};
+ const start=app.indexOf('function renderLiveMarketPulse('),end=app.indexOf('async function loadLiveMarketPulse(',start);
+ vm.runInContext(app.slice(start,end),h.context);
+ const pulse=buildMarketPulseLive({chart,bridgeLatest:{state:'UNAVAILABLE',data:null},archiveDir:'/not-a-source',now:new Date('2026-10-05T10:30:00Z')});
+ const projected=projectGuest(pulse,pulseSchema);h.context.renderLiveMarketPulse(projected);
+ assert.equal(h.state.marketPulse.generatedAt,pulse.generatedAt);
+ assert.equal(h.state.marketPulse.sourceAvailableAt,pulse.sourceAvailableAt);
+ assert.equal(h.state.marketPulse.identity.actualContract,pulse.identity.actualContract);
 });

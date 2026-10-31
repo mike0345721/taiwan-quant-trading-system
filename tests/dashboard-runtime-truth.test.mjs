@@ -23,7 +23,8 @@ test('runtime truth exposes official MISSED explanation and keeps current schedu
   const runRoot = path.join(root, 'governed-run');
   fs.mkdirSync(path.join(runRoot, 'daily-status'), { recursive: true });
   const manifest = createReadyForLaunchManifest({
-    runId: 'governed-run', runtimeRoot: runRoot,
+    // Manifest metadata is synthetic; fixtures are read from the test's temporary root.
+    runId: 'governed-run', runtimeRoot: 'D:\\test-fixtures\\governed-run',
     secondaryBackupRoot: 'D:\\backup', officialStartTradeDate: '2026-08-11', finalMainCommit: 'a'.repeat(40),
     schedulerTime: '08:25 Asia/Taipei', outcomeSchedulerTime: '14:00 Asia/Taipei',
     selectedAxes: ['direction', 'globalAlignment'], formalWeight: 0, researchOnly: true, executionAuthorized: false,

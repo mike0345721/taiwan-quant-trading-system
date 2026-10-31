@@ -125,3 +125,30 @@ export function validateCru44PreviewVersionTruth(version, expectedHead) {
   if (version?.includedSources?.cru43 !== CRU44_INCLUDED_SOURCES.cru43) reasons.push('CRU43_SOURCE_MISMATCH');
   return Object.freeze({ ready: reasons.length === 0, reasons: Object.freeze(reasons) });
 }
+
+// Versioned description for the accepted CRU-21 candidate only. Historic contracts
+// remain immutable; this is neither source-quality approval nor rollout permission.
+export const CRU21_EVIDENCE_HOME_PRODUCT_SURFACE = Object.freeze({
+  ...CRU44_PRODUCT_SURFACE_CONTRACT,
+  schemaVersion: 'cru21-evidence-home-product-surface-v1',
+  observedFlow: Object.freeze({
+    ...CRU44_PRODUCT_SURFACE_CONTRACT.observedFlow,
+    synchronizedWithChart: false,
+    comparisonScope: 'ROLLING_TIME_WINDOW',
+  }),
+  failClosed: Object.freeze({
+    ...CRU44_PRODUCT_SURFACE_CONTRACT.failClosed,
+    rvol: 'COMPLETED_5M_SOURCE_AND_BASELINE_GATED',
+  }),
+  dataQualificationDeclared: false,
+  deliveryAccepted: false,
+});
+
+export function selectDashboardProductSurface({ previewType, actualBranch } = {}) {
+  if (previewType === 'CRU21_OWNER_PREVIEW'
+      && ['codex/cru21-decision-quality-p0-20261016', 'codex/cru21-ui-auth-acceptance-20261023', 'codex/cru21-emergency-market-calendar-qa-20261023', 'codex/cru21-preopen-integrated-candidate-20261023', 'codex/cru21-flow-freshness-repair-20261027', 'codex/cru21-offline-compatibility-20261027', 'codex/cru21-repository-closeout-20261029'].includes(actualBranch)) {
+    return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;
+  }
+  return previewType === 'CRU44_OWNER_PREVIEW'
+    ? CRU44_PRODUCT_SURFACE_CONTRACT : CRU46_PRODUCT_SURFACE_CONTRACT;
+}

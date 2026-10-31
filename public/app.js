@@ -1,7 +1,7 @@
 'use strict';
 
 const state = {
-  csrfToken: '', snapshot: null, history: [], historyDays: 20,
+  guestReadOnly: false, guestExpiresAt: null, guestExpiryMono: null, csrfToken: '', snapshot: null, history: [], historyDays: 20,
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
   decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
@@ -18,7 +18,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const flowChannel = window.Cru49Flow.createFlowChannel({
   request: signal => api('/api/v1/observed-flow', { signal, cache: 'no-store' }),
-  authenticated: () => Boolean(state.csrfToken),
+  authenticated: () => Boolean(state.csrfToken || state.guestReadOnly),
   chartIdentity: () => state.txChartPayload,
   visible: () => !document.hidden && !$('dashboard-view').classList.contains('hidden'),
   render: value => {
@@ -68,7 +68,7 @@ function normalizeDashboardPageFragments() {
 
 function setDashboardPage(page, { scroll = true } = {}) {
   const valid = new Set(['workspace', 'today', 'market', 'options', 'intraday', 'research', 'quality']);
-  const selected = valid.has(page) ? page : 'workspace';
+  const selected = state.guestReadOnly ? 'workspace' : valid.has(page) ? page : 'workspace';
   document.querySelectorAll('[data-page]').forEach((element) => element.classList.toggle('is-active-page', element.dataset.page === selected));
   document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.classList.toggle('is-selected', button.dataset.dashboardPage === selected));
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -163,14 +163,39 @@ function show(view) {
   }
 }
 
+function expireGuestView() {
+  state.guestReadOnly = false; state.guestExpiryMono = null; state.csrfToken = '';
+  flowChannel.stop(); flowChannel.reset(); dataOperationsChannel.reset();
+  show('loading-view');
+  const host = $('loading-view'); if (host) host.textContent = '唯讀訪客驗收已到期或關閉，請關閉此頁。';
+}
+function enableGuestView(session) {
+  state.guestReadOnly = true; state.guestExpiresAt = session.expiresAt;
+  const banner = document.createElement('p'); banner.id = 'guest-read-only-banner'; banner.setAttribute('role','status');
+  banner.textContent = '臨時唯讀訪客 · 真實資料（不保證新鮮） · 至 ' + session.expiresAt + ' · 本機其他程式亦可能讀取 · AI／帳號／寫入停用';
+  $('dashboard-view').prepend(banner);
+  for (const selector of ['#ai-inline','#dw-journal-form','#dw-lock-snapshot','#dw-copy-chatgpt','#refresh-button','#logout-button','[data-dashboard-page]']) {
+    document.querySelectorAll(selector).forEach(node => { if (node.dataset.dashboardPage === 'workspace') return; node.hidden = true;
+      if ('disabled' in node) node.disabled = true; node.querySelectorAll('button,input,select,textarea').forEach(control => { control.disabled = true; }); });
+  }
+  const wait = Date.parse(session.expiresAt) - Date.now();
+  if (!Number.isFinite(wait) || wait <= 0 || wait > 900000) { expireGuestView(); return false; }
+  state.guestExpiryMono = performance.now() + wait;
+  setTimeout(expireGuestView, wait); return true;
+}
 async function api(path, options = {}) {
+  if (state.guestReadOnly && (Date.now() >= Date.parse(state.guestExpiresAt) || performance.now() >= state.guestExpiryMono)) { expireGuestView(); throw Error('GUEST_EXPIRED'); }
+  if (state.guestReadOnly && options.method && options.method !== 'GET') throw Error('GUEST_READ_ONLY');
   const requestSession = state.csrfToken;
   const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   if (options.method && options.method !== 'GET' && state.csrfToken) headers['X-CSRF-Token'] = state.csrfToken;
-  const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+  let response;
+  try { response = await fetch(path, { credentials: 'same-origin', ...options, headers }); }
+  catch (error) { if (state.guestReadOnly) expireGuestView(); throw error; }
   let payload = null;
   try { payload = await response.json(); } catch { payload = { ok: false, error: 'INVALID_RESPONSE' }; }
+  if (state.guestReadOnly && response.status === 410) expireGuestView();
   if (response.status === 401 && requestSession === state.csrfToken) {
     state.csrfToken = '';
     show('login-view');
@@ -2571,6 +2596,9 @@ const DW_REASON_LABELS = Object.freeze({
   DERIVATION_FAILURE: '衍生計算失敗',
   QUALITY_INSUFFICIENT: '資料品質不足',
   SESSION_TERMINATED: '行情連線已中斷',
+  MARKET_CLOSED_EXPECTED: '交易所休市，未收到新行情屬正常（不代表行情連線已驗證正常）',
+  EXCHANGE_EMERGENCY_CLOSURE: '交易所公告臨時休市',
+  SCHEDULED_MARKET_HOLIDAY: '交易所例定休市',
   BRIDGE_NOT_RUNNING: '即時行情服務未執行',
   BRIDGE_HEALTH_UNAVAILABLE: '即時行情健康狀態無法取得',
   SUBSCRIPTION_RESTORE_FAILED: '必要行情訂閱尚未完整恢復',
@@ -2806,10 +2834,11 @@ function renderLiveMarketPulse(pulse) {
     terminalWrite(id, basisValue, { reason: basis.reason || 'BASIS_UNAVAILABLE', title: basisTitle });
     tone(id, basisReady ? points : 0);
   }
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadLiveMarketPulse() {
-  if (state.marketPulseLoading || !state.csrfToken) return;
+  if (state.marketPulseLoading || !(state.csrfToken || state.guestReadOnly)) return;
   state.marketPulseLoading = true;
   renderLiveMarketPulse(state.marketPulse);
   try {
@@ -3349,6 +3378,7 @@ function renderObservedFlow(flow) {
   terminalWrite('dw-observed-flow-promotion', '尚未通過正式方向驗證', { reason: 'FORMAL_DIRECTION_NOT_PROMOTED' });
   renderObservedFlowDetail(value);
   window.TraderTerminalShell?.refreshDrawer(traderTerminalRoot, '[data-terminal-card="observed-flow"]');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function terminalSetTrust(cardKey, evidence) {
@@ -3413,7 +3443,8 @@ function terminalWrite(id, value, { reason = 'SOURCE_UNAVAILABLE', title = null 
   const node = $(id);
   if (!node) return;
   const available = value != null && value !== '' && value !== '—' && value !== 'UNAVAILABLE';
-  node.textContent = available ? String(value) : terminalUnavailable(reason);
+  const homeMetric = $('decision-workspace')?.dataset?.homeVersion === '1' && ['tt-top-price', 'tt-top-volume', 'tt-top-change', 'dw-rvol-state', 'dw-vwap-state', 'dw-session-levels'].includes(id);
+  node.textContent = available ? String(value) : homeMetric ? '—' : terminalUnavailable(reason);
   node.classList.toggle('is-unavailable', !available);
   const context = title || (available ? String(value) : reason);
   node.title = context;
@@ -3503,6 +3534,20 @@ function renderGlobalTiles(evidence) {
   }
 }
 
+function renderHomeWorkspace() {
+  if (!globalThis.HomeWorkspace || !$('decision-workspace')?.dataset?.homeVersion) return null;
+  const watch = state.levelWatch, chart = state.txChartPayload;
+  const matches = Boolean(watch && chart && levelWatchIsFresh(watch) && levelWatchMatchesChart(watch, chart));
+  return globalThis.HomeWorkspace.render($('decision-workspace'), {
+    chart, watch, flow: lastObservedFlowValue, marketOperating: state.decisionWorkspace?.marketOperating,
+    flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY, selectedFlowWindow: observedFlowSelectedWindow,
+    pulse: state.marketPulse, leadership: state.indexLeadership,
+    dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
+    focusAllowed: matches && watch?.state === 'READY' && Boolean(watch?.nextWatch),
+    rendered: state.txChartBarCount > 0,
+  });
+}
+
 function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace?.globalStatus?.dataHealth) {
   const sourceTime = Date.parse(chart?.availableAt || '');
   const sourceTimeKnown = Number.isFinite(sourceTime);
@@ -3518,6 +3563,7 @@ function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace
   if (topTrust) topTrust.className = `dw-status-pill ${warning ? 'is-unavailable' : healthTone(quality || 'UNAVAILABLE')}`;
   const mode = `${chart?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${chart?.timeframe || state.txChartTimeframe} · READ ONLY`;
   dwText('dw-chart-mode', warning ? `${warning} · ${sourceLabel} · ${mode}` : mode);
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function renderTerminalShell(workspace, chart = state.txChartPayload) {
@@ -3707,7 +3753,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
     button.disabled = !copyContextReady;
     button.setAttribute('aria-disabled', String(!copyContextReady));
   }
-  terminalWrite('tt-gpt-disabled-state', copyContextReady ? 'COPY SNAPSHOT · READY' : null, {
+  terminalWrite('tt-gpt-disabled-state', copyContextReady ? '複製快照已就緒（非 AI 連線狀態）' : null, {
     reason: 'COPY_CONTEXT_UNAVAILABLE',
     title: copyContextReady
       ? 'Manual question + immutable snapshot copy is available; no direct GPT API is connected.'
@@ -3757,6 +3803,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   }
   const riskSeriesLabel = $('tt-risk-series')?.previousElementSibling;
   if (riskSeriesLabel) riskSeriesLabel.textContent = 'Risk Trend · RESEARCH_PENDING';
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
@@ -3765,6 +3812,14 @@ function renderTerminalDashboardFailure(reason = 'DASHBOARD_API_UNAVAILABLE') {
   const unavailable = terminalUnavailable(reason);
   root.setAttribute('data-dashboard-load-state', 'UNAVAILABLE');
   root.setAttribute('aria-busy', 'false');
+  if (root.dataset.homeVersion === '1' && globalThis.HomeWorkspace) {
+    state.homeDashboardError = reason;
+    for (const id of ['dw-copy-gpt-prompt', 'dw-copy-chatgpt']) {
+      const button = $(id); if (button) { button.disabled = true; button.setAttribute('aria-disabled', 'true'); }
+    }
+    renderHomeWorkspace();
+    return; // Never replace every label, number and account summary with one raw error.
+  }
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -3885,6 +3940,7 @@ function renderIndexLeadership(leadership) {
   if (trendLeadership) trendLeadership.textContent = value.state === 'LIVE'
     ? 'LIVE · DESCRIPTIVE'
     : value.runtimeActivationState === 'ENABLED' ? '等待日盤資料' : '來源尚未啟用';
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadIndexLeadership() {
@@ -4191,7 +4247,11 @@ function renderNextWatchBasis(rows = []) {
 
 function scenarioRrText(scenario) {
   const ratio = finiteNumber(scenario?.rr?.ratio);
-  return scenario?.rr?.state === 'AVAILABLE' && ratio != null ? `R:R ${fmt(ratio, 2)}` : 'R:R —';
+  if (scenario?.rr?.state !== 'AVAILABLE' || ratio == null) return 'R:R —';
+  if (!scenario.rr.applicability) return 'R:R — · 現價適用性未驗證'; // Old or mixed-version snapshots fail closed.
+  return scenario.rr.applicability?.state === 'NEAR_REFERENCE_UNCONFIRMED'
+    ? '結構 R:R ' + fmt(ratio, 2) + ' · 尚未確認'
+    : '現價 R:R — · 條件式 ' + fmt(ratio, 2) + '（非現價）';
 }
 
 function scenarioTargetText(scenario) {
@@ -4217,9 +4277,17 @@ function scenarioEvidenceText(scenario) {
   const price = ({ MET: '價格越過確認邊界，仍待維持', NOT_MET: '價格尚未達確認邊界', UNAVAILABLE: '價格確認條件不可用' })[scenario?.priceGateState] || '價格確認條件不可用';
   const flow = ({ ALIGNED: '成交壓力與價格反應同向', CONTRARY: '成交壓力與價格反應偏向另一側', MIXED: '成交壓力與價格反應尚未一致', QUALITY_INSUFFICIENT: '成交證據品質不足', UNAVAILABLE: '成交確認不可用' })[scenario?.flowConfirmationState] || '成交確認不可用';
   const rr = scenario?.rr;
-  const geometry = rr?.state === 'AVAILABLE' ? `結構風險 ${fmt(rr.riskPoints, 2)} 點、報酬 ${fmt(rr.rewardPoints, 2)} 點。`
+  const geometry = rr?.state === 'AVAILABLE' ? '結構風險 ' + fmt(rr.riskPoints, 2) + ' 點、報酬 ' + fmt(rr.rewardPoints, 2) + ' 點。'
     : rr?.reason === 'THRESHOLDS_UNAVAILABLE' ? 'R:R 不可用：確認／失效門檻缺乏合格資料。' : 'R:R 不可用：缺少合法方向目標。';
-  return `${price}；${flow}。${geometry}仍是條件情境，未形成交易訊號。`;
+  const a = rr?.applicability;
+  const validGap = a && [a.currentPrice, a.confirmationReferencePrice, a.gapFromConfirmationPoints]
+    .every(value => typeof value === 'number' && Number.isFinite(value))
+    && Math.abs(a.gapFromConfirmationPoints - (a.currentPrice - a.confirmationReferencePrice)) < 1e-8;
+  const applicability = rr?.state === 'AVAILABLE' && validGap
+    ? '現價 ' + fmt(a.currentPrice, 2) + '、條件式確認門檻 ' + fmt(a.confirmationReferencePrice, 2)
+      + '，相距 ' + fmt(Math.abs(a.gapFromConfirmationPoints), 2) + ' 點；現價可執行 R:R 不可用。'
+    : '現價進場適用性不可用。';
+  return price + '；' + flow + '。' + geometry + applicability + '仍是條件情境，未形成交易訊號。';
 }
 
 function renderScenarioWatch(scenarioWatch, { restrictionText = '', unavailableText = '' } = {}) {
@@ -4239,7 +4307,7 @@ function renderScenarioWatch(scenarioWatch, { restrictionText = '', unavailableT
   dwText('dw-short-evidence', [restrictionText, unavailableText || scenarioEvidenceText(short)].filter(Boolean).join(' '));
   const available = [long, short].some((row) => row?.rr?.state === 'AVAILABLE');
   dwText('dw-scenario-rr-note', [restrictionText, available
-    ? '條件式結構 R:R：確認門檻→合法目標 ÷ 確認門檻→失效門檻；不是勝率、EV、進場或停損指令。'
+    ? '條件式結構 R:R 以確認門檻而非當前價格起算；不是現價可執行 R:R、勝率、EV、進場或停損指令。'
     : '目前缺少合法方向目標或結構條件，因此不計算 R:R；不補造價位。'].filter(Boolean).join(' '));
 }
 
@@ -4265,7 +4333,8 @@ function renderDecisionLevelWatch(levelWatch) {
   const needsSourceTimeValidation = Boolean(levelWatch?.structureEligibility && levelWatch.currentPriceQualityStatus !== 'PASS');
   const matchesChart = levelWatchIsFresh(levelWatch) && (state.txChartPayload
     ? levelWatchMatchesChart(levelWatch, state.txChartPayload) : !needsSourceTimeValidation);
-  const next = levelWatch?.state === 'READY' && matchesChart ? levelWatch.nextWatch : null;
+  const next = levelWatch?.state === 'READY' && matchesChart
+    && levelWatch?.decisionFocus?.state === 'ACTIVE_REFERENCE' ? levelWatch.nextWatch : null;
   if (!host || !next) {
     if (host) host.dataset.state = 'UNAVAILABLE';
     const expired = levelWatch?.reason === 'CHART_SOURCE_STALE'
@@ -4274,14 +4343,26 @@ function renderDecisionLevelWatch(levelWatch) {
       .every(key => levelWatch?.identity?.[key] && levelWatch.identity[key] === state.txChartPayload[key]);
     const explanation = levelWatch?.state === 'UNAVAILABLE' && !expired && diagnosticIdentityMatches && levelWatch?.unavailabilityDiagnostics
       ? levelWatchUnavailableExplanation(levelWatch) : null;
-    dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得' : '等待合法關鍵價位');
+    const noFocus = !expired && levelWatch?.decisionFocus?.state === 'NO_ACTIVE_REFERENCE';
+    const f = levelWatch?.decisionFocus;
+    const bg = f?.nearestBackground;
+    const message = noFocus ? '目前沒有接近現價且品質合格的主要觀察節點。'
+      + (bg ? ' 最近合法背景參考 ' + bg.label + ' ' + fmt(bg.price, 2)
+        + '，相距 ' + fmt(bg.distancePoints, 1) + ' 點；不是當前測試。' : '')
+      : '';
+    dwText('dw-next-watch-label', expired ? '觀察資料非最新，等待重新取得'
+      : noFocus ? '目前沒有合格且接近現價的主要觀察節點' : '等待合法關鍵價位');
     dwText('dw-next-watch-distance', '—');
-    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。' : explanation?.text || '目前沒有可用價位。');
-    renderNextWatchBasis(explanation?.rows || ['等待合法價位與證據。']);
-    renderScenarioWatch(null, { unavailableText: explanation?.text || '' });
+    dwText('dw-next-watch-why', expired ? '行情或觀察資料已過期／時間不可驗證，因此暫停目前情境判讀。'
+      : message || explanation?.text || '目前沒有可用價位。');
+    renderNextWatchBasis(noFocus
+      ? [message, '合法但遠端的價位只能作背景，不建立情境或 R:R。']
+      : explanation?.rows || ['等待合法價位與證據。']);
+    renderScenarioWatch(null, { unavailableText: message || explanation?.text || '' });
     dwText('dw-next-watch-response', explanation?.summary || '等待合法價位。');
     dwText('dw-next-watch-confirm', '—');
     dwText('dw-next-watch-invalidate', '—');
+    if (globalThis.HomeWorkspace) renderHomeWorkspace();
     return;
   }
   const scenario = levelWatch?.scenarioWatch || null;
@@ -4301,10 +4382,11 @@ function renderDecisionLevelWatch(levelWatch) {
   dwText('dw-next-watch-response', next.watchFor || next.expectedResponse || '觀察價格在此處的實際反應。');
   dwText('dw-next-watch-confirm', next.confirm || '等待更多價格反應。');
   dwText('dw-next-watch-invalidate', next.invalidate || '等待更多價格反應。');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadDecisionLevelWatch() {
-  if (state.levelWatchLoading || !state.csrfToken || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
+  if (state.levelWatchLoading || !(state.csrfToken || state.guestReadOnly) || document.hidden || $('dashboard-view')?.classList.contains('hidden')) return;
   state.levelWatchLoading = true;
   try {
     // Revalidate cached evidence while a new response is in flight.
@@ -4378,7 +4460,8 @@ function renderTxChartLevels(chart) {
 
   clearTxChartLevels();
   const candidate = state.levelWatch || state.decisionWorkspace?.levelWatch;
-  const watch = levelWatchMatchesChart(candidate, chart) ? candidate : null;
+  const watch = levelWatchMatchesChart(candidate, chart)
+    && candidate?.decisionFocus?.state === 'ACTIVE_REFERENCE' ? candidate : null;
   const scenario = watch?.scenarioWatch || null;
   const longTargetId = scenario?.long?.target?.id || null;
   const shortTargetId = scenario?.short?.target?.id || null;
@@ -4720,6 +4803,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   $('dw-chart-status').className = `dw-status-pill ${visibleRenderReady && payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
   $('dw-chart-empty').classList.toggle('hidden', visibleRenderReady);
   dwText('dw-chart-empty-reason', dwHumanize(visibleFailureReason));
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
@@ -4735,9 +4819,12 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   try {
     const payload = await api(`/api/v1/tx-chart?${params}`);
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    state.homeChartError = null;
     renderTxDecisionChart(payload.data, { fit });
   } catch (error) {
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    state.homeChartError = error?.message || 'CHART_REFRESH_FAILED';
+    if (globalThis.HomeWorkspace) renderHomeWorkspace();
     throw error;
   } finally {
     state.txChartLoading = false;
@@ -4763,6 +4850,7 @@ async function reportCru46BrowserRuntimeProof() {
   const flow = lastObservedFlowValue;
   const visible = (element) => Boolean(element && element.offsetParent !== null && element.getClientRects().length);
   const chartStatus = $('dw-chart-status');
+  const homeView = globalThis.HomeWorkspace ? renderHomeWorkspace() : null;
   const flow1m = $('dw-flow-tab-1m');
   const flow5m = $('dw-flow-tab-5m');
   const flow15m = $('dw-flow-tab-15m');
@@ -4776,7 +4864,9 @@ async function reportCru46BrowserRuntimeProof() {
     chartHeight: Math.round(rect?.height || 0),
     candleCount: state.txChartBarCount,
     volumeCount: state.txChartVolumeCount,
-    chartStatusVisible: visible(chartStatus) && chartStatus?.textContent === state.txChartPayload?.status,
+    chartStatusVisible: visible(chartStatus) && (homeView
+      ? homeView.chartCurrent && chartStatus?.dataset.sourceStatus === state.txChartPayload?.status && chartStatus?.textContent === homeView.chartLabel
+      : chartStatus?.textContent === state.txChartPayload?.status),
     observedFlow1m: Boolean(flow?.windows?.primary60s && flow.windows.primary60s.status !== 'UNAVAILABLE' && visible(flow1m)),
     observedFlow5m: Boolean(flow?.windows?.context300s && flow.windows.context300s.status !== 'UNAVAILABLE' && visible(flow5m)),
     observedFlow15m: Boolean(flow?.windows?.window900s
@@ -4811,7 +4901,12 @@ function renderDecisionWorkspace(workspace) {
   const forward = workspace?.forwardShadowStatus || {};
   dwText('dw-global-mode', dwHumanize(global.mode));
   dwText('dw-global-contract', global.actualContract ? `契約 ${global.actualContract}` : '契約目前無法取得');
-  dwText('dw-global-session', global.session ? `時段 ${global.session}` : '時段目前無法取得');
+  const operating = workspace?.marketOperating;
+  const closed = operating?.state === 'MARKET_CLOSED';
+  dwText('dw-global-session', closed
+    ? `休市 · ${dwHumanize(operating.reasonCode)}（歷史資料保留）`
+    : operating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
+    : global.session ? `時段 ${global.session}` : '時段目前無法取得');
   dwText('dw-global-trade-date', global.tradeDate ? `交易日 ${global.tradeDate}` : '交易日目前無法取得');
   dwText('dw-global-time', global.asOf ? `截至 ${timeLabel(global.asOf)}` : '截至時間目前無法取得');
   dwText('dw-global-posture', decision.posture === 'MANUAL_REVIEW_ONLY' ? '僅供人工判讀' : '系統不提供交易方向');
@@ -4888,9 +4983,13 @@ function renderDecisionWorkspace(workspace) {
   if (healthTarget) healthTarget.replaceChildren(...rows);
 }
 
-function renderJournalHistory(rows) {
+function renderJournalHistory(rows, outcomes = []) {
   const target = $('dw-journal-history');
   if (!target) return;
+  const dirty = target._journalDirty || (target._journalDirty = new Set());
+  const pending = target._journalPending || (target._journalPending = new Set());
+  // Background reads must not discard personal drafts or unlock an active append.
+  if (dirty.size || pending.size) return;
   if (!rows?.length) {
     const empty = document.createElement('p'); empty.textContent = '尚無人工決策紀錄。'; target.replaceChildren(empty); return;
   }
@@ -4899,19 +4998,149 @@ function renderJournalHistory(rows) {
     const time = document.createElement('span'); time.textContent = timeLabel(entry.recordedAt);
     const intent = document.createElement('strong'); intent.textContent = entry.intent;
     const reason = document.createElement('span'); reason.textContent = entry.reason || entry.setup || '未填寫說明';
-    const hash = document.createElement('code'); hash.textContent = `${entry.snapshotHash.slice(0, 10)}…`;
-    row.append(time, intent, reason, hash); return row;
+    const hash = document.createElement('code'); hash.textContent = typeof entry.snapshotHash === 'string' ? `${entry.snapshotHash.slice(0, 10)}…` : '快照雜湊不可用';
+    const details = document.createElement('details'); details.className = 'dw-journal-snapshot';
+    const summary = document.createElement('summary'); summary.textContent = '查看當時快照（摘要）';
+    const notice = document.createElement('p'); notice.textContent = '歷史快照・非即時・唯讀，不代表結果回顧或交易建議。';
+    details.append(summary, notice);
+    const valueText = value => value == null || value === '' || !['string', 'number', 'boolean'].includes(typeof value)
+      || (typeof value === 'number' && !Number.isFinite(value)) ? '不可用' : String(value);
+    const line = (label, value) => {
+      const text = document.createElement('p'); text.textContent = `${label}：${valueText(value)}`; details.append(text);
+    };
+    line('快照雜湊', entry.snapshotHash);
+    const snapshot = entry.snapshot;
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      const unavailable = document.createElement('p'); unavailable.textContent = '原始快照不可用；不以目前盤況代替。'; details.append(unavailable);
+    } else {
+      line('快照時間', snapshot.snapshotTime);
+      line('契約', snapshot.contract); line('盤別', snapshot.session); line('交易日', snapshot.tradeDate);
+      line('價格', snapshot.price?.value); line('價格來源時間', snapshot.price?.availableAt);
+      line('價格狀態', snapshot.price?.availability); line('價格限制', snapshot.price?.reason);
+      line('OR 高', snapshot.OR?.value?.high); line('OR 低', snapshot.OR?.value?.low);
+      line('OR 狀態', snapshot.OR?.availability); line('OR 限制', snapshot.OR?.reason);
+      line('VWAP', snapshot.VWAP?.value); line('VWAP 狀態', snapshot.VWAP?.availability); line('VWAP 限制', snapshot.VWAP?.reason);
+      line('Market State 方向', snapshot.marketState?.direction); line('Market State 限制', snapshot.marketState?.reason);
+      line('Flow 來源狀態', snapshot.observedFlow?.sourceState);
+      line('Flow 來源時間', snapshot.observedFlow?.source?.availableAt);
+      for (const [label, key] of [['1分', 'primary60s'], ['5分', 'context300s']]) {
+        const window = snapshot.observedFlow?.windows?.[key];
+        line(`${label} Flow 比率`, window?.pressure?.pressureRatio);
+        line(`${label} 分類覆蓋`, window?.pressure?.classifiedCoverage);
+        line(`${label} 價格反應`, window?.response?.displacementPoints);
+        line(`${label} Flow 狀態`, window?.status);
+      }
+      line('資料品質', snapshot.dataHealth?.overall);
+      for (const item of (Array.isArray(snapshot.dataHealth?.items) ? snapshot.dataHealth.items : [])) {
+        line(`來源 ${valueText(item?.sourceId)}`, [valueText(item?.freshnessState), valueText(item?.quality), valueText(item?.reason)].join(' · '));
+      }
+    }
+    const confidenceLabels = { LOW: '低', MEDIUM: '中', HIGH: '高' };
+    const executionLabels = { UNKNOWN: '未知', EXECUTED: '已執行', NOT_EXECUTED: '未執行' };
+    const thesisLabels = { UNKNOWN: '未知', FOLLOWED: '已遵守', VIOLATED: '未遵守', NOT_APPLICABLE: '不適用' };
+    const personal = document.createElement('p'); personal.className = 'dw-journal-personal';
+    personal.textContent = `原始自評信心：${confidenceLabels[entry.confidence] || '未填'}（非勝率） · 原始是否執行：${executionLabels[entry.executionStatus] || '未知'}`;
+    const result = document.createElement('details'); result.className = 'dw-journal-outcomes';
+    const resultTitle = document.createElement('summary'); resultTitle.textContent = '人工結果與執行紀錄';
+    const resultNotice = document.createElement('p'); resultNotice.textContent = '僅人工追加，不修改原決策或快照；不計算績效、MAE/MFE或交易建議。只列近期20筆決策相關的最新200筆結果；未列出不代表從未記錄。';
+    const history = document.createElement('div');
+    const relatedResults = items => (Array.isArray(items) ? items : []).filter(item => item.decisionRecordHash === entry.recordHash && item.snapshotHash === entry.snapshotHash)
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+    const linked = relatedResults(outcomes);
+    const resultText = item => {
+      const text = document.createElement('p');
+      text.textContent = `${timeLabel(item.recordedAt)} · 是否執行：${executionLabels[item.executionStatus] || '未知'} · 原判斷／條件是否遵守：${thesisLabels[item.thesisStatus] || '未知'} · ${item.outcomeNote || '未填結果說明'}`;
+      return text;
+    };
+    if (linked.length) history.append(...linked.map(resultText));
+    else { const empty = document.createElement('p'); empty.textContent = '本次讀取未列出人工結果；不代表從未記錄，請勿據此重送。'; history.append(empty); }
+    result.append(resultTitle, resultNotice, history);
+    if (/^[a-f0-9]{64}$/.test(entry.recordHash || '')) {
+      const form = document.createElement('form'); form.className = 'dw-journal-outcome-form';
+      const select = (name, title, labels) => {
+        const label = document.createElement('label'); label.textContent = title;
+        const field = document.createElement('select'); field.name = name;
+        for (const [value, text] of Object.entries(labels)) {
+          const option = document.createElement('option'); option.value = value; option.textContent = text; field.append(option);
+        }
+        field.value = 'UNKNOWN'; label.append(field); form.append(label); return field;
+      };
+      const execution = select('executionStatus', '是否執行（自行登錄）', executionLabels);
+      const thesis = select('thesisStatus', '原判斷／條件是否遵守（自行登錄）', thesisLabels);
+      const noteLabel = document.createElement('label'); noteLabel.className = 'dw-journal-outcome-note'; noteLabel.textContent = '結果說明（自行觀察，不計算損益）';
+      const note = document.createElement('textarea'); note.name = 'outcomeNote'; note.maxLength = 1000; note.rows = 3;
+      noteLabel.append(note); form.append(noteLabel);
+      const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = '追加人工結果';
+      const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'secondary'; clear.textContent = '清除未送出內容';
+      const recover = document.createElement('button'); recover.type = 'button'; recover.className = 'secondary'; recover.name = 'recoverOutcome'; recover.textContent = '查回已存結果';
+      const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+      const markDirty = () => {
+        if (execution.value !== 'UNKNOWN' || thesis.value !== 'UNKNOWN' || note.value) dirty.add(entry.recordHash);
+        else dirty.delete(entry.recordHash);
+      };
+      execution.addEventListener('change', markDirty); thesis.addEventListener('change', markDirty); note.addEventListener('input', markDirty);
+      clear.addEventListener('click', () => {
+        if (pending.has(entry.recordHash)) return;
+        note.value = ''; execution.value = 'UNKNOWN'; thesis.value = 'UNKNOWN'; markDirty(); feedback.textContent = '未送出內容已清除；原紀錄保持不變。';
+      });
+      recover.addEventListener('click', async () => {
+        if (pending.has(entry.recordHash) || recover.disabled) return;
+        recover.disabled = true; submit.disabled = true; clear.disabled = true; pending.add(entry.recordHash);
+        try {
+          const payload = await api('/api/v1/decision-journal?limit=20');
+          if (!payload.data?.some(item => item.recordHash === entry.recordHash)) throw new Error('DECISION_NOT_IN_RECENT_HISTORY');
+          target._journalLoadTicket = (target._journalLoadTicket || 0) + 1;
+          const saved = relatedResults(payload.outcomes);
+          linked.splice(0, linked.length, ...saved);
+          history.replaceChildren(...saved.map(resultText));
+          if (!saved.length) { const empty = document.createElement('p'); empty.textContent = '本次查回未列出結果，不表示從未記錄；保留未送出內容。'; history.append(empty); }
+          feedback.textContent = '已查回本次可見結果（最多200筆），可能不完整；請核對時間與內容，未自動重送或清除草稿。';
+        } catch (error) { feedback.textContent = `結果尚無法確認，保留草稿且不重送。原因：${error.message}`; }
+        finally { recover.disabled = false; submit.disabled = false; clear.disabled = false; pending.delete(entry.recordHash); }
+      });
+      form.append(submit, clear, recover, feedback);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (submit.disabled || pending.has(entry.recordHash)) return;
+        markDirty();
+        if (execution.value === 'UNKNOWN' && thesis.value === 'UNKNOWN' && !note.value.trim()) {
+          feedback.textContent = '請選擇一項結果或填寫說明；不會把未知補成結果。'; return;
+        }
+        submit.disabled = true; clear.disabled = true; recover.disabled = true; execution.disabled = true; thesis.disabled = true; note.disabled = true; pending.add(entry.recordHash);
+        try {
+          const payload = await api('/api/v1/decision-journal/outcomes', { method: 'POST', body: JSON.stringify({
+            decisionRecordHash: entry.recordHash, executionStatus: execution.value, thesisStatus: thesis.value, outcomeNote: note.value,
+          }) });
+          const saved = payload.data;
+          if (!saved || saved.decisionRecordHash !== entry.recordHash || saved.snapshotHash !== entry.snapshotHash) throw new Error('OUTCOME_RESPONSE_IDENTITY_MISMATCH');
+          // Reject any history GET that began before this append completed.
+          target._journalLoadTicket = (target._journalLoadTicket || 0) + 1;
+          if (!linked.length) history.replaceChildren();
+          linked.push(saved); history.append(resultText(saved));
+          note.value = ''; execution.value = 'UNKNOWN'; thesis.value = 'UNKNOWN'; markDirty();
+          feedback.textContent = '已追加人工結果；原決策及快照保持不變。';
+        } catch (error) { feedback.textContent = `尚未確認追加結果，沒有自動重送；請先查回已存結果再決定。原決策保持不變。原因：${error.message}`; }
+        finally { submit.disabled = false; clear.disabled = false; recover.disabled = false; execution.disabled = false; thesis.disabled = false; note.disabled = false; pending.delete(entry.recordHash); }
+      });
+      result.append(form);
+    } else {
+      const unavailable = document.createElement('p'); unavailable.textContent = '此筆紀錄識別不可用，無法追加結果。'; result.append(unavailable);
+    }
+    row.append(time, intent, reason, hash, personal, details, result); return row;
   });
   target.replaceChildren(...nodes);
 }
 
 async function loadDecisionJournal() {
+  const target = $('dw-journal-history');
+  const ticket = (target?._journalLoadTicket || 0) + 1;
+  if (target) target._journalLoadTicket = ticket;
   try {
     const payload = await api('/api/v1/decision-journal?limit=20');
-    renderJournalHistory(payload.data || []);
+    if (target && target._journalLoadTicket !== ticket) return;
+    renderJournalHistory(payload.data || [], payload.outcomes || []);
   } catch (error) {
-    const target = $('dw-journal-history');
-    if (target) target.textContent = `Journal UNAVAILABLE · ${error.message}`;
+    if (target && target._journalLoadTicket === ticket && !target._journalDirty?.size && !target._journalPending?.size) target.textContent = `Journal UNAVAILABLE · ${error.message}`;
   }
 }
 
@@ -4934,21 +5163,24 @@ async function loadDashboard() {
   const terminalRoot = $('decision-workspace');
   terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
   terminalRoot?.setAttribute('aria-busy', 'true');
-  void Promise.allSettled([loadHistory(), loadBacktest()]);
+  if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
   const payload = await api('/api/v1/dashboard');
-  if (!state.csrfToken || !flowChannel.isCurrentSession(flowTicket)) return;
+  if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
+  state.homeDashboardError = null;
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
-  await loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+  await loadTxDecisionChart({ fit: true }).catch((error) => {
+    if (!globalThis.HomeWorkspace || !state.txChartPayload) renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} });
+    else renderHomeWorkspace();
+  });
   await loadLiveMarketPulse().catch(() => {});
-  await reportCru46BrowserRuntimeProof();
-  await loadDecisionJournal();
-  renderPrelive(payload.service?.prelive);
-  if (payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
+  if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
+  if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
   terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
@@ -4957,6 +5189,7 @@ function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
   box.className = 'alert bad';
   box.dataset.dashboardLoadError = 'true';
   box.textContent = `Dashboard data unavailable · ${context} · ${message}`;
+  if ($('decision-workspace')?.dataset?.homeVersion === '1') box.hidden = true; // Same error is visible in the home status + technical details.
   $('alert-area')?.replaceChildren(box);
   renderTerminalDashboardFailure(`${context}:${message}`);
   console.error(`[${context}] ${message}`);
@@ -4969,6 +5202,7 @@ document.querySelectorAll('#v2-range-controls button').forEach((button) => butto
 }));
 
 document.querySelectorAll('[data-dashboard-page]').forEach((button) => button.addEventListener('click', () => setDashboardPage(button.dataset.dashboardPage)));
+if (!$('home-nav-toggle')) { // Home navigation has one owner; legacy layouts retain their original handler.
 const sidebarPreferenceKey = 'twchip.dashboard.sidebarCollapsed.v1';
 function setSidebarCollapsed(collapsed, { persist = false } = {}) {
   const layout = document.querySelector('.workspace-layout');
@@ -4979,17 +5213,18 @@ function setSidebarCollapsed(collapsed, { persist = false } = {}) {
   toggle.title = collapsed ? '展開側邊欄' : '收合側邊欄';
   const label = toggle.querySelector('b');
   if (label) label.textContent = collapsed ? '展開' : '收合';
-  if (persist) {
+  if (persist && document.documentElement.dataset.guestReadOnly !== 'true') {
     try { localStorage.setItem(sidebarPreferenceKey, collapsed ? '1' : '0'); } catch { /* local preference is optional */ }
   }
 }
 let sidebarCollapsed = false;
-try { sidebarCollapsed = localStorage.getItem(sidebarPreferenceKey) === '1'; } catch { /* local preference is optional */ }
+try { if (document.documentElement.dataset.guestReadOnly !== 'true') sidebarCollapsed = localStorage.getItem(sidebarPreferenceKey) === '1'; } catch { /* local preference is optional */ }
 setSidebarCollapsed(sidebarCollapsed);
 $('side-nav-toggle')?.addEventListener('click', () => {
   const collapsed = !document.querySelector('.workspace-layout')?.classList.contains('is-nav-collapsed');
   setSidebarCollapsed(collapsed, { persist: true });
 });
+}
 document.querySelectorAll('[data-dw-mode]').forEach((button) => button.addEventListener('click', () => {
   const mode = button.dataset.dwMode;
   document.querySelectorAll('[data-dw-mode]').forEach((item) => item.classList.toggle('is-selected', item === button));
@@ -5002,6 +5237,7 @@ function selectObservedFlowWindow(windowKey) {
   const available = ['LIVE', 'WARMING_UP', 'STALE', 'HISTORICAL'].includes(value.sourceState) && value.windows;
   renderObservedFlowStrip(value, available);
   renderObservedFlowSelected(value, available, value.unavailableReason || 'OBSERVED_FLOW_UNAVAILABLE');
+  if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
 function selectChartTimeframe(timeframe) {
@@ -5014,20 +5250,20 @@ function selectChartTimeframe(timeframe) {
   loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
 }
 
-document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
-  const timeframe = button.dataset.chartTimeframe;
-  selectChartTimeframe(timeframe);
-  selectObservedFlowWindow(CHART_TO_FLOW_WINDOW[timeframe]);
-}));
-document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
-  const windowKey = button.dataset.flowWindow;
-  selectObservedFlowWindow(windowKey);
-  selectChartTimeframe(FLOW_TO_CHART_TIMEFRAME[windowKey]);
-}));
+function bindObservationControls() {
+  // K-line aggregation and rolling executed-flow windows are independent selections.
+  document.querySelectorAll('[data-chart-timeframe]').forEach((button) => button.addEventListener('click', () => {
+    selectChartTimeframe(button.dataset.chartTimeframe);
+  }));
+  document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('click', () => {
+    selectObservedFlowWindow(button.dataset.flowWindow);
+  }));
+}
+bindObservationControls();
 document.querySelectorAll('[data-flow-window]').forEach((button) => button.addEventListener('keydown', (event) => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();
-  const tabs = [...document.querySelectorAll('[data-flow-window]')];
+  const tabs = [...document.querySelectorAll('[data-flow-window]')].filter(item => item.dataset.flowWindow !== 'tradingDay');
   const current = tabs.indexOf(button);
   const next = event.key === 'Home' ? 0
     : event.key === 'End' ? tabs.length - 1
@@ -5109,6 +5345,8 @@ $('dw-journal-form').addEventListener('submit', async (event) => {
         setup: $('dw-journal-setup').value,
         reason: $('dw-journal-reason').value,
         invalidation: $('dw-journal-invalidation').value,
+        confidence: $('dw-journal-confidence').value || null,
+        executionStatus: $('dw-journal-execution').value,
         snapshot: state.lockedDecisionSnapshot,
       }),
     });
@@ -5293,7 +5531,9 @@ $('logout-button').addEventListener('click', async () => {
   let authenticated = false;
   try {
     const session = await api('/api/session');
-    if (!session.authenticated) { show('login-view'); return; }
+    if (document.documentElement.dataset.guestReadOnly === 'true') {
+      if (session.guestReadOnly !== true || session.authenticated !== false || !enableGuestView(session)) { expireGuestView(); return; }
+    } else if (!session.authenticated) { show('login-view'); return; }
     authenticated = true;
     state.csrfToken = session.csrfToken;
     show('dashboard-view');
@@ -5332,3 +5572,8 @@ setInterval(() => {
 setInterval(() => {
   if (!$('dashboard-view').classList.contains('hidden')) void loadDecisionLevelWatch();
 }, 5_000);
+
+// Suspended tabs must hide retained guest data on return after the fixed deadline.
+document.addEventListener('visibilitychange', () => {
+  if (state.guestReadOnly && (Date.now() >= Date.parse(state.guestExpiresAt) || performance.now() >= state.guestExpiryMono)) expireGuestView();
+});

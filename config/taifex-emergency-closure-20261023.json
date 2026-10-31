@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "taifex-official-calendar-exception-v1",
+  "sourceType": "TAIFEX_OFFICIAL_EXCEPTION_EVIDENCE",
+  "ownerApproved": true,
+  "approvalScope": "ISOLATED_RESEARCH_CANDIDATE_ONLY",
+  "approvalReference": "OWNER_2026-10-23_CONTINUE_NEXT_PHASE",
+  "sourceEvidence": {
+    "observedDate": "2026-10-23",
+    "announcedDate": "2026-10-22",
+    "publicNotices": [
+      {
+        "publisher": "兆豐證券（轉載期交所休市資訊）",
+        "url": "https://www.emega.com.tw/emegaTran/bulletin.do?id=20261022183505510253",
+        "summary": "2026-10-23 期交所日盤及盤後交易全天休市"
+      },
+      {
+        "publisher": "凱基期貨（轉載期交所休市資訊）",
+        "url": "https://www.kgif.com.tw/zh-tw/stock-market-overview/market-news/market-news-detail?id=0a60b8acb08e487588e286ae1722adc2",
+        "summary": "2026-10-23 臺灣期貨集中交易市場休市一天，含一般與盤後交易"
+      }
+    ]
+  },
+  "sourceHash": "97a3ec492dcf710e9a2be06ae04247eb5aad46072a4532a840086b0eb9d6c927",
+  "exceptions": [
+    {
+      "tradeDate": "2026-10-23",
+      "officialTradingDay": false,
+      "reason": "OFFICIAL_TYPHOON_EMERGENCY_CLOSURE",
+      "closedCivilDate": true,
+      "closedSessions": [
+        "DAY",
+        "NIGHT"
+      ],
+      "preservePriorNightHistory": true
+    }
+  ],
+  "formalWeight": 0,
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "orderRoutesEnabled": false,
+  "fileHash": "0da43a2e6969989b1a333735f8b853fe1223bf2280f5452a8fc594f0ace8ee50"
+}

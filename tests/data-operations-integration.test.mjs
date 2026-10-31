@@ -16,6 +16,7 @@ import { runDailyDataOperations } from '../scripts/build-daily-data-operations.m
 import { projectDataOperations, readDataOperations } from '../src/dashboard-data-operations.mjs';
 import { hashPassword } from '../src/security.mjs';
 import { resolveOperationsReader } from '../src/data-operations-binding.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 
 const source = fileURLToPath(new URL('..', import.meta.url));
 const calendarPath = path.join(source, 'config/taifex-official-calendar-2026.json');
@@ -430,7 +431,8 @@ for (const bound of [false, true]) test(`actual protected HTTP (shared binding=$
   assert.equal(login.status,200); const session = await login.json(); const cookie=login.headers.get('set-cookie').split(';')[0];
   const headers={cookie,'content-type':'application/json'};
   const response=await fetch(base+'/api/v1/data-operations',{headers}); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
-  const readerOptions = bound ? resolveOperationsReader({manifestPath:f.options.manifestPath}) : {dataRoot,outputRoot};
+  const operatingCalendar = loadOperatingCalendar(path.join(runtime,'config/taifex-official-calendar-2026.json'));
+  const readerOptions = bound ? resolveOperationsReader({manifestPath:f.options.manifestPath,calendar:operatingCalendar}) : {dataRoot,outputRoot,calendar:operatingCalendar};
   const body=await response.json(); assert.deepEqual(body.data,readDataOperations({...readerOptions,now:new Date(body.data.schedulerHealth.observedAt)}));
   assert.equal(body.data.artifactIdentity.reportHash,canonical.assessment.reportHash);
   assert.ok(!JSON.stringify(body).includes(f.root));

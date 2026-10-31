@@ -86,7 +86,11 @@ test('live cache keeps small suffixes in memory and restart deterministically re
     const restarted = loadTxDecisionChart(options);
     assert.deepEqual(restarted, liveIncremental);
     assert.notDeepEqual(restarted, initial);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    clearTxChartLedgerCache();
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
+    assert.equal(fs.existsSync(root), false, 'owned chart fixture directory must be removed');
+  }
 });
 
 test('1D source reads governed previous NIGHT plus current DAY ledgers without changing lower timeframe anchors', () => {

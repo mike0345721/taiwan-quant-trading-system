@@ -4,6 +4,10 @@ import { readManagedConfig } from './cru55-managed-plan.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
+if (process.env.CRU21_GUEST_ENABLED && !['0','1'].includes(process.env.CRU21_GUEST_ENABLED)) throw Error('GUEST_FLAG_INVALID');
+// Reject incompatible modes before evaluating any managed acceptance file.
+if (process.env.CRU21_GUEST_ENABLED === '1' && ['CRU55_ACCEPTANCE_CONFIG','CRU55_INTEGRATION_CANDIDATE','CRU55_RUNTIME_BINDING','CRU55_DYNAMIC_ROOT','DASHBOARD_FORMAL_READ_ROOT','FORWARD_SHADOW_RUNTIME_ROOT']
+  .some(key => process.env[key] && !(key === 'CRU55_INTEGRATION_CANDIDATE' && process.env[key] === '0'))) throw Error('GUEST_INCOMPATIBLE_MODE');
 const cru55Candidate = process.env.CRU55_INTEGRATION_CANDIDATE === '1';
 const candidateRun = process.env.CRU55_RUN_ID || '';
 if (cru55Candidate && !/^run-[0-9]{13}-[a-f0-9]{12}$/.test(candidateRun)) throw Error('CRU55_RUN_ID_REQUIRED');

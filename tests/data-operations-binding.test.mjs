@@ -9,6 +9,8 @@ import { readOperationsBinding, resolveOperationsReader, assertOperationsBinding
 import { prepareOperationsBinding } from '../scripts/prepare-data-operations-binding.mjs';
 import { inspectDailyMarket } from '../src/daily-market-applicability.mjs';
 import { buildDailyUpdateGateSummary } from '../src/daily-update-gates.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
+import { readSchedulerHealth } from '../src/data-operations-scheduler-health.mjs';
 
 const source = fileURLToPath(new URL('..', import.meta.url));
 const calendarPath = path.join(source, 'config/taifex-official-calendar-2026.json');
@@ -26,6 +28,18 @@ function fixture(t) {
     governanceReference: 'SYNTHETIC_R1_TEST' };
   return { root, args };
 }
+
+test('bound API preserves frozen identity while operating exception suppresses false missing day',t=>{
+  const {args}=fixture(t);prepareOperationsBinding(args);
+  const original=fs.readFileSync(args.targetPath);
+  const calendar=loadOperatingCalendar(calendarPath,{allowCandidate:true});
+  const reader=resolveOperationsReader({manifestPath:args.targetPath,calendar});
+  const result=readSchedulerHealth({...reader,now:new Date('2026-10-23T16:00:00+08:00')});
+  assert.equal(result.applicability,'NOT_EXPECTED');
+  assert.match(result.calendarIdentity.exceptionHash,/^[a-f0-9]{64}$/);
+  assert.deepEqual(fs.readFileSync(args.targetPath),original);
+  assert.throws(()=>resolveOperationsReader({manifestPath:args.targetPath,calendar:{...calendar,fileHash:'x'}}),/BASE_MISMATCH/);
+});
 test('new binding replaces stale DB/status together; API and writer share output despite different app roots', t => {
   const { root, args } = fixture(t), original = fs.readFileSync(args.sourceManifestPath);
   const binding = prepareOperationsBinding(args);

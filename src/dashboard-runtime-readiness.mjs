@@ -106,7 +106,7 @@ export function inspectChartPayload(chart) {
     actualContract: chart?.actualContract || null, availableAt: chart?.availableAt || null });
 }
 
-export function inspectObservedFlowPayload(flow, { requireLongWindows = false } = {}) {
+export function inspectObservedFlowPayload(flow, { requireLongWindows = false, now = new Date() } = {}) {
   const primary = flow?.windows?.primary60s;
   const context = flow?.windows?.context300s;
   const window900s = flow?.windows?.window900s;
@@ -121,7 +121,21 @@ export function inspectObservedFlowPayload(flow, { requireLongWindows = false } 
   const unavailableReason = requireLongWindows
     ? 'OBSERVED_FLOW_1M_5M_15M_30M_1H_4H_UNAVAILABLE'
     : 'OBSERVED_FLOW_1M_5M_UNAVAILABLE';
+  // Renderability is deliberately not data freshness or a direction qualification.
+  const at = typeof flow?.source?.availableAt === 'string' ? Date.parse(flow.source.availableAt) : NaN;
+  const until = typeof flow?.source?.validUntil === 'string' ? Date.parse(flow.source.validUntil) : NaN;
+  const current = now instanceof Date ? now.getTime() : NaN;
+  const timestampsValid = [at, until, current].every(Number.isFinite) && until >= at && at <= current;
+  const freshnessReasons = [
+    ...(flow?.sourceState === 'LIVE' ? [] : ['FLOW_SOURCE_NOT_LIVE']),
+    ...(timestampsValid ? [] : ['FLOW_SOURCE_TIME_UNVERIFIED']),
+    ...(timestampsValid && current > until ? ['FLOW_SOURCE_EXPIRED'] : []),
+  ];
+  const sourceFreshness = Object.freeze({ ready: freshnessReasons.length === 0,
+    reasons: Object.freeze(freshnessReasons), scope: 'FLOW_SOURCE_FRESHNESS_ONLY_NOT_DIRECTION',
+    ageMs: timestampsValid ? current - at : null, validUntil: timestampsValid ? flow.source.validUntil : null });
   return Object.freeze({ ready: Boolean(ready), reasons: Object.freeze(ready ? [] : [flow?.unavailableReason || unavailableReason]),
+    sourceFreshness,
     sourceState: flow?.sourceState || 'UNAVAILABLE', oneMinuteStatus: primary?.status || 'UNAVAILABLE',
     fiveMinuteStatus: context?.status || 'UNAVAILABLE', fifteenMinuteStatus: window900s?.status || 'UNAVAILABLE',
     thirtyMinuteStatus: window1800s?.status || 'UNAVAILABLE',

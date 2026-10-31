@@ -24,7 +24,7 @@ function snapshot(price = 49046, vwap = 48981.43164262448) {
   return createDecisionSnapshot({
     snapshotTime: stamp, dataHealth: { items: [], overall: 'PARTIAL', unavailableCount: 0, staleCount: 0 },
     chart: { lastPrice: price, source: 'SYNTHETIC_ONLY', availableAt: stamp, tradeDate: '2026-10-09', actualContract: 'TXFJ6', session: 'DAY', bars: [], levels: { vwap: { availability: 'AVAILABLE', value: vwap, availableAt: stamp, source: 'SYNTHETIC_ONLY' } } },
-    levelWatch: { state: 'READY', currentPrice: price, nextWatch: node, levels: [node], scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: { ...side }, short: { ...side } }, formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false, executionAuthorized: false, orderRoutesEnabled: false },
+    levelWatch: { state: 'READY', decisionFocus: {state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'}, currentPrice: price, nextWatch: node, levels: [node], scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: { ...side }, short: { ...side } }, formalWeight: 0, researchOnly: true, recommendation: false, systemDirectionalSignal: false, executionAuthorized: false, orderRoutesEnabled: false },
   });
 }
 const context = () => buildInlineContext(snapshot(), { now }).context;
@@ -48,7 +48,7 @@ function decisionContext() {
     rr: { state: 'AVAILABLE', ratio: 1, riskPoints: 20, rewardPoints: 20 },
     confirm: 'Must sustain above threshold; require aligned price response',
     invalidate: 'Loss of the lower boundary or buying pressure without upward progress' };
-  c.levelWatch = { state: 'READY', sourceAvailableAt: stamp,
+  c.levelWatch = { state: 'READY', decisionFocus: {state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'}, sourceAvailableAt: stamp,
     nextWatch: { ...node, expectedResponse: 'Acceptance requires sustained departure with aligned pressure' },
     observedFlow: { sourceState: 'LIVE', quality: 'QUALITY_INSUFFICIENT', pressure60: 0.47, response60: -2.7, availableAt: stamp },
     scenarioWatch: { directionState: 'BIDIRECTIONAL_WATCH', node, long: side,
@@ -308,7 +308,7 @@ test('bounded context is deeply frozen and response contract uses only known fie
 
 function fixture(t, output, mode = 'completed') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cru21-content-test-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
   let calls = 0;
   const config = { enabled: true, root, runtimeCommit: 'f80a8f9f596fd560883727f2ddbc6d9cf7e7c75b', now: () => now,
     snapshotProvider: async () => ({ snapshot: snapshot() }), storeFactory: () => ({}), configureTransport: () => {}, minIntervalMs: 0,
@@ -320,7 +320,13 @@ function fixture(t, output, mode = 'completed') {
     } },
   };
   const assistant = new InlineAssistant(config);
-  t.after(() => assistant.close());
+  t.after(async () => {
+    // Close the owned fixture first. Windows may briefly report a just-deleted
+    // child as ENOTEMPTY; bounded OS cleanup retries are not test retries.
+    await assistant.close();
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
+    assert.equal(fs.existsSync(root), false, 'owned fixture directory must be removed');
+  });
   const body = { requestId: randomUUID(), account: 'a'.repeat(64), model: 'synthetic', question: 'synthetic only', creditsDisabledConfirmed: true };
   return { assistant, config, body, calls: () => calls };
 }
@@ -645,4 +651,47 @@ test('published V1 RVOL receipt recovers exactly and tampering still fails',()=>
  assert.equal(receipt.sourceCommit,'20eb89b28a3692a8be803a3d2632d05752249ae8');
  assert.match(verifiedReceiptText(receipt),/RVOL）：1\.75×/);
  assert.throws(()=>verifiedReceiptText({...receipt,text:receipt.text+' changed'}),/CONTENT_UNVERIFIED_RECEIPT/);
+});
+
+test('P0 no-current-focus suppresses legacy hypothetical node and RR from the verified AI answer',()=>{
+  const c=decisionContext();
+  c.levelWatch.decisionFocus={state:'NO_ACTIVE_REFERENCE',activeNodeId:null,
+    nearestBackground:{id:'PRIOR_LOW',price:46883,distancePoints:360}};
+  const {text}=verify(answer(c),c);
+  assert.match(text,/目前沒有接近現價且品質合格的主要觀察節點/);
+  assert.match(text,/多方條件式結構R:R：未知／不可用/);
+  assert.match(text,/情境觀察節點：未知／不可用/);
+  assert.doesNotMatch(text,/多方條件式結構R:R：1。/);
+});
+
+test('P0 canonical model answer explains why geometry is not applicable to a displaced current price',()=>{
+  const c=decisionContext();
+  c.levelWatch.scenarioWatch.short.rr={...c.levelWatch.scenarioWatch.short.rr};
+  c.levelWatch.currentPrice=105;
+  c.levelWatch.decisionFocus={state:'ACTIVE_REFERENCE',activeNodeId:'VWAP'};
+  c.levelWatch.scenarioWatch.long.rr.applicability={
+    state:'REFERENCE_PRICE_DISLOCATED',currentPrice:105,confirmationReferencePrice:110,
+    gapFromConfirmationPoints:-5,currentEntryRr:null,entryAuthorized:false,
+  };
+  const {text}=verify(answer(c),c);
+  assert.match(text,/多方：幾何 R:R 起算價是確認門檻，不是目前價格/);
+  assert.match(text,/現價與確認門檻相差 5 點/);
+  assert.match(text,/此條件式比例不適用於目前價格/);
+  const bad=structuredClone(c);
+  bad.levelWatch.scenarioWatch.long.rr.applicability.gapFromConfirmationPoints=346;
+  assert.throws(()=>verify(answer(bad),bad),/CONTENT_RR_APPLICABILITY_MISMATCH/);
+});
+
+test('missing or unknown focus refuses legacy numeric scenario facts in verified AI output',()=>{
+ for(const focus of [undefined,null,{}, {state:'UNKNOWN'}, {state:'FUTURE_STATE'}]) {
+  const c=decisionContext(); c.levelWatch.decisionFocus=focus;
+  const contract=analysisContentContract(c);
+  for(const field of contract.fields.filter(x=>x.type!=='state' && /levelWatch\.(nextWatch|scenarioWatch)/.test(x.field))) {
+   assert.equal(field.expected,null,field.field);
+  }
+  const {text}=verify(answer(c),c);
+  assert.match(text,/多方條件式結構R:R：未知／不可用/);
+  assert.match(text,/情境觀察節點：未知／不可用/);
+  assert.doesNotMatch(text,/Upper qualified structure|Multiple lawful references/);
+ }
 });

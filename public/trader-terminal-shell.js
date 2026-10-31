@@ -80,6 +80,7 @@
     const heading = root.querySelector('.dw-page-heading');
     if (!heading || heading.classList.contains('tt-terminal-topbar')) return heading;
     const modeSwitch = heading.querySelector('.dw-mode-switch');
+    const workspaceTitle = heading.querySelector('#dw-title');
     heading.className = 'tt-terminal-topbar';
     const identity = element('div', 'tt-market-identity');
     identity.append(
@@ -96,13 +97,15 @@
     details.append(element('summary', '', '次要資料 / Detail'));
     const status = element('div', 'tt-top-detail-body');
     status.append(facts,
-      Object.assign(element('small', '', '更新 LOADING'), { id: 'tt-top-updated' }),
       element('span', 'tt-descriptive-only', 'DESCRIPTIVE ONLY'),
       element('span', 'tt-no-signal', 'NOT A TRADING SIGNAL'),
     );
-    if (modeSwitch) status.append(modeSwitch);
+    const recency = element('div', 'tt-market-recency');
+    recency.append(element('span', '', '行情資料時間'), Object.assign(element('strong', '', '尚未取得'), { id: 'tt-top-updated' }));
+    if (modeSwitch) recency.append(modeSwitch);
     details.append(status);
-    heading.replaceChildren(identity, details);
+    heading.replaceChildren(identity, recency, details);
+    if (workspaceTitle) { workspaceTitle.classList.add('tt-accessible-title'); heading.prepend(workspaceTitle); }
     return heading;
   }
 
@@ -431,10 +434,17 @@
     const visual = element('div', 'tt-gpt-visual');
     const disabledState = element('strong', 'tt-gpt-disabled-state', 'COPY SNAPSHOT · LOADING');
     disabledState.id = 'tt-gpt-disabled-state';
-    visual.append(disabledState, element('span', 'tt-gpt-copy-note', 'Manual copy only · no direct GPT API · not a trading signal'));
+    visual.append(disabledState, element('span', 'tt-gpt-copy-note', '僅複製快照，不代表 AI 已連接或回答已驗證。'));
     const copy = node.querySelector('#dw-copy-gpt-prompt');
     const copyBody = copy?.closest('.dw-gpt-body');
-    if (copyBody?.parentElement === node) node.insertBefore(visual, copyBody);
+    const inline = node.querySelector('#ai-inline');
+    if (inline && copyBody) {
+      const fallback = element('details', 'tt-copy-fallback');
+      fallback.append(element('summary', '', '人工備援：複製快照並另開 ChatGPT'), visual);
+      // Move existing controls, rather than clone IDs or create a second request path.
+      while (inline.nextSibling) fallback.append(inline.nextSibling);
+      copyBody.append(fallback);
+    } else if (copyBody?.parentElement === node) node.insertBefore(visual, copyBody);
     else node.append(visual);
   }
 
@@ -548,6 +558,7 @@
   }
 
   function readPalette() {
+    if (document.documentElement.dataset.guestReadOnly === 'true') return 'red-up';
     try {
       const value = global.localStorage?.getItem(STORAGE_KEY);
       return PALETTES[value] ? value : 'red-up';
@@ -577,7 +588,7 @@
       control.value = selected;
       control.setAttribute('aria-label', `漲跌配色：${palette.label}`);
     }
-    if (persist) {
+    if (persist && document.documentElement.dataset.guestReadOnly !== 'true') {
       try { global.localStorage?.setItem(STORAGE_KEY, selected); } catch { /* presentation preference only */ }
     }
     global.dispatchEvent(new CustomEvent('trader-terminal:palette', { detail: { name: selected, ...palette } }));
@@ -617,6 +628,7 @@
     root.dataset.terminalMounted = 'true';
     root.dataset.traderTerminal = 'formal';
     root.classList.add('trader-terminal');
+    root.dataset.uiLayout = 'decision-first';
     terminalNavigation(root);
     terminalTopbar(root);
     const focus = root.querySelector('#dw-focus-mode');
@@ -656,7 +668,32 @@
     buildTrendVisual(trend);
     const futures = card('futures', '', '期貨流向', 'Futures Flow', 'tt-futures-main', 'OI 與法人部位只作描述背景，不代表多空意圖。');
     buildFuturesVisual(futures);
-    tierOne.append(pulse, observedFlow);
+    const watch = chart.querySelector('#dw-next-watch');
+    if (watch) {
+      const focusCard = element('section', 'dw-card tt-focus-card');
+      focusCard.setAttribute('aria-label', '當下焦點與確認失效條件');
+      focusCard.append(element('h3', '', '當下焦點'), element('p', 'tt-focus-boundary', '條件式觀察，不是進場指令；缺少合格證據時保留未知。'), watch);
+      const label = watch.querySelector('.dw-next-watch-line > span');
+      if (label) label.textContent = '主要觀察位置';
+      for (const side of ['long', 'short']) {
+        const row = watch.querySelector('#dw-' + side + '-target')?.closest('.dw-scenario-row');
+        const conditions = element('div', 'tt-scenario-conditions');
+        for (const kind of ['confirm', 'invalidate']) {
+          const paragraph = watch.querySelector('#dw-' + side + '-' + kind)?.closest('p');
+          if (paragraph) conditions.append(paragraph);
+        }
+        if (row && conditions.childElementCount) row.append(conditions);
+      }
+      const note = watch.querySelector('#dw-scenario-rr-note')?.closest('p');
+      const detail = watch.querySelector('#dw-next-watch-detail');
+      if (note && detail) { note.classList.add('tt-rr-boundary'); watch.insertBefore(note, detail); }
+      const detailLabel = detail?.querySelector('summary');
+      if (detailLabel) detailLabel.textContent = '完整依據、反證與限制';
+      tierOne.append(focusCard);
+    }
+    tierOne.append(pulse);
+    const observations = element('div', 'tt-flow-overview');
+    observations.append(observedFlow);
     chart.classList.add('tt-primary-market-surface');
     primary.append(chart, tierOne);
 
@@ -681,7 +718,10 @@
       addMoreButton(ask, 'Ask GPT / 快照討論', '[data-terminal-card="gpt"]');
     }
     tierThree.append(globalCard, healthCard);
-    if (ask) tierThree.append(ask);
+    const aiWorkspace = element('div', 'tt-ai-workspace');
+    if (ask) aiWorkspace.append(ask);
+    const background = element('details', 'tt-context-section');
+    background.append(element('summary', '', '市場背景與資料明細｜現貨・期貨・選擇權・全球'), tierTwo, tierThree);
 
     const progressive = element('details', 'tt-progressive');
     const progressiveSummary = element('summary', '', '證據明細 / 市場變化 / 人工決策日誌');
@@ -692,9 +732,10 @@
     progressive.append(progressiveSummary, progressiveBody);
 
     originalMain.remove();
-    focus.append(summary, primary, tierTwo, tierThree, progressive);
+    focus.append(summary, primary, observations, aiWorkspace, background, progressive);
     bindDrawer(root);
     bindChartControls(root);
+    global.HomeWorkspace?.mount(root);
     return root;
   }
 

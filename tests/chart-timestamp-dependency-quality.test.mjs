@@ -60,7 +60,7 @@ test('bad event marks its actual bar and dependent cumulative values, not later 
   assert.equal(chart.sourceEventCount,40);
   assert.equal(chart.bars[0].open,100);assert.equal(chart.bars[0].volume,1);
 });
-test('a clean local suffix is measurable without changing session quality or manufacturing targets', t=>{
+test('a clean local suffix does not clear quality debt or manufacture a current scenario',t=>{
   const chart=fixture(t,[oldBad(),...cleanTicks()]).load();
   const q=chart.timestampDependencyQuality;
   assert.equal(q.recentWindow.state,'CLEAN_LOCAL_BARS_OBSERVED');
@@ -70,11 +70,10 @@ test('a clean local suffix is measurable without changing session quality or man
   assert.equal(q.recentWindow.restoresTargets,false);
   assert.equal(q.sessionRestrictionCleared,false);
   const w=buildDecisionLevelWatch({chart,snapshotTime:chart.asOf});
-  assert.equal(w.scenarioWatch.long.confirmationThreshold,null);
-  assert.equal(w.scenarioWatch.short.confirmationThreshold,null);
-  assert.equal(w.scenarioWatch.long.target,null);assert.equal(w.scenarioWatch.short.target,null);
+  assert.equal(w.nextWatch,null);assert.equal(w.scenarioWatch,null);
   assert.equal(w.executionAuthorized,false);assert.equal(w.orderRoutesEnabled,false);
 });
+
 test('forming bars do not complete the clean window', t=>{
   const chart=fixture(t,[oldBad(),...cleanTicks()]).load({asOf:iso(base+11*FIVE+40021)});
   assert.equal(chart.timestampDependencyQuality.recentWindow.consecutiveCleanCompletedBars,11);
