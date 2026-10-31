@@ -78,7 +78,10 @@ import {
   requestIsHttps,
 } from './src/http-utils.mjs';
 
+import { createDashboardServer, assertLocalMarketMode } from './src/dashboard-local-tls.mjs';
 validateConfig();
+// Fail before cache/session/account initialization for an invalid scoped release.
+const localMarketOnly = assertLocalMarketMode(process.env, config);
 if (process.env.CRU21_GUEST_ENABLED === '1') {
   await import('./src/cru21-guest-server.mjs').then(m => m.startGuestServer({ appRoot: config.appRoot }));
 } else {
@@ -171,6 +174,7 @@ const cru21IdentityOptions = cru21PreviewEnabled ? {
 if (cru21PreviewEnabled && !validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions).ready) throw Error('CRU21_PREVIEW_STARTUP_REJECTED');
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
 const productSurfaceContract = selectDashboardProductSurface({
+  localMarketOnly,
   previewType: process.env.DASHBOARD_PREVIEW_TYPE,
   actualBranch: cru21IdentityOptions?.actualBranch,
 });
@@ -403,7 +407,7 @@ const inlineAssistant = new InlineAssistant({ enabled: inlineEnabled,
   snapshotProvider: currentDiscussionWorkspace });
 const inlineHandler = createInlineHandler({assistant:inlineAssistant,port:config.port,requireCsrf});
 
-const server = http.createServer(async (req, res) => {
+const requestHandler = async (req, res) => {
   const isHttps = requestIsHttps(req, config.trustProxy);
   setSecurityHeaders(res, { isHttps });
   res.setHeader('X-Request-Id', crypto.randomUUID());
@@ -426,6 +430,8 @@ const server = http.createServer(async (req, res) => {
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
         inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
+        localRelease: localMarketOnly ? { scope:'MARKET_RESEARCH_AI_DISABLED', transport:'HTTPS',
+          certificateSha256:process.env.DASHBOARD_TLS_CERT_SHA256, marketDataQualified:false } : null,
         cru55Acceptance: config.cru55Acceptance?{runId:config.cru55Acceptance.runId,bindingHash:config.cru55Acceptance.bindingHash,sourceKind:config.cru55Acceptance.sourceKind}:null,
         runtimeIdentityStatus: runtimeIdentity.status,
         approvedMainCommit: runtimeVersion.approvedMainCommit,
@@ -822,7 +828,8 @@ const server = http.createServer(async (req, res) => {
       && ['V2_DATABASE_NOT_READY', 'V2_BACKTEST_NOT_READY'].includes(error.message);
     sendJson(res, status, { ok: false, error: status >= 500 && !knownResearchUnavailable ? 'INTERNAL_ERROR' : error.message });
   }
-});
+};
+const server = createDashboardServer(requestHandler, process.env, config);
 
 server.requestTimeout = 20_000;
 server.headersTimeout = 10_000;
@@ -837,7 +844,7 @@ if (!cru55 && !config.cru55Acceptance) {
   catch (error) { console.error('[chart warmup]', error.message); }
 }
 server.listen(config.port, config.host, async () => {
-  console.log(`台股決策雷達 V3.7.3：http://${config.host}:${config.port}`);
+  console.log(`台股決策雷達 V3.7.3：${localMarketOnly ? 'https' : 'http'}://${config.host}:${config.port}`);
   console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
   // Always check upstream sources on startup. The cached snapshot is shown only
   // while this first refresh is in progress or if an official source fails.
