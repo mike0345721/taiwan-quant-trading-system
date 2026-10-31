@@ -9,14 +9,28 @@
   const same = (a, b) => identity(a) && identity(b) && identityKeys.every(key => a[key] === b[key]);
   const stamp = value => Number.isFinite(time(value)) ? new Date(value).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) : '來源時間未知';
 
+  function flowFreshness(flow, now = Date.now()) {
+    const at = time(flow?.source?.availableAt), until = time(flow?.source?.validUntil);
+    const known = Number.isFinite(at) && at <= now + 5000;
+    const ageSeconds = known ? Math.max(0, Math.floor((now - at) / 1000)) : null;
+    const expired = flow?.sourceState === 'STALE' || (known && now - at > 120000)
+      || (Number.isFinite(until) && until < now);
+    const overdueSeconds = Number.isFinite(until) && until < now ? Math.ceil((now - until) / 1000) : null;
+    const summary = !known ? '來源時間未知，不能判定即時性'
+      : '來源落後 ' + ageSeconds + ' 秒' + (overdueSeconds == null ? '' : '；已超過有效期限 ' + overdueSeconds + ' 秒');
+    return Object.freeze({ known, expired, ageSeconds, overdueSeconds, summary });
+  }
+
   // A presentation projection, never a replacement for backend eligibility or R:R rules.
-  function derive({ chart = null, flow = null, watch = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
+  function derive({ chart = null, flow = null, watch = null, marketOperating = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
+    const marketBlocked = marketOperating && marketOperating.marketShouldBeActive !== true;
+    const marketClosed = marketOperating?.state === 'MARKET_CLOSED';
     const hasChart = Boolean(chart?.bars?.length && rendered);
     const replay = chart?.mode === 'REPLAY';
     const chartFresh = chart?.mode === 'LIVE' && fresh(chart.availableAt, now) && identity(chart);
-    const chartCurrent = hasChart && chartFresh && !chartError;
+    const chartCurrent = hasChart && chartFresh && !chartError && !marketBlocked;
     const chartQualified = chartCurrent && chart.qualityStatus === 'PASS';
-    const flowCurrent = Boolean(['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
+    const flowCurrent = Boolean(!marketBlocked && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
       && (flow.source.validUntil == null || (Number.isFinite(time(flow.source.validUntil)) && time(flow.source.validUntil) >= now)));
     const flowQualified = flowCurrent && flow.sourceState === 'LIVE' && ['PASS', 'READY'].includes(flow.researchQuality?.status);
     const mismatch = Boolean(chart && flow?.identity && identity(chart) && identity(flow.identity) && !same(chart, flow.identity));
@@ -29,6 +43,9 @@
     if (failure) {
       status = chartCurrent ? '部分資料更新中斷' : '資料更新中斷'; tone = 'blocked';
       message = chartCurrent ? '圖表有獨立更新；完整盤況尚未恢復，暫停合併判讀。' : '未能取得新資料；保留畫面不是即時盤況，暫停當下判讀。';
+    } else if (marketBlocked) {
+      status = marketClosed ? '休市・保留歷史資料' : marketOperating.state === 'UNAVAILABLE' ? '開休市日曆未驗證' : '非交易時段';
+      message = marketClosed ? '本時段不預期新報價；歷史圖表可供查看，不能視為即時行情。' : '目前不提供即時判讀；保留來源時間與資料品質限制。';
     } else if (chart && !hasChart) {
       status = '圖表暫不可用'; tone = 'limited'; message = '尚無可顯示的合格圖表；不以空值或舊價位建立當下判讀。';
     } else if (replay) {
@@ -45,7 +62,7 @@
     const flowReason = String(flow?.unavailableReason || '');
     const flowMessage = mismatch ? '資料身分不同，暫停合併判讀。'
       : /PROCESS_MISSING/.test(flowReason) ? '所綁定的力道處理程序未運行；不提供成交壓力判讀。'
-        : flow?.sourceState === 'STALE' ? '力道資料已過期；最後資料僅供追溯。'
+        : flowFreshness(flow, now).expired ? '力道資料已過期；' + flowFreshness(flow, now).summary + '。最後快照僅供追溯，不作方向判定。'
           : flowQualified ? '研究觀測，非交易訊號。'
             : flowCurrent ? '部分研究證據不足；數值依各欄品質限制呈現。' : '尚無合格力道資料；原因與最後來源時間可在明細查看。';
     return Object.freeze({
@@ -62,12 +79,13 @@
     });
   }
   // Preview 02 projects existing contracts only; never invents signals or missing values.
-  function flowRows({ chart = null, flow = null, flowDefinitions = [], now = Date.now() } = {}) {
+  function flowRows({ chart = null, flow = null, marketOperating = null, flowDefinitions = [], now = Date.now() } = {}) {
     const expires = flow?.source?.validUntil;
-    const transport = ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
+    const transport = (!marketOperating || marketOperating.marketShouldBeActive === true) && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
       && identity(flow?.identity) && fresh(flow?.source?.availableAt, now)
       && (expires == null || (Number.isFinite(time(expires)) && time(expires) >= now));
     const comparable = chart?.mode === 'LIVE' && same(chart, flow?.identity);
+    const freshness = flowFreshness(flow, now);
     const rawState = ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT'];
     return flowDefinitions.filter(d => d.data === 'GOVERNED').map(d => {
       const w = flow?.windows?.[d.source], p = w?.pressure || {};
@@ -88,8 +106,20 @@
         && ratio != null && response != null && efficiency != null;
       const directional = available && flow.sourceState === 'LIVE' && p.status === 'READY' && coverage === 1 && ratio != null;
       const side = !directional ? '不作方向判定' : ratio > 0 ? '偏買方' : ratio < 0 ? '偏賣方' : '均衡';
+      const historyAllowed = comparable && freshness.known && freshness.expired
+        && ['LIVE', 'STALE'].includes(flow?.sourceState) && !flow?.unavailableReason
+        && Number.isFinite(time(expires)) && time(expires) >= time(flow?.source?.availableAt)
+        && w?.truthState !== 'WARMING_UP' && rawState.includes(w?.status) && rawState.includes(p.status);
+      // Last-snapshot facts have a separate namespace. Current numeric cells,
+      // direction labels, colors and decision gates remain empty/disabled.
+      const historical = historyAllowed ? Object.freeze({ current: false,
+        label: '最後快照・非即時・不作方向判定', at: flow.source.availableAt,
+        buy: quantity(p.buyProxyVolume), sell: quantity(p.sellProxyVolume),
+        unknown: quantity(p.unknownVolume), total: quantity(p.totalExecutedVolume),
+        net: number(p.netAggressiveFlowProxy) }) : null;
       return Object.freeze({ key: d.key, label: d.label, available, qualified,
-        state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
+        historical, freshness,
+        state: reason === 'WINDOW_WARMING_UP' ? '暖機中' : !available && comparable && freshness.expired ? '已過期' : reason ? '不可用' : qualified ? '可觀察' : '部分受限',
         reason: reason || p.unavailableReason || w.pathEfficiency?.unavailableReason || (qualified ? null : 'WINDOW_FIELDS_LIMITED'),
         ratio, net: pressureAvailable ? number(p.netAggressiveFlowProxy) : null, response, efficiency, coverage,
         buy: pressureAvailable ? quantity(p.buyProxyVolume) : null,
@@ -102,9 +132,9 @@
     });
   }
 
-  function marketContext({ chart = null, pulse = null, leadership = null, now = Date.now() } = {}) {
+  function marketContext({ chart = null, pulse = null, leadership = null, marketOperating = null, now = Date.now() } = {}) {
     const night = chart?.session === 'NIGHT';
-    const pulseCurrent = chart?.mode === 'LIVE' && pulse?.schemaVersion === 'market-pulse-live-v1'
+    const pulseCurrent = (!marketOperating || marketOperating.marketShouldBeActive === true) && chart?.mode === 'LIVE' && pulse?.schemaVersion === 'market-pulse-live-v1'
       && same(chart, pulse.identity) && fresh(pulse.generatedAt, now) && fresh(pulse.sourceAvailableAt, now);
     const basis = pulse?.basis || {};
     const basisReady = pulseCurrent && basis.state === (night ? 'SESSION_CLOSED_REFERENCE' : 'LIVE') && number(basis.points) != null;
@@ -113,7 +143,7 @@
     const l = leadership || {};
     const dated = typeof l.sourceTradeDate === 'string' && /^\d{4}-\d\d-\d\d$/.test(l.sourceTradeDate)
       && Number.isFinite(time(l.lastAvailableAt)) && time(l.lastAvailableAt) <= now + 5000;
-    const dayLive = chart?.mode === 'LIVE' && !night && l.state === 'LIVE' && l.sourceMode === 'LIVE_RAW'
+    const dayLive = (!marketOperating || marketOperating.marketShouldBeActive === true) && chart?.mode === 'LIVE' && !night && l.state === 'LIVE' && l.sourceMode === 'LIVE_RAW'
       && dated && l.sourceTradeDate === chart.tradeDate && fresh(l.lastAvailableAt, now);
     const closed = chart?.mode === 'LIVE' && dated && identity(chart) && l.sourceTradeDate <= chart.tradeDate
       && l.state === 'SESSION_CLOSED' && l.sourceMode === 'EOD_CONTEXT';
@@ -309,7 +339,11 @@
       const v = key === 'path' ? value?.efficiency : value?.[key];
       text('home-flow-'+key, key === 'coverage' ? number(v) == null ? '—' : metricText(v * 100, 1) + '%' : metricText(v, key === 'path' ? 3 : 0, ['net','response'].includes(key)) + (key === 'response' && number(v) != null ? ' 點' : ''));
     }
-    text('home-flow-selection-note', (value ? value.state + ' · ' + value.side + ' · ' + stamp(value.sourceTime) : '本交易日語意尚未開放。') + '；分類覆蓋不等於收集完整率。');
+    const historicalNote = value?.historical ? ' ' + value.historical.label + '：買方代理量 ' + metricText(value.historical.buy)
+      + '／賣方代理量 ' + metricText(value.historical.sell) + '／未知 ' + metricText(value.historical.unknown)
+      + '／已收量 ' + metricText(value.historical.total) + '／淨差 ' + metricText(value.historical.net, 0, true) + '。' : '';
+    text('home-flow-selection-note', (value ? value.state + ' · ' + value.side + ' · ' + stamp(value.sourceTime)
+      + ' · ' + value.freshness.summary : '本交易日語意尚未開放。') + '；分類覆蓋不等於收集完整率。' + historicalNote);
     const context = marketContext(input);
     text('home-context-mode', context.night ? '夜盤・現貨收盤背景，非同步即時現貨' : '日盤・每項依來源時間與品質呈現');
     text('home-context-spot-label', context.night ? '現貨收盤參考' : '現貨指數');
@@ -401,11 +435,15 @@
     const heading = el('span', 'home-research-heading');
     heading.append(el('span', 'home-research-kicker', 'RESEARCH DESK · 研究工作區'),
       el('strong', 'home-research-title', '從盤中觀察到可驗證決策'));
-    summary.append(heading, el('span', 'home-research-summary-state', '4 項研究 · 不作交易訊號'));
+    summary.append(heading, el('span', 'home-research-summary-state', '4 項研究 · 唯讀證據入口'));
+    const evidenceLink = el('a', 'home-research-evidence-link', '開啟研究證據：五檔、Flow／價格反應、Outcome 與樣本外比較');
+    evidenceLink.href = '/research.html';
+    evidenceLink.setAttribute('aria-label', '開啟正常認證的唯讀研究證據頁；缺資料仍為不可用');
+    panel.append(evidenceLink);
     const grid = el('div', 'home-research-grid', null, 'home-research-grid');
     for (const [key, label, stage, detail] of [
-      ['depth', '五檔流動性', '待全日資料資格',
-        '研究樣本已見五檔欄位；當前深度與全時段連續性尚未取得資格。'],
+      ['depth', '五檔流動性', '唯讀證據頁已接入',
+        '證據頁依來源時間與品質顯示五檔；單次有效報價不等於全日連續性通過。'],
       ['flow', 'Flow × 價格反應', '方向資格待確認',
         '推進／受阻只是候選研究；必須同窗、同截止與來源品質合格。'],
       ['state', '市場狀態／不追價', '分類規則待校準',
@@ -533,7 +571,9 @@
     }
     text('home-flow-state', view.flowLabel); text('home-flow-message', view.flowMessage + ' 最後來源：' + view.flowTime);
     text('home-price-caption', view.priceLabel); text('tt-top-price', view.price); text('tt-top-contract', input.chart?.actualContract ? '台指期貨 ' + input.chart.actualContract : '台指期貨');
-    text('tt-top-session', [input.chart?.tradeDate, ({ DAY: '日盤', NIGHT: '夜盤' })[input.chart?.session] || input.chart?.session].filter(Boolean).join(' · ') || '盤別尚未確認');
+    text('tt-top-session', input.marketOperating?.state === 'MARKET_CLOSED' ? '休市 · 歷史資料'
+      : input.marketOperating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
+      : [input.chart?.tradeDate, ({ DAY: '日盤', NIGHT: '夜盤' })[input.chart?.session] || input.chart?.session].filter(Boolean).join(' · ') || '盤別尚未確認');
     text('tt-top-trust', view.status); text('tt-top-updated', view.chartTime);
     text('dw-chart-mode', (view.chartCurrent ? '觀察模式' : '非即時') + ' · ' + (input.chart?.timeframe || '—') + ' · 只讀');
     text('dw-chart-status', view.chartLabel); text('home-chart-notice', view.chartCurrent ? '' : view.chartLabel + ' · 截至 ' + view.chartTime);
@@ -548,5 +588,5 @@
     renderResearchDrawer(root, input);
     aiSummary(); return view;
   }
-  global.HomeWorkspace = Object.freeze({ derive, flowRows, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
+  global.HomeWorkspace = Object.freeze({ derive, flowRows, flowFreshness, quickFlowView, quickFlowCells, marketContext, mount, render, aiSummary });
 })(window);

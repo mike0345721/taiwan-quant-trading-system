@@ -1,13 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const envPath = process.env.DASHBOARD_ENV_PATH
   ? path.resolve(process.env.DASHBOARD_ENV_PATH)
   : path.join(root, '.env');
-const shioajiEnvPath = path.join(root, '.shioaji.credentials.json');
 
 if (!fs.existsSync(envPath)) {
   console.error('找不到 .env。請先雙擊 1_SETUP.bat。');
@@ -28,36 +26,6 @@ for (const rawLine of text.split(/\r?\n/)) {
   if (process.env[key] == null) process.env[key] = value;
 }
 
-let quoteBridge = null;
-async function bridgeIsReady() {
-  try {
-    const response = await fetch('http://127.0.0.1:8790/health', { signal: AbortSignal.timeout(800) });
-    const status = await response.json();
-    return response.ok
-      && status?.mode === 'market_data_only'
-      && status?.executionAuthorized === false
-      && status?.orderRoutesEnabled === false;
-  } catch {
-    return false;
-  }
-}
-
-if (fs.existsSync(shioajiEnvPath) && !(await bridgeIsReady())) {
-  quoteBridge = spawn('python', [path.join(root, 'broker', 'shioaji_readonly_bridge.py')], {
-    cwd: root,
-    stdio: 'inherit',
-    windowsHide: true,
-  });
-  quoteBridge.once('error', (error) => {
-    console.error(`Shioaji read-only bridge could not start: ${error.message}`);
-  });
-}
-
-function stopBridge() {
-  if (quoteBridge && !quoteBridge.killed) quoteBridge.kill('SIGTERM');
-}
-process.once('SIGINT', stopBridge);
-process.once('SIGTERM', stopBridge);
-process.once('exit', stopBridge);
-
+// Dashboard launches never imply a new broker login. A timed-out existing
+// process must not be duplicated; explicit broker startup uses its own gate.
 await import('./server.mjs');

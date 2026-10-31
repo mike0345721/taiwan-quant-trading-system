@@ -228,7 +228,8 @@ export function projectCru34LiveBatch({
   maxBatchRecords = DEFAULT_MAX_BATCH_RECORDS,
   maxLedgerBytes = null,
   staleAfterMs = DEFAULT_STALE_AFTER_MS,
-  now = new Date(),
+  now = null,
+  clock = () => new Date(),
   publishSnapshot = publishCru34Snapshot,
 } = {}) {
   if (!ledgerPath || !checkpointPath || !snapshotPath || !fs.existsSync(ledgerPath)) {
@@ -305,20 +306,33 @@ export function projectCru34LiveBatch({
   });
   const semanticContentHash = cru34LiveHash(semanticPayload);
   const warmup = warmupFor(rollingCanonicalEvents, cutoff);
-  const heartbeatAgeMs = Math.max(0, now.getTime() - Date.parse(semanticPayload.availableAt));
-  const truthState = !warmup.context300sComplete ? 'WARMING_UP'
-    : heartbeatAgeMs > staleAfterMs ? 'STALE' : 'LIVE';
-  const multiWindowPayload = buildCru44MultiWindowFromCanonical({
+  let multiWindowPayload = buildCru44MultiWindowFromCanonical({
     canonicalEvents: rollingCanonicalEvents,
     cutoffLedgerOrdinal: cutoff.ledgerOrdinal,
     instrumentProfile,
-    sourceTruthState: heartbeatAgeMs > staleAfterMs ? 'STALE' : 'LIVE',
+    sourceTruthState: 'LIVE',
     compatibilitySemanticHash: semanticContentHash,
   });
   const nextCheckpoint = buildCru34LiveCheckpoint({
     ...checkpoint,
     lastEmittedSemanticHash: semanticContentHash,
   });
+  // Observe age AFTER the expensive calculation, immediately before publication.
+  // Explicit now remains a deterministic replay clock. Never renew availableAt/TTL.
+  const publicationNow = now ?? clock();
+  if (!(publicationNow instanceof Date) || !Number.isFinite(publicationNow.getTime())) {
+    throw new Error('CRU43_PUBLICATION_CLOCK_INVALID');
+  }
+  const heartbeatAgeMs = Math.max(0, publicationNow.getTime() - Date.parse(semanticPayload.availableAt));
+  const expired = heartbeatAgeMs > staleAfterMs;
+  const truthState = expired ? 'STALE' : !warmup.context300sComplete ? 'WARMING_UP' : 'LIVE';
+  if (expired) {
+    const { contentHash: ignoredHash, ...multiBody } = multiWindowPayload;
+    const windows = Object.fromEntries(Object.entries(multiBody.windows).map(([key, value]) =>
+      [key, value.truthState === 'LIVE' ? Object.freeze({ ...value, truthState: 'STALE' }) : value]));
+    const body = { ...multiBody, windows };
+    multiWindowPayload = Object.freeze({ ...body, contentHash: cru34LiveHash(body) });
+  }
   const operational = {
     schemaVersion: CRU34_LIVE_SNAPSHOT_VERSION,
     truthState,
@@ -326,7 +340,7 @@ export function projectCru34LiveBatch({
     semanticPayload,
     semanticContentHash,
     multiWindowPayload,
-    observedAt: now.toISOString(),
+    observedAt: publicationNow.toISOString(),
     validUntil: new Date(Date.parse(semanticPayload.availableAt) + staleAfterMs).toISOString(),
     heartbeatAgeMs,
     staleAfterMs,

@@ -45,3 +45,13 @@ test('home assets use the existing read-only origin checks, not a wildcard or ne
  }
  for(const route of ['/home-private.js','/.env','/api/v1/ask-gpt/ask'])assert.equal(GUEST_ASSETS.has(route),false);
 });
+
+
+test('closed or unverified operating calendar cannot expose fresh cached data as LIVE',()=>{
+ for(const state of ['MARKET_CLOSED','SESSION_CLOSED','UNAVAILABLE']){
+  const x=input();x.marketOperating={state,marketShouldBeActive:false};
+  const r=derive(x);assert.equal(r.chartCurrent,false);assert.equal(r.flowCurrent,false);assert.equal(r.focus,'blocked');
+  assert.equal(r.hasChart,true);assert.equal(r.price,'1,000');
+  if(state==='MARKET_CLOSED')assert.match(r.status,/休市/);
+ }
+});

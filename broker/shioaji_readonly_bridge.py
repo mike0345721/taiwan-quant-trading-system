@@ -26,6 +26,7 @@ from typing import Any
 
 import shioaji as sj
 from live_event_ledger import LiveEventLedger
+from taifex_emergency_market import market_data_expected
 from txo_live_chain import (
     contract_metadata,
     load_activation_config,
@@ -333,13 +334,14 @@ def _iso_datetime(value: Any) -> datetime | None:
 
 
 def tx_market_data_expected(now: datetime | None = None) -> bool:
+    current = (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE)
     try:
-        resolve_session_trade_date(
-            (now or datetime.now(TAIPEI_TIMEZONE)).astimezone(TAIPEI_TIMEZONE),
-            TX_TRADING_CALENDAR,
-        )
-        return True
-    except RuntimeError:
+        return market_data_expected(current,
+            ROOT / "config" / "taifex-official-calendar-2026.json",
+            ROOT / "config" / "taifex-emergency-closure-20261023.json",
+            allow_candidate=os.environ.get("TAIFEX_ALLOW_CANDIDATE_CLOSURE") == "true")
+    except (RuntimeError, ValueError, OSError, KeyError, TypeError):
+        # Invalid present governance must not trigger automatic subscriptions.
         return False
 
 
@@ -458,6 +460,9 @@ def _recover_missing_quote_types_locked(
     """Retry only silently missing futures quote types, with a bounded budget."""
     current = now or datetime.now().astimezone()
     recovered = 0
+    active = tx_market_data_expected(current) if market_should_be_active is None else market_should_be_active
+    if not active:
+        return 0
     for subscription in quote_delivery_snapshot(current, market_should_be_active):
         product = subscription["product"]
         contract = futures_contracts.get(product)
@@ -1256,8 +1261,15 @@ def startup_exit_code(error: Exception) -> tuple[int, str]:
     return 1, "UNKNOWN_INSUFFICIENT_EVIDENCE"
 
 
+def require_open_operating_session() -> None:
+    if not tx_market_data_expected():
+        print("BROKER_START_CALENDAR_BLOCKED", file=sys.stderr)
+        raise SystemExit(76)
+
+
 def main() -> None:
     global SERVER, BRIDGE_STARTED_AT, SHIOAJI_API
+    require_open_operating_session()
     instance_mutex = acquire_single_instance()
     # Acquire the singleton port before login. A second launcher therefore exits
     # without consuming another broker connection or creating duplicate subscriptions.
@@ -1284,12 +1296,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     try:
+        require_open_operating_session()
         credentials = load_credentials(CREDENTIAL_PATH)
         api_key = str(credentials["apiKey"])
         secret_key = str(credentials["secretKey"])
         simulation = not bool(credentials.get("production", False))
 
         api = sj.Shioaji(simulation=simulation)
+        require_open_operating_session()
         api.login(
             api_key=api_key,
             secret_key=secret_key,

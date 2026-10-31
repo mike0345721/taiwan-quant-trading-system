@@ -54,8 +54,27 @@ export function loadGovernedTradingCalendar(filePath, exceptionEvidencePath = nu
     if (!/^[a-f0-9]{64}$/.test(evidence.sourceHash || '') || !/^[a-f0-9]{64}$/.test(evidence.fileHash || '') || digest(withoutFileHash(evidence)) !== evidence.fileHash) {
       throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_HASH_INVALID');
     }
-    for (const item of evidence.exceptions || []) {
-      exceptions.set(date(item.tradeDate, 'FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_DATE_INVALID'), Object.freeze({ ...item, evidenceFileHash: evidence.fileHash }));
+    // New source-backed emergency evidence validates both the source summary and
+    // the enclosing approval artifact; never infer a trading day from a bad file.
+    if (evidence.sourceEvidence && digest(evidence.sourceEvidence) !== evidence.sourceHash) {
+      throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_SOURCE_HASH_INVALID');
+    }
+    if (!Array.isArray(evidence.exceptions)) {
+      throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_SET_INVALID');
+    }
+    if (evidence.approvalScope === 'ISOLATED_RESEARCH_CANDIDATE_ONLY'
+        && (evidence.formalWeight !== 0 || evidence.researchOnly !== true
+          || evidence.executionAuthorized !== false || evidence.orderRoutesEnabled !== false)) {
+      throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_SAFETY_INVALID');
+    }
+    for (const item of evidence.exceptions) {
+      const exceptionDate = date(item.tradeDate, 'FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_DATE_INVALID');
+      if ((!tradingDates.includes(exceptionDate) && !nonTradingDates.includes(exceptionDate))
+          || typeof item.officialTradingDay !== 'boolean'
+          || exceptions.has(exceptionDate)) {
+        throw new Error('FORWARD_SHADOW_TRADING_CALENDAR_EXCEPTION_SET_INVALID');
+      }
+      exceptions.set(exceptionDate, Object.freeze({ ...item, evidenceFileHash: evidence.fileHash }));
     }
   }
   return Object.freeze({ payload, fileHash: payload.fileHash, physicalFileHash: digest(bytes), tradingDates: new Set(tradingDates), nonTradingDates: new Set(nonTradingDates), exceptions });
@@ -63,6 +82,7 @@ export function loadGovernedTradingCalendar(filePath, exceptionEvidencePath = nu
 
 export function resolveGovernedTradingDay(calendar, tradeDate) {
   date(tradeDate, 'FORWARD_SHADOW_TRADE_DATE_INVALID');
+  if (calendar?.pendingCandidateDates?.has(tradeDate)) throw Error('OPERATING_CALENDAR_CANDIDATE_NOT_ACTIVATED');
   const exception = calendar.exceptions.get(tradeDate);
   if (exception) return Object.freeze({ officialTradingDay: exception.officialTradingDay === true, state: exception.officialTradingDay === true ? 'TRADING_DAY_EXCEPTION' : 'NON_TRADING_DAY_EXCEPTION', sourceHash: calendar.payload.sourceHash, fileHash: calendar.fileHash, exceptionEvidence: exception });
   if (calendar.tradingDates.has(tradeDate)) return Object.freeze({ officialTradingDay: true, state: 'TRADING_DAY', sourceHash: calendar.payload.sourceHash, fileHash: calendar.fileHash });

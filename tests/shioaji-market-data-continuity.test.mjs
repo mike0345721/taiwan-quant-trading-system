@@ -213,6 +213,8 @@ test('writer failure on an occupied bridge port fails closed without spawning a 
   const statuses = [];
   await runContinuitySupervisor({
     root,
+    calendar: { tradingDates:new Set(['2026-08-14']),nonTradingDates:new Set(),exceptions:new Map(),payload:{} },
+    now:()=>new Date('2026-08-14T01:00:00Z'),
     healthProbe: async () => health({ writerState: 'FAIL', writerErrors: 1 }),
     occupiedProbe: async () => true,
     bridgeSpawner: () => { spawns += 1; return new EventEmitter(); },
@@ -257,7 +259,7 @@ test('governed market-open readiness requires post-recovery evidence while non-m
 
 test('supervisor recovers through a synthetic child without touching live port or ledger', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'continuity-supervisor-'));
-  let clock = Date.parse('2026-08-14T00:00:00Z');
+  let clock = Date.parse('2026-08-14T01:00:00Z');
   let probes = 0;
   let spawns = 0;
   const statuses = [];
@@ -265,9 +267,10 @@ test('supervisor recovers through a synthetic child without touching live port o
   const before = fs.readdirSync(root);
   await runContinuitySupervisor({
     root,
+    calendar: { tradingDates:new Set(['2026-08-14']),nonTradingDates:new Set(),exceptions:new Map(),payload:{} },
     now: () => new Date(clock),
     wait: async (milliseconds) => { clock += Math.max(1, milliseconds); },
-    healthProbe: async () => { probes += 1; if (probes < 2) throw new Error('offline'); return health({ latestReceivedAt: '2026-08-14T00:00:10Z' }); },
+    healthProbe: async () => { probes += 1; if (probes < 2) throw new Error('offline'); return health({ latestReceivedAt: '2026-08-14T01:00:10Z' }); },
     occupiedProbe: async () => false,
     bridgeSpawner: () => { spawns += 1; return child; },
     onStatus: (status) => statuses.push(status),

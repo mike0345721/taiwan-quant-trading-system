@@ -147,6 +147,36 @@ test('DW-2 chart facts populate snapshot and decision explanation without changi
   assert.doesNotMatch(workspace.decisionSummary.explanation, /OR、VWAP.*尚未/);
 });
 
+test('an explicit unavailable chart never relabels the daily close as an executed tick', () => {
+  for (const lastPrice of [null, undefined, '', ' ', false, true, [], {}, NaN, Infinity]) {
+    const chart = { status: 'UNAVAILABLE', lastPrice, source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK', availableAt: now.toISOString() };
+    const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), chart, now });
+    assert.equal(workspace.snapshot.price.availability, 'UNAVAILABLE');
+    assert.equal(workspace.priceChartSlot.price.availability, 'UNAVAILABLE');
+    assert.doesNotMatch(workspace.decisionSummary.explanation, /目前可直接查看：TX 價格/);
+  }
+});
+
+test('chart prices preserve their own missing timestamp and legitimate zero', () => {
+  for (const lastPrice of [0, '22510']) {
+    const chart = { status: 'READY', lastPrice, source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK', availableAt: null };
+    const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), chart, now });
+    assert.equal(workspace.snapshot.price.value, Number(lastPrice));
+    assert.equal(workspace.snapshot.price.sourceId, chart.source);
+    assert.equal(workspace.snapshot.price.availableAt, null);
+  }
+});
+
+test('daily-close fallback is available only without a chart and keeps daily provenance', () => {
+  const workspace = buildDecisionWorkspace({ snapshot: sourceSnapshot(), dataHealth: health(), now });
+  assert.equal(workspace.snapshot.price.value, 22500);
+  assert.equal(workspace.snapshot.price.sourceId, 'futuresMarket');
+  assert.equal(workspace.snapshot.price.availableAt, '2026-08-11T14:00:00.000Z');
+  const missing = sourceSnapshot();
+  missing.futuresMarket.data.txDay.close = null;
+  assert.equal(buildDecisionWorkspace({ snapshot: missing, dataHealth: health(), now }).snapshot.price.availability, 'UNAVAILABLE');
+});
+
 test('DW-3 Market Change Feed is exposed through workspace without changing decision posture', () => {
   const marketChangeFeed = {
     schemaVersion: 'market-change-feed-v1', status: 'AVAILABLE', engineAvailability: 'AVAILABLE',
@@ -396,7 +426,8 @@ test('formal dashboard wiring carries posture, five evidence families and comple
   assert.match(server, /loadFlowRefresh\(\{[\s\S]*artifactPath: cru34SnapshotArtifactPath/);
   const flowRoute = fs.readFileSync(new URL('../src/dashboard-flow-refresh.mjs', import.meta.url), 'utf8');
   assert.match(flowRoute, /loadDashboardObservedFlow\(\{ \.\.\.options, now \}\)/);
-  assert.match(server, /return buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
+  assert.match(server, /return \{ \.\.\.buildDecisionWorkspace\(\{[\s\S]*snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,[\s\S]*observedFlow/);
+  assert.match(server, /marketOperating: assessTaifexMarketSession\(new Date\(\), operatingCalendar\)/);
   assert.match(server, /decisionWorkspacePayload\(clientSnapshot, servicePayload\)/);
   assert.match(app, /decision\.posture === 'MANUAL_REVIEW_ONLY' \? '僅供人工判讀'/);
   assert.match(app, /renderDw4Evidence\(workspace\?\.evidenceConflict\)/);
