@@ -55,3 +55,76 @@ test('target env: rollback root cannot be the development directory', () => {
 test('target env: ambiguous relative data bindings are not accepted', () => {
   assert.throws(() => assertFormalTargetEnvironment({...plan,readDataRoot:'data'}, target, baseline));
 });
+
+// Migration approval is fixture data only; no real plan or setting is created.
+const candidateHead = 'b'.repeat(40);
+const legacyCookie = baseline.replace('COOKIE_SECURE=1', 'COOKIE_SECURE=0');
+const approvedMigration = Object.freeze({
+  schema:'cru21-secure-cookie-migration-v1', candidateHead,
+  from:'0', to:'1', ownerApproved:true,
+  httpsOrigin:'https://dashboard.example.test', transportEvidenceSha256:'e'.repeat(64),
+});
+const migrationPlan = () => ({ ...plan, head:candidateHead, cookieMigration:{...approvedMigration} });
+
+test('cookie migration: explicit approved secure-only upgrade accepts legacy baseline without rewriting it', () => {
+  const before = createHash('sha256').update(legacyCookie).digest('hex');
+  assert.equal(assertFormalTargetEnvironment(migrationPlan(), target, legacyCookie).ready, true);
+  assert.equal(createHash('sha256').update(legacyCookie).digest('hex'), before);
+});
+
+test('cookie migration: implicit upgrade and unchanged insecure target both remain refused', () => {
+  assert.throws(() => assertFormalTargetEnvironment({...plan,head:candidateHead}, target, legacyCookie));
+  assert.throws(() => assertFormalTargetEnvironment(migrationPlan(), target.replace('COOKIE_SECURE=1','COOKIE_SECURE=0'), legacyCookie));
+});
+
+for (const [name, patch] of [
+  ['missing schema',{schema:undefined}], ['foreign schema',{schema:'legacy'}],
+  ['missing approval',{ownerApproved:undefined}], ['false approval',{ownerApproved:false}],
+  ['string approval',{ownerApproved:'true'}], ['wrong head',{candidateHead:'c'.repeat(40)}],
+  ['missing head',{candidateHead:undefined}], ['wrong from',{from:'1'}], ['wrong to',{to:'0'}],
+  ['HTTP origin',{httpsOrigin:'http://127.0.0.1:8787'}],
+  ['origin credentials',{httpsOrigin:'https://user:password@dashboard.example.test'}],
+  ['origin path',{httpsOrigin:'https://dashboard.example.test/login'}],
+  ['origin query',{httpsOrigin:'https://dashboard.example.test?x=1'}],
+  ['origin fragment',{httpsOrigin:'https://dashboard.example.test#x'}],
+  ['missing HTTPS origin',{httpsOrigin:undefined}],
+  ['malformed origin',{httpsOrigin:'not a URL'}],
+  ['missing transport evidence',{transportEvidenceSha256:undefined}],
+  ['bad transport evidence',{transportEvidenceSha256:'not-a-sha256'}],
+]) test('cookie migration refuses '+name, () => {
+  const p=migrationPlan(); Object.assign(p.cookieMigration,patch);
+  assert.throws(() => assertFormalTargetEnvironment(p,target,legacyCookie));
+});
+
+test('cookie migration: approval is invalid without a full plan version or when carried to a no-change plan', () => {
+  assert.throws(() => assertFormalTargetEnvironment({...migrationPlan(),head:'short'},target,legacyCookie));
+  assert.throws(() => assertFormalTargetEnvironment(migrationPlan(),target,baseline));
+});
+
+for(const [name,key,value] of [
+  ['password','DASHBOARD_PASSWORD_HASH','other-fixture-value'],
+  ['proxy','TRUST_PROXY','1'], ['session lifetime','SESSION_TTL_MINUTES','1440'],
+  ['remembered lifetime','REMEMBER_SESSION_DAYS','90'],
+  ['account directory','LOCALAPPDATA','D:/fixture/elsewhere'],
+]) test('cookie migration does not authorize changing '+name,()=>{
+  assert.throws(()=>assertFormalTargetEnvironment(migrationPlan(),target+`${key}=${value}\n`,legacyCookie));
+});
+
+test('cookie migration: secure-to-insecure downgrade is refused even with an approval object',()=>{
+  const p=migrationPlan();p.cookieMigration.from='1';p.cookieMigration.to='0';
+  assert.throws(()=>assertFormalTargetEnvironment(p,target.replace('COOKIE_SECURE=1','COOKIE_SECURE=0'),baseline));
+});
+
+test('Windows env names: lower-case names retain their real Windows meaning',()=>{
+  const lower=text=>text.replace(/^([A-Z_]+)=/gm,(_,name)=>name.toLowerCase()+'=');
+  assert.equal(assertFormalTargetEnvironment(migrationPlan(),lower(target),lower(legacyCookie)).ready,true);
+});
+test('Windows env names: case aliases cannot shadow a verified secure-cookie value',()=>{
+  assert.throws(()=>assertFormalTargetEnvironment(migrationPlan(),target+'cookie_secure=0\n',legacyCookie));
+  assert.throws(()=>assertFormalTargetEnvironment(migrationPlan(),target,legacyCookie+'cookie_secure=0\n'));
+});
+for(const [key,value] of [['node_options','--require=fixture'],['localappdata','D:/fixture/other'],['node_tls_reject_unauthorized','0']])
+  test('Windows env names: retained lower-case '+key+' cannot bypass safety checks',()=>{
+    const extra=`${key}=${value}\n`;
+    assert.throws(()=>assertFormalTargetEnvironment(migrationPlan(),target+extra,legacyCookie+extra));
+  });

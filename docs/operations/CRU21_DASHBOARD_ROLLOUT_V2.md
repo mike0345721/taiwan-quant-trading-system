@@ -117,3 +117,58 @@ Root validation above is lexical plus a check on each root directory itself; it 
 not a held-handle/full-ancestor namespace proof. Before any real deployment, the
 operator must independently verify ancestor aliases, ownership and the actual shared
 read/source layout. This source change must not be reported as proving those properties.
+
+## Explicit secure-cookie migration (source support, not runtime approval)
+
+An existing `COOKIE_SECURE=0` baseline used to be impossible to migrate: leaving it
+unchanged violated `SECURE_COOKIE_REQUIRED`, while setting it to `1` violated the
+blanket authentication-equality check. The target checker now distinguishes an
+immutable original backup from an explicitly reviewed, secure-only target change.
+
+The unchanged secure baseline (`1` to `1`) needs no migration object. A `0` to `1`
+transition requires `plan.cookieMigration` with all of the following:
+
+| Field | Required value |
+| --- | --- |
+| `schema` | `cru21-secure-cookie-migration-v1` |
+| `candidateHead` | The same full 40-character SHA as `plan.head` |
+| `from`, `to` | Exact strings `0`, `1` |
+| `ownerApproved` | Boolean `true`, supported by an actual Owner decision |
+| `httpsOrigin` | Canonical HTTPS origin only, without credentials, path, query or fragment |
+| `transportEvidenceSha256` | 64 lowercase hexadecimal characters identifying reviewed transport/login evidence |
+
+This is an **attestation contract**, like the existing hard-gate file, not a network
+probe, proof signature, or automatic verification of the Owner. Before an operator
+uses it, independently inspect the referenced evidence for the declared HTTPS
+origin, correct application/version, authenticated cookie round-trip and transport
+configuration. A fabricated hash or fixture approval is not evidence. The parser
+performs no network request and will not build, initialize or approve this object.
+A plain HTTP 200 on `127.0.0.1:8787` is not proof of an HTTPS client entry point.
+Do not toggle the production cookie flag just because the source checker supports it.
+
+The exception is limited to `COOKIE_SECURE=0` -> `1`. Downgrades, implicit upgrades,
+wrong-version approvals, stale approvals attached to an unchanged configuration and
+missing transport evidence remain refused. Password, proxy trust, session lifetime,
+account root, source routing and other unrelated values must remain unchanged. The
+plan/backups' existing SHA256 checks and final Owner exact-version deployment gate
+remain mandatory. Rollback still restores the original bytes at the original formal
+root; it is recovery to the explicitly recorded baseline, not a secure-upgrade PASS.
+
+Environment names are compared case-insensitively for the Windows target. Differently
+cased aliases are refused, and lower-case Node/TLS/account-root keys cannot hide from
+the same safety checks. Parsing still never loads values into `process.env`.
+
+Validation includes the real checker invoked by the complete intercepted Windows
+fixture: approved upgrade, refusal before process mutation without approval, and
+restoration of the original cookie policy on rollback. These are dummy configurations;
+no real secret file, transport endpoint, service, ACL or browser login is changed.
+
+Code-merge readiness and production readiness are separate. Passing this regression
+can support review/merge of the source change; it does not supply real HTTPS evidence,
+Owner deployment approval, model-content acceptance, native-account positive-path
+coverage, or production cutover/rollback receipts. Previously accepted unchanged UI
+code need not be retested merely because this operator-only checker changed.
+
+Primary references: RFC6265 section 4.1.2.5
+(https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.2.5), and Node.js process.env
+Windows semantics (https://nodejs.org/api/process.html#processenv).

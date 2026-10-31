@@ -13,7 +13,7 @@ const cases = ['preflight', 'lifecycle', 'primary-head-drift', 'primary-branch-d
   'corrupt-backup', 'missing-gate', 'wrong-owner-sha', 'wrong-tree', 'pid-reuse',
   'foreign-listener', 'wrong-old-root', 'wrong-routing', 'stop-failure', 'launch-failure',
   'rollback-no-listener', 'rollback-plan-drift', 'rollback-foreign-listener', 'rollback-primary-drift',
-  'string-gate', 'wrong-main', 'rollback-pid-reuse'];
+  'string-gate', 'wrong-main', 'rollback-pid-reuse', 'cookie-upgrade-lifecycle', 'cookie-upgrade-unapproved'];
 
 // The complete script is evaluated only inside this disposable fixture harness.
 // Every process, network, Git mutation and Copy-Item operation is intercepted.
@@ -39,7 +39,9 @@ foreach($case in @(${cases.map(q).join(',')})){
  $report='v2/reports/V3_3_OI_NORMALIZATION_AUDIT.md'
  $readRoot=Join-Path $primary 'data';$producerRoot=Join-Path $formal 'data'
  $original="HOST=127.0.0.1\nPORT=8787\nMOCK_DATA=0\nNODE_ENV=production\nCOOKIE_SECURE=1\nDASHBOARD_PASSWORD_HASH=fixture-only-not-a-password\n"
+ if($case -like 'cookie-upgrade-*'){$original=$original.Replace('COOKIE_SECURE=1','COOKIE_SECURE=0')}
  $target=$original+"ASK_GPT_INLINE_ENABLED=1\nDASHBOARD_FORMAL_READ_ROOT=$readRoot\nTX_CHART_DATA_ROOT=$readRoot\nTX_CHART_CACHE_ROOT=$producerRoot/dashboard-chart-cache\nCRU34_LIVE_DATA_ROOT=$producerRoot\nCRU34_LIVE_SNAPSHOT_PATH=$producerRoot/runtime/cru34-live/latest.json\nCRU34_LIVE_STATUS_PATH=$producerRoot/runtime/cru34-live/status.json\n"
+ if($case -like 'cookie-upgrade-*'){$target=$target.Replace('COOKIE_SECURE=0','COOKIE_SECURE=1')}
  if($case -eq 'wrong-routing'){$target=$target.Replace('PORT=8787','PORT=18722')}
  foreach($p in @((Join-Path $primary '.env'),(Join-Path $formal '.env'),(Join-Path $receipts 'primary-original.env'),(Join-Path $receipts 'formal-original.env'))){Put $p $original}
  Put (Join-Path $receipts 'formal-target.env') $target
@@ -51,6 +53,7 @@ foreach($case in @(${cases.map(q).join(',')})){
  $script:fixtureProcess=$old
  $identity=@{pid=43210;creationDate=$old.CreationDate.ToUniversalTime().ToString('o');executable=$old.ExecutablePath;commandLine=$old.CommandLine}
  $plan=@{schema='cru21-rollout-plan-v3-formal-only';primary=$primary;formal=$formal;candidate=$candidate;oldRuntimeRoot=$formal;primaryHead=('c'*40);primaryBranch='codex/fixture-development';base=('a'*40);head=('b'*40);tree=('e'*40);formalPid=43210;producerPid=43211;readDataRoot=$readRoot;producerDataRoot=$producerRoot;oldProcess=$identity;dirtyReportPath=$report;dirtyReportHash=(Sum (Join-Path $primary $report));primaryEnvHash=(Sum (Join-Path $primary '.env'));formalEnvHash=(Sum (Join-Path $formal '.env'));targetEnvHash=(Sum (Join-Path $receipts 'formal-target.env'))}
+ if($case -eq 'cookie-upgrade-lifecycle'){$plan.cookieMigration=@{schema='cru21-secure-cookie-migration-v1';candidateHead=('b'*40);from='0';to='1';ownerApproved=$true;httpsOrigin='https://dashboard.example.test';transportEvidenceSha256=('e'*64)}}
  if($case -eq 'wrong-old-root'){$plan.oldRuntimeRoot=$primary}
  $planPath=Join-Path $receipts 'plan.json';$plan|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $planPath -Encoding UTF8
  $gates=@{candidateHead=('b'*40);expectedMain=('b'*40);ownerDeploymentApproved=$true;candidateModelContentPassed=$true;windowsPassed=$true;ciPassed=$true;independentReviewPassed=$true;runtimeAcceptancePassed=$true;rollbackReviewed=$true}
@@ -119,7 +122,7 @@ foreach($case in @(${cases.map(q).join(',')})){
   if($case -eq 'preflight'){& $rollout -Mode Preflight -PlanPath $planPath | Out-Null}
   else{
    & $rollout -Mode Deploy -PlanPath $planPath -ExpectedMain ('b'*40) | Out-Null
-   if($case -eq 'lifecycle' -or $case -like 'rollback-*'){
+   if($case -eq 'lifecycle' -or $case -eq 'cookie-upgrade-lifecycle' -or $case -like 'rollback-*'){
     $script:rollbackStage=$true;$beforeRollback=@($script:actions.ToArray())
     if($case -eq 'rollback-plan-drift'){Add-Content -LiteralPath $planPath -Value ' '}
     try { & $rollout -Mode Rollback -PlanPath $planPath -ExpectedMain ('b'*40) | Out-Null }catch{$rollbackFailure=$_.Exception.Message}
@@ -129,7 +132,7 @@ foreach($case in @(${cases.map(q).join(',')})){
   $failure=$_.Exception.Message
   if($case -eq 'launch-failure'){try{& $rollout -Mode Deploy -PlanPath $planPath -ExpectedMain ('b'*40)|Out-Null}catch{$retryFailure=$_.Exception.Message}}
  }
- $results+=@{case=$case;failure=$failure;rollbackFailure=$rollbackFailure;retryFailure=$retryFailure;actions=@($script:actions.ToArray());beforeRollback=$beforeRollback;primaryUnchanged=((Sum (Join-Path $primary '.env')) -eq $beforeEnv -and (Sum (Join-Path $primary $report)) -eq $beforeReport);formalHead=$script:formalHead;stateExists=(Test-Path -LiteralPath (Join-Path $receipts 'deployment-state.json'))}
+ $results+=@{case=$case;failure=$failure;rollbackFailure=$rollbackFailure;retryFailure=$retryFailure;actions=@($script:actions.ToArray());beforeRollback=$beforeRollback;primaryUnchanged=((Sum (Join-Path $primary '.env')) -eq $beforeEnv -and (Sum (Join-Path $primary $report)) -eq $beforeReport);formalHead=$script:formalHead;formalEnvironmentRestored=((Sum (Join-Path $formal '.env')) -eq $plan.formalEnvHash);stateExists=(Test-Path -LiteralPath (Join-Path $receipts 'deployment-state.json'))}
 }
 $results|ConvertTo-Json -Depth 8 -Compress
 `;
@@ -144,11 +147,12 @@ $results|ConvertTo-Json -Depth 8 -Compress
       assert.equal(row.primaryUnchanged, true, 'development report and environment must stay byte-identical');
       if (row.case === 'preflight') {
         assert.equal(row.failure, null); assert.deepEqual(row.actions, []);
-      } else if (row.case === 'lifecycle' || row.case === 'rollback-no-listener') {
+      } else if (row.case === 'lifecycle' || row.case === 'cookie-upgrade-lifecycle' || row.case === 'rollback-no-listener') {
         assert.equal(row.failure, null); assert.equal(row.rollbackFailure, null);
         assert.deepEqual(row.actions, ['stop:43210', 'switch-formal:'+'b'.repeat(40), 'copy-formal-env', 'start-formal',
           'stop:54321', 'switch-formal:'+'a'.repeat(40), 'copy-formal-env', 'start-formal']);
         assert.equal(row.formalHead, 'a'.repeat(40));
+        assert.equal(row.formalEnvironmentRestored,true,'rollback must restore the exact original configuration');
       } else if (row.case.startsWith('rollback-')) {
         assert.equal(row.failure, null); assert.ok(row.rollbackFailure);
         assert.deepEqual(row.actions, row.beforeRollback, 'refused rollback must not stop even the candidate');

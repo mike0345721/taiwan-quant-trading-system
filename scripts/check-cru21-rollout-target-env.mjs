@@ -10,9 +10,45 @@ const winPath = value => {
   return path.win32.resolve(value).toLowerCase();
 };
 
+// Windows treats environment names case-insensitively, even when tests run on Linux.
+function parseWindowsEnvironment(text) {
+  const result = Object.create(null);
+  for (const [name, value] of Object.entries(parseEnv(text))) {
+    const key = name.toUpperCase();
+    if (Object.hasOwn(result, key)) reject('ENVIRONMENT_CASE_COLLISION');
+    result[key] = value;
+  }
+  return result;
+}
+
+// This validates a reviewed migration attestation, not HTTPS reachability or Owner identity.
+// Deployment still requires the existing exact-version hard gates and private evidence review.
+function permitsSecureCookieUpgrade(plan, original, target) {
+  if (target.COOKIE_SECURE !== '1') reject('SECURE_COOKIE_REQUIRED');
+  const changed = target.COOKIE_SECURE !== original.COOKIE_SECURE;
+  const migration = plan.cookieMigration;
+  if (!changed) {
+    if (migration != null) reject('COOKIE_MIGRATION_NOT_APPLICABLE');
+    return false;
+  }
+  if (original.COOKIE_SECURE !== '0' || !migration || typeof migration !== 'object' || Array.isArray(migration)
+      || migration.schema !== 'cru21-secure-cookie-migration-v1'
+      || migration.from !== '0' || migration.to !== '1' || migration.ownerApproved !== true
+      || typeof plan.head !== 'string' || !/^[a-f0-9]{40}$/.test(plan.head)
+      || migration.candidateHead !== plan.head
+      || typeof migration.transportEvidenceSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(migration.transportEvidenceSha256)) {
+    reject('COOKIE_MIGRATION_APPROVAL_REQUIRED');
+  }
+  let origin;
+  try { origin = new URL(migration.httpsOrigin); } catch { reject('COOKIE_MIGRATION_HTTPS_EVIDENCE_REQUIRED'); }
+  if (origin.protocol !== 'https:' || origin.username || origin.password
+      || origin.origin !== migration.httpsOrigin) reject('COOKIE_MIGRATION_HTTPS_EVIDENCE_REQUIRED');
+  return true;
+}
+
 export function assertFormalTargetEnvironment(plan, targetText, originalText) {
   if (plan?.schema !== 'cru21-rollout-plan-v3-formal-only') reject('PLAN_SCHEMA_INVALID');
-  const target = parseEnv(targetText), original = parseEnv(originalText);
+  const target = parseWindowsEnvironment(targetText), original = parseWindowsEnvironment(originalText);
   const formal = winPath(plan.formal), primary = winPath(plan.primary);
   if (formal === primary || winPath(plan.oldRuntimeRoot) !== formal
       || winPath(plan.readDataRoot) !== winPath(path.win32.join(primary, 'data'))
@@ -21,11 +57,11 @@ export function assertFormalTargetEnvironment(plan, targetText, originalText) {
     if (target[key] !== expected) reject('TARGET_CONFIGURATION_INVALID');
   }
   if (!original.DASHBOARD_PASSWORD_HASH || target.DASHBOARD_PASSWORD_HASH !== original.DASHBOARD_PASSWORD_HASH) reject('AUTHENTICATION_CHANGED');
-  // Preserve existing security settings; do not loosen TLS/cookie/proxy boundaries to deploy.
-  for (const key of ['COOKIE_SECURE', 'TRUST_PROXY', 'SESSION_TTL_MINUTES', 'REMEMBER_SESSION_DAYS']) {
+  // Original backup bytes remain immutable. Only an explicit 0 -> 1 cookie upgrade may differ.
+  const cookieUpgrade = permitsSecureCookieUpgrade(plan, original, target);
+  for (const key of ['TRUST_PROXY', 'SESSION_TTL_MINUTES', 'REMEMBER_SESSION_DAYS']) {
     if (target[key] !== original[key]) reject('AUTHENTICATION_CONFIGURATION_CHANGED');
   }
-  if (target.COOKIE_SECURE !== '1') reject('SECURE_COOKIE_REQUIRED');
   const forbidden = /^(DASHBOARD_PREVIEW_|CRU55_|FORWARD_SHADOW_)/;
   for (const [key, value] of Object.entries(target)) {
     if (value && (forbidden.test(key) || ['ASK_GPT_CANDIDATE_READ_ROOT','DASHBOARD_ENV_PATH','DASHBOARD_RUNTIME_COMMIT','LOCALAPPDATA','NODE_OPTIONS','CRU34_SNAPSHOT_ARTIFACT_PATH','CRU34_SNAPSHOT_FRESHNESS_CUTOFF'].includes(key))) reject('INCOMPATIBLE_ROUTING');
@@ -44,6 +80,7 @@ export function assertFormalTargetEnvironment(plan, targetText, originalText) {
   }
   // Only the declared formal read/cache/Producer bindings and activation below may change.
   const mutable = new Set(['HOST','PORT','MOCK_DATA','NODE_ENV','ASK_GPT_INLINE_ENABLED', ...Object.keys(expectedPaths)]);
+  if (cookieUpgrade) mutable.add('COOKIE_SECURE');
   for (const key of new Set([...Object.keys(original), ...Object.keys(target)])) {
     if (!mutable.has(key) && target[key] !== original[key]) reject('UNRELATED_CONFIGURATION_CHANGED');
   }
