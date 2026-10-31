@@ -36,6 +36,7 @@ test('F1/F3/F6 protected Flow GET, normal login, CSRF/logout, and honest researc
     catch (error) { if (attempt > 80 || child.exitCode != null) throw error; await new Promise(r => setTimeout(r, 50)); }
   }
   assert.equal((await fetch(base + '/api/v1/observed-flow')).status, 401);
+  assert.equal((await fetch(base + '/api/v1/research-evidence')).status, 401);
   const login = await fetch(base + '/api/auth/login', { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
   assert.equal(login.status, 200);
@@ -44,6 +45,13 @@ test('F1/F3/F6 protected Flow GET, normal login, CSRF/logout, and honest researc
   const flow = await fetch(base + '/api/v1/observed-flow', { headers });
   assert.equal(flow.status, 200); assert.equal(flow.headers.get('cache-control'), 'no-store');
   assert.equal((await flow.json()).data.sourceState, 'UNAVAILABLE');
+  const research=await fetch(base+'/api/v1/research-evidence',{headers});
+  assert.equal(research.status,200);assert.equal(research.headers.get('cache-control'),'no-store');
+  const evidence=(await research.json()).data;
+  assert.equal(evidence.schemaVersion,'dashboard-research-evidence-v1');
+  assert.equal(evidence.depth.state,'UNAVAILABLE');assert.equal(evidence.comparison.metrics,null);
+  assert.equal(evidence.executionAuthorized,false);
+  assert.equal((await fetch(base+'/api/v1/research-evidence',{method:'POST',headers,body:'{}'})).status,404);
   for (const [endpoint, reason] of [['research','V2_DATABASE_NOT_READY'], ['backtests','V2_BACKTEST_NOT_READY']]) {
     const response = await fetch(base + '/api/v2/' + endpoint, { headers });
     assert.equal(response.status, 503); assert.equal((await response.json()).error, reason);
@@ -51,4 +59,5 @@ test('F1/F3/F6 protected Flow GET, normal login, CSRF/logout, and honest researc
   assert.equal((await fetch(base + '/api/auth/logout', { method: 'POST', headers, body: '{}' })).status, 403);
   assert.equal((await fetch(base + '/api/auth/logout', { method: 'POST', headers: { ...headers, 'x-csrf-token': session.csrfToken }, body: '{}' })).status, 200);
   assert.equal((await fetch(base + '/api/v1/observed-flow', { headers })).status, 401);
+  assert.equal((await fetch(base + '/api/v1/research-evidence', { headers })).status, 401);
 });
