@@ -20,7 +20,7 @@
   CREDENTIAL_ACCOUNT_METADATA_INVALID:'帳號中繼資料格式無法確認，本次未載入帳號，也未改動儲存資料。',
   AUTH_REQUIRED:'請先登入行情面板，再按「讀取已儲存帳號」。',
  });
- let csrf='',busy=false,enabled=false,accountsLoaded=false,stateReadEpoch=0,requestId=null,controller=null,connectionTimer=null;
+ let csrf='',busy=false,enabled=false,accountsLoaded=false,stateReadEpoch=0,recoveryReadEpoch=0,requestId=null,controller=null,connectionTimer=null;
  const storageKey='twchip.ask-gpt.last-request.v1:'+location.port;
  const text=(id,value)=>{$(id).textContent=value??'';};
  function feedback(message,state='IDLE'){text('ai-status',message);$('ai-status').dataset.phase=state;}
@@ -87,10 +87,12 @@
   feedback((phases[phase]||phase)+(r.error?'：'+reasonText(r.error.code):phase!==r.phase?'：回答缺少內容核對紀錄。':''),phase);
  }
  async function recover(){
+  if(busy)return;
   let id;try{id=sessionStorage.getItem(storageKey);}catch{}
   if(!id)return;requestId=id;
-  try{const r=await api('requests/'+id);receipt(r);if(!r.finished)feedback('上次請求尚未有終止結果；請按「查回上次結果」，不要重複發送。','INTERRUPTED');}
-  catch(e){feedback(errorText(e),'FAILED');}finally{controls();}
+  const epoch=++recoveryReadEpoch,current=()=>epoch===recoveryReadEpoch&&requestId===id;
+  try{const r=await api('requests/'+id);if(!current())return;receipt(r);if(!r.finished)feedback('上次請求尚未有終止結果；請按「查回上次結果」，不要重複發送。','INTERRUPTED');}
+  catch(e){if(current())feedback(errorText(e),'FAILED');}finally{if(current())controls();}
  }
  $('ai-refresh').addEventListener('click',()=>{void loadAccounts();});
  $('ai-recover').addEventListener('click',()=>{if(!busy)void recover();});
@@ -122,7 +124,7 @@
  $('ai-submit').addEventListener('click',async()=>{
   if(busy||$('ai-submit').disabled)return;
   const question=$('ai-question').value.trim();if(!question){feedback('請先輸入問題。','FAILED');return;}
-  busy=true;requestId=crypto.randomUUID();controller=new AbortController();try{sessionStorage.setItem(storageKey,requestId);}catch{}
+  ++recoveryReadEpoch;busy=true;requestId=crypto.randomUUID();controller=new AbortController();try{sessionStorage.setItem(storageKey,requestId);}catch{}
   controls();text('ai-answer','');$('ai-answer').dataset.complete='false';text('ai-evidence','正在封存當下盤況…');text('ai-receipt','');feedback('正在封存目前盤況…','PREPARING_SNAPSHOT');
   const timer=setTimeout(()=>controller.abort(),135000);let finished=false,buffer='',count=0;const decoder=new TextDecoder();
   function line(s){if(!s.trim())return;const e=JSON.parse(s);if(e.type==='receipt'){receipt(e.data);finished=e.data.finished;}else if(e.type==='error')throw Error(e.error);}

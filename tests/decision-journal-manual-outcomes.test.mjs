@@ -29,6 +29,56 @@ const rows = file => fs.readFileSync(file, 'utf8').trim().split('\n').map(line =
 const writeRows = (file, values) => fs.writeFileSync(file, values.map(value => JSON.stringify(value)).join('\n') + '\n');
 const rehash = value => { const { recordHash, ...rest } = value; return { ...rest, recordHash: decisionDigest(rest) }; };
 
+test('an unterminated original decision row is rejected before append and CRLF stays compatible', t => {
+  const f = fixture(t), complete = bytes(f.journalPath);
+  for (const suffix of ['', '\r']) {
+    const unterminated = complete.slice(0, -1) + suffix;
+    fs.writeFileSync(f.journalPath, unterminated);
+    assert.equal(journal.readDecisionJournal(f.journalPath).length, 1);
+    assert.throws(() => journal.appendDecisionJournal(f.journalPath,
+      { intent: 'NO_TRADE', snapshot: f.snapshot }, { now }), /DECISION_JOURNAL_LINE_INCOMPLETE/);
+    assert.equal(bytes(f.journalPath), unterminated);
+    assert.equal(bytes(f.outcomesPath), null);
+  }
+  const prefix = complete.replaceAll('\n', '\r\n');
+  fs.writeFileSync(f.journalPath, prefix);
+  const second = journal.appendDecisionJournal(f.journalPath, { intent: 'NO_TRADE', snapshot: f.snapshot }, { now });
+  assert.ok(bytes(f.journalPath).startsWith(prefix));
+  assert.equal(second.previousHash, f.entry.recordHash);
+  assert.equal(journal.auditDecisionJournal(rows(f.journalPath)).ok, true);
+});
+
+test('an unterminated outcome row is rejected before append without changing either chain', t => {
+  const f = fixture(t), original = bytes(f.journalPath);
+  journal.appendDecisionOutcome(f.outcomesPath, f.journalPath, body(f.entry), { now });
+  const complete = bytes(f.outcomesPath);
+  for (const suffix of ['', '\r']) {
+    const unterminated = complete.slice(0, -1) + suffix;
+    fs.writeFileSync(f.outcomesPath, unterminated);
+    // The complete JSON and its hash are valid; the missing record delimiter
+    // must still prevent a subsequent append from concatenating two records.
+    assert.equal(journal.readDecisionOutcomes(f.outcomesPath, { journalPath: f.journalPath }).length, 1);
+    assert.throws(() => journal.appendDecisionOutcome(f.outcomesPath, f.journalPath,
+      { ...body(f.entry), outcomeNote: 'Must not be appended.' }, { now }), /DECISION_OUTCOME_LINE_INCOMPLETE/);
+    assert.equal(bytes(f.outcomesPath), unterminated);
+    assert.equal(bytes(f.journalPath), original);
+    assert.equal(fs.existsSync(path.join(f.root, 'journal-outcomes.lock')), false);
+  }
+});
+
+test('a CRLF-terminated outcome chain remains appendable without rewriting existing bytes', t => {
+  const f = fixture(t), original = bytes(f.journalPath);
+  const first = journal.appendDecisionOutcome(f.outcomesPath, f.journalPath, body(f.entry), { now });
+  const prefix = bytes(f.outcomesPath).replaceAll('\n', '\r\n');
+  fs.writeFileSync(f.outcomesPath, prefix);
+  const second = journal.appendDecisionOutcome(f.outcomesPath, f.journalPath,
+    { ...body(f.entry), outcomeNote: 'A later observation.' }, { now });
+  assert.ok(bytes(f.outcomesPath).startsWith(prefix));
+  assert.equal(bytes(f.journalPath), original);
+  assert.equal(second.previousHash, first.recordHash);
+  assert.equal(journal.auditDecisionOutcomes(rows(f.outcomesPath), rows(f.journalPath)).ok, true);
+});
+
 test('manual confidence and execution are explicit user fields; legacy decisions remain byte-identical', t => {
   const f = fixture(t);
   const old = rows(f.journalPath)[0];

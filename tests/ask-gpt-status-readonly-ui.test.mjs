@@ -13,8 +13,26 @@ const account = { key: 'saved-account', label: 'Synthetic saved account', expire
   planPermission: true, accessReady: false, renewable: true };
 const loaded = () => ({ enabled: true, accounts: [account], accountMetadataLoaded: true, reason: null });
 const flush = () => new Promise(resolve => setImmediate(resolve));
+const submittedId = '11111111-1111-4111-8111-111111111111';
+const completed = requestId => ({ requestId, phase: 'COMPLETED', finished: true, usable: true,
+  text: 'Verified synthetic answer', updatedAt: '2026-10-29T00:00:00Z',
+  contentVerification: { schema: 'ask-gpt-verified-claims-v1', status: 'PASSED' } });
+const unfinished = requestId => ({ requestId, phase: 'ANALYSING', finished: false,
+  updatedAt: '2026-10-29T00:00:00Z' });
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+function streamReceipt(receipt) {
+  let sent = false;
+  return { ok: true, body: { getReader: () => ({ async read() {
+    if (sent) return { done: true };
+    sent = true; return { done: false, value: Buffer.from(JSON.stringify({ type: 'receipt', data: receipt }) + '\n') };
+  } }) } };
+}
 
-function harness({ guest = false, authenticated = true, statusData = status(), statusReplies = [], accountReplies = [], recoveryId = null } = {}) {
+function harness({ guest = false, authenticated = true, statusData = status(), statusReplies = [], accountReplies = [], recoveryId = null, recoveryReplies = [], askReplies = [] } = {}) {
   const calls = [], timers = [], opened = [], nodes = new Map();
   class Option { constructor(label, key) { this.textContent = label; this.value = key; } }
   function node(id) {
@@ -36,7 +54,8 @@ function harness({ guest = false, authenticated = true, statusData = status(), s
     location: { port: '18722' }, Option, URL, Date, TextDecoder, AbortController,
     AbortSignal: { timeout: () => ({}) },
     setTimeout(fn, ms) { timers.push({ fn, ms }); return timers.length; }, clearTimeout() {},
-    sessionStorage: { getItem: () => recoveryId, setItem() {} },
+    crypto: { randomUUID: () => submittedId },
+    sessionStorage: { getItem: () => recoveryId, setItem(key, value) { recoveryId = value; } },
     fetch: async (url, options = {}) => {
       const method = options.method || 'GET'; calls.push({ url, method, options });
       if (url === '/api/session') return response({ authenticated, csrfToken: authenticated ? 'synthetic-csrf' : null });
@@ -46,15 +65,21 @@ function harness({ guest = false, authenticated = true, statusData = status(), s
         if (!result) throw Error('unexpected account read');
         return result.error ? response({ ok: false, error: result.error, detail: 'SYNTHETIC_PRIVATE_DETAIL' }, false) : response({ ok: true, data: result });
       }
-      if (url === '/api/v1/ask-gpt/requests/' + recoveryId && method === 'GET') return response({ ok: true, data: {
-        requestId: recoveryId, phase: 'FAILED', finished: true, updatedAt: '2026-10-27T00:00:00Z', error: { code: 'REQUEST_CANCELLED' },
+      if (url.startsWith('/api/v1/ask-gpt/requests/') && method === 'GET') return response({ ok: true, data: recoveryReplies.length ? await recoveryReplies.shift() : {
+        requestId: url.split('/').at(-1), phase: 'FAILED', finished: true, updatedAt: '2026-10-27T00:00:00Z', error: { code: 'REQUEST_CANCELLED' },
       } });
+      if (url === '/api/v1/ask-gpt/ask' && method === 'POST') {
+        const reply = await askReplies.shift();
+        if (!reply) throw Error('unexpected analysis request');
+        return reply;
+      }
       throw Error('unexpected request');
     },
   });
   vm.runInContext(source, context);
   return { calls, timers, opened, node, setAuthenticated(value) { authenticated = value; },
     click: async id => { const action = node(id).listeners.get('click'); assert.ok(action, id); await action(); await flush(); },
+    change: async id => { const action = node(id).listeners.get('change'); assert.ok(action, id); await action(); await flush(); },
     retry: async () => { const next = timers.shift(); assert.ok(next); await next.fn(); await flush(); },
     text: () => [...nodes.values()].map(n => n.textContent).join('\n'),
   };
@@ -70,6 +95,44 @@ test('automatic status and request recovery use GET only and do not claim saved 
   assert.doesNotMatch(h.node('ai-connection').textContent, /已連線|有效授權|已找到保存的訂閱授權/);
   assert.deepEqual(h.opened, []);
 });
+
+for (const lateResult of ['unfinished', 'error']) {
+  test(`an older ${lateResult} recovery cannot replace a newer completed read of the same request`, async () => {
+    const old = deferred(), id = 'synthetic-request';
+    const h = harness({ recoveryId: id, recoveryReplies: [old.promise, completed(id)] }); await flush();
+    await h.click('ai-recover');
+    assert.equal(h.node('ai-status').dataset.phase, 'COMPLETED');
+    if (lateResult === 'error') old.reject(Error('REQUEST_NOT_FOUND'));
+    else old.resolve(unfinished(id));
+    await flush();
+    assert.equal(h.node('ai-status').dataset.phase, 'COMPLETED');
+    assert.equal(h.node('ai-answer').dataset.complete, 'true');
+    assert.equal(h.node('ai-answer').textContent, 'Verified synthetic answer');
+    assert.ok(h.calls.every(c => c.method === 'GET'));
+  });
+
+  test(`an older request's ${lateResult} recovery cannot overwrite a newly submitted analysis`, async () => {
+    const old = deferred(), id = 'synthetic-old-request';
+    const h = harness({ recoveryId: id, recoveryReplies: [old.promise], accountReplies: [loaded()],
+      askReplies: [streamReceipt(completed(submittedId))] }); await flush();
+    await h.click('ai-refresh');
+    h.node('ai-model').value = 'synthetic-model'; h.node('ai-question').value = 'Synthetic question';
+    h.node('ai-credits').checked = true; await h.change('ai-credits');
+    assert.equal(h.node('ai-submit').disabled, false);
+    await h.click('ai-submit');
+    assert.equal(h.node('ai-status').dataset.phase, 'COMPLETED');
+    assert.match(h.node('ai-receipt').textContent, new RegExp(submittedId));
+    if (lateResult === 'error') old.reject(Error('REQUEST_NOT_FOUND'));
+    else old.resolve(unfinished(id));
+    await flush();
+    assert.equal(h.node('ai-status').dataset.phase, 'COMPLETED');
+    assert.equal(h.node('ai-answer').dataset.complete, 'true');
+    assert.equal(h.node('ai-answer').textContent, 'Verified synthetic answer');
+    assert.match(h.node('ai-receipt').textContent, new RegExp(submittedId));
+    assert.equal(h.calls.filter(c => c.url.endsWith('/ask')).length, 1);
+    assert.ok(h.calls.every(c => c.method === 'GET' || c.url.endsWith('/accounts') || c.url.endsWith('/ask')));
+  });
+}
 
 test('only the explicit saved-account button reads accounts once without setup, model or OAuth calls', async () => {
   const h = harness({ accountReplies: [loaded()] }); await flush();

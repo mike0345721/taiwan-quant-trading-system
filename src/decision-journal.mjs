@@ -24,9 +24,10 @@ function assertJournalPath(filePath) {
   const normalized = path.resolve(filePath).toLowerCase().replaceAll('/', '\\');
   if (normalized.includes('\\data\\market-state\\forward-shadow\\')) throw new Error('DECISION_JOURNAL_FORWARD_SHADOW_PATH_FORBIDDEN');
 }
-function readLines(filePath) {
+function readLines(filePath, { requireDelimiter = false } = {}) {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, 'utf8');
+  if (requireDelimiter && raw && !raw.endsWith('\n')) throw new Error('DECISION_JOURNAL_LINE_INCOMPLETE');
   return raw.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
@@ -63,7 +64,7 @@ export function appendDecisionJournal(filePath, input, { now = new Date() } = {}
   if (!INTENTS.includes(input?.intent)) throw new Error('DECISION_JOURNAL_INTENT_INVALID');
   validateDecisionSnapshot(input.snapshot);
   const manual = manualFields(input);
-  const rows = readLines(filePath);
+  const rows = readLines(filePath, { requireDelimiter: true });
   const audit = auditDecisionJournal(rows);
   if (!audit.ok) throw new Error(`DECISION_JOURNAL_${audit.reason}`);
   const body = {
@@ -186,6 +187,9 @@ function outcomeState(outcomesPath, decisions) {
   if (identity && (!identity.isFile() || identity.isSymbolicLink() || identity.nlink !== 1)) throw new Error('DECISION_OUTCOME_PATH_REJECTED');
   const raw = identity ? fs.readFileSync(outcomesPath, 'utf8') : '';
   if (!sameOutcomeIdentity(identity, outcomeIdentity(outcomesPath))) throw new Error('DECISION_OUTCOME_STATE_CHANGED');
+  // A complete JSON row can survive an interrupted write without its delimiter.
+  // Preserve those bytes; appending directly would concatenate and corrupt rows.
+  if (raw && !raw.endsWith('\n')) throw new Error('DECISION_OUTCOME_LINE_INCOMPLETE');
   let rows;
   try { rows = raw.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)); }
   catch { throw new Error('DECISION_OUTCOME_READ_INVALID'); }
