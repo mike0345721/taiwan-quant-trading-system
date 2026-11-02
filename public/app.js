@@ -4848,7 +4848,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 function marketCandidateBrowserBinding(version, location) {
   if (version?.previewType !== 'CRU21_MARKET_RESEARCH_CANDIDATE'
       || version.releaseScope !== 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE'
-      || version.branch !== 'codex/cru21-ai-off-candidate-20261102'
+      || version.branch !== 'codex/cru21-candidate-market-inputs-20261102'
       || version.aiEnabled !== false || version.complete !== false || version.deliveryAccepted !== false
       || !/^[a-f0-9]{40}$/.test(version.exactHead || '') || version.exactHead !== version.runtimeCommit
       || version.exactHead !== version.buildCommit || !/^[a-f0-9]{40}$/.test(version.exactTree || '')
@@ -5194,6 +5194,14 @@ async function loadDashboard() {
   const payload = await api('/api/v1/dashboard');
   if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
   state.homeDashboardError = null;
+  const partial = payload.service?.degraded;
+  let partialNotice = $('candidate-partial-data-notice');
+  if (partial?.reason === 'EOD_SNAPSHOT_UNAVAILABLE' && partial.status === 'PARTIAL') {
+    if (!partialNotice) { partialNotice = document.createElement('p');partialNotice.id = 'candidate-partial-data-notice';
+      partialNotice.className = 'alert warn';partialNotice.setAttribute('role','status');
+      $('dashboard-view').prepend(partialNotice); }
+    partialNotice.textContent = '部分資料模式：盤後總覽資料不可用。圖表與 Flow 僅顯示各自已取得的觀察；時效、盤別、品質與判讀資格仍各自檢查，並不代表完整盤況或正式驗收。';
+  } else partialNotice?.remove();
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
   renderDecisionWorkspace(payload.decisionWorkspace);
@@ -5205,7 +5213,7 @@ async function loadDashboard() {
   await loadLiveMarketPulse().catch(() => {});
   if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
   if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
-  terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
+  terminalRoot?.setAttribute('data-dashboard-load-state', partial?.status === 'PARTIAL' ? 'PARTIAL' : 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }

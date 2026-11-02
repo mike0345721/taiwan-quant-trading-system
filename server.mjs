@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { assessCandidateMarketInputs } from './src/candidate-market-inputs.mjs';
 import { MARKET_CANDIDATE_SCOPE, MARKET_CANDIDATE_PREVIEW, assertMarketCandidateMode,
   assertMarketCandidateEnvironmentRoots, assertMarketCandidateFilesystemRoots, buildMarketCandidateVersion, validateMarketCandidateVersionTruth,
   marketCandidateRouteAllowed, marketCandidateQueryAllowed, marketCandidateBrowserBindingMatches } from './src/cru21-market-candidate.mjs';
@@ -279,14 +280,15 @@ function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 }
 
-async function decisionWorkspacePayload(snapshot, service) {
+async function decisionWorkspacePayload(snapshot, service, marketInputs = null) {
   const indexLeadership = service?.indexLeadership || null;
   const runtimeTruth = marketCandidate ? {governed:false,checkedAt:new Date().toISOString(),
     reason:'MARKET_CANDIDATE_NO_SCHEDULER_QUERY',executionAuthorized:false} : await readDashboardRuntimeTruth({
     baseRoot: forwardShadowBaseRoot,
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
-  const chart = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot, calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const chart = marketInputs ? marketInputs.chart
+    : loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot, calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
   const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
     ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
     : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
@@ -306,16 +308,19 @@ async function decisionWorkspacePayload(snapshot, service) {
     indexLeadership,
     globalContext,
   });
-  const feed = buildMarketChangeFeed(chart);
+  const feed = marketInputs && !chart ? {events:[]} : buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
-  const observedFlow = currentObservedFlow();
-  const marketPulse = await currentMarketPulse(chart);
+  const observedFlow = marketInputs ? marketInputs.flow : currentObservedFlow();
+  const marketPulse = marketInputs && !chart ? buildMarketPulseLive({chart:null,
+    bridgeLatest:{state:'UNAVAILABLE',reason:'MARKET_CANDIDATE_NO_LIVE_BRIDGE',data:null},archiveDir:null})
+    : await currentMarketPulse(chart);
   return { ...buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
     marketPulse,
-  }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar) };
+  }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar),
+    ...(service?.degraded ? {degraded:service.degraded} : {}) };
 }
 
 async function currentDiscussionWorkspace() {
@@ -636,11 +641,24 @@ const requestHandler = async (req, res) => {
           productSurface: productSurfaceContract,
           indexLeadership,
         };
+        let marketInputs = null;
+        if (marketCandidate && !clientSnapshot) {
+          let chart = null, flow = null;
+          try { chart = loadTxDecisionChart({dataRoot:txChartDataRoot,cacheRoot:txChartCacheRoot,
+            calendar:chartCalendar,timeframe:'5m',mode:'LIVE'}); } catch { /* A source failure stays unavailable. */ }
+          try { flow = currentObservedFlow(); } catch { /* No new producer or fallback transport. */ }
+          const degraded = assessCandidateMarketInputs({chart,flow});
+          servicePayload.degraded = degraded;
+          if (degraded.status === 'PARTIAL') marketInputs = {
+            chart:degraded.marketInputs.chart.observationAvailable ? chart : null,
+            flow:degraded.marketInputs.flow.observationAvailable ? flow : null,
+          };
+        }
         const decisionWorkspace = clientSnapshot
           ? await decisionWorkspacePayload(clientSnapshot, servicePayload)
-          : null;
-        sendJson(res, latestSnapshot ? 200 : 503, {
-          ok: Boolean(latestSnapshot),
+          : marketInputs ? await decisionWorkspacePayload(undefined, servicePayload, marketInputs) : null;
+        sendJson(res, latestSnapshot || marketInputs ? 200 : 503, {
+          ok: Boolean(latestSnapshot || marketInputs),
           data: clientSnapshot,
           service: servicePayload,
           decisionWorkspace,

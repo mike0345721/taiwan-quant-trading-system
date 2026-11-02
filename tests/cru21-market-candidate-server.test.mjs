@@ -11,12 +11,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
 const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
-  'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs'];
+  'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs',
+  'src/candidate-market-inputs.mjs',
+  'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
+  'src/dashboard-dw4-evidence.mjs', 'src/dw4-evidence-conflict-monitor.mjs',
+  'src/index-leadership.mjs', 'src/decision-level-watch.mjs', 'src/structural-eligibility.mjs',
+  'src/decision-quality-p0.mjs', 'src/scenario-target-diagnostics.mjs'];
 const source = Object.fromEntries(actualNames.map(name => [name, fs.readFileSync(path.join(sourceRoot, name), 'utf8')]));
 const sourceHashes = Object.fromEntries(Object.entries(source).map(([name, bytes]) =>
   [name, crypto.createHash('sha256').update(bytes).digest('hex')]));
 const head = '1'.repeat(40), tree = '2'.repeat(40), base = '3'.repeat(40);
-const branch = 'codex/cru21-ai-off-candidate-20261102';
+const branch = 'codex/cru21-candidate-market-inputs-20261102';
 const appRoot = path.resolve('/synthetic-app'), readRoot = path.resolve('/synthetic-read');
 const producerRoot = path.resolve('/synthetic-producer'), dataRoot = path.join(appRoot, 'data');
 const sessionFile = path.join(dataRoot, 'sessions.json');
@@ -27,7 +32,28 @@ const salt = Buffer.from('00112233445566778899aabbccddeeff', 'hex');
 const passwordHash = 'scrypt-v1$' + salt.toString('base64url') + '$' + crypto.scryptSync(password, salt, 64,
   { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('base64url');
 const unavailable = reason => ({ state: 'UNAVAILABLE', status: 'UNAVAILABLE', ready: false,
-  reason, researchOnly: true, formalWeight: 0, executionAuthorized: false, orderRoutesEnabled: false });
+  reason, researchOnly: true, formalWeight: 0, executionAuthorized: false, orderRoutesEnabled: false,
+  recommendation: false, systemDirectionalSignal: false });
+
+// Newly constructed test data, never read from a market file or a live source.
+function syntheticMarketInputs() {
+  const availableAt = new Date().toISOString();
+  const identity = { actualContract: 'TXFK6', tradeDate: '2026-11-02', session: 'DAY' };
+  const bar = { ...identity, time: availableAt, open: 100,
+    high: 102, low: 99, close: 101, volume: 7 };
+  const chart = { schemaVersion: 'governed-tx-decision-chart-v2', syntheticFixture: true,
+    mode: 'LIVE', status: 'READY', qualityStatus: 'PASS', ...identity, timeframe: '5m', availableAt,
+    bars: [bar], vwap: [], levels: {}, lastPrice: bar.close };
+  const flow = { schemaVersion: 'dashboard-observed-flow-v1', syntheticFixture: true,
+    sourceState: 'LIVE', identity, source: { sourceMode: 'LIVE', availableAt, observedAt: availableAt,
+      validUntil: new Date(Date.parse(availableAt) + 60000).toISOString() },
+    windows: { primary60s: { status: 'READY', truthState: 'LIVE', pressure: { status: 'READY',
+      pressureRatio: 0.25, classifiedCoverage: 1, totalExecutedVolume: 7 },
+      response: { status: 'READY', displacementPoints: 1 }, pathEfficiency: { status: 'READY', value: 0.5 } } },
+    researchQuality: { status: 'PASS' }, formalWeight: 0, researchOnly: true,
+    executionAuthorized: false, orderRoutesEnabled: false, recommendation: false, systemDirectionalSignal: false };
+  return { chart, flow };
+}
 
 function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} } = {}) {
   const counters = { network: 0, bridge: 0, spawn: 0, marketConstructor: 0, marketRefresh: 0,
@@ -144,19 +170,17 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
     'src/market-feed.mjs': { marketFeedReadiness: off },
     'src/shioaji-bridge-client.mjs': { inspectIx0001Leadership: bridge, inspectShioajiBridge: bridge, inspectShioajiLatest: bridge },
     'v2/src/trading-costs.mjs': { costScenarios: () => [] },
-    'src/dashboard-data-health.mjs': { buildDataHealthContract: off },
     'src/dashboard-data-operations.mjs': { readDataOperations: off },
     'src/data-operations-binding.mjs': { resolveOperationsReader: off },
-    'src/dashboard-decision-workspace.mjs': { buildDecisionWorkspace: input => ({ runtimeVersion: input.runtimeVersion,
-      runtimeTruth: input.runtimeTruth, observedFlow: input.observedFlow, snapshot: input.snapshot }), copyForChatGpt: never },
-    'src/decision-level-watch.mjs': { buildDecisionLevelWatch: off },
     'src/dashboard-runtime-truth.mjs': { readDashboardRuntimeTruth: never },
     'src/decision-journal.mjs': { appendDecisionJournal: never, readDecisionJournal: () => [], appendDecisionOutcome: never, readDecisionOutcomes: () => [] },
     'src/market-state-forward-shadow-calendar.mjs': { loadGovernedTradingCalendar: off },
     'src/taifex-market-operation.mjs': { assessTaifexMarketSession: off },
     'src/operating-calendar.mjs': { loadOperatingCalendar: off },
     'src/dashboard-tx-chart-source.mjs': { loadTxDecisionChart(options) {
-      assert.equal(options.dataRoot, readRoot); assert.equal(options.cacheRoot, path.join(dataRoot, 'dashboard-chart-cache')); return off();
+      assert.equal(options.dataRoot, readRoot); assert.equal(options.cacheRoot, path.join(dataRoot, 'dashboard-chart-cache'));
+      if (observed.chartError) throw Error('SYNTHETIC_CHART_SOURCE_FAILURE');
+      return observed.chart ? structuredClone(observed.chart) : off();
     } },
     'src/cru55-formal-entry.mjs': { prepareFormalEntry: never },
     'src/market-change-feed.mjs': { buildMarketChangeFeed: () => ({ events: [] }), chartMarkersFromEvents: () => [] },
@@ -175,9 +199,12 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
       selectDashboardProductSurface: () => ({ synthetic: true, deliveryAccepted: false }),
       validateCru44PreviewVersionTruth: never, validateIntegrationPreviewVersionTruth: never },
     'src/dashboard-live-breadth-source.mjs': { loadIx0001BreadthForWorkspace: off },
-    'src/dashboard-observed-flow.mjs': { loadDashboardObservedFlow: off },
+    'src/dashboard-observed-flow.mjs': { loadDashboardObservedFlow: () => observed.flow ? structuredClone(observed.flow) : off() },
     'src/dashboard-research-evidence.mjs': { buildResearchEvidence: off, readLatestResearchQuote: off, readResearchResult: off },
-    'src/dashboard-flow-refresh.mjs': { loadFlowRefresh: off },
+    'src/dashboard-flow-refresh.mjs': { loadFlowRefresh: () => {
+      if (observed.flowError) throw Error('SYNTHETIC_FLOW_SOURCE_FAILURE');
+      return observed.flow ? structuredClone(observed.flow) : off();
+    } },
     'src/market-pulse-live.mjs': { buildMarketPulseLive({ bridgeLatest }) { return unavailable(bridgeLatest.reason); } },
     'src/dashboard-runtime-readiness.mjs': {
       buildCru46Readiness: () => ({ runtimeReady: { parity: off() }, identityReady: true, runtimePreflightReady: false,
@@ -315,6 +342,103 @@ test('missing input snapshot remains 503 and no Bridge/upstream fallback is used
   noExternalEffects(h);
 });
 
+test('existing chart and Flow remain visible through actual builders when the EOD cache is missing', async t => {
+  t.diagnostic('Actual repaired source SHA256: ' + JSON.stringify(sourceHashes));
+  const h = harness({ observed: syntheticMarketInputs() });
+  await h.start(); const auth = await h.login();
+  const chart = await h.dispatch('GET', '/api/v1/tx-chart', auth);
+  const flow = await h.dispatch('GET', '/api/v1/observed-flow', auth);
+  assert.equal(chart.status, 200); assert.equal(chart.json().data.bars.length, 1);
+  assert.equal(flow.status, 200); assert.equal(flow.json().data.windows.primary60s.pressure.pressureRatio, 0.25);
+  const dashboard = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(dashboard.status, 200); const body = dashboard.json();
+  assert.equal(body.data, null); assert.equal(body.ok, true);
+  assert.equal(body.service.degraded.status, 'PARTIAL');
+  assert.equal(body.service.degraded.reason, 'EOD_SNAPSHOT_UNAVAILABLE');
+  assert.equal(body.service.degraded.marketInputs.chart.observationAvailable, true);
+  assert.equal(body.service.degraded.marketInputs.flow.observationAvailable, true);
+  assert.equal(body.decisionWorkspace.schemaVersion, 'dashboard-decision-workspace-v1');
+  assert.equal(body.decisionWorkspace.globalStatus.actualContract, 'TXFK6');
+  assert.equal(body.decisionWorkspace.priceChartSlot.price.value, 101);
+  assert.equal(body.decisionWorkspace.observedFlow.windows.primary60s.pressure.pressureRatio, 0.25);
+  assert.equal(body.decisionWorkspace.snapshot.options.availability, 'UNAVAILABLE');
+  assert.equal(body.decisionWorkspace.snapshot.breadth.availability, 'UNAVAILABLE');
+  assert.deepEqual(body.decisionWorkspace.degraded, body.service.degraded);
+  assert.equal(body.service.degraded.deliveryAccepted, false);
+  assert.equal(body.service.degraded.dataQualificationDeclared, false);
+  assert.equal(body.decisionWorkspace.snapshot.executionAuthorized, false);
+  assert.equal(body.decisionWorkspace.snapshot.orderRoutesEnabled, false); noExternalEffects(h);
+});
+
+for (const available of ['chart', 'flow']) {
+  test(`${available}-only observed input keeps the candidate partial and missing input explicitly unavailable`, async () => {
+    const inputs = syntheticMarketInputs(); const h = harness({ observed: { [available]: inputs[available] } });
+    await h.start(); const auth = await h.login(); const response = await h.dispatch('GET', '/api/v1/dashboard', auth);
+    assert.equal(response.status, 200); const body = response.json(); assert.equal(body.data, null);
+    assert.equal(body.service.degraded.status, 'PARTIAL');
+    assert.equal(body.service.degraded.marketInputs[available].observationAvailable, true);
+    assert.equal(body.service.degraded.marketInputs[available === 'chart' ? 'flow' : 'chart'].observationAvailable, false);
+    assert.equal(body.decisionWorkspace.snapshot.executionAuthorized, false);
+    if (available === 'flow') assert.equal(body.decisionWorkspace.priceChartSlot.price.availability, 'UNAVAILABLE');
+    else assert.equal(body.decisionWorkspace.observedFlow, null);
+    noExternalEffects(h);
+  });
+}
+
+test('low-quality chart and stale Flow retain their original labels without an EOD or readiness upgrade', async () => {
+  const inputs = syntheticMarketInputs();
+  inputs.chart.status = 'QUALITY_INSUFFICIENT'; inputs.chart.qualityStatus = 'QUALITY_INSUFFICIENT';
+  inputs.chart.qualityReasons = ['TIMESTAMP_LINEAGE_INSUFFICIENT'];
+  inputs.flow.sourceState = 'STALE'; inputs.flow.windows.primary60s.truthState = 'STALE';
+  inputs.flow.source.availableAt = '2020-01-01T00:00:00.000Z'; inputs.flow.source.validUntil = '2020-01-01T00:01:00.000Z';
+  const h = harness({ observed: inputs }); await h.start(); const auth = await h.login();
+  const response = await h.dispatch('GET', '/api/v1/dashboard', auth); assert.equal(response.status, 200);
+  const body = response.json(); assert.equal(body.data, null); assert.equal(body.service.degraded.status, 'PARTIAL');
+  assert.equal(body.decisionWorkspace.priceChartSlot.qualityStatus, 'QUALITY_INSUFFICIENT');
+  assert.equal(body.decisionWorkspace.observedFlow.sourceState, 'STALE');
+  assert.notEqual(body.decisionWorkspace.decisionSummary.readiness, 'READY');
+  assert.equal(body.service.degraded.dataQualificationDeclared, false); noExternalEffects(h);
+});
+
+test('different chart and Flow identities remain separate and do not grant merged readiness', async () => {
+  const inputs = syntheticMarketInputs(); inputs.flow.identity.actualContract = 'TXFL6';
+  const h = harness({ observed: inputs }); await h.start(); const auth = await h.login();
+  const response = await h.dispatch('GET', '/api/v1/dashboard', auth); assert.equal(response.status, 200);
+  const body = response.json(); assert.equal(body.decisionWorkspace.globalStatus.actualContract, 'TXFK6');
+  assert.equal(body.decisionWorkspace.observedFlow.identity.actualContract, 'TXFL6');
+  assert.notEqual(body.decisionWorkspace.decisionSummary.readiness, 'READY'); noExternalEffects(h);
+});
+
+for (const [name, observed] of Object.entries({
+  fakeReadyFlags: { chart: { ready: true }, flow: { ready: true } },
+  malformedChartContract: { chart: { ...syntheticMarketInputs().chart, actualContract: '../foreign' } },
+  malformedFlowContract: { flow: { ...syntheticMarketInputs().flow, identity: { ...syntheticMarketInputs().flow.identity, actualContract: 'NOT_TX' } } },
+  noObservedBars: { chart: { ...syntheticMarketInputs().chart, bars: [] } },
+  noObservedFlow: { flow: { ...syntheticMarketInputs().flow, windows: {} } },
+  sourceFailures: { chartError: true, flowError: true },
+})) {
+  test(`missing EOD with ${name} stays 503 without constructing a false workspace`, async () => {
+    const h = harness({ observed }); await h.start(); const auth = await h.login();
+    const response = await h.dispatch('GET', '/api/v1/dashboard', auth); assert.equal(response.status, 503);
+    const body = response.json(); assert.equal(body.data, null); assert.equal(body.decisionWorkspace, null);
+    assert.equal(body.service.degraded.status, 'UNAVAILABLE'); noExternalEffects(h);
+  });
+}
+
+for (const invalid of ['chart', 'flow']) {
+  test(`a valid sibling cannot promote a malformed ${invalid} into the actual workspace`, async () => {
+    const inputs = syntheticMarketInputs();
+    if (invalid === 'chart') inputs.chart = { ...inputs.chart, actualContract: 'FAKE_READY', lastPrice: 99999 };
+    else inputs.flow = { ...inputs.flow, identity: { ...inputs.flow.identity, actualContract: 'FAKE_READY' } };
+    const h = harness({ observed: inputs }); await h.start(); const auth = await h.login();
+    const response = await h.dispatch('GET', '/api/v1/dashboard', auth); assert.equal(response.status, 200);
+    const body = response.json(); assert.equal(body.service.degraded.marketInputs[invalid].observationAvailable, false);
+    if (invalid === 'chart') assert.equal(body.decisionWorkspace.priceChartSlot.price.availability, 'UNAVAILABLE');
+    else assert.equal(body.decisionWorkspace.observedFlow, null);
+    noExternalEffects(h);
+  });
+}
+
 test('seeded synthetic live snapshot reaches the real dashboard assembly without scheduler, Bridge or upstream escape', async () => {
   const h = harness({ observed: { snapshot: { dataMode: 'live', asOfDate: '2026-11-02',
     generatedAt: '2026-11-02T00:00:00.000Z', syntheticFixture: true } } });
@@ -323,8 +447,9 @@ test('seeded synthetic live snapshot reaches the real dashboard assembly without
   assert.equal(response.status, 200); const body = response.json();
   assert.equal(body.ok, true); assert.equal(body.data.syntheticFixture, true);
   assert.equal(body.decisionWorkspace.runtimeVersion.runtimeCommit, head);
-  assert.equal(body.decisionWorkspace.runtimeTruth.governed, false);
-  assert.equal(body.decisionWorkspace.runtimeTruth.reason, 'MARKET_CANDIDATE_NO_SCHEDULER_QUERY');
+  assert.equal(body.decisionWorkspace.schemaVersion, 'dashboard-decision-workspace-v1');
+  assert.equal(body.decisionWorkspace.forwardShadowStatus.status, 'UNKNOWN');
+  assert.equal(body.decisionWorkspace.globalStatus.mode, 'UNAVAILABLE');
   assert.equal(body.service.brokerMarketData.reason, 'MARKET_CANDIDATE_NO_LIVE_BRIDGE');
   assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
 });
