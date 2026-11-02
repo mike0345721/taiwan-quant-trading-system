@@ -29,13 +29,13 @@ internal static class CandidateHost
     const string ExpectedRunnerSHA256 = "9868a913e43342145da2ea54a43689c193ecc27c8475139c993c6c86bb89be39";
     const string ExpectedIsolationSHA256 = "9442959e74dce51de9fed82021bcd91a31cd79e00cc7673b099ff4d796e2cdaf";
     const string ExpectedBundleSHA256 = "44cef1c049569d38508c9b3e0abbcfd824c0b8278cc42f7c85f2b4805ad74961";
-    const string ExpectedNormalEntrySHA256 = "5c178f16d5fd45caeacbf90904efbc14315440a45b88d1c829353de68e6bcc41";
+    const string ExpectedNormalEntrySHA256 = "a100bc583db300f78eee658124f1bb922ddbd8c58e3b5ac73c6a900988a828cc";
     const string ExpectedEntrySHA256 = "170afc0c9af5c68155eacf963a44948519803f469f99e1b0a7a291a036ba334f";
     const string Mode = "ISOLATED_NORMAL_APPLICATION";
-    const string AiDisabledProductHead = "UNFROZEN";
-    const string AiDisabledProductTree = "UNFROZEN";
-    const string AiDisabledSourceManifestSHA256 = "UNFROZEN";
-    const int AiDisabledSourceFileCount = 0;
+    const string AiDisabledProductHead = "1f7997aa351b6b3236c33037c639b95786f4c487";
+    const string AiDisabledProductTree = "c52d3af95280c2673309495647a3c0d0fb336498";
+    const string AiDisabledSourceManifestSHA256 = "b71102f35794a464319f960d4b9041af9d8a797c2f12c53ab3be40b196b7442d";
+    const int AiDisabledSourceFileCount = 358;
     static bool AiDisabledCandidate { get { return NormalCandidate && NormalCandidateMetadata != null; } }
     static string CurrentProductHead { get { return AiDisabledCandidate ? AiDisabledProductHead : ProductHead; } }
     static string CurrentProductTree { get { return AiDisabledCandidate ? AiDisabledProductTree : ProductTree; } }
