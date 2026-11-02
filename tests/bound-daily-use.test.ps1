@@ -72,7 +72,7 @@ function Mock-Runtime($Module, $Runtime) {
       throw 'TEST_UNEXPECTED_READ'
     }
     function script:Get-BoundListener([int]$Port) {
-      if ($Port -eq 8790) { return [pscustomobject]@{pid=42422} }
+      if ($Port -eq 8790) { return [pscustomobject]@{pid=42422;createdAt='2026-10-14T01:00:00.000Z'} }
       if ($Port -eq 8787 -and $script:testRuntime.dashboardPresent) { return $script:testRuntime.dashboard }
       return $null
     }
