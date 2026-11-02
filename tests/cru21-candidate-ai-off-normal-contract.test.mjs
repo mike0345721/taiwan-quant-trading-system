@@ -3,19 +3,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import fs from 'node:fs';
+import path from 'node:path';
 import crypto from 'node:crypto';
 import https from 'node:https';
 const entry = await import(process.env.CRU21_NORMAL_ENTRY_TEST_MODULE || new URL('../scripts/cru21-normal-candidate/application-normal-entry.mjs',import.meta.url));
+// Metadata only: resolve native absolute paths without creating these fixtures.
+const syntheticPath = (...parts) => path.resolve('synthetic', ...parts);
 const certificateRaw = Buffer.from('PURE_SYNTHETIC_TLS_CERTIFICATE_BYTES');
 const certificatePin = crypto.createHash('sha256').update(certificateRaw).digest('hex');
 const candidate = () => ({scope:'MARKET_RESEARCH_AI_DISABLED_CANDIDATE', previewType:'CRU21_MARKET_RESEARCH_CANDIDATE',
   host:'127.0.0.1', port:18723, transport:'https', aiEnabled:false, cookieSecure:true,
-  certificate:{bundlePath:'/synthetic-private/tls.protected',bundleSHA256:'b'.repeat(64),certificatePinSHA256:certificatePin}});
+  certificate:{bundlePath:syntheticPath('private','tls.protected'),bundleSHA256:'b'.repeat(64),certificatePinSHA256:certificatePin}});
 const ticket = () => ({productHead:(entry.AI_DISABLED_PRODUCT || entry.NORMAL_PRODUCT).head,productTree:(entry.AI_DISABLED_PRODUCT || entry.NORMAL_PRODUCT).tree,
   windowId:'00000000-0000-4000-8000-000000000001',nonce:'a'.repeat(64),intentHash:'d'.repeat(64),helperSHA256:'e'.repeat(64),
-  git:{path:'/synthetic/git'},node:{path:'/synthetic/node'},candidate:candidate(),
-  roots:{chartReadRoot:'/synthetic/chart',chartCacheRoot:'/synthetic/cache',producerDataRoot:'/synthetic/producer',
-    snapshotPath:'/synthetic/producer/latest.json',statusPath:'/synthetic/producer/status.json',localAppDataRoot:'/synthetic/local'}});
+  git:{path:syntheticPath('git')},node:{path:syntheticPath('node')},candidate:candidate(),
+  roots:{chartReadRoot:syntheticPath('chart'),chartCacheRoot:syntheticPath('cache'),producerDataRoot:syntheticPath('producer'),
+    snapshotPath:syntheticPath('producer','latest.json'),statusPath:syntheticPath('producer','status.json'),localAppDataRoot:syntheticPath('local')}});
 const native = fs.readFileSync(new URL('../scripts/cru21-normal-candidate/windows-candidate/CandidateHost.cs',import.meta.url),'utf8');
 test('AI-off fixed candidate validates pure metadata and retains live HOLD',()=>{
   assert.equal(entry.normalCandidateContract(ticket()).port,18723);
@@ -40,9 +43,9 @@ test('AI-off environment stays HTTPS AI disabled secure normal auth and independ
   assert.equal(env.CRU21_GUEST_ENABLED,'0');assert.equal('NODE_TLS_REJECT_UNAUTHORIZED' in env,false);
   assert.equal(env.DASHBOARD_CANDIDATE_READ_ROOT,t.roots.chartReadRoot);
   assert.equal('ASK_GPT_CANDIDATE_READ_ROOT' in env,false);
-  assert.equal(env.V2_RESEARCH_DATABASE_PATH,t.roots.chartReadRoot+'/v2/data/research-v2.sqlite');
-  assert.equal(env.V2_BACKTEST_REPORT_PATH,t.roots.chartReadRoot+'/v2/reports/latest-backtest.json');
-  assert.equal(env.DATA_OPERATIONS_OUTPUT_ROOT,t.roots.chartReadRoot+'/quality/daily-data-operations');
+  assert.equal(env.V2_RESEARCH_DATABASE_PATH,path.join(t.roots.chartReadRoot,'v2','data','research-v2.sqlite'));
+  assert.equal(env.V2_BACKTEST_REPORT_PATH,path.join(t.roots.chartReadRoot,'v2','reports','latest-backtest.json'));
+  assert.equal(env.DATA_OPERATIONS_OUTPUT_ROOT,path.join(t.roots.chartReadRoot,'quality','daily-data-operations'));
 });
 test('legacy environment remains original AI-on 18722 without TLS scope',()=>{
   const t=ticket();delete t.candidate;const env=entry.normalEnvironmentPlan(t);
@@ -126,19 +129,19 @@ test('server error during pending trusted peer observation cannot resolve a list
 const productContractModule = process.env.CRU21_CANDIDATE_PRODUCT_CONTRACT_MODULE;
 test('actual normal environment crosses product mode and synthetic filesystem root contracts', {skip:!productContractModule?'NOT_RUN: exact product guard module not selected':false}, async()=>{
   const product=await import(productContractModule),t=ticket();
-  Object.assign(t.roots,{sourceRoot:'/synthetic/source',privateDataRoot:'/synthetic/source/data',
-    chartCacheRoot:'/synthetic/source/data/dashboard-chart-cache',localAppDataRoot:'/synthetic/source/data/candidate-local-appdata',
-    snapshotPath:'/synthetic/producer/runtime/cru34-live/latest.json',statusPath:'/synthetic/producer/runtime/cru34-live/status.json'});
+  Object.assign(t.roots,{sourceRoot:syntheticPath('source'),privateDataRoot:syntheticPath('source','data'),
+    chartCacheRoot:syntheticPath('source','data','dashboard-chart-cache'),localAppDataRoot:syntheticPath('source','data','candidate-local-appdata'),
+    snapshotPath:syntheticPath('producer','runtime','cru34-live','latest.json'),statusPath:syntheticPath('producer','runtime','cru34-live','status.json')});
   const env=entry.normalEnvironmentPlan(t),config={appRoot:t.roots.sourceRoot,dataDir:t.roots.privateDataRoot,
     host:'127.0.0.1',port:18723,nodeEnv:'production',cookieSecure:true,mockData:false,trustProxy:false,cru55Candidate:false,cru55Acceptance:null};
   if (entry.AI_DISABLED_PRODUCT.head === 'UNFROZEN') assert.throws(()=>product.assertMarketCandidateMode(env,config),/MARKET_CANDIDATE_MODE_REJECTED/);
   else assert.equal(product.assertMarketCandidateMode(env,config),true);
   const roots=product.assertMarketCandidateEnvironmentRoots(env,config),inspected=[];
   assert.equal(roots.readDataRoot,t.roots.chartReadRoot);
-  const io={lstatSync(file){inspected.push(file);if(file.endsWith('/sessions.json'))throw Object.assign(Error('SYNTHETIC_ABSENT_SESSION'),{code:'ENOENT'});
+  const io={lstatSync(file){inspected.push(file);if(path.basename(file)==='sessions.json')throw Object.assign(Error('SYNTHETIC_ABSENT_SESSION'),{code:'ENOENT'});
     return {isSymbolicLink:()=>false,isDirectory:()=>true,isFile:()=>false};},realpathSync:file=>file,readdirSync:()=>[]};
   assert.equal(product.assertMarketCandidateFilesystemRoots(roots,io),true);
-  assert.ok(inspected.includes('/synthetic/source/data/decision-workspace'));
+  assert.ok(inspected.includes(syntheticPath('source','data','decision-workspace')));
 });
 
 test('public observer cannot arm the actual Node HTTPS facade while live eligibility is HOLD',()=>{
