@@ -21,7 +21,8 @@ const appRoot = path.resolve('/synthetic-app'), readRoot = path.resolve('/synthe
 const producerRoot = path.resolve('/synthetic-producer'), dataRoot = path.join(appRoot, 'data');
 const sessionFile = path.join(dataRoot, 'sessions.json');
 const futuresAuditFile = path.join(readRoot, 'live-events/futures-audits/latest.json');
-const password = 'Synthetic-candidate-only-password';
+// Fresh synthetic login input; no reusable account credential is kept in source.
+const password = crypto.randomBytes(32).toString('base64url');
 const salt = Buffer.from('00112233445566778899aabbccddeeff', 'hex');
 const passwordHash = 'scrypt-v1$' + salt.toString('base64url') + '$' + crypto.scryptSync(password, salt, 64,
   { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('base64url');
