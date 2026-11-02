@@ -56,7 +56,7 @@ test('native source has no PID attachment arbitrary shell network or permission 
   const probe = host.slice(probeStart, probeEnd);
   assert.match(probe, /Require\(NormalCandidate && NormalCloseProbeApproved/);
   assert.match(probe, /probe\.ExclusiveAddressUse = true/);
-  assert.match(probe, /probe\.Bind\(new System\.Net\.IPEndPoint\(System\.Net\.IPAddress\.Loopback, 18722\)\)/);
+  assert.match(probe, /probe\.Bind\(new System\.Net\.IPEndPoint\(System\.Net\.IPAddress\.Loopback, NormalListenerPort\(\)\)\)/);
   assert.doesNotMatch(probe, /\.(?:Listen|Connect|Send|Receive)\s*\(/);
   assert.equal((probe.match(/new System\.Net\.Sockets\.Socket\(/g) || []).length, 1);
   assert.match(host, /const string NodePath = @"C:\\Program Files\\nodejs\\node\.exe";/);

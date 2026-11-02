@@ -228,3 +228,30 @@ Mixed-version negative tests additionally use CRU21_PREVIOUS_APPLICATION_SOURCE_
 and check every selected previous file against its known f221 hash before use.
 The source snapshot is not modified, given a .git directory or reported as a
 checked-out HEAD by these tests. The normal launch gates remain closed.
+
+## Dormant AI-disabled HTTPS candidate variant
+
+The existing normal route accepts one optional exact `candidate` descriptor: scope
+`MARKET_RESEARCH_AI_DISABLED_CANDIDATE`, preview `CRU21_MARKET_RESEARCH_CANDIDATE`,
+HTTPS IPv4 loopback **18723**, AI disabled and secure cookies, with a local encrypted
+TLS bundle path, its ciphertext SHA-256 and the exact certificate SHA-256 pin.
+The descriptor digest is bound through Owner request/operation plan, intent,
+normal ticket, native admission and original-child listening handshake. The close
+bind-only probe uses the same selected fixed port. Absence preserves AI-on18722.
+
+This variant has separate compiled product/source pins. `UNFROZEN`/zero pins fail
+qualification; they are not permission to use arbitrary caller identities. Root
+will freeze the exact reviewed product after its source commit. Native and JS live
+gates remain HOLD, Owner approval remains NOT_APPROVED, and original one-use,
+900000ms UTC/monotonic budget, namespace leases and Job/handle cleanup remain.
+
+A future authorized window adds **one credential-free HTTPS GET** to
+`https://127.0.0.1:18723/api/session`, bounded by an absolute1500ms timer, with no
+headers/cookies/auth, response body, redirect or retry. It retains default Node CA
+trust, rejects untrusted peers, checks host identity and hashes the actual peer
+certificate. This is separate from the ending BIND_ONLY/no-connect probe. Browser
+trust does not prove Node effective CA trust; both remain unqualified until native
+verification. No custom CA or insecure TLS switch is added. Current tests use
+EventEmitter facades only: no real app, process, socket, TLS bundle or trust store.
+Windows compilation, native admission, real TLS and lifecycle remain NOT_RUN.
+`plan-normal` remains the legacy isolated planner, not AI-off qualification.

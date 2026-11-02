@@ -29,9 +29,19 @@ internal static class CandidateHost
     const string ExpectedRunnerSHA256 = "9868a913e43342145da2ea54a43689c193ecc27c8475139c993c6c86bb89be39";
     const string ExpectedIsolationSHA256 = "9442959e74dce51de9fed82021bcd91a31cd79e00cc7673b099ff4d796e2cdaf";
     const string ExpectedBundleSHA256 = "44cef1c049569d38508c9b3e0abbcfd824c0b8278cc42f7c85f2b4805ad74961";
-    const string ExpectedNormalEntrySHA256 = "5f82c7574beeb2ea3b079090e1b360fc732b787bb058e6bdf7ade8a73c5efc7f";
+    const string ExpectedNormalEntrySHA256 = "5c178f16d5fd45caeacbf90904efbc14315440a45b88d1c829353de68e6bcc41";
     const string ExpectedEntrySHA256 = "170afc0c9af5c68155eacf963a44948519803f469f99e1b0a7a291a036ba334f";
     const string Mode = "ISOLATED_NORMAL_APPLICATION";
+    const string AiDisabledProductHead = "UNFROZEN";
+    const string AiDisabledProductTree = "UNFROZEN";
+    const string AiDisabledSourceManifestSHA256 = "UNFROZEN";
+    const int AiDisabledSourceFileCount = 0;
+    static bool AiDisabledCandidate { get { return NormalCandidate && NormalCandidateMetadata != null; } }
+    static string CurrentProductHead { get { return AiDisabledCandidate ? AiDisabledProductHead : ProductHead; } }
+    static string CurrentProductTree { get { return AiDisabledCandidate ? AiDisabledProductTree : ProductTree; } }
+    static string CurrentNormalSourceManifestSHA256 { get { return AiDisabledCandidate ? AiDisabledSourceManifestSHA256 : NormalSourceManifestSHA256; } }
+    static int CurrentNormalSourceFileCount { get { return AiDisabledCandidate ? AiDisabledSourceFileCount : 356; } }
+    static string NormalSourceMarker { get { return AiDisabledCandidate ? "export const AI_DISABLED_SOURCE_FILES = Object.freeze(" : "export const NORMAL_SOURCE_FILES = Object.freeze("; } }
     const string ExpectedNormalOwnerApprovalSHA256 = "NOT_APPROVED";
     static bool NormalCandidate;
     static Dictionary<string, object> NormalRequest;
@@ -199,9 +209,9 @@ internal static class CandidateHost
     }
     static string Ticket()
     {
-        return Json("schema", "cru21-candidate-integration-ticket-v1", "mode", CurrentMode, "runtimeAllowed", false,
+        return BindNormalCandidate(Json("schema", "cru21-candidate-integration-ticket-v1", "mode", CurrentMode, "runtimeAllowed", false,
             "manifestSha256", ManifestSHA256, "hostSha256", HostSHA256, "windowId", WindowId, "nonce", Nonce,
-            "productHead", ProductHead, "productTree", ProductTree, "durationMs", NormalCandidate ? 900000 : Duration);
+            "productHead", CurrentProductHead, "productTree", CurrentProductTree, "durationMs", NormalCandidate ? 900000 : Duration));
     }
     static void OpenAuthority(bool create)
     {
@@ -213,14 +223,39 @@ internal static class CandidateHost
         OpenAuthority(true); Write(Window, "ticket.json", Ticket());
         Console.WriteLine(Json("phase", "PREPARED", "manifestSha256", ManifestSHA256, "windowId", WindowId, "runtimeAllowed", false)); return 0;
     }
+    // Only this fixed optional variant may depart from the legacy AI-on HTTP18722
+    // contract. Validation is metadata-only; the public normal gate remains HOLD.
+    static Dictionary<string, object> NormalCandidateMetadata;
+    static int NormalListenerPort() { return NormalCandidateMetadata == null ? 18722 : 18723; }
+    static Dictionary<string, object> ValidateNormalCandidate(Dictionary<string, object> value)
+    {
+        if (!value.ContainsKey("candidate")) return null;
+        var c = Bag(value, "candidate");
+        ExactKeys(c, "scope", "previewType", "host", "port", "transport", "aiEnabled", "cookieSecure", "certificate");
+        Require(String(c, "scope") == "MARKET_RESEARCH_AI_DISABLED_CANDIDATE" && String(c, "previewType") == "CRU21_MARKET_RESEARCH_CANDIDATE"
+            && String(c, "host") == "127.0.0.1" && Number(c, "port") == 18723 && String(c, "transport") == "https"
+            && IsBool(c, "aiEnabled", false) && IsBool(c, "cookieSecure", true), "NORMAL_CANDIDATE_CONTRACT_REJECTED");
+        var cert = Bag(c, "certificate"); ExactKeys(cert, "bundlePath", "bundleSHA256", "certificatePinSHA256");
+        RequireLocalFixedPath(String(cert, "bundlePath"));
+        Require(HashShape(String(cert, "bundleSHA256")) && HashShape(String(cert, "certificatePinSHA256")), "NORMAL_CANDIDATE_CERTIFICATE_REJECTED");
+        return c;
+    }
+    static string BindNormalCandidate(string json)
+    {
+        if (!NormalCandidate || NormalCandidateMetadata == null) return json;
+        var body = Object(Bytes(json)); body["candidateSHA256"] = CanonicalHash(NormalCandidateMetadata); return Canonical(body);
+    }
     static void ValidateNormalRequest(Dictionary<string, object> request)
     {
-        ExactKeys(request, "schema", "mode", "runtimeAllowed", "windowId", "nonce", "productHead", "productTree", "sourceManifestSHA256",
-            "durationMs", "roots", "node", "git", "helperSHA256", "normalAuth", "vendor", "ownerApproval", "authorityRoot");
+        var requestKeys = new List<string>(new string[] { "schema", "mode", "runtimeAllowed", "windowId", "nonce", "productHead", "productTree", "sourceManifestSHA256",
+            "durationMs", "roots", "node", "git", "helperSHA256", "normalAuth", "vendor", "ownerApproval", "authorityRoot" });
+        if (request.ContainsKey("candidate")) requestKeys.Add("candidate"); ExactKeys(request, requestKeys.ToArray());
+        NormalCandidateMetadata = ValidateNormalCandidate(request);
+        Require(HashShape(CurrentNormalSourceManifestSHA256), "NORMAL_PRODUCT_PINS_UNFROZEN");
         Require(String(request, "schema") == "cru21-normal-entry-request-v1" && String(request, "mode") == "NORMAL_CANDIDATE" && IsBool(request, "runtimeAllowed", false)
-            && String(request, "productHead") == ProductHead && String(request, "productTree") == ProductTree && Number(request, "durationMs") == 900000
+            && String(request, "productHead") == CurrentProductHead && String(request, "productTree") == CurrentProductTree && Number(request, "durationMs") == 900000
             && Uuid(String(request, "windowId")) && HashShape(String(request, "nonce")) && SamePath(String(request, "authorityRoot"), Root)
-            && String(request, "sourceManifestSHA256") == NormalSourceManifestSHA256 && String(request, "helperSHA256") == ExpectedNormalEntrySHA256, "NORMAL_REQUEST_REJECTED");
+            && String(request, "sourceManifestSHA256") == CurrentNormalSourceManifestSHA256 && String(request, "helperSHA256") == ExpectedNormalEntrySHA256, "NORMAL_REQUEST_REJECTED");
         var approval = Bag(request, "ownerApproval"); ExactKeys(approval, "schema", "approvalId", "requestSHA256", "notBeforeUtcTicks", "expiresUtcTicks", "operationPlanSHA256");
         Require(HashShape(ExpectedNormalOwnerApprovalSHA256) && CanonicalHash(approval) == ExpectedNormalOwnerApprovalSHA256
             && String(approval, "schema") == "cru21-normal-window-owner-approval-v1" && System.Text.RegularExpressions.Regex.IsMatch(String(approval, "approvalId"), "^owner-[A-Za-z0-9-]{1,120}$"), "NORMAL_EXACT_OWNER_APPROVAL_REQUIRED");
@@ -228,9 +263,11 @@ internal static class CandidateHost
         byte[] planBytes = Read(RootDir, "normal-operation-plan.json", 1048576);
         Require(CanonicalHash(approvedBody) == String(approval, "requestSHA256") && HashShape(String(approval, "operationPlanSHA256"))
             && Hash(planBytes) == String(approval, "operationPlanSHA256"), "NORMAL_APPROVAL_SCOPE_CHANGED");
-        var operation = Object(planBytes); var probe = Bag(operation, "candidateListenerProbe");
+        var operation = Object(planBytes);
+        if (NormalCandidateMetadata != null) Require(String(operation, "candidateSHA256") == CanonicalHash(NormalCandidateMetadata), "NORMAL_CANDIDATE_OPERATION_SCOPE_REJECTED");
+        var probe = Bag(operation, "candidateListenerProbe");
         ExactKeys(probe, "mode", "host", "port", "exclusiveAddressUse", "listen", "connect", "maxAttempts");
-        Require(String(probe, "mode") == "BIND_ONLY" && String(probe, "host") == "127.0.0.1" && Number(probe, "port") == 18722
+        Require(String(probe, "mode") == "BIND_ONLY" && String(probe, "host") == "127.0.0.1" && Number(probe, "port") == NormalListenerPort()
             && IsBool(probe, "exclusiveAddressUse", true) && IsBool(probe, "listen", false) && IsBool(probe, "connect", false) && Number(probe, "maxAttempts") == 1, "NORMAL_CLOSE_PROBE_SCOPE_REJECTED");
         NormalCloseProbeApproved = true;
         Require(Int64.TryParse(String(approval, "notBeforeUtcTicks"), out NormalNotBeforeTicks) && Int64.TryParse(String(approval, "expiresUtcTicks"), out NormalExpiresTicks)
@@ -258,12 +295,12 @@ internal static class CandidateHost
         var artifacts = Directories[Path.Combine(Root, "artifacts")];
         byte[] bytes = ReadAll(ReadLease(artifacts, "application-normal-entry.mjs", 1048576));
         Require(Hash(bytes) == ExpectedNormalEntrySHA256, "NORMAL_ENTRY_CHANGED");
-        string text = Text(bytes), marker = "export const NORMAL_SOURCE_FILES = Object.freeze(";
+        string text = Text(bytes), marker = NormalSourceMarker;
         int begin = text.IndexOf(marker, StringComparison.Ordinal); Require(begin >= 0 && begin == text.LastIndexOf(marker, StringComparison.Ordinal), "NORMAL_FIXED_MANIFEST_REJECTED");
         begin += marker.Length; int end = text.IndexOf(");", begin, StringComparison.Ordinal); Require(end > begin, "NORMAL_FIXED_MANIFEST_REJECTED");
         var files = Object(new UTF8Encoding(false, true).GetBytes(text.Substring(begin, end - begin)));
-        string wrapper = "{\"schema\":\"cru21-normal-source-closure-v1\",\"productHead\":" + Q(ProductHead) + ",\"productTree\":" + Q(ProductTree) + ",\"files\":" + Canonical(files) + "}";
-        Require(files.Count == 356 && Hash(new UTF8Encoding(false, true).GetBytes(wrapper)) == NormalSourceManifestSHA256, "NORMAL_FIXED_MANIFEST_REJECTED"); return files;
+        string wrapper = "{\"schema\":\"cru21-normal-source-closure-v1\",\"productHead\":" + Q(CurrentProductHead) + ",\"productTree\":" + Q(CurrentProductTree) + ",\"files\":" + Canonical(files) + "}";
+        Require(files.Count == CurrentNormalSourceFileCount && CurrentNormalSourceFileCount > 0 && Hash(new UTF8Encoding(false, true).GetBytes(wrapper)) == CurrentNormalSourceManifestSHA256, "NORMAL_FIXED_MANIFEST_REJECTED"); return files;
     }
     static int PrepareNormalAuthority()
     {
@@ -274,6 +311,7 @@ internal static class CandidateHost
         catch (IOException e) { if (e.Message != "CANDIDATE_NATIVE_IO_c0000034") throw; }
         NormalPermanentAuthority = data;
         EnsurePrivateDirectory(data, "candidate-local-appdata"); EnsurePrivateDirectory(data, "dashboard-chart-cache"); EnsurePrivateDirectory(data, "history");
+        if (AiDisabledCandidate) EnsurePrivateDirectory(data, "decision-workspace");
         var evidence = EnsurePrivateDirectory(data, "cru21-normal-candidate"); EnsurePrivateDirectory(evidence, WindowId);
         return Prepare();
     }
@@ -472,11 +510,19 @@ internal static class CandidateHost
     static void VerifyNormalHandshake(Dictionary<string, object> h, Proc child, string intentHash)
     {
         Require(String(h, "schema") == "cru21-normal-entry-listening-v1" && String(h, "windowId") == WindowId && String(h, "nonce") == Nonce
-            && String(h, "productHead") == ProductHead && String(h, "productTree") == ProductTree && String(h, "intentHash") == intentHash
+            && String(h, "productHead") == CurrentProductHead && String(h, "productTree") == CurrentProductTree && String(h, "intentHash") == intentHash
             && String(h, "helperSHA256") == ExpectedNormalEntrySHA256, "NORMAL_LISTENING_BINDING_REJECTED");
         Require(Number(h, "pid") == child.Pid && N.GetProcessId(child.Process) == child.Pid && Creation(child.Process) > 0 && !child.Exited, "NORMAL_ORIGINAL_HANDLE_REJECTED");
-        var listener = Bag(h, "listener"); ExactKeys(listener, "address", "port", "originalHandlerForwarded");
-        Require(String(listener, "address") == "127.0.0.1" && Number(listener, "port") == 18722 && IsBool(listener, "originalHandlerForwarded", true)
+        var listener = Bag(h, "listener");
+        if (NormalCandidateMetadata == null) ExactKeys(listener, "address", "port", "originalHandlerForwarded");
+        else
+        {
+            ExactKeys(listener, "address", "port", "originalHandlerForwarded", "transport", "certificatePinSHA256", "peerAuthorized", "peerIdentityVerified");
+            Require(String(h, "candidateSHA256") == CanonicalHash(NormalCandidateMetadata)
+                && String(listener, "transport") == "https" && String(listener, "certificatePinSHA256") == String(Bag(NormalCandidateMetadata, "certificate"), "certificatePinSHA256")
+                && IsBool(listener, "peerAuthorized", true) && IsBool(listener, "peerIdentityVerified", true), "NORMAL_TLS_PEER_BINDING_REJECTED");
+        }
+        Require(String(listener, "address") == "127.0.0.1" && Number(listener, "port") == NormalListenerPort() && IsBool(listener, "originalHandlerForwarded", true)
             && IsBool(h, "normalAuthConfigured", true), "NORMAL_LISTENER_REJECTED");
         // Configuration and listening are not proof that Owner logged in or
         // accepted the page. No account/ciphertext/model request is issued here.
@@ -489,7 +535,7 @@ internal static class CandidateHost
         {
             probe = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
             probe.ExclusiveAddressUse = true;
-            probe.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 18722)); result = true;
+            probe.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, NormalListenerPort())); result = true;
         }
         catch { result = null; } // Occupied/denied/uncertain: no retry or takeover.
         finally { if (probe != null) try { probe.Dispose(); } catch { result = null; } }
@@ -508,9 +554,9 @@ internal static class CandidateHost
         string binding = Json("windowId", WindowId, "nonce", Nonce, "manifestSha256", ManifestSHA256, "runtimeAllowed", false);
         Write(Authority, "guard.json", binding); Write(Authority, "consumed.json", binding);
         if (NormalCandidate) Write(NormalPermanentAuthority, ".cru21-normal-window-consumed.json", binding);
-        string intent = Json("schema", "cru21-candidate-integration-intent-v1", "mode", CurrentMode, "runtimeAllowed", false,
-            "windowId", WindowId, "nonce", Nonce, "productHead", ProductHead, "productTree", ProductTree,
-            "startMonoMs", start, "startUtcTicks", wallStart, "durationMs", Duration, "manifestSha256", ManifestSHA256);
+        string intent = BindNormalCandidate(Json("schema", "cru21-candidate-integration-intent-v1", "mode", CurrentMode, "runtimeAllowed", false,
+            "windowId", WindowId, "nonce", Nonce, "productHead", CurrentProductHead, "productTree", CurrentProductTree,
+            "startMonoMs", start, "startUtcTicks", wallStart, "durationMs", Duration, "manifestSha256", ManifestSHA256));
         Write(Window, "intent.json", intent); string intentHash = Hash(Bytes(intent));
         byte[] normalTicket = NormalCandidate ? CreateNormalTicket(intentHash) : null;
         byte[] inputProgram = NormalCandidate ? null : IsolatedProgram(intent);
@@ -567,7 +613,7 @@ internal static class CandidateHost
             Write(Window, "app-handshake.json", Text(handshakeBytes));
             Write(Window, "launch.json", Json("schema", "cru21-candidate-integration-launch-v1", "windowId", WindowId, "intentHash", intentHash,
                 "pidEvidenceOnly", child.Pid, "creationFileTime", Creation(child.Process), "handshakeSha256", Hash(Read(Window, "app-handshake.json", 262144)),
-                "productHead", ProductHead, "productTree", ProductTree, "normalAuthVerified", !NormalCandidate,
+                "productHead", CurrentProductHead, "productTree", CurrentProductTree, "normalAuthVerified", !NormalCandidate,
                 "normalAuthConfigured", NormalCandidate, "normalListeningVerified", NormalCandidate, "runtimeAllowed", false));
             if (observer != IntPtr.Zero)
             {
@@ -643,7 +689,7 @@ internal static class CandidateHost
         // A plan is not an authorization or an imported application. The normal
         // entry validates its separate exact ticket before any normal bootstrap.
         Console.WriteLine("{\"mode\":\"NORMAL_CANDIDATE\",\"allowed\":false,\"runtimeAllowed\":false,\"spawnCount\":0,"
-            + "\"productHead\":" + Q(ProductHead) + ",\"productTree\":" + Q(ProductTree)
+            + "\"productHead\":" + Q(CurrentProductHead) + ",\"productTree\":" + Q(CurrentProductTree)
             + ",\"executable\":" + Q(NodePath) + ",\"nodeSha256\":" + Q(NodeSHA256) + ",\"entrySha256\":" + Q(ExpectedNormalEntrySHA256)
             + ",\"argv\":[" + Q("--input-type=module") + "," + Q("--experimental-vm-modules") + "," + Q("-") + "," + Q(Root) + "," + Q(WindowId) + "," + Q(Nonce) + "]"
             + ",\"entryTransport\":\"ORIGINAL_INHERITED_STDIN_VERIFIED_CODE\""
@@ -768,10 +814,14 @@ internal static class CandidateHost
         Require(child != null && child.IsNode && !child.Exited && N.GetProcessId(child.Process) == child.Pid, "NORMAL_ORIGINAL_NODE_REQUIRED");
         Require(Hash(ticketBytes) == Hash(Read(Window, "normal-ticket.json", 1048576)), "NORMAL_ORIGINAL_TICKET_REQUIRED");
         var ticket = Object(ticketBytes);
-        ExactKeys(ticket, "schema", "mode", "runtimeAllowed", "windowId", "nonce", "productHead", "productTree", "sourceManifestSHA256", "durationMs", "roots", "node", "git", "helperSHA256", "normalAuth", "intentHash", "vendor");
+        var ticketKeys = new List<string>(new string[] { "schema", "mode", "runtimeAllowed", "windowId", "nonce", "productHead", "productTree", "sourceManifestSHA256", "durationMs", "roots", "node", "git", "helperSHA256", "normalAuth", "intentHash", "vendor" });
+        if (ticket.ContainsKey("candidate")) ticketKeys.Add("candidate"); ExactKeys(ticket, ticketKeys.ToArray());
+        var candidate = ValidateNormalCandidate(ticket);
+        Require((candidate == null && NormalCandidateMetadata == null) || (candidate != null && NormalCandidateMetadata != null
+            && CanonicalHash(candidate) == CanonicalHash(NormalCandidateMetadata)), "NORMAL_CANDIDATE_BINDING_REJECTED");
         Require(String(ticket, "schema") == "cru21-normal-entry-ticket-v1" && String(ticket, "mode") == "NORMAL_CANDIDATE" && IsBool(ticket, "runtimeAllowed", false)
-            && String(ticket, "windowId") == WindowId && String(ticket, "nonce") == Nonce && String(ticket, "productHead") == ProductHead && String(ticket, "productTree") == ProductTree
-            && Number(ticket, "durationMs") == 900000 && String(ticket, "sourceManifestSHA256") == NormalSourceManifestSHA256
+            && String(ticket, "windowId") == WindowId && String(ticket, "nonce") == Nonce && String(ticket, "productHead") == CurrentProductHead && String(ticket, "productTree") == CurrentProductTree
+            && Number(ticket, "durationMs") == 900000 && String(ticket, "sourceManifestSHA256") == CurrentNormalSourceManifestSHA256
             && HashShape(String(ticket, "intentHash")) && String(ticket, "intentHash") == Hash(Read(Window, "intent.json", 65536)), "NORMAL_TICKET_REJECTED");
         var roots = Bag(ticket, "roots"); ExactKeys(roots, "sourceRoot", "chartReadRoot", "producerDataRoot", "projectionRoot", "snapshotPath", "statusPath", "privateDataRoot", "localAppDataRoot", "chartCacheRoot", "evidenceRoot");
         foreach (string key in roots.Keys) RequireLocalFixedPath(String(roots, key));
@@ -793,12 +843,12 @@ internal static class CandidateHost
         var artifacts = Directories[Path.Combine(Root, "artifacts")];
         FileStream helper = ReadLease(artifacts, "application-normal-entry.mjs", 1048576); byte[] helperBytes = ReadAll(helper);
         Require(Hash(helperBytes) == ExpectedNormalEntrySHA256 && String(ticket, "helperSHA256") == ExpectedNormalEntrySHA256, "NORMAL_HELPER_REJECTED");
-        string text = Text(helperBytes), marker = "export const NORMAL_SOURCE_FILES = Object.freeze(";
+        string text = Text(helperBytes), marker = NormalSourceMarker;
         int begin = text.IndexOf(marker, StringComparison.Ordinal); Require(begin >= 0 && begin == text.LastIndexOf(marker, StringComparison.Ordinal), "NORMAL_FIXED_MANIFEST_REJECTED");
         begin += marker.Length; int end = text.IndexOf(");", begin, StringComparison.Ordinal); Require(end > begin, "NORMAL_FIXED_MANIFEST_REJECTED");
         var sourceFiles = Object(new UTF8Encoding(false, true).GetBytes(text.Substring(begin, end - begin)));
-        string sourceWrapper = "{\"schema\":\"cru21-normal-source-closure-v1\",\"productHead\":" + Q(ProductHead) + ",\"productTree\":" + Q(ProductTree) + ",\"files\":" + Canonical(sourceFiles) + "}";
-        Require(sourceFiles.Count == 356 && Hash(new UTF8Encoding(false, true).GetBytes(sourceWrapper)) == NormalSourceManifestSHA256, "NORMAL_FIXED_MANIFEST_REJECTED");
+        string sourceWrapper = "{\"schema\":\"cru21-normal-source-closure-v1\",\"productHead\":" + Q(CurrentProductHead) + ",\"productTree\":" + Q(CurrentProductTree) + ",\"files\":" + Canonical(sourceFiles) + "}";
+        Require(sourceFiles.Count == CurrentNormalSourceFileCount && CurrentNormalSourceFileCount > 0 && Hash(new UTF8Encoding(false, true).GetBytes(sourceWrapper)) == CurrentNormalSourceManifestSHA256, "NORMAL_FIXED_MANIFEST_REJECTED");
         Dir source = CodeDirectory(sourcePath);
         foreach (string relative in sourceFiles.Keys) CodeFile(source, relative, String(sourceFiles, relative));
         // Data roots are held for canonical directory identity only; no live
@@ -811,6 +861,7 @@ internal static class CandidateHost
         // admission does not create them or repair their permissions.
         foreach (string key in new string[] { "privateDataRoot", "localAppDataRoot", "chartCacheRoot", "evidenceRoot" })
             CodeDirectory(String(roots, key));
+        if (candidate != null) CodeDirectory(Path.Combine(privatePath, "decision-workspace"));
         var node = Bag(ticket, "node"); var git = Bag(ticket, "git"); ExactKeys(node, "path", "sha256"); ExactKeys(git, "path", "sha256");
         RequireLocalFixedPath(String(node, "path")); RequireLocalFixedPath(String(git, "path"));
         Require(SamePath(String(node, "path"), NodePath) && String(node, "sha256") == NodeSHA256 && SamePath(String(git, "path"), GitPath) && HashShape(String(git, "sha256")), "NORMAL_EXECUTABLE_REJECTED");
@@ -819,7 +870,7 @@ internal static class CandidateHost
         CheckProgramNamespace(GitPath, gitFile); Require(HashFile(gitFile) == String(git, "sha256"), "NORMAL_GIT_BYTES_CHANGED");
         var vendor = Bag(ticket, "vendor"); ExactKeys(vendor, "manifestSHA256", "manifest"); var vm = Bag(vendor, "manifest");
         ExactKeys(vm, "schema", "productHead", "productTree", "lockSHA256", "packages", "files");
-        Require(String(vm, "schema") == "cru21-normal-vendor-closure-v1" && String(vm, "productHead") == ProductHead && String(vm, "productTree") == ProductTree
+        Require(String(vm, "schema") == "cru21-normal-vendor-closure-v1" && String(vm, "productHead") == CurrentProductHead && String(vm, "productTree") == CurrentProductTree
             && String(vm, "lockSHA256") == String(sourceFiles, "package-lock.json") && CanonicalHash(vm) == String(vendor, "manifestSHA256"), "NORMAL_VENDOR_DESCRIPTOR_REJECTED");
         string[] names = { "@koromix/koffi-win32-x64", "fancy-canvas", "koffi", "lightweight-charts" }, versions = { "3.3.1", "2.1.0", "3.3.1", "5.2.0" };
         var packageLock = Object(ReadAll(CodeFile(source, "package-lock.json", String(sourceFiles, "package-lock.json")))); var lockedPackages = Bag(packageLock, "packages");
@@ -845,17 +896,27 @@ internal static class CandidateHost
         {
             var file = CodeFile(vendorRoot, relative, String(vendorFiles, relative)); total += file.Length; Require(total <= 268435456, "NORMAL_VENDOR_SIZE_REJECTED");
         }
+        // Future normal launch: retain the exact encrypted TLS file and its safe
+        // namespace until original child exit. No host-side decryption or trust change.
+        if (candidate != null)
+        {
+            var certificate = Bag(candidate, "certificate"); string bundle = String(certificate, "bundlePath");
+            Dir certificateDirectory = CodeDirectory(Path.GetDirectoryName(bundle));
+            CodeFile(certificateDirectory, Path.GetFileName(bundle), String(certificate, "bundleSHA256"));
+        }
         N.FILE_INFO identity; N.Check(N.GetFileInformationByHandle(source.Handle, out identity));
         var rootIdentity = new Dictionary<string, object> { { "volumeSerial", identity.Volume.ToString("x8") }, { "fileId", identity.IndexHigh.ToString("x8") + identity.IndexLow.ToString("x8") } };
-        var leases = new Dictionary<string, object> { { "sourceFiles", sourceFiles.Count }, { "sourceSHA256", NormalSourceManifestSHA256 }, { "vendorFiles", vendorFiles.Count },
+        var leases = new Dictionary<string, object> { { "sourceFiles", sourceFiles.Count }, { "sourceSHA256", CurrentNormalSourceManifestSHA256 }, { "vendorFiles", vendorFiles.Count },
             { "vendorSHA256", CanonicalHash(vm) }, { "node", true }, { "helper", true }, { "git", true }, { "namespacePolicy", "NO_UNTRUSTED_NAMESPACE_WRITES" } };
-        return new Dictionary<string, object> {
-            { "schema", "cru21-normal-native-admission-v1" }, { "mode", "NORMAL_CANDIDATE" }, { "productHead", ProductHead }, { "productTree", ProductTree },
-            { "ticketSHA256", CanonicalHash(ticket) }, { "sourceManifestSHA256", NormalSourceManifestSHA256 }, { "vendorManifestSHA256", CanonicalHash(vm) },
+        var admissionRecord = new Dictionary<string, object> {
+            { "schema", "cru21-normal-native-admission-v1" }, { "mode", "NORMAL_CANDIDATE" }, { "productHead", CurrentProductHead }, { "productTree", CurrentProductTree },
+            { "ticketSHA256", CanonicalHash(ticket) }, { "sourceManifestSHA256", CurrentNormalSourceManifestSHA256 }, { "vendorManifestSHA256", CanonicalHash(vm) },
             { "helperSHA256", ExpectedNormalEntrySHA256 }, { "nodeSHA256", HashFile(NodeLease) }, { "gitSHA256", HashFile(gitFile) }, { "rootsSHA256", CanonicalHash(roots) },
             { "childPid", (long)child.Pid }, { "childCreationFileTime", Creation(child.Process).ToString(System.Globalization.CultureInfo.InvariantCulture) },
             { "sourceRootIdentity", rootIdentity }, { "leases", leases }, { "transport", "ORIGINAL_INHERITED_PIPE" }, { "lifetime", "UNTIL_ORIGINAL_CHILD_EXIT" }, { "qualified", true }
         };
+        if (candidate != null) admissionRecord["candidateSHA256"] = CanonicalHash(candidate);
+        return admissionRecord;
     }
     static byte[] NormalProgram(byte[] ticketBytes, Proc child)
     {
