@@ -99,7 +99,7 @@ function Invoke-BoundStartupSupervisor {
   # later diagnostics cannot be written, another invocation must not blindly retry.
   Write-BoundExclusiveJson $pending @{runId=$runId;attemptDirectory=$attempt;at=[datetime]::UtcNow.ToString('o');automaticRetry=$false}
   $exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$EntryPath+'" -BindingPath "'+$BindingPath+'" -InternalWorker -AttemptDirectory "'+$attempt+'"'
+  $arguments='-NoProfile -NonInteractive -File "'+$EntryPath+'" -BindingPath "'+$BindingPath+'" -InternalWorker -AttemptDirectory "'+$attempt+'"'
   if ($NoBrowser) { $arguments+=' -NoBrowser' }; if ($CheckOnly) { $arguments+=' -CheckOnly' }
   $state='FAILED';$code=1;$process=$null;$detail=$null;$settled=$false
   try {

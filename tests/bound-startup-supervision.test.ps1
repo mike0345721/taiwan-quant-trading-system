@@ -77,7 +77,7 @@ Case 'failed diagnostic receipt cannot leave the owned process running' {
   $attempt=Join-Path $root ('diagnostic-fail-'+[guid]::NewGuid());[IO.Directory]::CreateDirectory($attempt)|Out-Null
   [IO.File]::WriteAllText((Join-Path $attempt 'process.json'),'existing fixture')
   $binding=Fixture 'hang';$exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $args='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$worker+'" -BindingPath "'+$binding+'" -AttemptDirectory "'+$attempt+'"'
+  $args='-NoProfile -NonInteractive -File "'+$worker+'" -BindingPath "'+$binding+'" -AttemptDirectory "'+$attempt+'"'
   $threw=$false
   try{Invoke-BoundSupervisedProcess $exe $args $root $attempt 5000|Out-Null}catch{$threw=$true}
   Check $threw 'diagnostic failure swallowed'
@@ -156,7 +156,7 @@ $r|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $ResultPath -Encoding UTF8
   [IO.File]::WriteAllText($caller,$callerBody)
   $pi=New-Object Diagnostics.ProcessStartInfo
   $pi.FileName=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $pi.Arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$caller+'" -ModulePath "'+(Join-Path $ProjectRoot 'scripts\bound-startup-supervision.psm1')+'" -WorkerPath "'+$worker+'" -BindingPath "'+$binding+'" -ResultPath "'+$receipt+'"'
+  $pi.Arguments='-NoProfile -NonInteractive -File "'+$caller+'" -ModulePath "'+(Join-Path $ProjectRoot 'scripts\bound-startup-supervision.psm1')+'" -WorkerPath "'+$worker+'" -BindingPath "'+$binding+'" -ResultPath "'+$receipt+'"'
   $pi.UseShellExecute=$false;$pi.CreateNoWindow=$true
   $child=[Diagnostics.Process]::Start($pi)
   try {
