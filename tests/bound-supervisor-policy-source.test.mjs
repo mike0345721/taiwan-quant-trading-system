@@ -8,12 +8,13 @@ import { createHash } from 'node:crypto';
 const read = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const supervisor = read('scripts/bound-startup-supervision.psm1');
 const nativeFixtures = read('tests/bound-startup-supervision.test.ps1');
+const installer = read('scripts/install-bound-daily-use.ps1');
 const sha = text => createHash('sha256').update(text).digest('hex');
 
 // Read the shipped, deliberately small literal-concatenation expression without
 // evaluating PowerShell or substituting a separately maintained argv template.
 function concatenate(expression, bindings) {
-  const token = /\s*('(?:[^']|'')*'|\$(?:EntryPath|BindingPath|attempt))\s*(\+|$)/gy;
+  const token = /\s*('(?:[^']|'')*'|\$(?:EntryPath|BindingPath|attempt|script))\s*(\+|$)/gy;
   let result = '', offset = 0;
   while (offset < expression.length) {
     token.lastIndex = offset;
@@ -72,4 +73,25 @@ test('native fixtures use normal policy while preserving every other normalized 
 test('the existing public/internal entry is unchanged; no replacement control path', () => {
   assert.equal(sha(read('scripts/start-bound-daily-use.ps1')),
     'db40db398d6bc7cf5aad87ebc58b1625b9fc51e18cbba942f4f7df43d2b0412a');
+});
+
+test('source-derived installed entry argv does not reintroduce an outer policy override', () => {
+  const expressions = [...installer.matchAll(/^\$arguments=(.+)$/gm)];
+  assert.equal(expressions.length, 1);
+  const bindings = { script: 'D:\\synthetic source\\start-bound-daily-use.ps1', BindingPath: 'D:\\synthetic binding\\source.json' };
+  const calls = [];
+  const shortcutMock = args => { calls.push(args); };
+  shortcutMock(concatenate(expressions[0][1], bindings));
+  assert.equal(calls.length, 1);
+  assert.doesNotMatch(calls[0], /ExecutionPolicy|Bypass/i);
+  assert.equal(calls[0], '-NoProfile -NonInteractive -WindowStyle Hidden -File "' + bindings.script +
+    '" -BindingPath "' + bindings.BindingPath + '"');
+});
+
+test('installation, backup, restore and legacy-entry comparisons preserve baseline source', () => {
+  const prefix = /-NoProfile -NonInteractive -WindowStyle Hidden(?: -ExecutionPolicy Bypass)? -File /g;
+  assert.equal([...installer.matchAll(prefix)].length, 1);
+  const baseline = installer.replace(prefix,
+    '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ');
+  assert.equal(sha(baseline), '000e254a54bfb9a19d31600ad9a9d484a4f697ad25f895e7d35bf355d2a2e67b');
 });

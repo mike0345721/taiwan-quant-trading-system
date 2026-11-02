@@ -47,7 +47,7 @@ for ($i=0;$i -lt $paths.Count;$i++) {
 }
 @{at=[datetime]::UtcNow.ToString('o');binding=$BindingPath;bindingHash=(Get-FileHash $BindingPath).Hash;entries=$entries} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 $script=Join-Path $PSScriptRoot 'start-bound-daily-use.ps1'
-$arguments='-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$script+'" -BindingPath "'+$BindingPath+'"'
+$arguments='-NoProfile -NonInteractive -WindowStyle Hidden -File "'+$script+'" -BindingPath "'+$BindingPath+'"'
 # The machine-local launcher is configuration; application source remains in pinned Git worktrees.
 $body="@echo off`r`nREM CRU21_BOUND_DAILY_USE_V1`r`nsetlocal`r`n`"$powerShell`" $arguments %*`r`nexit /b %errorlevel%`r`n"
 $staged=@()
