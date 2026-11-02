@@ -1,0 +1,410 @@
+// Trusted current source, captured HTTP callback and synthetic dependencies.
+// This VM is not a sandbox for arbitrary JS. TLS/native FS/Browser are NOT_RUN.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import vm from 'node:vm';
+import { Readable } from 'node:stream';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
+const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
+  'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs'];
+const source = Object.fromEntries(actualNames.map(name => [name, fs.readFileSync(path.join(sourceRoot, name), 'utf8')]));
+const sourceHashes = Object.fromEntries(Object.entries(source).map(([name, bytes]) =>
+  [name, crypto.createHash('sha256').update(bytes).digest('hex')]));
+const head = '1'.repeat(40), tree = '2'.repeat(40), base = '3'.repeat(40);
+const branch = 'codex/cru21-ai-off-candidate-20261102';
+const appRoot = path.resolve('/synthetic-app'), readRoot = path.resolve('/synthetic-read');
+const producerRoot = path.resolve('/synthetic-producer'), dataRoot = path.join(appRoot, 'data');
+const sessionFile = path.join(dataRoot, 'sessions.json');
+const futuresAuditFile = path.join(readRoot, 'live-events/futures-audits/latest.json');
+const password = 'Synthetic-candidate-only-password';
+const salt = Buffer.from('00112233445566778899aabbccddeeff', 'hex');
+const passwordHash = 'scrypt-v1$' + salt.toString('base64url') + '$' + crypto.scryptSync(password, salt, 64,
+  { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('base64url');
+const unavailable = reason => ({ state: 'UNAVAILABLE', status: 'UNAVAILABLE', ready: false,
+  reason, researchOnly: true, formalWeight: 0, executionAuthorized: false, orderRoutesEnabled: false });
+
+function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} } = {}) {
+  const counters = { network: 0, bridge: 0, spawn: 0, marketConstructor: 0, marketRefresh: 0,
+    cacheConstructor: 0, cacheInit: 0, cacheRead: 0, cacheWrite: 0, intervals: 0,
+    credential: 0, aiOperation: 0, forbiddenOther: 0, tlsCapture: 0, fsReads: [], fsWrites: [], git: [] };
+  const memory = new Map([[sessionFile, Buffer.from('{}\n')]]);
+  const directories = new Set([appRoot, readRoot, producerRoot, dataRoot,
+    path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'decision-workspace')]);
+  for (const dir of [...directories]) {
+    let current = dir;
+    for (;;) { directories.add(current); const parent = path.dirname(current); if (parent === current) break; current = parent; }
+  }
+  let handler = null, intent = null;
+  const startup = [];
+  const deny = category => {
+    if (Object.hasOwn(counters, category)) counters[category]++;
+    else counters.forbiddenOther++;
+    throw Error('SYNTHETIC_FORBIDDEN_' + category);
+  };
+  const env = { DASHBOARD_RELEASE_SCOPE: 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE',
+    DASHBOARD_PREVIEW_TYPE: 'CRU21_MARKET_RESEARCH_CANDIDATE', DASHBOARD_PREVIEW_BRANCH: branch,
+    DASHBOARD_PREVIEW_EXPECTED_HEAD: head, DASHBOARD_PREVIEW_EXPECTED_TREE: tree,
+    DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN: base, ASK_GPT_INLINE_ENABLED: '0', CRU21_GUEST_ENABLED: '0',
+    DASHBOARD_TLS_BUNDLE: path.resolve('/synthetic-tls/candidate.dpapi'), DASHBOARD_TLS_BUNDLE_SHA256: 'b'.repeat(64),
+    DASHBOARD_TLS_CERT_SHA256: 'a'.repeat(64), DASHBOARD_CANDIDATE_READ_ROOT: readRoot,
+    TX_CHART_DATA_ROOT: readRoot, TX_CHART_CACHE_ROOT: path.join(dataRoot, 'dashboard-chart-cache'),
+    CRU34_LIVE_DATA_ROOT: producerRoot, CRU34_LIVE_SNAPSHOT_PATH: path.join(producerRoot, 'runtime/cru34-live/latest.json'),
+    CRU34_LIVE_STATUS_PATH: path.join(producerRoot, 'runtime/cru34-live/status.json'),
+    V2_RESEARCH_DATABASE_PATH: path.join(readRoot, 'v2/data/research-v2.sqlite'),
+    V2_BACKTEST_REPORT_PATH: path.join(readRoot, 'v2/reports/latest-backtest.json'),
+    DATA_OPERATIONS_OUTPUT_ROOT: path.join(readRoot, 'quality/daily-data-operations'), ...envPatch };
+  const config = Object.freeze({ appRoot, publicDir: path.join(appRoot, 'public'), dataDir: dataRoot,
+    historyDir: path.join(dataRoot, 'history'), host: '127.0.0.1', port: 18723, nodeEnv: 'production',
+    passwordHash, cookieSecure: true, mockData: false, trustProxy: false, cru55Candidate: false, cru55Acceptance: null,
+    sessionTtlMs: 300000, rememberedSessionTtlMs: 600000, refreshIntervalMs: 300000, upstreamTimeoutMs: 1000,
+    ...configPatch });
+  const readMemory = (name, encoding) => {
+    counters.fsReads.push(name);
+    assert.ok([sessionFile, futuresAuditFile].includes(name), 'Only the private Session or fixed synthetic input audit may be read');
+    const bytes = memory.get(name);
+    if (!bytes) throw Object.assign(Error('Synthetic file missing'), { code: 'ENOENT' });
+    return encoding ? bytes.toString(encoding) : Buffer.from(bytes);
+  };
+  const memoryFs = new Proxy({
+    readFileSync: readMemory,
+    writeFileSync(name, content) {
+      assert.equal(name, sessionFile, 'all persistent writes must remain private Session writes');
+      counters.fsWrites.push(name); memory.set(name, Buffer.from(content));
+    },
+    existsSync(name) {
+      assert.equal(name, path.join(readRoot, 'market-state/forward-shadow/governance/taifex-official-calendar-exception.json'));
+      return false;
+    },
+    lstatSync(name) {
+      assert.ok(directories.has(name) || memory.has(name), 'Only the synthetic namespace may be inspected: ' + name);
+      return { isSymbolicLink: () => observed.namespaceAlias === name,
+        isDirectory: () => directories.has(name), isFile: () => memory.has(name), nlink: 1 };
+    },
+    realpathSync(name) {
+      assert.ok(directories.has(name) || memory.has(name)); return name;
+    },
+    readdirSync(name) {
+      assert.ok([path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'decision-workspace')].includes(name)); return [];
+    },
+  }, { get(target, key) { return Object.hasOwn(target, key) ? target[key] : () => deny('filesystem:' + String(key)); } });
+  const memoryPromises = new Proxy({}, { get() { return async () => deny('filesystem-promises'); } });
+  const never = () => deny('unmodeled-domain');
+  const bridge = () => deny('bridge');
+  const off = () => unavailable('SYNTHETIC_INPUT_UNAVAILABLE');
+  const mocks = {
+    'src/config.mjs': { config, validateConfig() { assert.equal(config.nodeEnv, 'production'); assert.equal(config.passwordHash, passwordHash); } },
+    'src/cache-store.mjs': { CacheStore: class {
+      constructor(options) { counters.cacheConstructor++; assert.equal(options.dataDir, readRoot); assert.equal(options.historyDir, path.join(readRoot, 'history')); }
+      async init() { counters.cacheInit++; throw Error('Candidate must not initialize a read-only source cache'); }
+      async loadLatest() { counters.cacheRead++; return observed.snapshot ? structuredClone(observed.snapshot) : null; }
+      async listHistory() { return []; }
+      async save() { return deny('cacheWrite'); }
+    } },
+    'src/market-data.mjs': { MarketDataService: class {
+      constructor() { deny('marketConstructor'); }
+      async refresh() { return deny('marketRefresh'); }
+    } },
+    'src/ask-gpt-inline-service.mjs': { InlineAssistant: class {
+      constructor(options) { assert.equal(options.enabled, false); }
+      connection() { return { enabled: false, storeState: 'DISABLED', credentialsLoaded: false }; }
+      async close() {}
+      ensure() { return deny('credential'); }
+      loadAccounts() { return deny('credential'); }
+      models() { return deny('aiOperation'); }
+      run() { return deny('aiOperation'); }
+      startSetup() { return deny('aiOperation'); }
+    } },
+    'src/ask-gpt-inline-http.mjs': { createInlineHandler({ assistant }) {
+      return async (req, res, url) => {
+        if (!url.pathname.startsWith('/api/v1/ask-gpt/')) return false;
+        if (req.method !== 'GET' || url.pathname !== '/api/v1/ask-gpt/status') return deny('aiOperation');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, data: assistant.connection() })); return true;
+      };
+    } },
+    'src/cru21-preview-contract.mjs': { buildCru21PreviewVersion: never, validateCru21PreviewVersionTruth: never },
+    'src/derived-metrics.mjs': { enrichSnapshot: snapshot => snapshot },
+    'src/signal-engine.mjs': { buildSignal: never },
+    'src/six-axis-shadow.mjs': { buildSixAxisShadow: off },
+    'src/backtest.mjs': { backtestComponents: never },
+    'src/v2-research.mjs': { V2ResearchService: class {
+      decisionSupport() { return off(); }
+      dailyUpdateStatus() { return off(); }
+      query() { return off(); }
+      backtestReport() { return off(); }
+    } },
+    'src/intraday-confirmation.mjs': { loadPriceConfirmation: off },
+    'src/intraday-replay-catalog.mjs': { listReplayDays: () => [], loadCatalogReplay: () => ({ totalBars: 0 }) },
+    'src/market-feed.mjs': { marketFeedReadiness: off },
+    'src/shioaji-bridge-client.mjs': { inspectIx0001Leadership: bridge, inspectShioajiBridge: bridge, inspectShioajiLatest: bridge },
+    'v2/src/trading-costs.mjs': { costScenarios: () => [] },
+    'src/dashboard-data-health.mjs': { buildDataHealthContract: off },
+    'src/dashboard-data-operations.mjs': { readDataOperations: off },
+    'src/data-operations-binding.mjs': { resolveOperationsReader: off },
+    'src/dashboard-decision-workspace.mjs': { buildDecisionWorkspace: input => ({ runtimeVersion: input.runtimeVersion,
+      runtimeTruth: input.runtimeTruth, observedFlow: input.observedFlow, snapshot: input.snapshot }), copyForChatGpt: never },
+    'src/decision-level-watch.mjs': { buildDecisionLevelWatch: off },
+    'src/dashboard-runtime-truth.mjs': { readDashboardRuntimeTruth: never },
+    'src/decision-journal.mjs': { appendDecisionJournal: never, readDecisionJournal: () => [], appendDecisionOutcome: never, readDecisionOutcomes: () => [] },
+    'src/market-state-forward-shadow-calendar.mjs': { loadGovernedTradingCalendar: off },
+    'src/taifex-market-operation.mjs': { assessTaifexMarketSession: off },
+    'src/operating-calendar.mjs': { loadOperatingCalendar: off },
+    'src/dashboard-tx-chart-source.mjs': { loadTxDecisionChart(options) {
+      assert.equal(options.dataRoot, readRoot); assert.equal(options.cacheRoot, path.join(dataRoot, 'dashboard-chart-cache')); return off();
+    } },
+    'src/cru55-formal-entry.mjs': { prepareFormalEntry: never },
+    'src/market-change-feed.mjs': { buildMarketChangeFeed: () => ({ events: [] }), chartMarkersFromEvents: () => [] },
+    'src/runtime-identity.mjs': {
+      readRuntimeIdentity(root, options) {
+        assert.equal(root, appRoot); return { status: 'VERIFIED', commit: options?.ref ? observed.base ?? base : observed.head ?? head };
+      },
+      buildRuntimeVersionStatus({ runtimeIdentity, approvedMainIdentity, runtimeStartedAt }) {
+        return { runtimeCommit: runtimeIdentity.commit, approvedMainCommit: approvedMainIdentity.commit,
+          runtimeStartedAt, syncState: 'MISMATCH' };
+      },
+      validateFormalRuntimeVersionTruth: never,
+    },
+    'src/dashboard-integration-contract.mjs': { buildCru44PreviewVersion: never, buildIntegrationPreviewVersion: never,
+      CRU44_PRODUCT_SURFACE_CONTRACT: {}, CRU46_PRODUCT_SURFACE_CONTRACT: {},
+      selectDashboardProductSurface: () => ({ synthetic: true, deliveryAccepted: false }),
+      validateCru44PreviewVersionTruth: never, validateIntegrationPreviewVersionTruth: never },
+    'src/dashboard-live-breadth-source.mjs': { loadIx0001BreadthForWorkspace: off },
+    'src/dashboard-observed-flow.mjs': { loadDashboardObservedFlow: off },
+    'src/dashboard-research-evidence.mjs': { buildResearchEvidence: off, readLatestResearchQuote: off, readResearchResult: off },
+    'src/dashboard-flow-refresh.mjs': { loadFlowRefresh: off },
+    'src/market-pulse-live.mjs': { buildMarketPulseLive({ bridgeLatest }) { return unavailable(bridgeLatest.reason); } },
+    'src/dashboard-runtime-readiness.mjs': {
+      buildCru46Readiness: () => ({ runtimeReady: { parity: off() }, identityReady: true, runtimePreflightReady: false,
+        ownerPreviewReady: false }),
+      inspectChartPayload: off, inspectChartVendorRuntime: off, inspectCru34LiveProducer: off,
+      inspectObservedFlowPayload: off, normalizeBrowserRuntimeProof: never, validateBrowserRuntimeParity: off,
+      validateBrowserRuntimeProof: off,
+    },
+    'src/dashboard-local-tls.mjs': {
+      assertLocalMarketMode: never,
+      createDashboardServer(callback, candidateEnv, candidateConfig) {
+        counters.tlsCapture++;
+        assert.equal(candidateEnv.DASHBOARD_RELEASE_SCOPE, 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE');
+        assert.equal(candidateConfig.cookieSecure, true); assert.equal(handler, null); handler = callback;
+        return { listen(port, host, ready) {
+          assert.equal(port, 18723); assert.equal(host, '127.0.0.1'); intent = { host, port };
+          startup.push(Promise.resolve().then(() => ready?.())); return this;
+        }, close() { return deny('close'); } };
+      },
+    },
+  };
+  const child = {
+    spawn() { return deny('spawn'); },
+    execFileSync(executable, args) {
+      assert.equal(executable, 'git'); counters.git.push(args.join(' '));
+      assert.equal(JSON.stringify(args.slice(0, 5)), '["--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false"]');
+      const command = args.slice(5);
+      if (JSON.stringify(command) === '["rev-parse","HEAD^{tree}"]') return observed.tree ?? tree;
+      if (JSON.stringify(command) === '["branch","--show-current"]') return observed.branch ?? branch;
+      if (JSON.stringify(command) === '["status","--porcelain"]') return observed.dirty ? ' M synthetic-source\n' : '';
+      return deny('spawn');
+    },
+  };
+  const network = new Proxy({}, { get() { return () => deny('network'); } });
+  const builtins = { 'node:http': { default: network }, 'node:crypto': { default: crypto },
+    'node:fs': { default: memoryFs }, 'node:fs/promises': { default: memoryPromises },
+    'node:path': { default: path }, 'node:url': { URL }, 'node:child_process': child };
+  const context = vm.createContext({ Buffer, URL, TextEncoder, TextDecoder, AbortController, AbortSignal,
+    structuredClone, process: Object.freeze({ env: Object.freeze(env), execPath: '/synthetic/node', platform: process.platform,
+      on(signal) { assert.ok(['SIGINT', 'SIGTERM'].includes(signal)); }, exit() { return deny('exit'); } }),
+    fetch() { return deny('network'); }, console: Object.freeze({ log() {}, warn() {}, error() {} }),
+    setInterval() { return deny('intervals'); }, clearInterval() {},
+    setTimeout(fn) { queueMicrotask(fn); return { unref() {} }; }, clearTimeout() {},
+  }, { codeGeneration: { strings: false, wasm: false } });
+  const modules = new Map();
+  function module(id) {
+    if (modules.has(id)) return modules.get(id);
+    let result;
+    if (Object.hasOwn(source, id)) {
+      result = new vm.SourceTextModule(source[id], { context, identifier: id,
+        initializeImportMeta(meta) { meta.url = pathToFileURL(path.join(appRoot, id)).href; },
+        importModuleDynamically() { return deny('dynamic-import'); } });
+    } else {
+      const exports = builtins[id] || mocks[id];
+      assert.ok(exports, 'Every dependency must be explicitly closed: ' + id);
+      result = new vm.SyntheticModule(Object.keys(exports), function () {
+        for (const [name, value] of Object.entries(exports)) this.setExport(name, value);
+      }, { context, identifier: id });
+    }
+    modules.set(id, result); return result;
+  }
+  async function start() {
+    assert.equal(typeof vm.SourceTextModule, 'function', 'Run with --experimental-vm-modules');
+    const main = module('server.mjs');
+    await main.link((specifier, referencing) => module(specifier.startsWith('node:') ? specifier
+      : path.posix.normalize(path.posix.join(path.posix.dirname(referencing.identifier), specifier))));
+    await main.evaluate({ timeout: 5000 }); await Promise.all(startup);
+    assert.equal(typeof handler, 'function'); return intent;
+  }
+  async function dispatch(method, route, { body, cookie, csrf } = {}) {
+    assert.equal(typeof handler, 'function');
+    const req = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+    Object.assign(req, { method, url: route, socket: { remoteAddress: '127.0.0.1', encrypted: true },
+      headers: { host: '127.0.0.1:18723', origin: 'https://127.0.0.1:18723', 'content-type': 'application/json',
+        ...(cookie ? { cookie } : {}), ...(csrf ? { 'x-csrf-token': csrf } : {}) } });
+    const headers = {}, chunks = []; let status = null;
+    const res = { setHeader(name, value) { headers[name.toLowerCase()] = value; },
+      writeHead(code, values = {}) { status = code; for (const [name, value] of Object.entries(values)) this.setHeader(name, value); },
+      end(value = '') { chunks.push(Buffer.isBuffer(value) ? value : Buffer.from(value)); } };
+    await handler(req, res); assert.equal(typeof status, 'number');
+    const raw = Buffer.concat(chunks).toString('utf8');
+    return { status, headers, raw, json: () => JSON.parse(raw) };
+  }
+  async function login() {
+    const response = await dispatch('POST', '/api/auth/login', { body: { password } });
+    assert.equal(response.status, 200);
+    return { response, cookie: response.headers['set-cookie'].split(';')[0], csrf: response.json().csrfToken };
+  }
+  return { start, dispatch, login, counters, memory };
+}
+
+function noExternalEffects(h) {
+  for (const name of ['network', 'bridge', 'spawn', 'marketConstructor', 'marketRefresh', 'cacheInit',
+    'cacheWrite', 'intervals', 'credential', 'aiOperation', 'forbiddenOther']) assert.equal(h.counters[name], 0, name);
+  assert.ok(h.counters.fsReads.every(name => [sessionFile, futuresAuditFile].includes(name)));
+  assert.ok(h.counters.fsWrites.every(name => name === sessionFile));
+}
+
+test('captured current server starts with no collection, Bridge, timer, child or account effect', async t => {
+  t.diagnostic('Actual source SHA256: ' + JSON.stringify(sourceHashes));
+  t.diagnostic('Evidence class: captured callback + memory FS; TLS/native filesystem/Browser NOT_RUN. Other domains are explicit synthetic mocks.');
+  const h = harness();
+  assert.deepEqual(await h.start(), { host: '127.0.0.1', port: 18723 });
+  assert.equal(h.counters.cacheConstructor, 1); assert.equal(h.counters.cacheRead, 1); assert.equal(h.counters.tlsCapture, 1);
+  assert.deepEqual(h.counters.fsReads, [sessionFile]); assert.deepEqual(h.counters.fsWrites, []);
+  noExternalEffects(h);
+});
+
+test('actual normal auth refuses wrong passwords and foreign Sessions, persists only private Secure Session', async () => {
+  const h = harness(); await h.start();
+  const anonymous = await h.dispatch('GET', '/api/v1/dashboard'); assert.equal(anonymous.status, 401);
+  const foreign = await h.dispatch('GET', '/api/v1/dashboard', { cookie: 'twchip_session=foreign-synthetic-id' });
+  assert.equal(foreign.status, 401);
+  const bad = await h.dispatch('POST', '/api/auth/login', { body: { password: password + '-wrong' } });
+  assert.equal(bad.status, 401); assert.equal(bad.json().error, 'INVALID_CREDENTIALS'); assert.equal(h.counters.fsWrites.length, 0);
+  const { response, cookie } = await h.login();
+  for (const flag of ['HttpOnly', 'SameSite=Strict', 'Secure']) assert.ok(response.headers['set-cookie'].includes(flag));
+  assert.ok(response.headers['strict-transport-security']);
+  const session = await h.dispatch('GET', '/api/session', { cookie }); assert.equal(session.json().authenticated, true);
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]);
+  assert.ok(!h.memory.get(sessionFile).toString().includes(cookie.split('=')[1]), 'Stored Session keys are hashes, not raw cookies');
+  noExternalEffects(h);
+});
+
+test('missing input snapshot remains 503 and no Bridge/upstream fallback is used', async () => {
+  const h = harness(); await h.start(); const auth = await h.login();
+  const dashboard = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(dashboard.status, 503); assert.equal(dashboard.json().ok, false); assert.equal(dashboard.json().data, null);
+  assert.equal(dashboard.json().service.brokerMarketData.reason, 'MARKET_CANDIDATE_NO_LIVE_BRIDGE');
+  for (const route of ['/api/v1/market-pulse', '/api/v1/index-leadership']) {
+    const response = await h.dispatch('GET', route, auth); assert.equal(response.status, 200);
+    assert.equal(response.json().data.state, 'UNAVAILABLE');
+    assert.equal(response.json().data.reason, 'MARKET_CANDIDATE_NO_LIVE_BRIDGE');
+  }
+  noExternalEffects(h);
+});
+
+test('seeded synthetic live snapshot reaches the real dashboard assembly without scheduler, Bridge or upstream escape', async () => {
+  const h = harness({ observed: { snapshot: { dataMode: 'live', asOfDate: '2026-11-02',
+    generatedAt: '2026-11-02T00:00:00.000Z', syntheticFixture: true } } });
+  await h.start(); const auth = await h.login();
+  const response = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(response.status, 200); const body = response.json();
+  assert.equal(body.ok, true); assert.equal(body.data.syntheticFixture, true);
+  assert.equal(body.decisionWorkspace.runtimeVersion.runtimeCommit, head);
+  assert.equal(body.decisionWorkspace.runtimeTruth.governed, false);
+  assert.equal(body.decisionWorkspace.runtimeTruth.reason, 'MARKET_CANDIDATE_NO_SCHEDULER_QUERY');
+  assert.equal(body.service.brokerMarketData.reason, 'MARKET_CANDIDATE_NO_LIVE_BRIDGE');
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+test('collection, daily-update, AI/account/setup routes refuse before dispatch even with valid auth/CSRF', async () => {
+  const h = harness(); await h.start(); const auth = await h.login();
+  for (const [method, route] of [['POST', '/api/v1/refresh'], ['POST', '/api/v2/daily-update'],
+    ['POST', '/api/v1/ask-gpt/accounts'], ['POST', '/api/v1/ask-gpt/models'], ['POST', '/api/v1/ask-gpt/setup'],
+    ['POST', '/api/v1/ask-gpt/analyse'], ['GET', '/api/v1/ask-gpt/accounts'], ['GET', '/api/v1/ask-gpt/setup']]) {
+    const response = await h.dispatch(method, route, { ...auth, body: {} });
+    assert.equal(response.status, 403, route); assert.equal(response.json().error, 'MARKET_CANDIDATE_READ_ONLY');
+  }
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+test('actual private logout retains CSRF rejection and valid logout revokes the Session', async () => {
+  const h = harness(); await h.start(); const auth = await h.login();
+  const missing = await h.dispatch('POST', '/api/auth/logout', { cookie: auth.cookie, body: {} });
+  assert.equal(missing.status, 403); assert.equal(missing.json().error, 'CSRF_INVALID');
+  const wrong = await h.dispatch('POST', '/api/auth/logout', { ...auth, csrf: 'wrong-synthetic-token', body: {} });
+  assert.equal(wrong.status, 403); assert.deepEqual(h.counters.fsWrites, [sessionFile]);
+  const logout = await h.dispatch('POST', '/api/auth/logout', { ...auth, body: {} }); assert.equal(logout.status, 200);
+  const session = await h.dispatch('GET', '/api/session', { cookie: auth.cookie }); assert.equal(session.json().authenticated, false);
+  assert.deepEqual(h.counters.fsWrites, [sessionFile, sessionFile]); noExternalEffects(h);
+});
+
+test('candidate health distinguishes unaccepted AI-off identity from formal acceptance', async () => {
+  const h = harness(); await h.start(); const response = await h.dispatch('GET', '/healthz');
+  assert.equal(response.status, 200); const body = response.json();
+  assert.equal(body.versionTruth.runtimeCommit, head); assert.equal(body.versionTruth.runtimeTree, tree);
+  assert.equal(body.versionTruth.previewType, 'CRU21_MARKET_RESEARCH_CANDIDATE');
+  assert.equal(body.versionTruth.deliveryAccepted, false); assert.equal(body.localRelease, null);
+  assert.equal(body.candidateRelease.scope, 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE');
+  assert.equal(body.candidateRelease.aiEnabled, false); assert.equal(body.candidateRelease.deliveryAccepted, false);
+  noExternalEffects(h);
+});
+
+test('date traversal, duplicate selectors and foreign query fields refuse before chart dispatch', async () => {
+  const h = harness(); await h.start(); const auth = await h.login();
+  for (const query of ['tradeDate=..%2F..%2Fforeign', 'tradeDate=2026-02-30', 'tradeDate=2026-11-02&tradeDate=2026-11-01',
+    'mode=MOCK', 'actualContract=TX%2F..%2Fforeign', 'file=foreign-data-root']) {
+    for (const route of ['/api/v1/tx-chart', '/api/v1/market-changes']) {
+      const response = await h.dispatch('GET', route + '?' + query, auth);
+      assert.equal(response.status, 400, route + '?' + query);
+      assert.equal(response.json().error, 'MARKET_CANDIDATE_QUERY_REJECTED');
+    }
+  }
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+test('foreign browser version/origin binding is refused before normalization or accepted proof', async () => {
+  const h = harness(); await h.start(); const auth = await h.login();
+  const response = await h.dispatch('POST', '/api/v1/cru46-browser-runtime-proof', { ...auth, body: {
+    candidateScope: 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE', previewType: 'CRU21_MARKET_RESEARCH_CANDIDATE',
+    origin: 'https://127.0.0.1:8787', exactHead: head, exactTree: tree,
+  } });
+  assert.equal(response.status, 422); assert.equal(response.json().error, 'MARKET_CANDIDATE_BROWSER_BINDING_REJECTED');
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+test('a private namespace alias appearing after login fails closed before a Session mutation', async () => {
+  const observed = {}, h = harness({ observed }); await h.start(); const auth = await h.login();
+  observed.namespaceAlias = path.join(dataRoot, 'decision-workspace');
+  const response = await h.dispatch('POST', '/api/auth/logout', { ...auth, body: {} });
+  assert.equal(response.status, 500); assert.equal(response.json().error, 'INTERNAL_ERROR');
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+for (const [name, changes] of Object.entries({
+  wrongHead: { observed: { head: base } }, wrongTree: { observed: { tree: head } },
+  wrongBase: { observed: { base: head } }, wrongBranch: { observed: { branch: 'main' } },
+  dirtySource: { observed: { dirty: true } }, overlapReadRoot: { env: { DASHBOARD_CANDIDATE_READ_ROOT: dataRoot } },
+  wrongProjection: { env: { CRU34_LIVE_SNAPSHOT_PATH: path.join(readRoot, 'wrong/latest.json') } },
+  enabledAI: { env: { ASK_GPT_INLINE_ENABLED: '1' } },
+  namespaceAlias: { observed: { namespaceAlias: path.join(dataRoot, 'dashboard-chart-cache') } },
+  injectedGitDirectory: { env: { GIT_DIR: '/synthetic-foreign-git' } },
+})) {
+  test(`startup rejects ${name} before cache, Session or captured listener initialization`, async () => {
+    const h = harness(changes); await assert.rejects(h.start(), /MARKET_CANDIDATE_/);
+    assert.equal(h.counters.cacheConstructor, 0); assert.equal(h.counters.cacheRead, 0);
+    assert.equal(h.counters.tlsCapture, 0); assert.deepEqual(h.counters.fsReads, []); assert.deepEqual(h.counters.fsWrites, []);
+    noExternalEffects(h);
+  });
+}

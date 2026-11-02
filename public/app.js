@@ -4843,14 +4843,31 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }
 }
 
+// Returns only a candidate's own binding. The server independently verifies
+// this before normalizing a proof; a formal/old frame cannot be relabeled.
+function marketCandidateBrowserBinding(version, location) {
+  if (version?.previewType !== 'CRU21_MARKET_RESEARCH_CANDIDATE'
+      || version.releaseScope !== 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE'
+      || version.branch !== 'codex/cru21-ai-off-candidate-20261102'
+      || version.aiEnabled !== false || version.complete !== false || version.deliveryAccepted !== false
+      || !/^[a-f0-9]{40}$/.test(version.exactHead || '') || version.exactHead !== version.runtimeCommit
+      || version.exactHead !== version.buildCommit || !/^[a-f0-9]{40}$/.test(version.exactTree || '')
+      || version.exactTree !== version.runtimeTree || version.exactTree !== version.buildTree
+      || !Number.isFinite(Date.parse(version.runtimeStartedAt))
+      || location?.origin !== 'https://127.0.0.1:18723') return null;
+  return {candidateScope:version.releaseScope,previewType:version.previewType,origin:location.origin,
+    exactHead:version.exactHead,exactTree:version.exactTree,runtimeStartedAt:version.runtimeStartedAt};
+}
+
 async function reportCru46BrowserRuntimeProof() {
   const version = state.decisionWorkspace?.runtimeVersion;
+  const marketCandidateBinding = marketCandidateBrowserBinding(version, window.location);
   const isPreview = ['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType);
   const isFormalRuntime = !version?.previewType && version?.syncState === 'SYNCED'
     && /^[0-9a-f]{40}$/.test(version?.runtimeCommit || '')
     && version.runtimeCommit === version.approvedMainCommit
     && window.location?.hostname === '127.0.0.1' && window.location?.port === '8787';
-  if (!isPreview && !isFormalRuntime) return;
+  if (!isPreview && !isFormalRuntime && !marketCandidateBinding) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -4865,6 +4882,7 @@ async function reportCru46BrowserRuntimeProof() {
   const flow1h = $('dw-flow-tab-1h');
   const flow4h = $('dw-flow-tab-4h');
   await apiRequestCru46Proof({
+    ...marketCandidateBinding,
     lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
     canvasCount: target?.querySelectorAll('canvas').length || 0,
     chartWidth: Math.round(rect?.width || 0),
