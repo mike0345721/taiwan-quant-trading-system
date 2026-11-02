@@ -244,8 +244,7 @@ def load_credentials(path: Path) -> dict[str, Any]:
             [
                 "powershell",
                 "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
+                "-NonInteractive",
                 "-File",
                 str(CREDENTIAL_READER),
                 "-Path",
