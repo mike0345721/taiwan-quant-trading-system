@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {buildLiveEventRecord} from './live-event-ledger.mjs';
+import {parseVerifiedResearchLiveEventWire} from './research-live-event-wire.mjs';
 import {projectGovernedL5} from './microstructure-outcome-research-v1.mjs';
 import {classifyTxChartSession} from './dashboard-tx-chart.mjs';
 import {evidenceTimestampMs as ms,evidenceTimestampNs as ns} from './research-evidence-contract-v1.mjs';
@@ -17,14 +18,21 @@ export function readLatestResearchQuote(dataRoot,now=new Date()) {
     fd=fs.openSync(filename,'r');const size=fs.fstatSync(fd).size;
     const start=Math.max(0,size-1024*1024),buffer=Buffer.alloc(size-start);
     const read=fs.readSync(fd,buffer,0,buffer.length,start);
-    const text=buffer.subarray(0,read).toString('utf8');
-    const lines=text.split('\n');if(start>0)lines.shift();lines.pop();
+    const bytes=buffer.subarray(0,read);
+    const first=start>0?bytes.indexOf(10)+1:0,last=bytes.lastIndexOf(10);
+    if((start>0&&first===0)||last<first)return null;
+    // Trim incomplete byte-boundary lines before strict UTF-8 decoding.
+    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes.subarray(first,last));
+    const lines=text.split('\n');
     for(let i=lines.length-1;i>=0;i--){
       if(!lines[i].includes('futures_bidask'))continue;
       let r;try{r=JSON.parse(lines[i]);}catch{return null;}
       if(r.kind!=='futures_bidask'||r.payload?.productFamily!=='TX')continue;
+      r=parseVerifiedResearchLiveEventWire(lines[i]);
       const {recordHash,...body}=r;
-      if(buildLiveEventRecord(body,body.previousHash).recordHash!==recordHash)return null;
+      // Keep all existing identity/time/execution/sensitive-field validation.
+      // Return the original verified row, never the JS re-hashed result.
+      buildLiveEventRecord(body,body.previousHash);
       const available=ns(r.receivedAt);if(available===null)return null;
       // A live writer can append after the request freezes its cutoff. Skip only
       // receipts not yet known then; never skip an arrived quote's quality failure.
