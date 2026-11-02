@@ -2741,9 +2741,12 @@ function renderMarketPulse(workspace, chart = state.txChartPayload) {
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
   const vwap = levelValue(levels.vwap);
   terminalWrite('dw-pulse-price', finiteNumber(chart?.lastPrice) == null ? null : fmt(chart.lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
-  terminalWrite('dw-pulse-vwap', vwap == null ? null : fmt(vwap, 2), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  terminalWrite('dw-pulse-vwap', vwap == null ? null : fmt(vwap, 2) + captureCoverageWarning(levels.vwap, true), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
   dwText('dw-pulse-vwap-mode', chart?.vwapSession === 'DAY' ? 'DAY VWAP · 本時段' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP · 本時段' : 'Session VWAP');
-  terminalWrite('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
+  const rangeWarning = captureCoverageWarning(levelValue(levels.currentDayHigh) != null ? levels.currentDayHigh : levels.nightHigh)
+    || captureCoverageWarning(levelValue(levels.currentDayLow) != null ? levels.currentDayLow : levels.nightLow)
+    || captureCoverageWarning(null, true);
+  terminalWrite('dw-pulse-session', high != null && low != null ? `${fmt(high)} / ${fmt(low)}${rangeWarning}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
 
   const mappings = [
     ['PARTICIPATION_BREADTH', 'dw-pulse-breadth', 'dw-pulse-breadth-mode'],
@@ -3636,7 +3639,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
 
   terminalWrite('tt-summary-price', currentFacts.priceStructureFact || null, { reason: 'PRICE_STRUCTURE_FACT_UNAVAILABLE' });
   dwText('tt-summary-strength', 'RESEARCH_PENDING');
-  terminalWrite('tt-summary-vwap', vwap == null ? null : fmt(vwap, 2), { reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  terminalWrite('tt-summary-vwap', vwap == null ? null : fmt(vwap, 2) + captureCoverageWarning(chart?.levels?.vwap, true), { reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE' });
   const breadthAvailability = dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState;
   const flowAvailability = dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState;
   terminalWrite('tt-summary-breadth', breadthAvailability && breadthAvailability !== 'UNAVAILABLE' ? breadthAvailability : null, { reason: 'PARTICIPATION_BREADTH_UNAVAILABLE' });
@@ -3677,7 +3680,7 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
 
   terminalWrite('tt-futures-tx', lastPrice == null ? null : fmt(lastPrice), { reason: chart?.reason || 'LAST_PRICE_UNAVAILABLE' });
   const vwapDelta = lastPrice != null && vwap != null ? lastPrice - vwap : null;
-  terminalWrite('tt-futures-vwap', vwapDelta == null ? null : `${vwapDelta > 0 ? '上方' : vwapDelta < 0 ? '下方' : '貼近'} ${signed(vwapDelta, ' 點', 2)}`, {
+  terminalWrite('tt-futures-vwap', vwapDelta == null ? null : `${vwapDelta > 0 ? '上方' : vwapDelta < 0 ? '下方' : '貼近'} ${signed(vwapDelta, ' 點', 2)}${captureCoverageWarning(chart?.levels?.vwap, true)}`, {
     reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE', title: terminalSourceContext(null, { tradeDate: chart?.tradeDate, contract: chartContract, sourceId: chart?.levels?.vwap?.source || chart?.source }),
   });
   const positioningUsable = snapshot?.futuresInstitutional?.ok === true && terminalHealthUsable(positioningHealth);
@@ -4129,11 +4132,14 @@ function txChartRuntimeReason() {
   return null;
 }
 
-function captureCoverageWarning(value) {
-  return value?.captureCoverage?.state === 'KNOWN_INTERRUPTION'
+function captureCoverageWarning(value, sessionAggregate = false) {
+  const interrupted = value?.captureCoverage?.state === 'KNOWN_INTERRUPTION'
     || value?.reason === 'KNOWN_CAPTURE_INTERRUPTION'
-    || value?.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION')
-    ? '（行情缺口：僅已收到資料，非完整區間）' : '';
+    || value?.qualityReasons?.includes('KNOWN_CAPTURE_INTERRUPTION');
+  if (interrupted) return '（行情缺口：僅已收到資料，非完整區間）';
+  // Current session aggregates have no certified capture-from-open contract.
+  // PASS/freshness and absence of a recorded interruption do not prove completeness.
+  return sessionAggregate ? '（僅已收到資料，完整盤初未驗證）' : '';
 }
 function txBarObservationLabel(chart, selectedTimeMs) {
   const observation = (chart?.bars || []).find(row => Date.parse(row.time) === selectedTimeMs);
@@ -4200,7 +4206,7 @@ function ensureTxChart() {
     const range = high == null || low == null ? null : high - low;
     const selectedVwap = finiteNumber(vwapPoint?.value);
     const distance = close == null || selectedVwap == null ? 'UNAVAILABLE' : signed(close - selectedVwap, '', 2);
-    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · 目前／收盤 ${fmt(close)} · 漲跌 ${change == null ? 'UNAVAILABLE' : signed(change, ' 點', 2)} · 最高 ${fmt(high)} · 最低 ${fmt(low)} · 振幅 ${range == null ? 'UNAVAILABLE' : fmt(range, 2)} 點 · 成交量 ${fmt(volumePoint?.value)} · ${txBarObservationLabel(state.txChartPayload, selectedTimeMs)} 開 ${fmt(open)} / 高 ${fmt(high)} / 低 ${fmt(low)} / 收 ${fmt(close)} · VWAP ${fmt(selectedVwap, 2)}${captureCoverageWarning(state.txChartPayload?.levels?.vwap)} · 距 VWAP ${distance} · ${openingRangeText}`);
+    dwText('dw-chart-crosshair', `${chartTimeLabel(parameter.time)} · 目前／收盤 ${fmt(close)} · 漲跌 ${change == null ? 'UNAVAILABLE' : signed(change, ' 點', 2)} · 最高 ${fmt(high)} · 最低 ${fmt(low)} · 振幅 ${range == null ? 'UNAVAILABLE' : fmt(range, 2)} 點 · 成交量 ${fmt(volumePoint?.value)} · ${txBarObservationLabel(state.txChartPayload, selectedTimeMs)} 開 ${fmt(open)} / 高 ${fmt(high)} / 低 ${fmt(low)} / 收 ${fmt(close)} · VWAP ${fmt(selectedVwap, 2)}${captureCoverageWarning(state.txChartPayload?.levels?.vwap, true)} · 距 VWAP ${distance} · ${openingRangeText}`);
     });
     state.txChartApi = chart;
     state.txChartSeries = { candle, volume, vwap };
@@ -4449,12 +4455,13 @@ function renderTxChartLevels(chart) {
   const high = levelValue(levels.currentDayHigh) ?? levelValue(levels.nightHigh);
   const low = levelValue(levels.currentDayLow) ?? levelValue(levels.nightLow);
   const rangeWarning = captureCoverageWarning(levelValue(levels.currentDayHigh) != null ? levels.currentDayHigh : levels.nightHigh)
-    || captureCoverageWarning(levelValue(levels.currentDayLow) != null ? levels.currentDayLow : levels.nightLow);
+    || captureCoverageWarning(levelValue(levels.currentDayLow) != null ? levels.currentDayLow : levels.nightLow)
+    || captureCoverageWarning(null, true);
   terminalWrite('dw-session-levels', high != null && low != null ? `${fmt(high)} / ${fmt(low)}${rangeWarning}` : null, { reason: 'SESSION_HIGH_LOW_UNAVAILABLE' });
   const orText = chart?.openingRange?.status === 'READY' ? `${fmt(chart.openingRange.low)}–${fmt(chart.openingRange.high)}` : null;
   terminalWrite('dw-or-state', orText, { reason: chart?.openingRange?.reason || 'OPENING_RANGE_UNAVAILABLE' });
   dwText('dw-vwap-label', chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP');
-  terminalWrite('dw-vwap-state', levelValue(levels.vwap) == null ? null : fmt(levels.vwap.value, 2) + captureCoverageWarning(levels.vwap), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
+  terminalWrite('dw-vwap-state', levelValue(levels.vwap) == null ? null : fmt(levels.vwap.value, 2) + captureCoverageWarning(levels.vwap, true), { reason: levels.vwap?.reason || 'VWAP_UNAVAILABLE' });
   terminalWrite('dw-chart-available-at', chart?.availableAt ? timeLabel(chart.availableAt) : null, { reason: 'AVAILABLE_AT_NOT_REPORTED' });
   terminalWrite('dw-chart-quality', chart?.qualityStatus || null, { reason: 'QUALITY_STATUS_UNAVAILABLE' });
 
@@ -4477,18 +4484,18 @@ function renderTxChartLevels(chart) {
   const vwapSeriesLabel = chart?.vwapSession === 'DAY' ? 'DAY VWAP' : chart?.vwapSession === 'NIGHT' ? 'NIGHT VWAP' : 'VWAP';
   if (state.txChartSeries?.vwap?.applyOptions) {
     state.txChartSeries.vwap.applyOptions({
-      title: (vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel) + captureCoverageWarning(levels.vwap),
+      title: (vwapWatch ? levelRoleTitle(vwapWatch) : vwapSeriesLabel) + captureCoverageWarning(levels.vwap, true),
       lastValueVisible: levelValue(levels.vwap) != null,
     });
   }
   // The existing VWAP series consumes one label slot; all overlays share the remaining budget.
   const lineBudget = levelValue(levels.vwap) == null ? 3 : 2;
   const drawnPrices = new Set();
-  const boundedLevel = (level, title, color) => {
+  const boundedLevel = (level, title, color, sessionAggregate = false) => {
     const price = levelValue(level);
     if (price == null || drawnPrices.has(price) || state.txChartLevelLines.length >= lineBudget) return;
     drawnPrices.add(price);
-    addTxChartLevel(level, title + captureCoverageWarning(level), color);
+    addTxChartLevel(level, title + captureCoverageWarning(level, sessionAggregate), color);
   };
   if (watch?.state === 'READY' && Array.isArray(watch.levels)) {
     const familyColor = {
@@ -4503,12 +4510,12 @@ function renderTxChartLevels(chart) {
       if (!Number.isFinite(Number(entry.price))) continue;
       const isNext = entry.id === nodeId;
       const color = isNext ? (familyColor[entry.family] || 'rgba(205,216,232,.52)') : (familyColor[entry.family] || 'rgba(145,160,181,.34)');
-      boundedLevel({ ...entry, availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color);
+      boundedLevel({ ...entry, availability: 'AVAILABLE', value: Number(entry.price) }, levelRoleTitle(entry), color, entry.family === 'SESSION_EXTREME');
     }
   } else {
     const hasDayLevels = levelValue(levels.currentDayHigh) != null || levelValue(levels.currentDayLow) != null;
-    boundedLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', 'rgba(85,214,190,.44)');
-    boundedLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', 'rgba(239,130,147,.44)');
+    boundedLevel(hasDayLevels ? levels.currentDayHigh : levels.nightHigh, hasDayLevels ? 'DAY H' : 'NIGHT H', 'rgba(85,214,190,.44)', true);
+    boundedLevel(hasDayLevels ? levels.currentDayLow : levels.nightLow, hasDayLevels ? 'DAY L' : 'NIGHT L', 'rgba(239,130,147,.44)', true);
   }
   if ($('decision-workspace')?.classList.contains('show-optional-levels')) {
     boundedLevel(levels.openingRangeHigh, 'OR H', 'rgba(138,167,255,.34)');
@@ -4580,12 +4587,12 @@ window.addEventListener('trader-terminal:levels', () => {
 function marketChangeFactText(fact = {}) {
   const values = [];
   if (fact.close != null && Number.isFinite(Number(fact.close))) values.push(`Close ${fmt(fact.close)}`);
-  if (fact.vwap != null && Number.isFinite(Number(fact.vwap))) values.push(`VWAP ${fmt(fact.vwap, 2)}`);
+  if (fact.vwap != null && Number.isFinite(Number(fact.vwap))) values.push(`VWAP ${fmt(fact.vwap, 2)}${captureCoverageWarning(fact, true)}`);
   if (fact.openingRangeHigh != null && fact.openingRangeLow != null && Number.isFinite(Number(fact.openingRangeHigh)) && Number.isFinite(Number(fact.openingRangeLow))) {
     values.push(`OR ${fmt(fact.openingRangeLow)}–${fmt(fact.openingRangeHigh)}`);
   }
-  if (fact.sessionHigh != null && Number.isFinite(Number(fact.sessionHigh))) values.push(`H ${fmt(fact.sessionHigh)}`);
-  if (fact.sessionLow != null && Number.isFinite(Number(fact.sessionLow))) values.push(`L ${fmt(fact.sessionLow)}`);
+  if (fact.sessionHigh != null && Number.isFinite(Number(fact.sessionHigh))) values.push(`H ${fmt(fact.sessionHigh)}${captureCoverageWarning(fact, true)}`);
+  if (fact.sessionLow != null && Number.isFinite(Number(fact.sessionLow))) values.push(`L ${fmt(fact.sessionLow)}${captureCoverageWarning(fact, true)}`);
   if (fact.dataTrustStatus) values.push(`Data Trust ${fact.dataTrustStatus}`);
   return values.join(' · ') || 'UNAVAILABLE';
 }
@@ -4961,7 +4968,9 @@ function renderDecisionWorkspace(workspace) {
     ['dw-vwap-state', chart.VWAP, 'VWAP_UNAVAILABLE'],
   ]) {
     const label = availabilityLabel(field);
-    terminalWrite(id, label && label !== 'UNAVAILABLE' ? label : null, { reason: field?.reason || fallback });
+    const value = label && label !== 'UNAVAILABLE' ? label : null;
+    terminalWrite(id, value != null && id === 'dw-vwap-state' && field?.availability === 'AVAILABLE'
+      ? `${value}${captureCoverageWarning(field, true)}` : value, { reason: field?.reason || fallback });
   }
 
   renderPlainList('dw-support-list', workspace?.againstMyTrade?.support, 'NOT_IMPLEMENTED');

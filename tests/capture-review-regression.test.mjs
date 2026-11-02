@@ -70,10 +70,84 @@ test('numeric VWAP and session extremes show interruption warning beside preserv
  context.renderTxChartLevels({levels:{vwap:level(100),currentDayHigh:level(110),currentDayLow:level(90)},openingRange:{status:'QUALITY_INSUFFICIENT',reason:'KNOWN_CAPTURE_INTERRUPTION'}});
  assert.match(writes['dw-vwap-state'].text,/100.*行情缺口/);assert.match(writes['dw-session-levels'].text,/110.*90.*行情缺口/);
 });
-test('unaffected numeric fields do not acquire a capture-loss warning',()=>{
+test('session values without capture evidence disclose uncertainty without inventing a known outage',()=>{
  const {context,writes}=uiContext();const level=value=>({availability:'AVAILABLE',value,qualityStatus:'PASS'});
  context.renderTxChartLevels({levels:{vwap:level(100),currentDayHigh:level(110),currentDayLow:level(90)}});
- assert.equal(writes['dw-vwap-state'].text,'100');assert.equal(writes['dw-session-levels'].text,'110 / 90');
+ assert.equal(writes['dw-vwap-state'].text,'100（僅已收到資料，完整盤初未驗證）');
+ assert.equal(writes['dw-session-levels'].text,'110 / 90（僅已收到資料，完整盤初未驗證）');
+ assert.doesNotMatch(writes['dw-session-levels'].text,/行情缺口/);
+});
+
+test('late session start keeps source quality and values intact while every cumulative display warns',()=>{
+ const chart=chartFor([tick(ms('10:07:33'),100),tick(ms('10:10:00'),110),tick(ms('10:11:00'),90)],ms('10:11:01'));
+ assert.equal(chart.qualityStatus,'PASS');assert.equal(chart.structureEligibility.audit.feedCompleteness,'UNKNOWN_NO_NATIVE_SEQUENCE');
+ assert.equal(chart.openingRange.status,'UNAVAILABLE');
+ const before=JSON.stringify(chart),{context,writes}=uiContext(),lines=[];let series;
+ context.addTxChartLevel=(level,title)=>lines.push({value:level.value,title});
+ context.state.txChartSeries={vwap:{applyOptions:options=>{series=options;}}};
+ context.renderTxChartLevels(chart);
+ for(const id of ['dw-vwap-state','dw-session-levels'])assert.match(writes[id].text,/僅已收到資料，完整盤初未驗證/);
+ assert.equal(writes['dw-vwap-state'].text,'100（僅已收到資料，完整盤初未驗證）');
+ assert.equal(writes['dw-session-levels'].text,'110 / 90（僅已收到資料，完整盤初未驗證）');
+ assert.match(series.title,/DAY VWAP.*完整盤初未驗證/);
+ assert.deepEqual(lines.map(line=>line.value),[110,90]);
+ for(const line of lines)assert.match(line.title,/DAY [HL].*完整盤初未驗證/);
+ assert.equal(JSON.stringify(chart),before,'presentation must not alter source quality, levels or gates');
+});
+
+test('night cumulative values warn too, while missing prices remain unavailable',()=>{
+ const {context,writes}=uiContext(),level=value=>({availability:'AVAILABLE',value,qualityStatus:'PASS'});
+ context.renderTxChartLevels({vwapSession:'NIGHT',levels:{vwap:level(100),nightHigh:level(110),nightLow:level(90)}});
+ assert.match(writes['dw-vwap-state'].text,/完整盤初未驗證/);assert.match(writes['dw-session-levels'].text,/完整盤初未驗證/);
+ context.renderTxChartLevels({levels:{}});
+ assert.equal(writes['dw-vwap-state'].text,null);assert.equal(writes['dw-session-levels'].text,null);
+});
+
+function mainSurfaceContext(){
+ const h=uiContext();
+ Object.assign(h.context,{document:{querySelector:()=>null},$:id=>id==='tt-summary-price'?{}:null,
+  finiteNumber:value=>value==null?null:Number.isFinite(Number(value))?Number(value):null,
+  signed:(value,suffix='')=>String(value)+suffix,terminalUnavailable:reason=>'UNAVAILABLE '+reason,
+  terminalTxLiveContractMonth:()=>null,terminalHealthItem:()=>null,terminalEodHealthUsable:()=>false,
+  terminalHealthUsable:()=>false,terminalSourceMode:()=>'',terminalSourceContext:()=>'',
+  dw4FamilyEvidence:()=>null,dw4PulseValues:()=>[],dw4StateLabel:()=>'',terminalBreadthCounts:()=>null,
+  terminalHealthSummary:()=>({value:null}),tone(){},renderLiveMarketPulse(){},renderTxChartFreshness(){},
+  updateTerminalSummaryDisclosure(){},renderTerminalEvidenceCard(){},renderGlobalTiles(){}});
+ vm.runInContext(declaration('renderMarketPulse')+'\n'+declaration('renderTerminalShell')+'\n'+declaration('marketChangeFactText'),h.context);
+ return h;
+}
+
+test('main pulse and terminal rerenders retain the cumulative warning without changing numbers',()=>{
+ const chart=chartFor([tick(ms('10:07:33'),100),tick(ms('10:10:00'),110),tick(ms('10:11:00'),90)],ms('10:11:01'));
+ const before=JSON.stringify(chart),{context,writes}=mainSurfaceContext();
+ for(let i=0;i<2;i++){context.renderTxChartLevels(chart);context.renderMarketPulse({},chart);context.renderTerminalShell({},chart);}
+ for(const id of ['dw-vwap-state','dw-session-levels','dw-pulse-vwap','dw-pulse-session','tt-summary-vwap','tt-futures-vwap'])
+  assert.match(writes[id].text,/僅已收到資料，完整盤初未驗證/,id);
+ assert.match(writes['dw-pulse-vwap'].text,/^100/);assert.match(writes['dw-pulse-session'].text,/^110 \/ 90/);
+ assert.match(writes['tt-summary-vwap'].text,/^100/);assert.match(writes['tt-futures-vwap'].text,/下方 -10 點/);
+ assert.equal(JSON.stringify(chart),before);
+ context.renderMarketPulse({},{});context.renderTerminalShell({},{});
+ for(const id of ['dw-pulse-vwap','dw-pulse-session','tt-summary-vwap','tt-futures-vwap'])assert.equal(writes[id].text,null,id);
+});
+
+test('workspace fallback cannot overwrite an available VWAP with an unqualified bare number',()=>{
+ const {context,writes}=uiContext();context.availabilityLabel=field=>field?.availability==='AVAILABLE'?field.value:'UNAVAILABLE';
+ const start=app.indexOf("  for (const [id, field, fallback] of [",app.indexOf('function renderDecisionWorkspace('));
+ const end=app.indexOf("\n  renderPlainList('dw-support-list'",start);assert.ok(start>0&&end>start);
+ const render=chart=>{context.chart=chart;vm.runInContext(app.slice(start,end),context);};
+ render({VWAP:{availability:'AVAILABLE',value:100},OR:{availability:'AVAILABLE',value:'90–110'}});
+ assert.equal(writes['dw-vwap-state'].text,'100（僅已收到資料，完整盤初未驗證）');assert.equal(writes['dw-or-state'].text,'90–110');
+ render({VWAP:{availability:'AVAILABLE',value:100,reason:'KNOWN_CAPTURE_INTERRUPTION'}});
+ assert.match(writes['dw-vwap-state'].text,/行情缺口/);
+ render({VWAP:{availability:'UNAVAILABLE',value:null}});assert.equal(writes['dw-vwap-state'].text,null);
+});
+
+test('market-change facts identify cumulative values as received observations without adding absent values',()=>{
+ const {context}=mainSurfaceContext();
+ const text=context.marketChangeFactText({close:101,vwap:100,sessionHigh:110,sessionLow:90,dataTrustStatus:'PASS'});
+ for(const value of ['VWAP 100','H 110','L 90'])assert.ok(text.includes(value+'（僅已收到資料，完整盤初未驗證）'));
+ assert.equal(context.marketChangeFactText({close:101}),'Close 101');
+ assert.equal(context.marketChangeFactText({}),'UNAVAILABLE');
 });
 test('crosshair uses source-bar coverage and does not call affected OHLC complete',()=>{
  const context={};vm.createContext(context);vm.runInContext(declaration('captureCoverageWarning')+'\n'+declaration('txBarObservationLabel'),context);
