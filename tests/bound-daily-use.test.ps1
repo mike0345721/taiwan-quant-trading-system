@@ -72,7 +72,7 @@ function Mock-Runtime($Module, $Runtime) {
       throw 'TEST_UNEXPECTED_READ'
     }
     function script:Get-BoundListener([int]$Port) {
-      if ($Port -eq 8790) { return [pscustomobject]@{pid=42422} }
+      if ($Port -eq 8790) { return [pscustomobject]@{pid=42422;createdAt='2026-10-14T01:00:00.000Z'} }
       if ($Port -eq 8787 -and $script:testRuntime.dashboardPresent) { return $script:testRuntime.dashboard }
       return $null
     }
@@ -223,7 +223,7 @@ try {
       try { $owned=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned=$true }
       Check $owned 'Another real startup is active; contention test did not acquire mutex'
       # The missing binding ensures even a broken mutex cannot reach runtime actions.
-      $output=& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $entryPath -BindingPath (Join-Path $fixtureRoot 'never-exists.json') -NoBrowser 2>&1
+      $output=& powershell.exe -NoProfile -NonInteractive -File $entryPath -BindingPath (Join-Path $fixtureRoot 'never-exists.json') -NoBrowser 2>&1
       Check ($LASTEXITCODE -eq 3 -and ($output -join "`n") -match 'BUSY_NOT_READY') 'Second process was not serialized'
     } finally { if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
   }

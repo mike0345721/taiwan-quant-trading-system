@@ -27,8 +27,19 @@ function Get-BoundListener([int]$Port) {
   if ($owners.Count) { return Get-BoundProcess $owners[0] }
   return $null
 }
-function Get-BoundHealth([int]$Port) {
-  try { return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/$(if ($Port -eq 8790) {'health'} else {'healthz'})" -TimeoutSec 20 } catch { return $null }
+function Get-BoundHealth([int]$Port, [ValidateRange(1,20)][int]$TimeoutSeconds = 20) {
+  try { return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/$(if ($Port -eq 8790) {'health'} else {'healthz'})" -TimeoutSec $TimeoutSeconds } catch { return $null }
+}
+function Assert-BoundBridge($Listener, $Health, [string]$Reason = 'BRIDGE_UNVERIFIED') {
+  $safe = $false
+  if ($null -ne $Listener -and $null -ne $Health) {
+    try {
+      $typedFlags = $Health.ok -is [bool] -and $Health.researchOnly -is [bool] -and $Health.executionAuthorized -is [bool] -and $Health.orderRoutesEnabled -is [bool]
+      $numericWeight = $Health.formalWeight -is [int] -or $Health.formalWeight -is [long] -or $Health.formalWeight -is [double] -or $Health.formalWeight -is [decimal]
+      $safe = $Listener.pid -gt 0 -and $Listener.createdAt -is [string] -and -not [string]::IsNullOrWhiteSpace($Listener.createdAt) -and $typedFlags -and $numericWeight -and $Health.ok -eq $true -and $Health.mode -is [string] -and $Health.mode -ceq 'market_data_only' -and $Health.formalWeight -eq 0 -and $Health.researchOnly -eq $true -and $Health.executionAuthorized -eq $false -and $Health.orderRoutesEnabled -eq $false
+    } catch { $safe = $false }
+  }
+  Assert-Bound $safe $Reason
 }
 function Assert-BoundConsoleChildren($Dashboard, $Children) {
   $console=Join-Path $env:WINDIR 'System32\conhost.exe'
@@ -160,8 +171,7 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   Write-BoundStartupStage 'CHECK_BRIDGE'
   $bridge = Get-BoundListener 8790
   if ($bridge) {
-    $health = Get-BoundHealth 8790
-    Assert-Bound ($null -ne $health -and $health.ok -eq $true -and $health.mode -ceq 'market_data_only' -and $health.formalWeight -eq 0 -and $health.researchOnly -eq $true -and $health.executionAuthorized -eq $false -and $health.orderRoutesEnabled -eq $false) 'BRIDGE_UNVERIFIED'
+    Assert-BoundBridge $bridge (Get-BoundHealth 8790 -TimeoutSeconds 3)
   }
   New-Item -ItemType Directory -Path $b.logRoot -Force | Out-Null
   $paths = Get-BoundPaths $b
@@ -169,8 +179,17 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   $env:HOST = '127.0.0.1'; $env:PORT = '8787'
   # Preserve the existing standalone bridge starter; never run broad recovery/research automation.
   if (-not $bridge) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $b.dashboard.root 'scripts\start-shioaji-readonly-hidden.ps1')
+    & powershell.exe -NoProfile -NonInteractive -File (Join-Path $b.dashboard.root 'scripts\start-shioaji-readonly-hidden.ps1')
     Assert-Bound ($LASTEXITCODE -eq 0) 'BRIDGE_START_FAILED'
+    # Exit zero may mean a deliberately withheld broker login, not a started Bridge.
+    # Do not add login authorization here or launch dependent runtimes on that basis.
+    foreach ($attempt in 1..30) {
+      $bridge = Get-BoundListener 8790
+      if ($bridge) { break }
+      Start-Sleep -Milliseconds 500
+    }
+    Assert-Bound ($null -ne $bridge) 'BRIDGE_START_UNVERIFIED'
+    Assert-BoundBridge $bridge (Get-BoundHealth 8790 -TimeoutSeconds 3) 'BRIDGE_START_UNVERIFIED'
   }
   if (-not $owner) {
     $newPid = Start-BoundNode $b 'producer' ('"' + (Join-Path $b.producer.root 'scripts\run-cru34-live-projection.mjs') + '"') $b.producer.root
@@ -200,6 +219,9 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   Write-BoundStartupStage 'VERIFY_FINAL_HTTP'
   $health = Get-BoundHealth 8787
   Assert-BoundDashboard $b $health (Get-BoundListener 8787)
+  $finalBridge = Get-BoundListener 8790
+  Assert-BoundBridge $finalBridge (Get-BoundHealth 8790 -TimeoutSeconds 3) 'BRIDGE_FINAL_UNVERIFIED'
+  Assert-Bound ($finalBridge.pid -eq $bridge.pid -and $finalBridge.createdAt -ceq $bridge.createdAt) 'BRIDGE_FINAL_UNVERIFIED'
   $result = @{ at=[datetime]::UtcNow.ToString('o'); result='BOUND_SOURCE_READY'; producer=$owner; dashboard=$dashboard; producerReady=$health.runtimeEvidence.producer.ready; producerReasons=$health.runtimeEvidence.producer.reasons; snapshot=$health.runtimeEvidence.producer.observedFlowIdentity; launcher=$b.launcher; producerSource=$b.producer; dashboardSource=$b.dashboard }
   $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $b.logRoot ("startup-"+[guid]::NewGuid().ToString()+'.json')) -Encoding UTF8
   if (-not $NoBrowser) { Start-Process 'http://127.0.0.1:8787' }
