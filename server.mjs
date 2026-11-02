@@ -134,6 +134,8 @@ const cache = cru55 ? { init: async () => {}, loadLatest: async () => structured
     : {dataDir:config.dataDir,historyDir:config.historyDir});
 if (!marketCandidate) await cache.init(); // Candidate input cache is read-only, including startup.
 let latestSnapshot = await cache.loadLatest();
+const candidateCacheModeRejected = Boolean(marketCandidate && latestSnapshot && latestSnapshot.dataMode !== expectedDataMode);
+if (candidateCacheModeRejected) latestSnapshot = null; // Quarantine in memory; never rewrite a source cache.
 const formalEntry = cru55 || marketCandidate ? null : prepareFormalEntry(config, () => latestSnapshot);
 const marketData = marketCandidate ? null : new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
 const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
@@ -648,7 +650,8 @@ const requestHandler = async (req, res) => {
             calendar:chartCalendar,timeframe:'5m',mode:'LIVE'}); } catch { /* A source failure stays unavailable. */ }
           try { flow = currentObservedFlow(); } catch { /* No new producer or fallback transport. */ }
           const degraded = assessCandidateMarketInputs({chart,flow});
-          servicePayload.degraded = degraded;
+          servicePayload.degraded = candidateCacheModeRejected
+            ? Object.freeze({...degraded,eodReason:'EOD_SNAPSHOT_DATA_MODE_REJECTED'}) : degraded;
           if (degraded.status === 'PARTIAL') marketInputs = {
             chart:degraded.marketInputs.chart.observationAvailable ? chart : null,
             flow:degraded.marketInputs.flow.observationAvailable ? flow : null,

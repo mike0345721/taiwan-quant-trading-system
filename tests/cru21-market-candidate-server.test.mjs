@@ -370,6 +370,49 @@ test('existing chart and Flow remain visible through actual builders when the EO
   assert.equal(body.decisionWorkspace.snapshot.orderRoutesEnabled, false); noExternalEffects(h);
 });
 
+test('mock-mode cache is quarantined while existing market observations retain the partial workspace', async t => {
+  t.diagnostic('Actual wrong-cache-mode repaired source SHA256: ' + JSON.stringify(sourceHashes));
+  const h = harness({ observed: { ...syntheticMarketInputs(), snapshot: { dataMode: 'mock',
+    generatedAt: new Date().toISOString(), syntheticWrongCache: true,
+    futuresMarket: { ok: true, data: { txDay: { contract: 'TXFK6', close: 99999 } } } } } });
+  await h.start(); const auth = await h.login(); const response = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(response.status, 200); const body = response.json();
+  assert.equal(body.data, null); assert.equal(body.ok, true);
+  assert.equal(body.service.degraded.status, 'PARTIAL');
+  assert.equal(body.service.degraded.reason, 'EOD_SNAPSHOT_UNAVAILABLE');
+  assert.equal(body.service.degraded.eodReason, 'EOD_SNAPSHOT_DATA_MODE_REJECTED');
+  assert.equal(body.service.degraded.marketInputs.chart.observationAvailable, true);
+  assert.equal(body.service.degraded.marketInputs.flow.observationAvailable, true);
+  assert.equal(body.decisionWorkspace.priceChartSlot.price.value, 101);
+  assert.deepEqual(body.decisionWorkspace.degraded, body.service.degraded);
+  const containsMockNumber = value => typeof value === 'number' ? value === 99999
+    : Boolean(value && typeof value === 'object' && Object.values(value).some(containsMockNumber));
+  assert.equal(containsMockNumber(body), false); assert.ok(!response.raw.includes('syntheticWrongCache'));
+  assert.equal(h.counters.cacheRead, 1); assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
+});
+
+test('unsupported cache mode with no eligible market input stays 503 without exposing cached values', async () => {
+  const h = harness({ observed: { snapshot: { dataMode: 'unsupported-cache-mode',
+    generatedAt: new Date().toISOString(), syntheticWrongCache: true,
+    futuresMarket: { ok: true, data: { txDay: { contract: 'TXFK6', close: 99999 } } } } } });
+  await h.start(); const auth = await h.login(); const response = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(response.status, 503); const body = response.json();
+  assert.equal(body.data, null); assert.equal(body.decisionWorkspace, null);
+  assert.equal(body.service.degraded.status, 'UNAVAILABLE');
+  assert.equal(body.service.degraded.eodReason, 'EOD_SNAPSHOT_DATA_MODE_REJECTED');
+  assert.ok(!response.raw.includes('syntheticWrongCache')); noExternalEffects(h);
+});
+
+test('valid live-mode EOD cache keeps the existing candidate snapshot response without degraded metadata', async () => {
+  const h = harness({ observed: { snapshot: { dataMode: 'live', generatedAt: new Date().toISOString(),
+    syntheticLiveCache: true } } });
+  await h.start(); const auth = await h.login(); const response = await h.dispatch('GET', '/api/v1/dashboard', auth);
+  assert.equal(response.status, 200); const body = response.json();
+  assert.equal(body.data.dataMode, 'live'); assert.equal(body.data.syntheticLiveCache, true);
+  assert.equal(body.service.degraded, undefined); assert.equal(body.decisionWorkspace.degraded, undefined);
+  assert.equal(body.decisionWorkspace.schemaVersion, 'dashboard-decision-workspace-v1'); noExternalEffects(h);
+});
+
 for (const available of ['chart', 'flow']) {
   test(`${available}-only observed input keeps the candidate partial and missing input explicitly unavailable`, async () => {
     const inputs = syntheticMarketInputs(); const h = harness({ observed: { [available]: inputs[available] } });

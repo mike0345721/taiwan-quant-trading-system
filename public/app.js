@@ -5200,7 +5200,9 @@ async function loadDashboard() {
     if (!partialNotice) { partialNotice = document.createElement('p');partialNotice.id = 'candidate-partial-data-notice';
       partialNotice.className = 'alert warn';partialNotice.setAttribute('role','status');
       $('dashboard-view').prepend(partialNotice); }
-    partialNotice.textContent = '部分資料模式：盤後總覽資料不可用。圖表與 Flow 僅顯示各自已取得的觀察；時效、盤別、品質與判讀資格仍各自檢查，並不代表完整盤況或正式驗收。';
+    partialNotice.textContent = '部分資料模式：' + (partial.eodReason === 'EOD_SNAPSHOT_DATA_MODE_REJECTED'
+      ? '快取資料模式與即時來源不符，已隔離。' : '盤後總覽資料不可用。')
+      + '圖表與 Flow 僅顯示各自已取得的觀察；時效、盤別、品質與判讀資格仍各自檢查，並不代表完整盤況或正式驗收。';
   } else partialNotice?.remove();
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
