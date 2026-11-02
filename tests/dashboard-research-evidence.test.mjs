@@ -49,3 +49,51 @@ test('microsecond future source cannot reach READY or a frozen candidate',()=>{
  const y=inputs();y.now=new Date('2026-10-22T02:00:00.200Z');y.flow.source.availableAt='2026-10-22T02:00:00.200900Z';
  assert.equal(buildResearchEvidence(y).windows[0].pressure.value,null);
 });
+
+function quoteWithTimes(quote,receivedAt,exchangeTimestamp=quote.exchangeTimestamp){
+ const {recordHash,...body}=quote;
+ return buildLiveEventRecord({...structuredClone(body),receivedAt,exchangeTimestamp},body.previousHash);
+}
+function quoteLedger(t,quotes){
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'research-asof-'));
+ t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));fs.mkdirSync(path.join(dir,'live-events'));
+ const file=path.join(dir,'live-events','2026-10-22.ndjson');
+ fs.writeFileSync(file,quotes.map(q=>JSON.stringify(q)).join('\n')+'\n');return {dir,file};
+}
+test('quotes appended after the frozen cutoff cannot displace the newest quote known at that cutoff',t=>{
+ const x=inputs(),later=quoteWithTimes(x.quote,'2026-10-22T02:00:01.006Z','2026-10-22T02:00:01.001Z');
+ const {dir}=quoteLedger(t,[x.quote,later]);
+ const selected=readLatestResearchQuote(dir,x.now);
+ assert.equal(selected.recordHash,x.quote.recordHash);
+ assert.equal(buildResearchEvidence({...x,quote:selected}).depth.state,'READY');
+ assert.equal(readLatestResearchQuote(dir,new Date('2026-10-22T02:00:01.007Z')).recordHash,later.recordHash);
+ assert.equal(later.receivedAt,'2026-10-22T02:00:01.006Z');
+});
+test('as-of selection keeps exact receipt equality and rejects a receipt one nanosecond later',t=>{
+ const x=inputs(),cutoff=new Date('2026-10-22T02:00:00.200Z');
+ const exact=quoteWithTimes(x.quote,'2026-10-22T02:00:00.200000000Z');
+ const future=quoteWithTimes(x.quote,'2026-10-22T02:00:00.200000001Z');
+ const {dir,file}=quoteLedger(t,[exact,future]);
+ assert.equal(readLatestResearchQuote(dir,cutoff).recordHash,exact.recordHash);
+ fs.writeFileSync(file,JSON.stringify(future)+'\n');assert.equal(readLatestResearchQuote(dir,cutoff),null);
+});
+test('hash failure in a later receipt remains unavailable instead of selecting an older valid quote',t=>{
+ const x=inputs(),later=quoteWithTimes(x.quote,'2026-10-22T02:00:01.006Z');later.payload.bid_volume[0]=999;
+ const {dir}=quoteLedger(t,[x.quote,later]);assert.equal(readLatestResearchQuote(dir,x.now),null);
+});
+test('source clock error in the newest arrived quote remains visible instead of falling back',t=>{
+ const x=inputs(),bad=quoteWithTimes(x.quote,'2026-10-22T02:00:00.300Z','2026-10-22T02:00:00.301Z');
+ const {dir}=quoteLedger(t,[x.quote,bad]);const selected=readLatestResearchQuote(dir,x.now);
+ assert.equal(selected.recordHash,bad.recordHash);
+ assert.equal(buildResearchEvidence({...x,quote:selected}).depth.reason,'SOURCE_TIME_NOT_KNOWN_AS_OF');
+});
+test('waiting for an eligible quote does not renew stale source time or hide malformed receipt time',t=>{
+ const x=inputs();x.now=new Date('2026-10-22T02:00:06Z');
+ const future=quoteWithTimes(x.quote,'2026-10-22T02:00:06.001Z','2026-10-22T02:00:05.999Z');
+ const {dir,file}=quoteLedger(t,[x.quote,future]);const selected=readLatestResearchQuote(dir,x.now);
+ assert.equal(selected.recordHash,x.quote.recordHash);
+ assert.equal(buildResearchEvidence({...x,quote:selected}).depth.state,'UNAVAILABLE');
+ const unzoned=quoteWithTimes(x.quote,'2026-10-22T02:00:00.300');
+ fs.writeFileSync(file,[x.quote,unzoned].map(q=>JSON.stringify(q)).join('\n')+'\n');
+ assert.equal(readLatestResearchQuote(dir,x.now),null);
+});

@@ -11,6 +11,7 @@ const unavailable=reason=>({state:'UNAVAILABLE',reason,value:null,validUntil:nul
 export function readLatestResearchQuote(dataRoot,now=new Date()) {
   let fd;
   try{
+    const asOf=ns(now.toISOString());if(asOf===null)return null;
     const date=new Date(now.getTime()+8*3600000).toISOString().slice(0,10);
     const filename=path.join(dataRoot,'live-events',date+'.ndjson');
     fd=fs.openSync(filename,'r');const size=fs.fstatSync(fd).size;
@@ -23,7 +24,12 @@ export function readLatestResearchQuote(dataRoot,now=new Date()) {
       let r;try{r=JSON.parse(lines[i]);}catch{return null;}
       if(r.kind!=='futures_bidask'||r.payload?.productFamily!=='TX')continue;
       const {recordHash,...body}=r;
-      return buildLiveEventRecord(body,body.previousHash).recordHash===recordHash?r:null;
+      if(buildLiveEventRecord(body,body.previousHash).recordHash!==recordHash)return null;
+      const available=ns(r.receivedAt);if(available===null)return null;
+      // A live writer can append after the request freezes its cutoff. Skip only
+      // receipts not yet known then; never skip an arrived quote's quality failure.
+      if(available>asOf)continue;
+      return r;
     }
   }catch{return null;}finally{if(fd!==undefined)fs.closeSync(fd);}
   return null;
