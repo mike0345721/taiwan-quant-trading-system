@@ -99,6 +99,15 @@ export function auditLiveEventLedger(filePath, { now = new Date(), staleAfterMs 
   // appending, but events produced while this audit consumes CPU/disk must not
   // leak into the evidence snapshot being evaluated.
   const snapshotBytes = fs.statSync(filePath).size;
+  // This synchronous audit materializes the full snapshot and per-event arrays.
+  // Match the existing inline daily-acceptance budget; never allocate/read a
+  // multi-GB ledger or mistake a bounded prefix for a complete integrity audit.
+  const maxAuditBytes = 64 * 1024 * 1024;
+  if (snapshotBytes > maxAuditBytes) return {
+    ok: false, auditState: 'AUDIT_INCOMPLETE', reason: 'ledger_audit_size_limit',
+    events: null, latestHash: null, bytes: snapshotBytes, bytesRead: 0, maxAuditBytes,
+    executionAuthorized: false,
+  };
   const descriptor = fs.openSync(filePath, 'r');
   const buffer = Buffer.allocUnsafe(snapshotBytes);
   let offset = 0;
@@ -381,6 +390,38 @@ export function evaluateLiveEventAcceptance(audit, {
   evidenceNotBefore = null,
   operationalHealth = null,
 } = {}) {
+  if (audit?.auditState === 'AUDIT_INCOMPLETE') {
+    // Unread data is unknown, not evidence of corruption, absence, or zero errors.
+    // Independently observed operational failures still fail acceptance.
+    const counters = { callbackErrors: 'callback_error_detected', dropped: 'queue_drop_detected', writerErrors: 'writer_error_detected' };
+    const counterValues = Object.fromEntries(Object.keys(counters).map(key => {
+      const value = operationalHealth?.[key];
+      return [key, typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null];
+    }));
+    const failReasons = Object.entries(counters).filter(([key]) => counterValues[key] > 0).map(([, reason]) => reason);
+    const countersComplete = Object.values(counterValues).every(value => value !== null);
+    const pendingReasons = [audit.reason, ...(!countersComplete ? ['operational_health_evidence_missing'] : [])];
+    return {
+      status: failReasons.length ? 'FAIL' : 'PENDING', passed: false,
+      reasons: [...failReasons, ...pendingReasons], failReasons, pendingReasons,
+      thresholds: { requiredProducts, minEventsPerProduct, minDurationMs, maxDuplicateRate,
+        maxInterEventGapMs, requireReconnectEvidence, evidenceNotBefore },
+      evidence: {
+        auditState: audit.auditState, auditReason: audit.reason,
+        snapshotBytes: audit.bytes, bytesRead: audit.bytesRead, maxAuditBytes: audit.maxAuditBytes,
+        requiredProductDurationMs: null, requiredProductMaxGapMs: null, postRepairWindowReady: null,
+        acceptanceClockSkewEvents: null, latestReconnectReadyAt: null,
+        postReconnectProductEvents: null, postReconnectProductStats: null, preReconnectProductStats: null,
+        observedOperationalErrors: null, operationalHealth,
+      },
+      checks: {
+        integrity: null, requiredProducts: null, postRepairMarketWindow: null,
+        continuity: null, timing: null, disconnectHeuristic: null, reconnectEvidence: null,
+        postRestartMarketQuotes: null, duplicates: null,
+        ...Object.fromEntries(Object.entries(counterValues).map(([key, value]) => [key, value === null ? null : value === 0])),
+      },
+    };
+  }
   const failReasons = [];
   const pendingReasons = [];
   const events = Number(audit?.events) || 0;

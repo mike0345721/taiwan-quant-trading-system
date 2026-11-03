@@ -47,9 +47,9 @@ if (selected === latest) {
       const requiredCounters = ['callbackErrors', 'dropped', 'writerErrors'];
       if (requiredCounters.every((key) => Object.hasOwn(health, key))) {
         operationalHealth = {
-          callbackErrors: Number(health.callbackErrors) || 0,
-          dropped: Number(health.dropped) || 0,
-          writerErrors: Number(health.writerErrors) || 0,
+          callbackErrors: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.callbackErrors : Number(health.callbackErrors) || 0,
+          dropped: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.dropped : Number(health.dropped) || 0,
+          writerErrors: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.writerErrors : Number(health.writerErrors) || 0,
           processId: Number(health.processId) || null,
           executionAuthorized: health.executionAuthorized,
         };

@@ -5503,8 +5503,12 @@ $('daily-update-button').addEventListener('click', async () => {
     await monitorDailyUpdate();
   } catch (error) {
     const box = document.createElement('div');
-    box.className = 'alert bad';
-    box.textContent = error.message === 'DAILY_UPDATE_ALREADY_RUNNING' ? '每日更新已在執行中，請稍候。' : `每日更新啟動失敗：${error.message}`;
+    const readOnly = error.message === 'CANDIDATE_READ_ONLY_DAILY_UPDATE';
+    box.className = readOnly ? 'alert warning' : 'alert bad';
+    box.setAttribute('role', 'status');
+    box.textContent = readOnly
+      ? 'BLOCKED：候選唯讀模式不執行每日批次更新，手動決策紀錄仍可使用。（CANDIDATE_READ_ONLY_DAILY_UPDATE）'
+      : error.message === 'DAILY_UPDATE_ALREADY_RUNNING' ? '每日更新已在執行中，請稍候。' : `每日更新啟動失敗：${error.message}`;
     $('alert-area').prepend(box);
   } finally {
     button.disabled = false;

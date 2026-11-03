@@ -2,6 +2,10 @@
 
 Status: **CANDIDATE SOURCE REPAIR / FORMAL NOT DELIVERED**.
 
+The original sections below preserve the first checkpoint. The later same-day
+recovery section supersedes its tool, push and CI blocker status; no historical
+receipt or acceptance result was rewritten.
+
 Branch: `codex/cru61-daily-use-repair-20261103`, based on PR108 at
 `87127e40be39d00dac1fe6b90d4e684cb11253f4`. The existing product chain remains
 PR108 → PR107 → PR86 → main. This change does not merge that chain, include the
@@ -111,3 +115,55 @@ Safety remains `formalWeight=0`, `researchOnly=true`, `executionAuthorized=false
 ledger rewrite, SQLite mutation, official schedule change, AI activation, security
 policy change or formal service restart was performed. The pre-existing modified
 primary-worktree research report was preserved.
+
+## Later same-day recovery and bounded safety repairs
+
+The original Git and PowerShell commands succeeded through the tool's normal
+authorization review using the existing credential mechanism and unchanged
+Windows policy. Commit `ab312848ea1d922370f044ae924e620d5d505fae` was pushed to
+Draft PR109. CI349/run41646417832 checked out that exact SHA and passed:
+1816 pass, 0 fail, 10 skip. Its MSI focused tests passed69/69; isolated Chrome
+row-time tests passed2/2. These results apply to that commit, not later edits.
+
+Candidate CheckOnly verified the existing Bridge/Producer identities. The actual
+ReaderOnly attempt stopped before spawning at NODE_CONFIGURATION_REJECTED.
+After the Owner explicitly granted one diagnostic load, it returned only
+DATABASE_OR_OPERATIONS_ROUTING_PRESENT. No values were disclosed. That permission
+is consumed; the actual key/path remains unknown and the routing guard stays.
+
+Two additional source defects were then repaired in this same candidate branch:
+
+- ReaderOnly startup did not constrain the daily batch HTTP route. Opt-in
+  DASHBOARD_CANDIDATE_READ_ONLY=1 now keeps authentication and CSRF, then refuses
+  daily-update POST before any child spawn. The existing button stays visible
+  and reports BLOCKED; GET preserves the actual batch result separately. The
+  normal default is unchanged, and the independent Journal remains usable.
+  Health reports the actual boolean so a launcher can reject an incompatible
+  warm process. The separate local entry integration still needs MSI acceptance.
+- The scheduled ledger audit failed with ERR_OUT_OF_RANGE when its synchronous
+  whole-file read exceeded Node's length limit. The audit now applies the existing
+  64MiB inline budget before opening, allocating or reading. Larger inputs return
+  AUDIT_INCOMPLETE with unknown event/hash values and bytesRead0. Acceptance stays
+  PENDING, or FAIL for independently known operational errors. Unknown counters
+  never become zero. No prefix is accepted as a complete hash-chain audit.
+
+These fixes have synthetic pre-fix failures and focused regressions. The local
+recovery receipts bind final source bytes, commit and CI after integration. No
+large real ledger replay or scheduled job was run to verify them.
+
+At23:06, formal8787 still served4d825168; Bridge24156 and Producer27700 were the
+same processes and their data clocks advanced. Candidate18723 remained offline.
+The normal Chrome login session was reusable; the formal UI displayed nine
+11/03 daily cards updated around23:07 and live TXFK6/11-04 NIGHT charts. These
+formal observations are not candidate browser proof.
+
+The existing21:15 daily batch ended21:28 FAILED. TAIFEX had already imported
+futures/options before its300s timeout; its later substep is unknown. Other
+failures include historical OI arithmetic discrepancies, the ledger read crash,
+and bounded continuity evidence still incomplete. The18:10 FINAL cutoff and
+later source arrivals remain separate; no schedule or receipt was backfilled.
+
+Recovery evidence is local under `data/daily-use-recovery-20261103/`. Candidate
+login, all-feature browser acceptance, cold/duplicate startup, recovery and
+rollback remain BLOCKED/NOT RUN; REBOOT_NOT_RUN. The prepared local entry is
+not installed. Formal merge/cutover remain explicitly excluded by the Owner.

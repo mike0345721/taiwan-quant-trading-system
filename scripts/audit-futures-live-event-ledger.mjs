@@ -47,9 +47,9 @@ try {
   if (response.ok) {
     const health = await response.json();
     operationalHealth = {
-      callbackErrors: Number(health.callbackErrors) || 0,
-      dropped: Number(health.dropped) || 0,
-      writerErrors: Number(health.writerErrors) || 0,
+      callbackErrors: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.callbackErrors : Number(health.callbackErrors) || 0,
+      dropped: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.dropped : Number(health.dropped) || 0,
+      writerErrors: ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? health.writerErrors : Number(health.writerErrors) || 0,
       processId: Number(health.processId) || null,
       executionAuthorized: health.executionAuthorized,
       orderRoutesEnabled: health.orderRoutesEnabled,
@@ -156,7 +156,34 @@ if (operationalHealth?.executionAuthorized !== false
   failReasons.push('execution_boundary_invalid');
 }
 const status = failReasons.length ? 'FAIL' : pendingReasons.length ? 'PENDING' : 'PASS';
-const acceptance = {
+// The full-audit size guard did not inspect any quote rows. Keep that unknown
+// separate from the ordinary audited-zero/missing-kind checks above.
+const incompleteFailReasons = [...new Set([...baseAcceptance.failReasons,
+  ...failReasons.filter(reason => reason === 'execution_boundary_invalid')])];
+const acceptance = ledgerAudit.auditState === 'AUDIT_INCOMPLETE' ? {
+  ...baseAcceptance,
+  status: incompleteFailReasons.length ? 'FAIL' : 'PENDING',
+  passed: false,
+  reasons: [...new Set([...incompleteFailReasons, ...baseAcceptance.pendingReasons])],
+  failReasons: incompleteFailReasons,
+  pendingReasons: [...baseAcceptance.pendingReasons],
+  evidence: {
+    ...baseAcceptance.evidence,
+    requiredProductDurationMs: null, requiredProductMaxGapMs: null,
+    acceptanceClockSkewEvents: null, globalLedgerClockSkewEvents: null,
+    evidenceScope: 'FULL_LEDGER_AUDIT_INCOMPLETE',
+  },
+  requiredKinds: ['futures_tick', 'futures_bidask'],
+  requiredKindCounts: Object.fromEntries(requiredProducts.map(product => [product, { tick: null, bidAsk: null }])),
+  postRestartKindCounts: Object.fromEntries(requiredProducts.map(product => [product, { tick: null, bidAsk: null }])),
+  completedSession: { ready: null, durationMs: null, maxGapMs: null, clockSkewEvents: null, productStats: null, productKindStats: null },
+  checks: {
+    ...baseAcceptance.checks,
+    timing: null, tickAndBidAsk: null, cleanCompletedSession: null, postRestartTickAndBidAsk: null,
+    executionBoundary: operationalHealth
+      ? operationalHealth.executionAuthorized === false && operationalHealth.orderRoutesEnabled === false : null,
+  },
+} : {
   ...baseAcceptance,
   status,
   passed: status === 'PASS',

@@ -429,6 +429,7 @@ const requestHandler = async (req, res) => {
         ok: true,
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
+        candidateReadOnly: config.candidateReadOnly,
         inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
         localRelease: localMarketOnly ? { scope:'MARKET_RESEARCH_AI_DISABLED', transport:'HTTPS',
           certificateSha256:process.env.DASHBOARD_TLS_CERT_SHA256, marketDataQualified:false } : null,
@@ -782,12 +783,20 @@ const requestHandler = async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v2/daily-update') {
-        sendJson(res, 200, { ok: true, data: v2Research.dailyUpdateStatus(), processRunning: Boolean(dailyUpdateProcess) });
+        sendJson(res, 200, { ok: true, data: v2Research.dailyUpdateStatus(), processRunning: Boolean(dailyUpdateProcess),
+          ...(config.candidateReadOnly ? { manualRun: { allowed: false, state: 'BLOCKED',
+            reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } } : {}) });
         return;
       }
 
       if (req.method === 'POST' && pathname === '/api/v2/daily-update') {
         if (!requireCsrf(req, res, session)) return;
+        // Reading shared products never grants the reader permission to run a writer.
+        if (config.candidateReadOnly) {
+          sendJson(res, 403, { ok: false, error: 'CANDIDATE_READ_ONLY_DAILY_UPDATE',
+            data: { state: 'BLOCKED', reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } });
+          return;
+        }
         if (dailyUpdateProcess) {
           sendJson(res, 409, { ok: false, error: 'DAILY_UPDATE_ALREADY_RUNNING' });
           return;
