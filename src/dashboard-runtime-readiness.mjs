@@ -148,12 +148,21 @@ export function inspectObservedFlowPayload(flow, { requireLongWindows = false, n
 }
 
 export function validateBrowserRuntimeProof(proof, { exactHead, runtimeStartedAt, requireLongWindows = false }) {
+  // An absent, incompatible, or previous-process receipt says nothing about the
+  // current browser's chart library or DOM. Keep readiness false, but diagnose
+  // those failures only from evidence belonging to this runtime.
+  const unavailable = reason => Object.freeze({ ready: false, reasons: Object.freeze([reason]), proof: proof || null });
+  if (!proof) return unavailable('BROWSER_PROOF_MISSING');
+  if (proof.schemaVersion !== 'cru46-owner-browser-runtime-proof-v1') return unavailable('BROWSER_PROOF_SCHEMA_INVALID');
+  if (proof.exactHead !== exactHead || proof.runtimeStartedAt !== runtimeStartedAt)
+    return unavailable('BROWSER_PROOF_IDENTITY_MISMATCH');
   const reasons = [];
-  if (proof?.schemaVersion !== 'cru46-owner-browser-runtime-proof-v1') reasons.push('BROWSER_PROOF_MISSING');
-  if (proof?.exactHead !== exactHead || proof?.runtimeStartedAt !== runtimeStartedAt) reasons.push('BROWSER_PROOF_IDENTITY_MISMATCH');
   if (proof?.lightweightChartsApiMajor !== 5) reasons.push('CHART_BROWSER_V5_API_UNAVAILABLE');
-  if (proof?.canvasCount < 2 || proof?.chartWidth <= 0 || proof?.chartHeight <= 0) reasons.push('CHART_BROWSER_CANVAS_UNAVAILABLE');
-  if (proof?.candleCount <= 0 || proof?.volumeCount <= 0) reasons.push('CHART_BROWSER_SERIES_EMPTY');
+  if (!Number.isInteger(proof.canvasCount) || proof.canvasCount < 2
+      || !Number.isFinite(proof.chartWidth) || proof.chartWidth <= 0
+      || !Number.isFinite(proof.chartHeight) || proof.chartHeight <= 0) reasons.push('CHART_BROWSER_CANVAS_UNAVAILABLE');
+  if (!Number.isInteger(proof.candleCount) || proof.candleCount <= 0
+      || !Number.isInteger(proof.volumeCount) || proof.volumeCount <= 0) reasons.push('CHART_BROWSER_SERIES_EMPTY');
   if (proof?.chartStatusVisible !== true) reasons.push('CHART_BROWSER_STATUS_NOT_VISIBLE');
   if (proof?.observedFlow1m !== true || proof?.observedFlow5m !== true) reasons.push('BROWSER_OBSERVED_FLOW_MISSING');
   if (requireLongWindows && (proof?.observedFlow15m !== true || proof?.observedFlow30m !== true))
@@ -164,14 +173,15 @@ export function validateBrowserRuntimeProof(proof, { exactHead, runtimeStartedAt
 }
 
 export function normalizeBrowserRuntimeProof(candidate, { exactHead, runtimeStartedAt }) {
+  const numeric = key => typeof candidate?.[key] === 'number' && Number.isFinite(candidate[key]) ? candidate[key] : null;
   return Object.freeze({
     schemaVersion: 'cru46-owner-browser-runtime-proof-v1', exactHead, runtimeStartedAt,
     lightweightChartsApiMajor: candidate?.lightweightChartsApiMajor ?? null,
-    canvasCount: Number(candidate?.canvasCount) || 0,
-    chartWidth: Number(candidate?.chartWidth) || 0,
-    chartHeight: Number(candidate?.chartHeight) || 0,
-    candleCount: Number(candidate?.candleCount) || 0,
-    volumeCount: Number(candidate?.volumeCount) || 0,
+    canvasCount: numeric('canvasCount'),
+    chartWidth: numeric('chartWidth'),
+    chartHeight: numeric('chartHeight'),
+    candleCount: numeric('candleCount'),
+    volumeCount: numeric('volumeCount'),
     chartStatusVisible: candidate?.chartStatusVisible === true,
     observedFlow1m: candidate?.observedFlow1m === true,
     observedFlow5m: candidate?.observedFlow5m === true,

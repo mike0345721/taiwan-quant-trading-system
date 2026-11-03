@@ -7,6 +7,7 @@ import { loadOperatingCalendar } from './operating-calendar.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const kinds = ['DAY_CHECKPOINT', 'EOD_CHECKPOINT', 'FINAL_TRADEDATE_CHECKPOINT'];
+const policyReadHashes = new WeakMap();
 export const schedulerPolicyPath = path.join(root, 'config/data-operations-scheduler-policy-v1.json');
 export function loadSchedulerPolicy() {
   const bytes = readBoundedFile(schedulerPolicyPath, 16384);
@@ -18,8 +19,18 @@ export function loadSchedulerPolicy() {
     || p.checkpoints.some((c, i) => c.checkpointType !== kinds[i] || !/^[A-Z]+$/.test(c.label)
       || !/^([01]\d|2[0-3]):[0-5]\d$/.test(c.checkTime)
       || (i > 0 && c.checkTime <= p.checkpoints[i - 1].checkTime))) throw new Error('OPERATIONS_SCHEDULER_POLICY_INVALID');
-  return { ...p, sha256: sha256(bytes) };
+  const policy = { ...p, sha256: sha256(bytes) };
+  // Git worktrees may check out this same policy as LF or CRLF. Keep the exact
+  // writer hash; only bounded receipt reads accept the other uniform newline
+  // spelling. Do not canonicalize JSON, whitespace, mixed endings, or content.
+  const text = bytes.toString('utf8'), lf = text.replace(/\r\n/g, '\n');
+  const crlf = lf.replace(/\n/g, '\r\n');
+  const equivalent = Buffer.from(text).equals(bytes) && !/\r(?!\n)/.test(text)
+    && (text === lf || text === crlf);
+  policyReadHashes.set(policy, new Set(equivalent ? [policy.sha256, sha256(lf), sha256(crlf)] : [policy.sha256]));
+  return policy;
 }
+const matchesReadPolicy = (hash, policy) => policyReadHashes.get(policy)?.has(hash) === true;
 export function schedulerDate(now) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
@@ -52,25 +63,26 @@ function indexFile(tradeDate, checkpointType, policy) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) throw new Error('OPERATIONS_SCHEDULER_DATE_INVALID');
   return `automatic-checkpoints/${tradeDate}/${definition(policy, checkpointType).label.toLowerCase()}.json`;
 }
-function validIdentity(h, date, checkpoint, policy) {
+function validIdentity(h, date, checkpoint, policy, reading = false) {
   const c = definition(policy, checkpoint);
   return h?.schemaVersion === 'acceptance-job-health-v1' && h.runMode === 'SCHEDULED'
     && h.requestedTradeDate === date && h.checkpointType === checkpoint
-    && h.schedulerPolicySha256 === policy.sha256 && h.triggerIdentity === `${policy.taskPrefix}-${c.label}`
+    && (reading ? matchesReadPolicy(h.schedulerPolicySha256, policy) : h.schedulerPolicySha256 === policy.sha256)
+    && h.triggerIdentity === `${policy.taskPrefix}-${c.label}`
     && /^[a-f0-9-]{36}$/.test(h.runId || '') && /^[a-f0-9]{40}$/.test(h.runtimeCommit || '')
     && Number.isFinite(Date.parse(h.lastAttemptAt)) && schedulerDate(new Date(h.lastAttemptAt)) === date
     && ['SUCCEEDED', 'FAILED'].includes(h.jobState)
     && (h.jobState === 'FAILED' || (h.inputTradeDate === date && Number.isFinite(Date.parse(h.lastSuccessAt))
       && Date.parse(h.lastSuccessAt) >= Date.parse(h.lastAttemptAt)));
 }
-function readPointer(outputRoot, pointer, date, checkpoint, policy) {
+function readPointer(outputRoot, pointer, date, checkpoint, policy, reading = false) {
   if (!pointer || !/^[a-f0-9-]{36}$/.test(pointer.runId || '') || !['SUCCEEDED', 'FAILED'].includes(pointer.jobState)
     || !/^[a-f0-9]{64}$/.test(pointer.sha256 || '')) throw new Error('OPERATIONS_SCHEDULER_POINTER_INVALID');
   const file = `runs/${pointer.runId}${pointer.jobState === 'FAILED' ? '.failed' : ''}.json`;
   const bytes = readBoundedFile(path.join(outputRoot, file), 65536);
   const receipt = JSON.parse(bytes);
   if (sha256(bytes) !== pointer.sha256 || receipt.runId !== pointer.runId || receipt.jobState !== pointer.jobState
-    || !validIdentity(receipt, date, checkpoint, policy)) throw new Error('OPERATIONS_SCHEDULER_RECEIPT_INVALID');
+    || !validIdentity(receipt, date, checkpoint, policy, reading)) throw new Error('OPERATIONS_SCHEDULER_RECEIPT_INVALID');
   const timing = scheduledTiming(receipt, policy);
   if (receipt.schedulerTiming && Object.entries(timing).some(([key, value]) => receipt.schedulerTiming[key] !== value)) {
     throw new Error('OPERATIONS_SCHEDULER_TIMING_INVALID');
@@ -81,7 +93,7 @@ function readPointer(outputRoot, pointer, date, checkpoint, policy) {
     if (sha256(startBytes) !== receipt.schedulerStartIdentity.sha256
       || start.schemaVersion !== 'automatic-checkpoint-start-v1' || start.runId !== receipt.runId
       || start.observedAt !== receipt.lastAttemptAt || start.requestedTradeDate !== date || start.checkpointType !== checkpoint
-      || start.policySha256 !== policy.sha256 || start.runtimeCommit !== receipt.runtimeCommit || start.triggerIdentity !== receipt.triggerIdentity
+      || start.policySha256 !== receipt.schedulerPolicySha256 || start.runtimeCommit !== receipt.runtimeCommit || start.triggerIdentity !== receipt.triggerIdentity
       || Object.entries(scheduledTiming({ ...receipt, jobState: 'RUNNING' }, policy)).some(([key, value]) => start.timing?.[key] !== value)
       || !Object.hasOwn(reasons, start.stateBeforeAttempt)) throw new Error('OPERATIONS_SCHEDULER_START_INVALID');
     receipt.schedulerStart = start;
@@ -93,9 +105,9 @@ function readIndex(outputRoot, date, checkpoint, policy) {
   if (!fs.existsSync(file)) return null;
   const index = JSON.parse(readBoundedFile(file, 16384));
   if (index.schemaVersion !== 'automatic-checkpoint-index-v1' || index.tradeDate !== date
-    || index.checkpointType !== checkpoint || index.policySha256 !== policy.sha256) throw new Error('OPERATIONS_SCHEDULER_INDEX_INVALID');
-  const latest = readPointer(outputRoot, index.latest, date, checkpoint, policy);
-  const success = index.lastSuccess ? readPointer(outputRoot, index.lastSuccess, date, checkpoint, policy) : null;
+    || index.checkpointType !== checkpoint || !matchesReadPolicy(index.policySha256, policy)) throw new Error('OPERATIONS_SCHEDULER_INDEX_INVALID');
+  const latest = readPointer(outputRoot, index.latest, date, checkpoint, policy, true);
+  const success = index.lastSuccess ? readPointer(outputRoot, index.lastSuccess, date, checkpoint, policy, true) : null;
   if (success && success.jobState !== 'SUCCEEDED') throw new Error('OPERATIONS_SCHEDULER_SUCCESS_INVALID');
   return { index, latest, success };
 }

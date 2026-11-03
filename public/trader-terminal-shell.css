@@ -78,6 +78,9 @@
   z-index: 8;
   top: 22px;
   display: grid;
+  /* The shared <=1100px side-nav switches to wide horizontal grid tracks.
+     This terminal keeps a vertical 64px rail until its own mobile breakpoint. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 3px;
   height: calc(100vh - 22px);
@@ -971,7 +974,8 @@
 @media (max-width: 720px) {
   .dashboard:has([data-ui-layout="decision-first"]) > .topbar { flex-wrap: wrap; gap: 8px; }
   .dashboard:has([data-ui-layout="decision-first"]) > .topbar .top-actions { flex: 1 1 100%; width: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-start; }
-  .workspace-layout.tt-terminal-layout { grid-template-columns: minmax(0,1fr); }
+  .workspace-layout.tt-terminal-layout,
+  .workspace-layout.tt-terminal-layout.is-nav-collapsed { grid-template-columns: minmax(0,1fr); }
   .side-nav.tt-terminal-nav { position: static; display: flex; flex-wrap: nowrap; width: 100%; min-width: 0; height: auto; max-height: none; overflow-x: auto; padding: 4px; border: 0; }
   .side-nav.tt-terminal-nav::before { display: none; }
   .side-nav.tt-terminal-nav .side-nav-button { flex: 0 0 92px; min-width: 92px; min-height: 48px; }

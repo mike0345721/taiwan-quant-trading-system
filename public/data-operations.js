@@ -9,6 +9,21 @@
   const schedulerLabels = { NOT_DUE: '尚未到時間', WAITING_FOR_RUN: '寬限內等待執行', ON_TIME_SUCCEEDED: '準時完成',
     LATE_SUCCEEDED: '補跑成功 ⚠', ACCEPTANCE_JOB_FAILED: '驗收工作失敗', OVERDUE_NO_RECEIPT: '逾時未見執行結果', UNKNOWN: '排程證據未知' };
   const pill = value => `<span class="dop-state" data-state="${escape(value)}">${escape(value)} · ${escape(labels[value] || '尚未驗證')}</span>`;
+  const evidenceTime = value => typeof value === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(value)
+    && Number.isFinite(Date.parse(value)) ? time(value) : '未知';
+  function renderRowTimes(row) {
+    const date = row.sourceDate && row.sourceArtifactKnown === true ? escape(row.sourceDate)
+      : row.sourceMode === 'LIVE_EVENT' && row.tradeDate ? `${escape(row.tradeDate)}（交易日）` : '未知';
+    const stage = row.stageEvidence;
+    return `<p class="dop-muted">資料日期：${date}<br>${row.sourceDate && row.sourceArtifactKnown !== true
+      ? `待驗目標日：${escape(row.sourceDate)}（尚無已驗證資料產物）<br>` : ''}來源可用時間：${evidenceTime(row.availableAt)}<br>
+      資料觀測時間：${evidenceTime(row.observedAt)}<br>
+      ${row.sourceMode === 'LIVE_EVENT' || row.firstReceivedAt || row.lastReceivedAt
+        ? `首次收到：${evidenceTime(row.firstReceivedAt)}<br>最後收到：${evidenceTime(row.lastReceivedAt)}<br>` : ''}
+      最後成功資料更新：未知（本驗收未保存逐來源成功時間）</p>
+      ${stage ? `<p class="dop-muted">批次階段：${stage.ok === true ? '成功' : stage.ok === false ? '失敗' : '未知'} · ${escape(stage.key)}<br>
+        批次完成：${evidenceTime(stage.completedAt)}；批次完成不代表此資料源最後成功更新。</p>` : ''}`;
+  }
   function renderScheduler(s, view) {
     if (!s) return '<p>今日排程進度尚未取得。</p>';
     const today = view.availability === 'AVAILABLE' && view.tradeDate === s.tradeDate;
@@ -49,6 +64,7 @@
       <p>核心必需且已到期：<b>${escape(v.requiredAndDueCount)}</b>；${v.counts ? Object.entries(v.counts).map(([k, n]) => `${escape(k)} ${escape(n)}`).join(' · ') : '狀態筆數尚未取得'}</p>
       <h4>主要缺口與最小下一步</h4>
       ${gaps.length ? `<ul class="dop-gaps">${gaps.map(r => `<li><div><b>${escape(r.ownerLabelZh)} · ${escape(r.session)}</b> ${pill(r.operationalState)}</div>
+        ${renderRowTimes(r)}
         <p>${(r.reasonsZh || []).map(escape).join('；') || '驗收證據尚未完整'}</p>
         <p><span class="dop-muted">影響：</span>${(r.impactZh || []).map(escape).join('；')}</p>
         <p><span class="dop-muted">下一步：</span>${escape(r.minimumNextAction)}</p></li>`).join('')}</ul>`
@@ -56,7 +72,7 @@
       ${allGaps.length > gaps.length ? `<p class="dop-muted">另有 ${allGaps.length - gaps.length} 列，請展開全部明細。</p>` : ''}
       <details class="dop-details"><summary>全部資料列、原始原因、處置與工作身分</summary>
         <div class="table-wrap"><table><thead><tr><th>資料／時段</th><th>狀態／應到</th><th>原因與處置</th></tr></thead><tbody>${rows.map(r => `<tr>
-          <td>${escape(r.ownerLabelZh)}<br>${escape(r.session)} · ${escape(r.operationalRole)}${r.inCheckpointScope ? '' : '（本 checkpoint 範圍外）'}</td>
+          <td>${escape(r.ownerLabelZh)}<br>${escape(r.session)} · ${escape(r.operationalRole)}${r.inCheckpointScope ? '' : '（本 checkpoint 範圍外）'}${renderRowTimes(r)}</td>
           <td>${pill(r.operationalState)}<br>${escape(r.dueState)}</td><td>${(r.reasonsZh || []).map(escape).join('；')}<br>
           <code>${(r.reasonCodes || []).map(escape).join(' / ') || '無原因碼'}</code><br>${(r.remediation || []).map(a => `${escape(a.ownerLane)} / ${escape(a.actionClass)}：${escape(a.smallestNextCheck)}`).join('<br>')}</td></tr>`).join('')}</tbody></table></div>
         <h4>驗收工作、歷史指標與 lineage</h4><pre>${escape(JSON.stringify({ jobHealth: h, bindingIdentity: v.bindingIdentity ?? null, artifactIdentity: v.artifactIdentity ?? null,

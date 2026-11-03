@@ -187,6 +187,63 @@ test('receipt pointer cannot substitute another checkpoint, mode, policy or date
     assert.throws(()=>f.record(f.receipt(extra)),/RECEIPT_INVALID/);
   }
 });
+
+function persistedPolicyFixture(t, policyBytes) {
+  const f = fixture(t), policyHash = sha256(policyBytes), runId = crypto.randomUUID();
+  const health = { ...f.receipt().receipt, runId, schedulerPolicySha256: policyHash };
+  const start = { schemaVersion: 'automatic-checkpoint-start-v1', runId,
+    observedAt: health.lastAttemptAt, requestedTradeDate: date, checkpointType: health.checkpointType,
+    policySha256: policyHash, runtimeCommit: health.runtimeCommit, triggerIdentity: health.triggerIdentity,
+    timing: scheduledTiming({ ...health, jobState: 'RUNNING' }), applicability: 'TRADING_DAY',
+    stateBeforeAttempt: 'WAITING_FOR_RUN', evidenceState: 'NO_INDEX', previousReceipt: null };
+  const startFile = path.join(f.outputRoot, 'runs', `${runId}.scheduler-start.json`);
+  const startBytes = JSON.stringify(start); fs.writeFileSync(startFile, startBytes);
+  const r = f.receipt({ runId, schedulerPolicySha256: policyHash,
+    schedulerStartIdentity: { sha256: sha256(startBytes) } });
+  const indexFile = path.join(f.outputRoot, 'automatic-checkpoints', date, 'day.json');
+  fs.mkdirSync(path.dirname(indexFile), { recursive: true });
+  const pointer = { runId, jobState: 'SUCCEEDED', sha256: r.identity.sha256 };
+  fs.writeFileSync(indexFile, JSON.stringify({ schemaVersion: 'automatic-checkpoint-index-v1',
+    tradeDate: date, checkpointType: 'DAY_CHECKPOINT', policySha256: policyHash,
+    latest: pointer, lastSuccess: pointer }));
+  return { ...f, r, startFile, indexFile, policyHash };
+}
+
+test('reader accepts exact LF/CRLF policy equivalence without rewriting historical receipts', t => {
+  const bytes = fs.readFileSync(path.join(root, 'config/data-operations-scheduler-policy-v1.json'));
+  const lf = bytes.toString('utf8').replace(/\r\n/g, '\n');
+  const alternate = bytes.includes(Buffer.from('\r\n')) ? lf : lf.replace(/\n/g, '\r\n');
+  assert.notEqual(sha256(alternate), policy.sha256);
+  const f = persistedPolicyFixture(t, alternate);
+  const before = [f.r.file, f.startFile, f.indexFile].map(file => fs.readFileSync(file));
+  const c = f.health('14:11:00').checkpoints[0];
+  assert.equal(c.state, 'ON_TIME_SUCCEEDED'); assert.equal(c.evidenceState, 'VERIFIED');
+  assert.equal(c.receipt.policySha256, f.policyHash); assert.equal(c.startObservation.policySha256, f.policyHash);
+  assert.equal(c.receipt.sha256, f.r.identity.sha256);
+  [f.r.file, f.startFile, f.indexFile].forEach((file, i) => assert.deepEqual(fs.readFileSync(file), before[i]));
+  // Compatibility belongs to the reader; new writers keep their exact local policy pin.
+  assert.throws(() => f.record(f.r), /RECEIPT_INVALID/);
+});
+
+test('reader rejects policy content changes, other reformatting, and mismatched receipt/start policy pins', t => {
+  const bytes = fs.readFileSync(path.join(root, 'config/data-operations-scheduler-policy-v1.json'), 'utf8');
+  const lf = bytes.replace(/\r\n/g, '\n');
+  for (const changed of [bytes.replace('13:55', '13:56'), bytes.replace('"graceMinutes": 15', '"graceMinutes": 16'),
+    bytes.replace('"timezone": "Asia/Taipei"', '"timezone": "UTC"'), JSON.stringify(JSON.parse(bytes)), bytes + ' ',
+    lf.replace('\n', '\r\n'), lf.replace('\n', '\r')]) {
+    const f = persistedPolicyFixture(t, changed), c = f.health('14:11:00').checkpoints[0];
+    assert.equal(c.evidenceState, 'UNVERIFIED'); assert.equal(c.receipt, null);
+  }
+  const alternate = bytes.includes('\r\n') ? lf : lf.replace(/\n/g, '\r\n');
+  const f = persistedPolicyFixture(t, alternate);
+  const start = JSON.parse(fs.readFileSync(f.startFile)); start.policySha256 = policy.sha256;
+  const startBytes = JSON.stringify(start); fs.writeFileSync(f.startFile, startBytes);
+  const receipt = JSON.parse(fs.readFileSync(f.r.file)); receipt.schedulerStartIdentity.sha256 = sha256(startBytes);
+  const receiptBytes = JSON.stringify(receipt); fs.writeFileSync(f.r.file, receiptBytes);
+  const index = JSON.parse(fs.readFileSync(f.indexFile)); index.latest.sha256 = index.lastSuccess.sha256 = sha256(receiptBytes);
+  fs.writeFileSync(f.indexFile, JSON.stringify(index));
+  assert.equal(f.health('14:11:00').checkpoints[0].evidenceState, 'UNVERIFIED');
+});
 test('early or future-dated receipt cannot claim current expected execution', t => {
   const f=fixture(t); f.record(f.receipt({time:'13:00'}));
   assert.equal(f.health('14:11:00').checkpoints[0].state,'OVERDUE_NO_RECEIPT');

@@ -16,11 +16,27 @@ const checkpointKind = { DAY_CHECKPOINT: 'day', EOD_CHECKPOINT: 'eod', FINAL_TRA
 const code = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,150}$/.test(value) ? value : 'OPERATIONS_JOB_FAILURE';
 const countRows = rows => Object.fromEntries(STATES.map(s => [s, rows.filter(r => r.inCheckpointScope && r.operationalState === s).length]));
 function projectRow(row, report) {
+  const identity = row.evidence?.sourceArtifactIdentity;
+  // sourceDate is also populated with the requested date when no rows exist.
+  // Retain it verbatim, but expose whether the accepted source identity binds it.
+  const sourceArtifactKnown = Boolean(identity && typeof identity === 'object' && !Array.isArray(identity)
+    && typeof identity.sha256 === 'string' && /^[a-f0-9]{64}$/.test(identity.sha256)
+    && row.evidence.sourceDate && row.evidence.sourceDate === row.evidence.tradeDate);
   const remediation = report.remediationActions.filter(a => a.datasetId === row.datasetId && a.feedIdentity === row.feedIdentity && a.session === row.session);
   const impacts = [row.blocksCoreLive && '盤中資料與 Dashboard 證據', row.blocksCoreEod && '盤後資料與日級背景',
     row.blocksResearch && '壓力／價格反應／路徑效率研究', row.operationalRole === 'SUPPORTING_OPERATIONAL_MONITOR' && '輔助行情完整性監看'].filter(Boolean);
   return { datasetId: row.datasetId, feedIdentity: row.feedIdentity, ownerLabelZh: row.evidence?.ownerLabelZh || row.feedIdentity,
     session: row.session, operationalRole: row.operationalRole, operationalState: row.operationalState,
+    sourceMode: row.evidence?.mode ?? null, tradeDate: row.evidence?.tradeDate ?? null,
+    sourceDate: row.evidence?.sourceDate ?? null, sourceArtifactKnown, availableAt: row.evidence?.availableAt ?? null,
+    observedAt: row.evidence?.observedAt ?? null, firstReceivedAt: row.evidence?.firstReceivedAt ?? null,
+    lastReceivedAt: row.evidence?.lastReceivedAt ?? null,
+    // Preserve the existing source clocks, not the later acceptance-job clock.
+    // Batch completion is supporting evidence, not a per-source success time.
+    stageEvidence: row.evidence?.stageEvidence ? {
+      key: row.evidence.stageEvidence.key ?? null,
+      ok: typeof row.evidence.stageEvidence.ok === 'boolean' ? row.evidence.stageEvidence.ok : null,
+      completedAt: row.evidence.stageEvidence.completedAt ?? null } : null,
     inCheckpointScope: row.inCheckpointScope, dueState: row.dueState, requiredAndDue: row.requiredAndDue,
     reasonCodes: row.reasonCodes, reasonsZh: row.reasonCodes.map(r => explanations[r] || '原因尚待資料治理確認，請查看技術明細'),
     impactZh: impacts.length ? impacts : ['補充背景／後續能力；不納入核心分母'],
