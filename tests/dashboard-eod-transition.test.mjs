@@ -8,8 +8,8 @@ const slice = (a, b) => app.slice(app.indexOf(a), app.indexOf(b, app.indexOf(a) 
 test('dashboard live to partial removes rejected snapshot and EOD output; later publication renders again', async () => {
   const nodes = new Map();
   const node = id => {
-    if (!nodes.has(id)) nodes.set(id, { id, textContent: 'OLD_EOD', style: { removeProperty() {} },
-      classList: { remove() {} }, querySelector: selector => node(id + ':' + selector), setAttribute() {}, prepend() {}, remove() {}, replaceChildren(...items) {
+    if (!nodes.has(id)) nodes.set(id, { id, textContent: 'OLD_EOD', attributes: {}, style: { removeProperty() {} },
+      classList: { remove() {} }, querySelector: selector => node(id + ':' + selector), setAttribute(key,value) { this.attributes[key]=value; }, prepend() {}, remove() {}, replaceChildren(...items) {
         this.textContent = items.map(x => x.textContent ?? x).join('');
       } });
     return nodes.get(id);
@@ -31,10 +31,13 @@ test('dashboard live to partial removes rejected snapshot and EOD output; later 
   vm.runInNewContext((start < 0 ? '' : slice('function renderSnapshotUnavailable(', 'function render(snapshot)'))
     + slice('async function loadDashboard()', 'function reportDashboardLoadError('), context);
   await context.loadDashboard(); assert.equal(context.state.snapshot, live);
+  assert.equal(node('decision-workspace').attributes['data-dashboard-load-state'],'READY');
   payload = { data: null, service: { degraded: { status: 'PARTIAL', reason: 'EOD_SNAPSHOT_UNAVAILABLE', eodReason: 'EOD_SNAPSHOT_DATA_MODE_REJECTED' } } };
   await context.loadDashboard();
   assert.equal(context.state.snapshot, null, 'quarantined EOD must not remain in Terminal state');
   assert.equal(views.at(-1), null);
+  assert.equal(node('decision-workspace').attributes['data-dashboard-load-state'],'PARTIAL');
+  assert.equal(node('decision-workspace').attributes['aria-busy'],'false');
   assert.doesNotMatch(node('market-cards').textContent, /EOD_1|OLD_EOD/);
   assert.match(node('market-cards').textContent, /UNAVAILABLE/);
   assert.match(node('alert-area').textContent, /UNAVAILABLE/);
@@ -43,4 +46,5 @@ test('dashboard live to partial removes rejected snapshot and EOD output; later 
   payload = { data: { dataMode: 'live', revision: 3 } };
   await context.loadDashboard(); assert.equal(context.state.snapshot.revision, 3);
   assert.equal(node('market-cards').textContent, 'EOD_3');
+  assert.equal(node('decision-workspace').attributes['data-dashboard-load-state'],'READY');
 });

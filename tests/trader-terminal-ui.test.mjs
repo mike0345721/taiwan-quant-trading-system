@@ -170,7 +170,7 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /button\.disabled = true/);
   assert.doesNotMatch(terminalSource, /tt-top-(?:change|oi|basis)',\s*'UNAVAILABLE'/);
   assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', 'LOADING'\)/);
-  assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', 'READY'\)/);
+  assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', partial\?\.status === 'PARTIAL' \? 'PARTIAL' : 'READY'\)/);
   assert.match(app, /reportDashboardLoadError\(error, 'POST_LOGIN_DASHBOARD_LOAD'\)/);
   assert.match(app, /Copy context UNAVAILABLE/);
   assert.match(app, /INDEX_LEADERSHIP_API_UNAVAILABLE/);

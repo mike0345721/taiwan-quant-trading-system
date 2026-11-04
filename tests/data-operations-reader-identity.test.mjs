@@ -22,7 +22,7 @@ function harness({ candidateReadOnly = true, manifestPath = 'C:/synthetic/govern
     URL, process: { env: { DATA_OPERATIONS_MANIFEST_PATH: manifestPath, DATA_OPERATIONS_OUTPUT_ROOT: outputRoot } },
     config: { candidateReadOnly, dataDir: 'C:/synthetic/candidate/data' },
     crypto: { randomUUID: () => 'synthetic' }, requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => 'loopback',
-    cru55: null, formalEntry: null, inlineHandler: async () => false, runtimeIdentity: { commit: 'c'.repeat(40), status: 'VERIFIED' },
+    cru55: null, formalEntry: null, marketCandidate: false, inlineHandler: async () => false, runtimeIdentity: { commit: 'c'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: {}, currentCru46RuntimeReadiness: () => ({ runtimeReady: { ready: false, reasons: ['EXISTING_BLOCKER'] } }),
     inlineEnabled: false, localMarketOnly: false, productSurfaceContract: {}, operatingCalendar: calendar,
     assessTaifexMarketSession: () => ({ state: 'UNKNOWN' }),
