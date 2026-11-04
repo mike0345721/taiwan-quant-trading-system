@@ -1,10 +1,13 @@
 // Synthetic regression for the versioned candidate-only ReaderOnly entry.
 // Pure source/VM fixture: never runs PowerShell, Node --env-file, entry startup,
-// config imports, real manifest/calendar reads, sockets, or process launch.
+// config/env imports, live manifests, sockets, or process launch. The repository's
+// public governed calendar is loaded to verify the real two-hash contract.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 
 const source = fs.readFileSync(new URL('../scripts/start-research-workbench.ps1', import.meta.url), 'utf8');
 const begin = source.indexOf('// ENTRY_MANIFEST_R3_PURE_BEGIN');
@@ -23,13 +26,24 @@ function fixture() {
     selection: 'BUILD_A1', evidenceRoot: p.evidenceRoot, calendarSha256: p.calendarSha256, supersedesManifestSha256: p.supersedesManifestSha256,
     sourceBindings: sources, operationsBinding: { schemaVersion: 'data-operations-binding-v1', dataRoot: p.dataRoot, outputRoot: p.outputRoot, calendarPath: p.calendarPath } };
   const binding = { manifest, manifestSha256: p.manifestSha256, dataRoot: p.dataRoot, outputRoot: p.outputRoot,
-    evidenceRoot: p.evidenceRoot, calendarPath: p.calendarPath, calendar: { fileHash: p.calendarSha256 } };
+    evidenceRoot: p.evidenceRoot, calendarPath: p.calendarPath, calendar: { fileHash: 'd'.repeat(64), physicalFileHash: p.calendarSha256 } };
   return { requestedMode: 'ReaderOnly', configuration: { candidateReadOnly: true, candidateV2Binding: 'GOVERNED_ACTIVE_V1', appRoot: p.candidateRoot }, manifestPath: p.manifestPath,
     binding, registryHash: p.registrySha256, candidateCalendarHash: p.calendarSha256, checked,
     assertNoLinks: path => checked.push(path) };
 }
 const environment = () => ({ IX0001_LEADERSHIP_COLLECTION_ENABLED: 'true', DATA_OPERATIONS_MANIFEST_PATH: pin.manifestPath,
   DASHBOARD_CANDIDATE_V2_BINDING: 'GOVERNED_ACTIVE_V1' });
+
+test('governed calendar loader distinguishes physical bytes from the governance payload hash', () => {
+  const calendar = loadGovernedTradingCalendar(fileURLToPath(new URL('../config/taifex-official-calendar-2026.json', import.meta.url)));
+  assert.notEqual(calendar.fileHash, calendar.physicalFileHash);
+  assert.equal(calendar.physicalFileHash, pin.calendarSha256);
+  const f = fixture();
+  f.binding.calendar = calendar;
+  assertPinnedOperationsSnapshot(f);
+  f.binding.calendar = { ...calendar, physicalFileHash: '0'.repeat(64) };
+  assert.throws(() => assertPinnedOperationsSnapshot(f), /CALENDAR_IDENTITY/);
+});
 
 test('only the exact governed tuple in actual read-only config is accepted', () => {
   const f = fixture();
@@ -77,7 +91,7 @@ test('unknown manifest SHA and all pinned roots/identity fields fail closed', ()
     f => { f.binding.manifest.sourceBindings.derivedArtifactPaths.push('D:/other.json'); },
     f => { f.binding.manifest.sourceBindings.sessionsByCheckpoint.EOD_CHECKPOINT = ['DAY']; },
     f => { f.binding.manifest.calendarSha256 = '0'.repeat(64); },
-    f => { f.binding.calendar.fileHash = '0'.repeat(64); },
+    f => { f.binding.calendar.physicalFileHash = '0'.repeat(64); },
     f => { f.candidateCalendarHash = '0'.repeat(64); },
     f => { f.registryHash = '0'.repeat(64); },
   ];

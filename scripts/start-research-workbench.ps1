@@ -197,7 +197,7 @@ function assertPinnedOperationsSnapshot({ requestedMode, configuration, manifest
     const sessions = sources.sessionsByCheckpoint?.[key];
     if (!Array.isArray(sessions) || sessions.length !== 2 || sessions[0] !== 'DAY' || sessions[1] !== 'NIGHT') refuse('SESSION_TUPLE');
   }
-  if (manifest.calendarSha256 !== OPERATIONS_PIN.calendarSha256 || binding.calendar?.fileHash !== OPERATIONS_PIN.calendarSha256
+  if (manifest.calendarSha256 !== OPERATIONS_PIN.calendarSha256 || binding.calendar?.physicalFileHash !== OPERATIONS_PIN.calendarSha256
     || candidateCalendarHash !== OPERATIONS_PIN.calendarSha256) refuse('CALENDAR_IDENTITY');
   for (const key of ['manifestPath', 'dataRoot', 'outputRoot', 'evidenceRoot', 'calendarPath', 'activeAppRoot', 'ledgerDataRoot', 'databasePath', 'dailyStatusPath', 'registryPath', 'derivedArtifactPath']) assertNoLinks(OPERATIONS_PIN[key]);
   assertNoLinks(OPERATIONS_PIN.candidateRoot + '/config/taifex-official-calendar-2026.json');

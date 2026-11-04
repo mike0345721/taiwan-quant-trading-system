@@ -51,8 +51,9 @@ export function createGovernedV2Reader(options, dependencies = {}) {
     const binding = io.validateOperationsBinding(options.manifestPath, bytes);
     if (binding.manifestSha256 !== V2_READER_PIN.manifestSha256
       || binding.manifest?.calendarSha256 !== V2_READER_PIN.calendarSha256
-      || binding.calendar?.fileHash !== V2_READER_PIN.calendarSha256
-      || options.calendar?.fileHash !== V2_READER_PIN.calendarSha256
+      // fileHash identifies semantic payload; this immutable pin is raw bytes.
+      || binding.calendar?.physicalFileHash !== V2_READER_PIN.calendarSha256
+      || options.calendar?.physicalFileHash !== V2_READER_PIN.calendarSha256
       || !exactPath(binding.manifest?.sourceBindings?.activeAppRoot, V2_READER_PIN.activeRoot)
       || !exactPath(binding.manifest?.sourceBindings?.databasePath, V2_READER_PIN.activeRoot + '/v2/data/research-v2.sqlite')
       || !exactPath(binding.manifest?.sourceBindings?.dailyStatusPath, V2_READER_PIN.activeRoot + '/v2/reports/v3-daily-update-status.json')) fail('V2_READER_BINDING_UNVERIFIED');

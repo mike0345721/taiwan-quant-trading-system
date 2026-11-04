@@ -15,6 +15,6 @@ node --test tests/research-entry-manifest.test.mjs
 powershell.exe -NoProfile -NonInteractive -File tests/research-entry-reader-only.test.ps1
 ```
 
-第一項只執行入口內的純 JS 驗證區段，以合成物件與注入的檔案檢查驗證 pin；不載入真正 config、manifest 或環境檔。第二項只載入 PowerShell 函式，模擬程序、網路、健康、Node 設定檢查與候選啟動，僅在暫存目錄寫入新的合成收據。它不啟動 Node、瀏覽器、Bridge 或 Producer，也不執行原始 r2 測試。
+第一項執行入口內的純 JS 驗證區段，並以 repository 內的非秘密日曆及真實載入器核對雙雜湊契約；不載入正式 config、manifest 或環境檔。日曆的 `fileHash` 是治理內容雜湊，`physicalFileHash` 才是原始檔案位元組雜湊；不可混同比較。第二項只載入 PowerShell 函式，模擬程序、網路、健康、Node 設定檢查與候選啟動，僅在暫存目錄寫入新的合成收據。它不啟動 Node、瀏覽器、Bridge 或 Producer，也不執行原始 r2 測試。
 
 合成測試通過不代表實機候選、登入、即時資料、瀏覽器或重開機已驗收。`127.0.0.1:18723` 只指向開啟瀏覽器那台機器；不是手機遠端入口。關機後服務不可用，是否常駐仍取決於實際啟用方式與授權。

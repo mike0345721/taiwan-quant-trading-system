@@ -6,6 +6,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
+import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
+import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 import { createGovernedV2Reader, V2_READER_PIN as pin, V2_READER_ROLES, V2_READER_MODE, newV2ReadBudget } from '../src/dashboard-v2-reader-binding.mjs';
 import * as research from '../src/v2-research.mjs';
 
@@ -13,7 +15,8 @@ function fixture(changes = {}) {
   const reads = [], links = [], files = new Map();
   for (const [role, relative] of Object.entries(V2_READER_ROLES)) if (role !== 'forwardLedger') files.set(pin.activeRoot + '/' + relative, Buffer.from('{}'));
   const normalize = file => file.replaceAll('\\', '/');
-  const binding = { manifestSha256: pin.manifestSha256, calendar: { fileHash: pin.calendarSha256 }, manifest: {
+  const binding = { manifestSha256: pin.manifestSha256,
+    calendar: changes.bindingCalendar || { fileHash: 'c'.repeat(64), physicalFileHash: pin.calendarSha256 }, manifest: {
     calendarSha256: pin.calendarSha256, sourceBindings: { activeAppRoot: pin.activeRoot,
       databasePath: pin.activeRoot + '/v2/data/research-v2.sqlite', dailyStatusPath: pin.activeRoot + '/v2/reports/v3-daily-update-status.json' } } };
   const dependencies = {
@@ -25,7 +28,8 @@ function fixture(changes = {}) {
       const bytes = files.get(normalize(file)); if (!bytes || bytes.length > limit) throw Error('private-limit'); return bytes; },
     ...changes.dependencies,
   };
-  const options = { mode: V2_READER_MODE, candidateReadOnly: true, manifestPath: pin.manifestPath, calendar: { fileHash: pin.calendarSha256 }, ...changes.options };
+  const options = { mode: V2_READER_MODE, candidateReadOnly: true, manifestPath: pin.manifestPath,
+    calendar: { fileHash: 'c'.repeat(64), physicalFileHash: pin.calendarSha256 }, ...changes.options };
   const reader = createGovernedV2Reader(options, dependencies);
   return { reader, files, reads, links, binding, dependencies };
 }
@@ -56,6 +60,27 @@ test('binding is opt-in and rejects non-reader mode, wrong paths, overrides and 
     assert.deepEqual(f.reader.identity().reasonCodes, ['V2_READER_BINDING_UNVERIFIED']);
   }
   assert.equal(fixture({ dependencies: { noLinks() { throw Error('ALIAS'); } } }).reader.validated, false);
+});
+
+test('actual governed and operating calendar loaders validate physical bytes independently of semantic payload hashes', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'cru61-calendar-identity-'));
+  try {
+    const calendarPath = path.join(folder, 'calendar.json');
+    fs.copyFileSync(new URL('../config/taifex-official-calendar-2026.json', import.meta.url), calendarPath);
+    const governed = loadGovernedTradingCalendar(calendarPath);
+    const operating = loadOperatingCalendar(calendarPath, { dataRoot: path.join(folder, 'private-data') });
+    assert.equal(governed.physicalFileHash, pin.calendarSha256);
+    assert.notEqual(governed.fileHash, governed.physicalFileHash);
+    assert.equal(operating.physicalFileHash, governed.physicalFileHash);
+    assert.equal(operating.fileHash, governed.fileHash);
+    assert.equal(fixture({ bindingCalendar: governed, options: { calendar: operating } }).reader.validated, true);
+    for (const physicalFileHash of [undefined, '0'.repeat(64)]) {
+      const changed = { ...governed, physicalFileHash };
+      assert.equal(changed.fileHash, governed.fileHash, 'semantic payload identity is still unchanged');
+      assert.equal(fixture({ bindingCalendar: changed, options: { calendar: operating } }).reader.validated, false);
+      assert.equal(fixture({ bindingCalendar: governed, options: { calendar: { ...operating, physicalFileHash } } }).reader.validated, false);
+    }
+  } finally { fs.rmSync(folder, { recursive: true, force: true }); }
 });
 
 test('report budget rejects oversize before allocation, cumulative overflow, malformed and changed artifacts', () => {

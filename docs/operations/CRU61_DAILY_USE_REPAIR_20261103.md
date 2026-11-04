@@ -221,3 +221,12 @@ blocking otherwise qualified current-file observations.
 At this source checkpoint, candidate live/browser/cold-warm/recovery acceptance
 remains NOT RUN, formal remains unchanged, and REBOOT_NOT_RUN. The final local
 checkpoint records subsequent actual results separately.
+
+The first actual7b23a5e ReaderOnly start passed platform review but failed before
+spawning: the new entry and V2 reader compared the calendar's semantic payload
+hash against its physical-byte pin. This was a defect introduced in this repair;
+the synthetic fixture had incorrectly made the two hashes equal. Both readers
+now compare the physicalFileHash, retaining the immutable byte pin and existing
+governance validation. New regressions use the real governed calendar loaders,
+reproduce the prior rejection, and reject absent/wrong physical identity even
+when a semantic hash matches. No source calendar or manifest was altered.
