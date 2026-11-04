@@ -5,11 +5,13 @@ import vm from 'node:vm';
 import { SessionStore, parseCookies, safeEqual, sessionCookie, clearSessionCookie } from '../src/security.mjs';
 
 const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
-function harness(candidateReadOnly, cru55 = null) {
+function harness(candidateReadOnly, cru55 = null, marketCandidate = false) {
   const sessions = new SessionStore(60000), session = sessions.create('127.0.0.1');
   const context = { sessions, parseCookies, safeEqual, sessionCookie, clearSessionCookie,
     config: { candidateReadOnly, nodeEnv: 'test', passwordHash: '', sessionTtlMs: 60000, cookieSecure: true },
-    cru55, formalEntry: null, URL, crypto: { randomUUID: () => 'synthetic-session-test' }, console,
+    cru55, marketCandidate, formalEntry: null, URL, crypto: { randomUUID: () => 'synthetic-session-test' }, console,
+    marketCandidateStartup: { roots: {} }, assertMarketCandidateFilesystemRoots() {},
+    marketCandidateRouteAllowed: () => true, marketCandidateQueryAllowed: () => true,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
     loginLimiter: { check: () => ({ allowed: true }), success() {} },
     readJson: async () => ({ password: 'fixture' }),
@@ -39,6 +41,18 @@ test('formal and CRU55 session names remain unchanged', () => {
   assert.equal(formal.read(`twchip_session=${formal.session.id}`)?.id, formal.session.id);
   assert.equal(formal.read(`twchip_candidate_session=${formal.session.id}`), null);
   assert.equal(managed.read(`cru55_main_session=${managed.session.id}`)?.id, managed.session.id);
+});
+
+test('AI-disabled HTTPS candidate cannot consume or overwrite the formal cookie', async () => {
+  const h = harness(false, null, true);
+  assert.equal(h.read(`twchip_session=${h.session.id}`), null);
+  assert.equal(h.read(`twchip_candidate_session=${h.session.id}`)?.id, h.session.id);
+  const login = await h.request('/api/auth/login');
+  assert.equal(login.status, 200);
+  assert.match(login.headers['Set-Cookie'], /^twchip_candidate_session=/);
+  const logout = await h.request('/api/auth/logout', `twchip_candidate_session=${h.session.id}`);
+  assert.equal(logout.status, 200);
+  assert.match(logout.headers['Set-Cookie'], /^twchip_candidate_session=/);
 });
 
 test('candidate login and logout set only the candidate name with original secure attributes', async () => {

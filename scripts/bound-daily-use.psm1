@@ -27,8 +27,92 @@ function Get-BoundListener([int]$Port) {
   if ($owners.Count) { return Get-BoundProcess $owners[0] }
   return $null
 }
-function Get-BoundHealth([int]$Port) {
-  try { return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/$(if ($Port -eq 8790) {'health'} else {'healthz'})" -TimeoutSec 20 } catch { return $null }
+function Get-BoundHealth([int]$Port, [ValidateRange(1,20)][int]$TimeoutSeconds = 20) {
+  try { return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/$(if ($Port -eq 8790) {'health'} else {'healthz'})" -TimeoutSec $TimeoutSeconds } catch { return $null }
+}
+function Get-BoundLocalMarketExpected($b) {
+  if (-not $b.PSObject.Properties['localMarket']) { return $null }
+  $m=$b.localMarket
+  Assert-Bound ($null -ne $m) 'LOCAL_MARKET_BINDING_REQUIRED'
+  foreach ($key in @('schema','readDataRoot','chartCacheRoot','tlsBundle','tlsCertSha256')) { Assert-Bound ($m.PSObject.Properties.Name -ccontains $key) 'LOCAL_MARKET_BINDING_REQUIRED' }
+  Assert-Bound ($m.schema -ceq 'cru21-bound-local-market-v1') 'LOCAL_MARKET_BINDING_REQUIRED'
+  foreach ($value in @($m.readDataRoot,$m.chartCacheRoot,$m.tlsBundle)) {
+    Assert-Bound ($value -is [string] -and [IO.Path]::IsPathRooted($value) -and $value -cnotmatch '^[\\/]{2}' -and [IO.Path]::GetFullPath($value) -ceq $value) 'LOCAL_MARKET_PATH_REJECTED'
+  }
+  Assert-Bound ($m.chartCacheRoot -ceq (Join-Path $b.dataRoot 'dashboard-chart-cache')) 'LOCAL_MARKET_CACHE_ROOT'
+  Assert-Bound ($m.tlsCertSha256 -cmatch '^[a-f0-9]{64}$' -and $b.dashboard.allowedDirty.Count -eq 0) 'LOCAL_MARKET_IDENTITY_REQUIRED'
+  return @{HOST='127.0.0.1';PORT='8787';NODE_ENV='production';MOCK_DATA='0';COOKIE_SECURE='1';ASK_GPT_INLINE_ENABLED='0';
+    DASHBOARD_RELEASE_SCOPE='MARKET_RESEARCH_AI_DISABLED';DASHBOARD_FORMAL_READ_ROOT=$m.readDataRoot;
+    TX_CHART_DATA_ROOT=$m.readDataRoot;TX_CHART_CACHE_ROOT=$m.chartCacheRoot;
+    DASHBOARD_TLS_BUNDLE=$m.tlsBundle;DASHBOARD_TLS_CERT_SHA256=$m.tlsCertSha256}
+}
+function Read-BoundRoutingValue([string]$Raw) {
+  # Restricted single-line dotenv syntax for routing keys only. Unknown auth
+  # fields are never parsed/output here. Ambiguous multiline/escape syntax fails
+  # closed; Node remains the runtime's full dotenv parser.
+  $value=$Raw.Trim()
+  if ($value.StartsWith('"') -or $value.StartsWith("'")) {
+    $quote=$value.Substring(0,1);$end=$value.IndexOf($quote,1)
+    Assert-Bound ($end -gt 0 -and $value.Substring($end+1).Trim() -match '^(#.*)?$') 'ENV_ROUTING_FORMAT_UNSUPPORTED'
+    $value=$value.Substring(1,$end-1)
+    Assert-Bound (-not ($quote -ceq '"' -and $value -match '\\[nr]')) 'ENV_ROUTING_FORMAT_UNSUPPORTED'
+    return $value
+  }
+  Assert-Bound (-not $value.StartsWith('`')) 'ENV_ROUTING_FORMAT_UNSUPPORTED'
+  return $value.Split('#',2)[0].Trim()
+}
+function Assert-BoundLocalMarketEnvironment($b,[string[]]$Lines,$ShellItems) {
+  $expected=Get-BoundLocalMarketExpected $b
+  $seen=@{};$proxySeen=$false
+  foreach ($line in $Lines) {
+    if ($line -notmatch '^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') { continue }
+    $name=$Matches[1];$raw=$Matches[2]
+    if (-not (($expected -and ($expected.ContainsKey($name) -or $name -ieq 'TRUST_PROXY')) -or
+        $name -match '^(DASHBOARD_RELEASE_SCOPE|DASHBOARD_TLS_BUNDLE|DASHBOARD_TLS_CERT_SHA256|DASHBOARD_PREVIEW_.*|DASHBOARD_CANDIDATE_.*|ASK_GPT_CANDIDATE_READ_ROOT|NODE_TLS_REJECT_UNAUTHORIZED|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR)$')) { continue }
+    $value=Read-BoundRoutingValue $raw
+    if ($expected -and $expected.ContainsKey($name)) {
+      Assert-Bound (($expected.Keys -ccontains $name) -and -not $seen.ContainsKey($name) -and $value -ceq $expected[$name]) 'LOCAL_MARKET_ENV_MISMATCH'
+      $seen[$name]=$true
+    } elseif ($expected -and $name -ieq 'TRUST_PROXY') {
+      Assert-Bound ($name -ceq 'TRUST_PROXY' -and -not $proxySeen -and @('','0','false') -ccontains $value) 'LOCAL_MARKET_ENV_MISMATCH'
+      $proxySeen=$true
+    } elseif ($name -match '^(DASHBOARD_RELEASE_SCOPE|DASHBOARD_TLS_BUNDLE|DASHBOARD_TLS_CERT_SHA256)$') {
+      Assert-Bound ([string]::IsNullOrWhiteSpace($value)) 'LOCAL_MARKET_BINDING_REQUIRED'
+    }
+    if ($expected -and $name -match '^(DASHBOARD_PREVIEW_.*|DASHBOARD_CANDIDATE_.*|ASK_GPT_CANDIDATE_READ_ROOT|NODE_TLS_REJECT_UNAUTHORIZED|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR)$') {
+      Assert-Bound ([string]::IsNullOrWhiteSpace($value)) 'LOCAL_MARKET_ENV_REJECTED'
+    }
+  }
+  if ($expected) {
+    Assert-Bound ($seen.Count -eq $expected.Count) 'LOCAL_MARKET_ENV_MISSING'
+    foreach ($item in $ShellItems) {
+      if ($expected.ContainsKey($item.Name) -and $item.Value) { Assert-Bound ($item.Value -ceq $expected[$item.Name]) 'LOCAL_MARKET_SHELL_MISMATCH' }
+      if ($item.Name -ieq 'TRUST_PROXY') { Assert-Bound (@('','0','false') -ccontains $item.Value) 'LOCAL_MARKET_SHELL_MISMATCH' }
+      if ($item.Name -match '^(DASHBOARD_PREVIEW_.*|DASHBOARD_CANDIDATE_.*|ASK_GPT_CANDIDATE_READ_ROOT|NODE_TLS_REJECT_UNAUTHORIZED|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR)$') {
+        Assert-Bound (-not $item.Value) 'LOCAL_MARKET_SHELL_REJECTED'
+      }
+    }
+  }
+}
+function Get-BoundDashboardOrigin($b) {
+  if (Get-BoundLocalMarketExpected $b) { return 'https://127.0.0.1:8787' }
+  return 'http://127.0.0.1:8787'
+}
+function Get-BoundDashboardHealth($b) {
+  if (-not (Get-BoundLocalMarketExpected $b)) { return Get-BoundHealth 8787 }
+  # Normal Windows TLS validation only; failure stays unavailable, no HTTP retry.
+  try { return Invoke-RestMethod -Uri ((Get-BoundDashboardOrigin $b)+'/healthz') -TimeoutSec 20 } catch { return $null }
+}
+function Assert-BoundBridge($Listener, $Health, [string]$Reason = 'BRIDGE_UNVERIFIED') {
+  $safe = $false
+  if ($null -ne $Listener -and $null -ne $Health) {
+    try {
+      $typedFlags = $Health.ok -is [bool] -and $Health.researchOnly -is [bool] -and $Health.executionAuthorized -is [bool] -and $Health.orderRoutesEnabled -is [bool]
+      $numericWeight = $Health.formalWeight -is [int] -or $Health.formalWeight -is [long] -or $Health.formalWeight -is [double] -or $Health.formalWeight -is [decimal]
+      $safe = $Listener.pid -gt 0 -and $Listener.createdAt -is [string] -and -not [string]::IsNullOrWhiteSpace($Listener.createdAt) -and $typedFlags -and $numericWeight -and $Health.ok -eq $true -and $Health.mode -is [string] -and $Health.mode -ceq 'market_data_only' -and $Health.formalWeight -eq 0 -and $Health.researchOnly -eq $true -and $Health.executionAuthorized -eq $false -and $Health.orderRoutesEnabled -eq $false
+    } catch { $safe = $false }
+  }
+  Assert-Bound $safe $Reason
 }
 function Assert-BoundConsoleChildren($Dashboard, $Children) {
   $console=Join-Path $env:WINDIR 'System32\conhost.exe'
@@ -73,13 +157,19 @@ function Read-BoundPlan([string]$BindingPath, [string]$LauncherRoot) {
     Assert-Bound ([IO.File]::Exists($file)) 'SOURCE_FILE_MISSING'
   }
   # This package cannot activate a different collector, candidate, or CVD binding.
+  $localExpected=Get-BoundLocalMarketExpected $b
+  $envLines=[IO.File]::ReadAllLines($b.envFile)
+  $shellItems=@(Get-ChildItem Env:)
+  Assert-BoundLocalMarketEnvironment $b $envLines $shellItems
   $forbidden = '^(NODE_OPTIONS|NODE_PATH|CRU55_.*|CRU54_.*|FORWARD_SHADOW_.*|TXO_.*|CVD_.*|TX_CHART_.*|V2_RESEARCH_DATABASE_PATH|V2_BACKTEST_REPORT_PATH|DATA_OPERATIONS_OUTPUT_ROOT)$'
-  foreach ($item in Get-ChildItem Env:) {
+  foreach ($item in $shellItems) {
+    if ($localExpected -and $localExpected.ContainsKey($item.Name)) { continue }
     if ($item.Name -match $forbidden) { Assert-Bound (-not $item.Value) 'UNEXPECTED_SHELL_ROUTING' }
   }
-  foreach ($line in [IO.File]::ReadAllLines($b.envFile)) {
+  foreach ($line in $envLines) {
     if ($line -match '^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$' -and $Matches[1] -match $forbidden) {
-      Assert-Bound ([string]::IsNullOrWhiteSpace($line.Split('=',2)[1].Trim().Trim('"').Trim("'"))) 'UNEXPECTED_ENV_ROUTING'
+      if ($localExpected -and $localExpected.ContainsKey($Matches[1])) { continue }
+      Assert-Bound ([string]::IsNullOrWhiteSpace((Read-BoundRoutingValue $line.Split('=',2)[1]))) 'UNEXPECTED_ENV_ROUTING'
     }
   }
   foreach ($file in @('data\cru55-runtime\binding.json','data\runtime\cru55-binding.json')) {
@@ -107,6 +197,11 @@ function Assert-BoundWorker($b, $Status, $Lock, $Process) {
 }
 function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) {
   Assert-Bound ($null -ne $Health -and $null -ne $Process) 'DASHBOARD_UNVERIFIED'
+  if (Get-BoundLocalMarketExpected $b) {
+    Assert-Bound ($Health.localRelease.scope -ceq 'MARKET_RESEARCH_AI_DISABLED' -and $Health.localRelease.transport -ceq 'HTTPS' -and
+      $Health.localRelease.certificateSha256 -ceq $b.localMarket.tlsCertSha256 -and
+      $Health.inlineAssistant.enabled -is [bool] -and $Health.inlineAssistant.enabled -eq $false) 'LOCAL_MARKET_HEALTH_IDENTITY'
+  }
   $server = Join-Path $b.dashboard.root 'server.mjs'
   $expected = '"' + $b.node + '" --env-file="' + $b.envFile + '" "' + $server + '"'
   Assert-Bound ($Process.executable -ieq $b.node -and $Process.command.Trim() -ceq $expected) 'DASHBOARD_SOURCE'
@@ -156,12 +251,11 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   }
   Write-BoundStartupStage 'CHECK_DASHBOARD'
   $dashboard = Get-BoundListener 8787
-  if ($dashboard) { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard -MissingProducer:($null -eq $owner) }
+  if ($dashboard) { Assert-BoundDashboard $b (Get-BoundDashboardHealth $b) $dashboard -MissingProducer:($null -eq $owner) }
   Write-BoundStartupStage 'CHECK_BRIDGE'
   $bridge = Get-BoundListener 8790
   if ($bridge) {
-    $health = Get-BoundHealth 8790
-    Assert-Bound ($null -ne $health -and $health.ok -eq $true -and $health.mode -ceq 'market_data_only' -and $health.formalWeight -eq 0 -and $health.researchOnly -eq $true -and $health.executionAuthorized -eq $false -and $health.orderRoutesEnabled -eq $false) 'BRIDGE_UNVERIFIED'
+    Assert-BoundBridge $bridge (Get-BoundHealth 8790 -TimeoutSeconds 3)
   }
   New-Item -ItemType Directory -Path $b.logRoot -Force | Out-Null
   $paths = Get-BoundPaths $b
@@ -169,8 +263,17 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   $env:HOST = '127.0.0.1'; $env:PORT = '8787'
   # Preserve the existing standalone bridge starter; never run broad recovery/research automation.
   if (-not $bridge) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $b.dashboard.root 'scripts\start-shioaji-readonly-hidden.ps1')
+    & powershell.exe -NoProfile -NonInteractive -File (Join-Path $b.dashboard.root 'scripts\start-shioaji-readonly-hidden.ps1')
     Assert-Bound ($LASTEXITCODE -eq 0) 'BRIDGE_START_FAILED'
+    # Exit zero may mean a deliberately withheld broker login, not a started Bridge.
+    # Do not add login authorization here or launch dependent runtimes on that basis.
+    foreach ($attempt in 1..30) {
+      $bridge = Get-BoundListener 8790
+      if ($bridge) { break }
+      Start-Sleep -Milliseconds 500
+    }
+    Assert-Bound ($null -ne $bridge) 'BRIDGE_START_UNVERIFIED'
+    Assert-BoundBridge $bridge (Get-BoundHealth 8790 -TimeoutSeconds 3) 'BRIDGE_START_UNVERIFIED'
   }
   if (-not $owner) {
     $newPid = Start-BoundNode $b 'producer' ('"' + (Join-Path $b.producer.root 'scripts\run-cru34-live-projection.mjs') + '"') $b.producer.root
@@ -192,17 +295,20 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
       Write-BoundStartupStage 'CHECK_DASHBOARD'
       $dashboard = Get-BoundListener 8787
       if ($dashboard -and $dashboard.pid -eq $newPid) {
-        try { Assert-BoundDashboard $b (Get-BoundHealth 8787) $dashboard; $ready=$true; break } catch { }
+        try { Assert-BoundDashboard $b (Get-BoundDashboardHealth $b) $dashboard; $ready=$true; break } catch { }
       }
     }
     Assert-Bound $ready 'DASHBOARD_START_UNVERIFIED'
   }
   Write-BoundStartupStage 'VERIFY_FINAL_HTTP'
-  $health = Get-BoundHealth 8787
+  $health = Get-BoundDashboardHealth $b
   Assert-BoundDashboard $b $health (Get-BoundListener 8787)
+  $finalBridge = Get-BoundListener 8790
+  Assert-BoundBridge $finalBridge (Get-BoundHealth 8790 -TimeoutSeconds 3) 'BRIDGE_FINAL_UNVERIFIED'
+  Assert-Bound ($finalBridge.pid -eq $bridge.pid -and $finalBridge.createdAt -ceq $bridge.createdAt) 'BRIDGE_FINAL_UNVERIFIED'
   $result = @{ at=[datetime]::UtcNow.ToString('o'); result='BOUND_SOURCE_READY'; producer=$owner; dashboard=$dashboard; producerReady=$health.runtimeEvidence.producer.ready; producerReasons=$health.runtimeEvidence.producer.reasons; snapshot=$health.runtimeEvidence.producer.observedFlowIdentity; launcher=$b.launcher; producerSource=$b.producer; dashboardSource=$b.dashboard }
   $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $b.logRoot ("startup-"+[guid]::NewGuid().ToString()+'.json')) -Encoding UTF8
-  if (-not $NoBrowser) { Start-Process 'http://127.0.0.1:8787' }
+  if (-not $NoBrowser) { Start-Process (Get-BoundDashboardOrigin $b) }
   return $result
 }
 Export-ModuleMember -Function *-Bound*

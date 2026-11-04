@@ -7,6 +7,7 @@ import { Socket } from 'node:net';
 import { createSecureContext, TLSSocket } from 'node:tls';
 import { X509Certificate, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { assertMarketCandidateMode } from './cru21-market-candidate.mjs';
 
 export const LOCAL_MARKET_SCOPE = 'MARKET_RESEARCH_AI_DISABLED';
 const fail = code => { throw Error(code); };
@@ -44,7 +45,7 @@ export function unprotectLocalBytes(encrypted) {
   } catch { fail('LOCAL_DPAPI_FAILED'); }
 }
 
-export function readLocalProtectedBytes(file, unprotect=unprotectLocalBytes) {
+export function readLocalProtectedBytes(file, unprotect=unprotectLocalBytes, {expectedSha256}={}) {
   if (!path.isAbsolute(file) || /^[\\/]{2}/.test(file)) fail('LOCAL_TLS_PATH_ALIAS');
   const absolute=path.resolve(file);
   let current=absolute;
@@ -60,6 +61,7 @@ export function readLocalProtectedBytes(file, unprotect=unprotectLocalBytes) {
     if(!before.isFile() || before.nlink!==1 || before.size<1 || before.size>128*1024) fail('LOCAL_TLS_FILE_REJECTED');
     const encrypted=fs.readFileSync(fd), after=fs.fstatSync(fd), named=fs.statSync(absolute);
     if(before.size!==after.size || before.mtimeMs!==after.mtimeMs || before.ino!==named.ino || before.dev!==named.dev) fail('LOCAL_TLS_FILE_CHANGED');
+    if(expectedSha256 && createHash('sha256').update(encrypted).digest('hex')!==expectedSha256) fail('LOCAL_TLS_BUNDLE_HASH_REJECTED');
     return unprotect(encrypted);
   } finally {fs.closeSync(fd);}
 }
@@ -81,10 +83,12 @@ export function assertLocalPfxIdentity(pfx, passphrase, certificate) {
 }
 
 export function loadLocalTls(env, config, {readProtected=readLocalProtectedBytes, now=Date.now()}={}) {
-  if(!assertLocalMarketMode(env,config))return null;
+  const candidate=assertMarketCandidateMode(env,config);
+  if(!candidate&&!assertLocalMarketMode(env,config))return null;
   let plain;
   try {
-    plain=readProtected(env.DASHBOARD_TLS_BUNDLE);
+    plain=candidate?readProtected(env.DASHBOARD_TLS_BUNDLE,unprotectLocalBytes,{expectedSha256:env.DASHBOARD_TLS_BUNDLE_SHA256})
+      :readProtected(env.DASHBOARD_TLS_BUNDLE);
     const value=JSON.parse(plain.toString('utf8'));
     if(value.schema!=='cru21-local-tls-bundle-v1' || typeof value.pfx!=='string'
         || typeof value.passphrase!=='string' || value.passphrase.length<32) fail('LOCAL_TLS_BUNDLE_INVALID');

@@ -63,7 +63,8 @@ if (lane === 'ci' && assigned.size > 0) {
 // starve real Git/PowerShell probes with bounded production identity deadlines.
 // Keep those deadlines unchanged; bound only this test runner's fan-out.
 const concurrency = process.platform === 'win32' ? ['--test-concurrency=4'] : [];
-const result = spawnSync(process.execPath, ['--test', ...concurrency, ...selected.map((file) => path.join('tests', file))], {
+// Captured-handler tests use VM modules with synthetic IO, not a live server.
+const result = spawnSync(process.execPath, ['--experimental-vm-modules', '--test', ...concurrency, ...selected.map((file) => path.join('tests', file))], {
   cwd: root,
   stdio: 'inherit',
 });

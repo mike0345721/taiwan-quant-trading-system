@@ -36,7 +36,7 @@ function harness(flag) {
     process: { execPath: 'synthetic-node', env: { V2_DATABASE_PATH: 'synthetic-protected-source' } },
     crypto: { randomUUID: () => 'synthetic-request' }, console,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
-    cru55: null, formalEntry: null, inlineHandler: async () => false,
+    cru55: null, formalEntry: null, marketCandidate: false, inlineHandler: async () => false,
     currentCru46RuntimeReadiness: () => ({ runtimeReady: false }),
     runtimeIdentity: { commit: 'a'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: { approvedMainCommit: 'b'.repeat(40), syncState: 'MISMATCH' },

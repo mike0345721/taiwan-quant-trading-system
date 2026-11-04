@@ -829,6 +829,54 @@ function renderDecisionCockpit(snapshot) {
     : [Object.assign(document.createElement('p'), { textContent: '等待六軸影子紀錄' })]));
 }
 
+function renderSnapshotUnavailable(reason = 'EOD_SNAPSHOT_UNAVAILABLE') {
+  state.snapshot = null;
+  const message = `UNAVAILABLE · ${reason} · 每日資料不可用，資料日期未知`;
+  // Remove previously rendered current-day values; historical views remain separate.
+  // Do not render an empty snapshot: legacy renderers default some missing scores to 0.
+  const values = ['as-of','regime','bias','score','risk-scores','risk-score-note','confidence','completeness',
+    'trade-state','tradability','price-confirmation','price-confirmation-note','score-explanation','regime-note',
+    'advice-action','decision-conclusion','decision-reason','decision-trigger','decision-invalidation',
+    'advice-stocks','advice-futures','advice-options','advice-risk','cockpit-data-date','cockpit-quality',
+    'cockpit-action','cockpit-recommendation','cockpit-direction','cockpit-research-bias','cockpit-prohibition',
+    'shadow-score-summary','shadow-score-note','shadow-score-audit','v362-data-date','v362-cache','v362-pending',
+    'v362-evidence-badge','v362-direction','v362-volatility','v362-recommendation','v362-evidence-note',
+    'v362-vix-change','v362-vix-note','v362-option-vol','v362-option-note','v362-foreign-5d','v362-foreign-note',
+    'v362-short-add','v362-short-note','v362-price','v362-price-note','v362-quality','v3-data-date','v3-headline',
+    'v3-risk-score','v3-risk-level','v3-risk-headline','v3-risk-note','v3-mode','v3-action','v3-large-move',
+    'v3-large-evidence','v3-gap-risk','v3-gap-evidence','v3-direction','v3-direction-note','v3-price-state',
+    'v3-price-note',
+    'overview-date','spot-date','margin-date','futures-date','options-date','quality-summary',
+    'spot-summary','futures-summary','options-summary','bull-evidence-count','bear-evidence-count','conflict-evidence-count'];
+  for (const id of values) {
+    const target = $(id); if (!target) continue;
+    target.textContent = message; target.classList.remove('positive','negative','good','bad','ok');
+  }
+  for (const target of document.querySelectorAll('.cockpit-axis-grid strong, .cockpit-axis-grid small')) target.textContent = '— UNAVAILABLE';
+  for (const target of document.querySelectorAll('.cockpit-axis-grid .axis-card')) target.className = 'axis-card is-unknown';
+  for (const id of ['v3-gate-risk','v3-gate-direction','v3-gate-price','v3-gate-evidence']) {
+    const gate = $(id); if (!gate) continue;
+    gate.className = 'gate is-blocked'; const label = gate.querySelector('small');
+    if (label) label.textContent = message;
+  }
+  if ($('cockpit-posture')) $('cockpit-posture').className = 'cockpit-posture is-wait';
+  if ($('v362-posture')) $('v362-posture').className = 'v362-posture risk-unknown';
+  $('v3-risk-ring')?.style.removeProperty('--risk-value');
+  $('v3-risk-ring')?.classList.remove('risk-high','risk-medium');
+  for (const id of ['market-cards','spot-cards','futures-cards','options-cards','breadth-trend-panel','spot-trend-panel',
+    'margin-trend-panel','futures-trend-panel','options-trend-panel','score-bars','cockpit-component-bars',
+    'shadow-six-axis-list','v3-risk-groups','v3-reasons','bull-evidence-list','bear-evidence-list','conflict-evidence-list','alert-area']) {
+    const note = document.createElement('p'); note.textContent = message;
+    $(id)?.replaceChildren(note);
+  }
+  for (const id of ['options-contract-table','source-table']) {
+    const row = document.createElement('tr'), cell = document.createElement('td');
+    cell.colSpan = 10; cell.textContent = message; row.append(cell); $(id)?.replaceChildren(row);
+  }
+  $('option-contract-select')?.replaceChildren();
+  renderDealerMap(null); renderOptionOiChart(null);
+}
+
 function render(snapshot) {
   state.snapshot = snapshot;
   renderDecisionCockpit(snapshot);
@@ -4932,8 +4980,25 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }
 }
 
+// Returns only a candidate's own binding. The server independently verifies
+// this before normalizing a proof; a formal/old frame cannot be relabeled.
+function marketCandidateBrowserBinding(version, location) {
+  if (version?.previewType !== 'CRU21_MARKET_RESEARCH_CANDIDATE'
+      || version.releaseScope !== 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE'
+      || version.branch !== 'codex/cru61-daily-use-repair-20261103'
+      || version.aiEnabled !== false || version.complete !== false || version.deliveryAccepted !== false
+      || !/^[a-f0-9]{40}$/.test(version.exactHead || '') || version.exactHead !== version.runtimeCommit
+      || version.exactHead !== version.buildCommit || !/^[a-f0-9]{40}$/.test(version.exactTree || '')
+      || version.exactTree !== version.runtimeTree || version.exactTree !== version.buildTree
+      || !Number.isFinite(Date.parse(version.runtimeStartedAt))
+      || location?.origin !== 'https://127.0.0.1:18723') return null;
+  return {candidateScope:version.releaseScope,previewType:version.previewType,origin:location.origin,
+    exactHead:version.exactHead,exactTree:version.exactTree,runtimeStartedAt:version.runtimeStartedAt};
+}
+
 async function reportCru46BrowserRuntimeProof(service = null) {
   const version = state.decisionWorkspace?.runtimeVersion;
+  const marketCandidateBinding = marketCandidateBrowserBinding(version, window.location);
   const isPreview = ['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType);
   const isFormalRuntime = !version?.previewType && version?.syncState === 'SYNCED'
     && /^[0-9a-f]{40}$/.test(version?.runtimeCommit || '')
@@ -4945,7 +5010,7 @@ async function reportCru46BrowserRuntimeProof(service = null) {
     && /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(version.runtimeStartedAt)
     && Number.isFinite(Date.parse(version.runtimeStartedAt))
     && window.location?.hostname === '127.0.0.1' && window.location?.port === '18723';
-  if (!isPreview && !isFormalRuntime && !isReaderCandidate) return;
+  if (!isPreview && !isFormalRuntime && !isReaderCandidate && !marketCandidateBinding) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -4960,6 +5025,7 @@ async function reportCru46BrowserRuntimeProof(service = null) {
   const flow1h = $('dw-flow-tab-1h');
   const flow4h = $('dw-flow-tab-4h');
   await apiRequestCru46Proof({
+    ...marketCandidateBinding,
     lightweightChartsApiMajor: typeof api?.createChart === 'function' && api?.CandlestickSeries && api?.HistogramSeries ? 5 : null,
     canvasCount: target?.querySelectorAll('canvas').length || 0,
     chartWidth: Math.round(rect?.width || 0),
@@ -5271,8 +5337,19 @@ async function loadDashboard() {
   const payload = await api('/api/v1/dashboard');
   if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
   state.homeDashboardError = null;
+  const partial = payload.service?.degraded;
+  let partialNotice = $('candidate-partial-data-notice');
+  if (partial?.reason === 'EOD_SNAPSHOT_UNAVAILABLE' && partial.status === 'PARTIAL') {
+    if (!partialNotice) { partialNotice = document.createElement('p');partialNotice.id = 'candidate-partial-data-notice';
+      partialNotice.className = 'alert warn';partialNotice.setAttribute('role','status');
+      $('dashboard-view').prepend(partialNotice); }
+    partialNotice.textContent = '部分資料模式：' + (partial.eodReason === 'EOD_SNAPSHOT_DATA_MODE_REJECTED'
+      ? '快取資料模式與即時來源不符，已隔離。' : '盤後總覽資料不可用。')
+      + '圖表與 Flow 僅顯示各自已取得的觀察；時效、盤別、品質與判讀資格仍各自檢查，並不代表完整盤況或正式驗收。';
+  } else partialNotice?.remove();
   flowChannel.merge(payload.decisionWorkspace?.observedFlow, flowTicket);
   if (payload.data) render(payload.data);
+  else renderSnapshotUnavailable(partial?.eodReason || partial?.reason);
   renderDecisionWorkspace(payload.decisionWorkspace);
   await loadIndexLeadership().catch(renderIndexLeadershipFailure);
   await loadTxDecisionChart({ fit: true }).catch((error) => {
@@ -5282,7 +5359,7 @@ async function loadDashboard() {
   await loadLiveMarketPulse().catch(() => {});
   if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(payload.service); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
   if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
-  terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
+  terminalRoot?.setAttribute('data-dashboard-load-state', partial?.status === 'PARTIAL' ? 'PARTIAL' : 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }

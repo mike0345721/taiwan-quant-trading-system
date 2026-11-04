@@ -17,7 +17,7 @@ function harness() {
   const context = {
     URL, sessions, parseCookies, safeEqual, console, crypto: { randomUUID: () => 'synthetic-chart-request' },
     config: { candidateReadOnly: false, host: '127.0.0.1', port: 18723 },
-    process: { env: {} }, cru55: null, formalEntry: null,
+    process: { env: {} }, cru55: null, formalEntry: null, marketCandidate: false,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
     inlineHandler: async () => false,
     sendJson(res, status, body) { res.status = status; res.body = JSON.parse(JSON.stringify(body)); },

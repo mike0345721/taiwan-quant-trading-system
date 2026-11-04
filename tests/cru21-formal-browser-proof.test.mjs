@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
-const code=app.slice(app.indexOf('async function reportCru46BrowserRuntimeProof('),app.indexOf('function renderDecisionWorkspace('));
+const code=app.slice(app.indexOf('function marketCandidateBrowserBinding('),app.indexOf('function renderDecisionWorkspace('));
 const commit='a'.repeat(40);
 const formalVersion=()=>({runtimeCommit:commit,approvedMainCommit:commit,syncState:'SYNCED'});
 function harness(version=formalVersion(),location={hostname:'127.0.0.1',port:'8787'}){
@@ -116,9 +116,10 @@ test('dashboard supplies the actual service flag to the normal proof submission 
   const workspace = { runtimeVersion: candidateVersion() };
   Object.assign(h.context, { flowChannel: { ticket: () => ({}), isCurrentSession: () => true, merge() {} },
     loadHistory: async () => {}, loadBacktest: async () => {}, loadIndexLeadership: async () => {},
-    renderIndexLeadershipFailure() {}, renderDecisionWorkspace: value => { h.context.state.decisionWorkspace = value; },
+    renderIndexLeadershipFailure() {}, renderSnapshotUnavailable() {}, renderDecisionWorkspace: value => { h.context.state.decisionWorkspace = value; },
     loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {}, loadDecisionJournal: async () => {}, renderPrelive() {} });
   h.context.state.csrfToken = 'fixture-csrf'; h.node('decision-workspace').setAttribute = () => {};
+  h.node('candidate-partial-data-notice').remove = () => {};
   const actualApi = h.context.api;
   h.context.api = async (route, options) => route === '/api/v1/dashboard' ? { service, decisionWorkspace: workspace } : actualApi(route, options);
   const start = app.indexOf('async function loadDashboard('), end = app.indexOf('\n}', start) + 2;

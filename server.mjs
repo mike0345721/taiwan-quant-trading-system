@@ -1,4 +1,8 @@
 import http from 'node:http';
+import { assessCandidateMarketInputs } from './src/candidate-market-inputs.mjs';
+import { MARKET_CANDIDATE_SCOPE, MARKET_CANDIDATE_PREVIEW, assertMarketCandidateMode,
+  assertMarketCandidateEnvironmentRoots, assertMarketCandidateFilesystemRoots, buildMarketCandidateVersion, validateMarketCandidateVersionTruth,
+  marketCandidateRouteAllowed, marketCandidateQueryAllowed, marketCandidateBrowserBindingMatches } from './src/cru21-market-candidate.mjs';
 import { resolveDashboardReadDataRoot } from './src/dashboard-source-binding.mjs';
 import { InlineAssistant } from './src/ask-gpt-inline-service.mjs';
 import { createInlineHandler } from './src/ask-gpt-inline-http.mjs';
@@ -83,22 +87,37 @@ import {
 import { createDashboardServer, assertLocalMarketMode } from './src/dashboard-local-tls.mjs';
 validateConfig();
 // Fail before cache/session/account initialization for an invalid scoped release.
-const localMarketOnly = assertLocalMarketMode(process.env, config);
+const marketCandidate = assertMarketCandidateMode(process.env, config);
+const localMarketOnly = marketCandidate ? false : assertLocalMarketMode(process.env, config);
+// Reject roots/version before any cache, Session, managed-entry or research initialization.
+const marketCandidateStartup = marketCandidate ? (() => {
+  const roots = assertMarketCandidateEnvironmentRoots(process.env, config);
+  assertMarketCandidateFilesystemRoots(roots);
+  const runtimeIdentity = readRuntimeIdentity(config.appRoot);
+  const approvedMainIdentity = readRuntimeIdentity(config.appRoot, {ref:'refs/heads/main'});
+  const git = args => execFileSync('git', ['--no-optional-locks','-c','core.fsmonitor=false','-c','core.untrackedCache=false',...args],
+    {cwd:config.appRoot,encoding:'utf8',windowsHide:true,timeout:2000}).trim();
+  const actualTree = git(['rev-parse','HEAD^{tree}']);
+  const actualBranch = git(['branch','--show-current']);
+  const sourceClean = git(['status','--porcelain']) === '';
+  const runtimeStartedAt = new Date().toISOString();
+  const baseVersion = buildRuntimeVersionStatus({runtimeIdentity,approvedMainIdentity,runtimeStartedAt});
+  const version = buildMarketCandidateVersion({runtimeVersion:{...baseVersion,runtimeTree:actualTree},
+    branch:process.env.DASHBOARD_PREVIEW_BRANCH,dataMode:'LIVE'});
+  const truth = validateMarketCandidateVersionTruth(version, {expectedHead:process.env.DASHBOARD_PREVIEW_EXPECTED_HEAD,
+    expectedTree:process.env.DASHBOARD_PREVIEW_EXPECTED_TREE,actualTree,
+    expectedBaseMain:process.env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN,actualBranch,sourceClean,
+    host:config.host,port:config.port,inlineEnabled:false,candidateReadRoot:roots.readDataRoot,actualDataMode:'LIVE'});
+  if (!truth.ready) throw Error('MARKET_CANDIDATE_STARTUP_REJECTED');
+  return {roots,runtimeIdentity,approvedMainIdentity,runtimeStartedAt,sourceClean,version,truth};
+})() : null;
 if (process.env.CRU21_GUEST_ENABLED === '1') {
   await import('./src/cru21-guest-server.mjs').then(m => m.startGuestServer({ appRoot: config.appRoot }));
 } else {
 // Explicit isolated integration only. Formal startup retains the existing path.
 const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration.mjs').then(m => m.prepareIntegration(config)) : null;
 
-const cache = cru55 ? { init: async () => {}, loadLatest: async () => structuredClone(cru55.seed), listHistory: async (limit = 30) => structuredClone(cru55.history.slice(0, limit)) } : new CacheStore({ dataDir: config.dataDir, historyDir: config.historyDir });
-await cache.init();
-let latestSnapshot = await cache.loadLatest();
-const formalEntry = cru55 ? null : prepareFormalEntry(config, () => latestSnapshot);
-const marketData = new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
 const expectedDataMode = config.mockData ? 'mock' : 'live';
-const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
-const loginLimiter = new LoginRateLimiter();
-let dailyUpdateProcess = null;
 // Explicit source bindings read existing governed products; private writes stay in config.dataDir.
 const readDataRoot = resolveDashboardReadDataRoot({
   dataDir: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
@@ -107,7 +126,24 @@ const readDataRoot = resolveDashboardReadDataRoot({
   candidateReadRoot: process.env.ASK_GPT_CANDIDATE_READ_ROOT,
   formalReadRoot: process.env.DASHBOARD_FORMAL_READ_ROOT,
   isolatedMode: Boolean(config.cru55Candidate || config.cru55Acceptance),
+  marketCandidateScope: process.env.DASHBOARD_RELEASE_SCOPE,
+  marketCandidateReadRoot: process.env.DASHBOARD_CANDIDATE_READ_ROOT,
+  sourceRoot: config.appRoot, producerDataRoot: process.env.CRU34_LIVE_DATA_ROOT,
+  chartCacheRoot: process.env.TX_CHART_CACHE_ROOT,
 });
+const cache = cru55 ? { init: async () => {}, loadLatest: async () => structuredClone(cru55.seed), listHistory: async (limit = 30) => structuredClone(cru55.history.slice(0, limit)) }
+  : new CacheStore(marketCandidate ? {dataDir:readDataRoot,historyDir:path.join(readDataRoot,'history')}
+    : {dataDir:config.dataDir,historyDir:config.historyDir});
+if (!marketCandidate) await cache.init(); // Candidate input cache is read-only, including startup.
+let latestSnapshot = await cache.loadLatest();
+let candidateCacheModeRejected = Boolean(marketCandidate && latestSnapshot && latestSnapshot.dataMode !== expectedDataMode);
+if (candidateCacheModeRejected) latestSnapshot = null; // Quarantine in memory; never rewrite a source cache.
+const formalEntry = cru55 || marketCandidate ? null : prepareFormalEntry(config, () => latestSnapshot);
+const marketData = marketCandidate ? null : new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, mockData: config.mockData });
+const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
+const loginLimiter = new LoginRateLimiter();
+const offlineCandidate = marketCandidate || Boolean(config.cru55Acceptance);
+let dailyUpdateProcess = null;
 const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
 const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');
@@ -157,10 +193,11 @@ const lightweightChartsPackagePath = path.resolve(process.env.DASHBOARD_LIGHTWEI
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'package.json'));
 const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || readDataRoot);
 const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(cru34LiveDataRoot, 'runtime', 'cru34-live', 'latest.json'));
-const runtimeIdentity = readRuntimeIdentity(config.appRoot);
-const approvedMainIdentity = readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
-const runtimeStartedAt = new Date().toISOString();
+const runtimeIdentity = marketCandidateStartup?.runtimeIdentity || readRuntimeIdentity(config.appRoot);
+const approvedMainIdentity = marketCandidateStartup?.approvedMainIdentity || readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
+const runtimeStartedAt = marketCandidateStartup?.runtimeStartedAt || new Date().toISOString();
 const sourceCleanAtStartup = (() => {
+  if (marketCandidateStartup) return marketCandidateStartup.sourceClean;
   try { return execFileSync('git', ['status', '--porcelain'], { cwd: config.appRoot, encoding: 'utf8', windowsHide: true, timeout: 2000 }).trim() === ''; }
   catch { return false; }
 })();
@@ -170,7 +207,7 @@ const cru44PreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'CRU44_OWNER_
 const integrationPreviewEnabled = process.env.DASHBOARD_PREVIEW_TYPE === 'INTEGRATION_OWNER_PREVIEW';
 const previewVersionOptions = { runtimeVersion: baseRuntimeVersion, branch: process.env.DASHBOARD_PREVIEW_BRANCH,
   dataMode: process.env.DASHBOARD_PREVIEW_DATA_MODE || expectedDataMode.toUpperCase() };
-const runtimeVersion = cru21PreviewEnabled
+const runtimeVersion = marketCandidate ? marketCandidateStartup.version : cru21PreviewEnabled
   ? buildCru21PreviewVersion(previewVersionOptions)
   : cru44PreviewEnabled
   ? buildCru44PreviewVersion({ ...previewVersionOptions, enabled: true })
@@ -186,14 +223,14 @@ const cru21IdentityOptions = cru21PreviewEnabled ? {
 if (cru21PreviewEnabled && !validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions).ready) throw Error('CRU21_PREVIEW_STARTUP_REJECTED');
 const defaultProductSurface = Object.freeze({ productSurface: CRU46_PRODUCT_SURFACE_CONTRACT });
 const productSurfaceContract = selectDashboardProductSurface({
-  localMarketOnly,
+  localMarketOnly, marketCandidate,
   previewType: process.env.DASHBOARD_PREVIEW_TYPE,
   actualBranch: cru21IdentityOptions?.actualBranch,
 });
 let lastRefreshError = null;
 let browserRuntimeProof = null;
-const isolatedBridge={connected:false,state:'UNAVAILABLE',reason:'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
-const isolatedLeadership={state:'UNAVAILABLE',reason:'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
+const isolatedBridge={connected:false,state:'UNAVAILABLE',reason:marketCandidate?'MARKET_CANDIDATE_NO_LIVE_BRIDGE':'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
+const isolatedLeadership={state:'UNAVAILABLE',reason:marketCandidate?'MARKET_CANDIDATE_NO_LIVE_BRIDGE':'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE',executionAuthorized:false,orderRoutesEnabled:false};
 
 function currentObservedFlow() {
   return loadFlowRefresh({ runtimeCommit: runtimeIdentity.commit,
@@ -210,8 +247,8 @@ async function currentDecisionLevelWatch(chart = null) {
 
 async function currentMarketPulse(chart = null) {
   const selectedChart = chart || await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
-  const bridgeLatest = config.cru55Acceptance
-    ? { state: 'UNAVAILABLE', reason: 'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE', data: null }
+  const bridgeLatest = offlineCandidate
+    ? { state: 'UNAVAILABLE', reason: marketCandidate?'MARKET_CANDIDATE_NO_LIVE_BRIDGE':'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE', data: null }
     : await inspectShioajiLatest();
   return buildMarketPulseLive({
     chart: selectedChart,
@@ -221,7 +258,7 @@ async function currentMarketPulse(chart = null) {
 }
 
 function currentCru46RuntimeReadiness() {
-  const identity = cru21PreviewEnabled
+  const identity = marketCandidate ? marketCandidateStartup.truth : cru21PreviewEnabled
     ? validateCru21PreviewVersionTruth(runtimeVersion, cru21IdentityOptions)
     : cru44PreviewEnabled
     ? validateCru44PreviewVersionTruth(runtimeVersion, runtimeIdentity.commit)
@@ -249,13 +286,15 @@ function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 }
 
-async function decisionWorkspacePayload(snapshot, service) {
+async function decisionWorkspacePayload(snapshot, service, marketInputs = null) {
   const indexLeadership = service?.indexLeadership || null;
-  const runtimeTruth = await readDashboardRuntimeTruth({
+  const runtimeTruth = marketCandidate ? {governed:false,checkedAt:new Date().toISOString(),
+    reason:'MARKET_CANDIDATE_NO_SCHEDULER_QUERY',executionAuthorized:false} : await readDashboardRuntimeTruth({
     baseRoot: forwardShadowBaseRoot,
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
-  const chart = await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
+  const chart = marketInputs ? marketInputs.chart
+    : await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
   const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
     ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
     : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
@@ -275,36 +314,55 @@ async function decisionWorkspacePayload(snapshot, service) {
     indexLeadership,
     globalContext,
   });
-  const feed = buildMarketChangeFeed(chart);
+  const feed = marketInputs && !chart ? {events:[]} : buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
-  const observedFlow = currentObservedFlow();
-  const marketPulse = await currentMarketPulse(chart);
+  const observedFlow = marketInputs ? marketInputs.flow : currentObservedFlow();
+  const marketPulse = marketInputs && !chart ? buildMarketPulseLive({chart:null,
+    bridgeLatest:{state:'UNAVAILABLE',reason:'MARKET_CANDIDATE_NO_LIVE_BRIDGE',data:null},archiveDir:null})
+    : await currentMarketPulse(chart);
   return { ...buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
     marketPulse,
-  }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar) };
+  }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar),
+    ...(service?.degraded ? {degraded:service.degraded} : {}) };
+}
+
+async function candidatePartialInputs(service) {
+  let chart = null, flow = null;
+  try { chart = await txChartService.load({timeframe:'5m',mode:'LIVE'}); }
+  catch { /* A source failure stays unavailable. */ }
+  try { flow = currentObservedFlow(); } catch { /* No acquisition or fallback transport. */ }
+  const degraded = assessCandidateMarketInputs({chart,flow});
+  service.degraded = candidateCacheModeRejected
+    ? Object.freeze({...degraded,eodReason:'EOD_SNAPSHOT_DATA_MODE_REJECTED'}) : degraded;
+  return degraded.status === 'PARTIAL' ? {
+    chart:degraded.marketInputs.chart.observationAvailable ? chart : null,
+    flow:degraded.marketInputs.flow.observationAvailable ? flow : null,
+  } : null;
 }
 
 async function currentDiscussionWorkspace() {
-  if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
+  if (marketCandidate || !latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
     try { await refreshSnapshot(); } catch { /* retain truthful unavailable state below */ }
   }
-  if (!latestSnapshot) return null;
-  const shioaji = config.cru55Acceptance
+  if (!latestSnapshot && !marketCandidate) return null;
+  const shioaji = offlineCandidate
     ? isolatedBridge
     : await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
-  const indexLeadership = config.cru55Acceptance
+  const indexLeadership = offlineCandidate
     ? isolatedLeadership
     : await inspectIx0001Leadership({ bridge: shioaji });
-  const clientSnapshot = {
+  const clientSnapshot = latestSnapshot ? {
     ...latestSnapshot,
     researchDecision: v2Research.decisionSupport(),
     priceConfirmation: loadPriceConfirmation(intradayPath),
-  };
-  enrichSnapshot(clientSnapshot, await cache.listHistory(400));
-  clientSnapshot.sixAxisShadow = buildSixAxisShadow(clientSnapshot);
+  } : null;
+  if (clientSnapshot) {
+    enrichSnapshot(clientSnapshot, await cache.listHistory(400));
+    clientSnapshot.sixAxisShadow = buildSixAxisShadow(clientSnapshot);
+  }
   const servicePayload = {
     readOnly: true,
     candidateReadOnly: config.candidateReadOnly,
@@ -316,7 +374,9 @@ async function currentDiscussionWorkspace() {
     productSurface: productSurfaceContract,
     indexLeadership,
   };
-  return decisionWorkspacePayload(clientSnapshot, servicePayload);
+  if (clientSnapshot) return decisionWorkspacePayload(clientSnapshot, servicePayload);
+  const inputs = await candidatePartialInputs(servicePayload);
+  return inputs ? decisionWorkspacePayload(undefined, servicePayload, inputs) : null;
 }
 
 async function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
@@ -360,7 +420,15 @@ function preliveStatus(snapshot = latestSnapshot, shioaji = null) {
 }
 
 async function refreshSnapshot() {
-  if (cru55 || config.cru55Acceptance) return latestSnapshot; // isolated cache, never acquire upstream data
+  if (marketCandidate) {
+    // Re-read only the bound official cache. A later publication must become
+    // visible without acquiring sources or rewriting the shared input file.
+    const input = await cache.loadLatest();
+    candidateCacheModeRejected = Boolean(input && input.dataMode !== expectedDataMode);
+    latestSnapshot = candidateCacheModeRejected ? null : input;
+    return latestSnapshot;
+  }
+  if (cru55 || offlineCandidate) return latestSnapshot; // isolated cache, never acquire upstream data
   try {
     const snapshot = await marketData.refresh(latestSnapshot);
     enrichSnapshot(snapshot, await cache.listHistory(400));
@@ -386,7 +454,7 @@ function getSession(req) {
 function runtimeSessionCookieName() {
   // Cookies are shared across localhost ports. Candidate login/logout must not
   // replace or clear the formal dashboard's browser session.
-  return cru55 ? 'cru55_main_session' : config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session';
+  return cru55 ? 'cru55_main_session' : marketCandidate || config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session';
 }
 
 function requireSession(req, res) {
@@ -425,6 +493,13 @@ const requestHandler = async (req, res) => {
   const ip = clientIp(req, config.trustProxy);
 
   try {
+    if (marketCandidate) assertMarketCandidateFilesystemRoots(marketCandidateStartup.roots);
+    if (marketCandidate && !marketCandidateRouteAllowed(req.method, pathname)) {
+      sendJson(res,403,{ok:false,error:'MARKET_CANDIDATE_READ_ONLY'}); return;
+    }
+    if (marketCandidate && !marketCandidateQueryAllowed(url)) {
+      sendJson(res,400,{ok:false,error:'MARKET_CANDIDATE_QUERY_REJECTED'}); return;
+    }
     if(config.cru55Acceptance&&!['GET','HEAD'].includes(req.method)&&!['/api/auth/login','/api/auth/logout','/api/v1/cru46-browser-runtime-proof','/api/v1/decision-journal'].includes(pathname)){
       sendJson(res,403,{error:'CANDIDATE_READ_ONLY'});return;
     }
@@ -447,6 +522,9 @@ const requestHandler = async (req, res) => {
           calendar: operatingCalendar,
         }),
         inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
+        candidateRelease: marketCandidate ? {scope:MARKET_CANDIDATE_SCOPE,transport:'HTTPS',
+          aiEnabled:false,certificatePinConfigured:process.env.DASHBOARD_TLS_CERT_SHA256,
+          deliveryAccepted:false,dataQualificationDeclared:false} : null,
         localRelease: localMarketOnly ? { scope:'MARKET_RESEARCH_AI_DISABLED', transport:'HTTPS',
           certificateSha256:process.env.DASHBOARD_TLS_CERT_SHA256, marketDataQualified:false } : null,
         cru55Acceptance: config.cru55Acceptance?{runId:config.cru55Acceptance.runId,bindingHash:config.cru55Acceptance.bindingHash,sourceKind:config.cru55Acceptance.sourceKind}:null,
@@ -521,7 +599,7 @@ const requestHandler = async (req, res) => {
         try {
           sendJson(res, 200, { ok: true, data: readDataOperations(resolveOperationsReader({
             manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH,
-            dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
+            dataRoot: marketCandidate ? readDataRoot : cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
             outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT, calendar: operatingCalendar })) },
             { 'Cache-Control': 'no-store' });
         } catch {
@@ -541,7 +619,7 @@ const requestHandler = async (req, res) => {
         sendJson(res, 200, { ok: true, data: buildResearchEvidence({
           now, calendar: chartCalendar, flow: currentObservedFlow(),
           quote: readLatestResearchQuote(cru34LiveDataRoot, now),
-          result: readResearchResult(path.join(config.dataDir, 'research-validation', 'result.json')),
+          result: readResearchResult(path.join(marketCandidate ? readDataRoot : config.dataDir, 'research-validation', 'result.json')),
         }) }, { 'Cache-Control': 'no-store' });
         return;
       }
@@ -583,11 +661,11 @@ const requestHandler = async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v1/dashboard') {
-        if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
+        if (marketCandidate || !latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
           try { await refreshSnapshot(); } catch { /* status returned below */ }
         }
-        const shioaji = config.cru55Acceptance?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
-        const indexLeadership = config.cru55Acceptance?isolatedLeadership:await inspectIx0001Leadership({ bridge: shioaji });
+        const shioaji = offlineCandidate?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const indexLeadership = offlineCandidate?isolatedLeadership:await inspectIx0001Leadership({ bridge: shioaji });
         const clientHistory = latestSnapshot ? await cache.listHistory(400) : [];
         const clientSnapshot = latestSnapshot ? {
           ...latestSnapshot,
@@ -609,11 +687,15 @@ const requestHandler = async (req, res) => {
           productSurface: productSurfaceContract,
           indexLeadership,
         };
+        let marketInputs = null;
+        if (marketCandidate && !clientSnapshot) {
+          marketInputs = await candidatePartialInputs(servicePayload);
+        }
         const decisionWorkspace = clientSnapshot
           ? await decisionWorkspacePayload(clientSnapshot, servicePayload)
-          : null;
-        sendJson(res, latestSnapshot ? 200 : 503, {
-          ok: Boolean(latestSnapshot),
+          : marketInputs ? await decisionWorkspacePayload(undefined, servicePayload, marketInputs) : null;
+        sendJson(res, latestSnapshot || marketInputs ? 200 : 503, {
+          ok: Boolean(latestSnapshot || marketInputs),
           data: clientSnapshot,
           service: servicePayload,
           decisionWorkspace,
@@ -629,8 +711,15 @@ const requestHandler = async (req, res) => {
         const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
           liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }),
         { requireLongWindows: cru44PreviewEnabled });
-        const normalized = normalizeBrowserRuntimeProof(candidate,
+        if (marketCandidate && !marketCandidateBrowserBindingMatches(candidate, {exactHead:runtimeIdentity.commit,
+            exactTree:process.env.DASHBOARD_PREVIEW_EXPECTED_TREE,runtimeStartedAt})) {
+          sendJson(res,422,{ok:false,error:'MARKET_CANDIDATE_BROWSER_BINDING_REJECTED'}); return;
+        }
+        const normalizedBase = normalizeBrowserRuntimeProof(candidate,
           { exactHead: runtimeIdentity.commit, runtimeStartedAt });
+        const normalized = marketCandidate ? Object.freeze({...normalizedBase,candidateScope:MARKET_CANDIDATE_SCOPE,
+          previewType:MARKET_CANDIDATE_PREVIEW,origin:'https://127.0.0.1:18723',exactTree:process.env.DASHBOARD_PREVIEW_EXPECTED_TREE})
+          : normalizedBase;
         const validated = validateBrowserRuntimeProof(normalized,
           { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
         const browserParity = validateBrowserRuntimeParity(normalized,
@@ -647,12 +736,12 @@ const requestHandler = async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v1/index-leadership') {
-        const bridge = config.cru55Acceptance?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
-        const leadership = config.cru55Acceptance?isolatedLeadership:await inspectIx0001Leadership({ bridge });
+        const bridge = offlineCandidate?isolatedBridge:await inspectShioajiBridge({ continuityRuntime: readLocalJson(shioajiContinuityStatusPath) });
+        const leadership = offlineCandidate?isolatedLeadership:await inspectIx0001Leadership({ bridge });
         sendJson(res, 200, {
           ok: true,
           data: leadership,
-          cachePolicy: config.cru55Acceptance?'ISOLATED_UNAVAILABLE':'BOUNDED_8790_LATEST_MEMORY',
+          cachePolicy: offlineCandidate?'ISOLATED_UNAVAILABLE':'BOUNDED_8790_LATEST_MEMORY',
           recommendedPollMs: 5_000,
           executionAuthorized: false,
           orderRoutesEnabled: false,
@@ -860,7 +949,7 @@ server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 100;
 
 server.listen(config.port, config.host, async () => {
-  console.log(`台股決策雷達 V3.7.3：${localMarketOnly ? 'https' : 'http'}://${config.host}:${config.port}`);
+  console.log(`台股決策雷達 V3.7.3：${localMarketOnly || marketCandidate ? 'https' : 'http'}://${config.host}:${config.port}`);
   console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
   // Warm only after listening, through the same bounded worker as chart requests.
   // Health reads cached evidence and truthfully reports pending/stale state.
@@ -869,10 +958,10 @@ server.listen(config.port, config.host, async () => {
   }
   // Always check upstream sources on startup. The cached snapshot is shown only
   // while this first refresh is in progress or if an official source fails.
-  refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
+  if (!marketCandidate) refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
 });
 
-if (!cru55 && !config.cru55Acceptance && config.refreshIntervalMs > 0) {
+if (!cru55 && !offlineCandidate && config.refreshIntervalMs > 0) {
   const timer = setInterval(() => {
     refreshSnapshot().catch((error) => console.error('[scheduled refresh]', error.message));
     sessions.cleanup();
