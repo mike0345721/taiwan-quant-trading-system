@@ -145,6 +145,8 @@ button.ghost { background: transparent; color: var(--muted); border: 1px solid v
 .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .section-status-group { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .source-badge { border: 1px solid var(--line); border-radius: 999px; padding: 7px 10px; color: var(--muted); font-size: 11px; }
+.source-badge.source-detail { border-radius: 8px; max-width: 32rem; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.source-detail .source-error { max-width: none; }
 .source-badge.good, .status.good { color: var(--good); border-color: rgba(85,214,190,.28); background: rgba(85,214,190,.07); }
 .source-badge.warn, .status.warn { color: var(--warning); border-color: rgba(245,200,107,.28); background: rgba(245,200,107,.07); }
 .source-badge.bad, .status.bad { color: var(--danger); border-color: rgba(255,113,133,.28); background: rgba(255,113,133,.07); }

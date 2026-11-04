@@ -8,6 +8,16 @@ const describe = value => value == null ? '未知' : typeof value === 'string' ?
 const list = value => Array.isArray(value) ? value.map(describe).join('；') || '尚無' : describe(value);
 const stamp = value => Number.isFinite(timeMs(value)) ? new Date(timeMs(value)).toISOString() : '未知';
 
+const CATCHUP_REASONS = new Set(['VERIFIED_SOURCE_PENDING_DERIVATION', 'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING',
+  'DERIVED_HISTORY_VERIFYING', 'LEGACY_CACHE_MIGRATION_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'CHECKPOINT_PREFIX_VERIFYING']);
+export function observationCatchup(snapshot, previous = null) {
+  if (snapshot?.status !== 'UNAVAILABLE' || snapshot.snapshotId || !snapshot.reasonCodes?.length
+      || !snapshot.reasonCodes.every(code => CATCHUP_REASONS.has(code))) return null;
+  const progress = snapshot.sourceProgress || {};
+  return { retryMs: 250, message: `WARMING_UP · ${snapshot.reasonCodes.join(' / ')} · 已處理來源序位 ${number(progress.derivedThroughOrdinal)} · 已發布序位 ${number(progress.publishedThroughOrdinal)}。`
+    + (previous ? `仍顯示已驗證快照，截至 ${stamp(previous.cutoff)}；尚未發布新快照。` : '尚無可顯示的完整快照。') };
+}
+
 export function normalizeObservation(snapshot, timeframe) {
   if (snapshot?.status === 'UNAVAILABLE' && !snapshot.snapshotId) throw new Error((snapshot.reasonCodes || ['OBSERVATION_UNAVAILABLE']).join(' / '));
   if (!snapshot || snapshot.schemaVersion !== 'cru61-market-observation-v1' || !snapshot.snapshotId
@@ -96,6 +106,7 @@ function mountObservation() {
   const node = (tag, text, className) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (className) e.className = className; return e; };
   const svgNode = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v)); if (text != null) e.textContent = text; return e; };
   let snapshot = null, selectedEventId = null, controller = null, requestId = 0, lastRequestAt = 0, cursorIndex = 0;
+  let catchupTimer = null, minimumRefreshMs = 4500;
   const selectedEvent = () => snapshot?.events.find(e => e.id === selectedEventId) || null;
   const timeframe = () => el('mo-timeframe').value;
   const visible = () => root.open && !document.hidden && root.getClientRects().length > 0;
@@ -208,15 +219,18 @@ function mountObservation() {
     selector.value = selectedEventId || ''; showEvent(); draw();
   }
   async function refresh(force = false) {
-    if (!force && (!visible() || controller || Date.now() - lastRequestAt < 4500)) return;
+    if (!force && (!visible() || controller || Date.now() - lastRequestAt < minimumRefreshMs)) return;
+    clearTimeout(catchupTimer); catchupTimer = null; minimumRefreshMs = 4500;
     if (controller) controller.abort();
     const current = ++requestId, selected = timeframe(), pending = new AbortController(); controller = pending;
-    const timeout = setTimeout(() => pending.abort(), 8000); lastRequestAt = Date.now();
+    const timeout = setTimeout(() => pending.abort(), 8000); lastRequestAt = Date.now(); let catchup = null;
     el('mo-status').textContent = `讀取 ${selected} 同一快照…`; root.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch('/api/v1/market-observation?timeframe=' + encodeURIComponent(selected), { credentials: 'same-origin', cache: 'no-store', signal: pending.signal });
       if (!response.ok) throw new Error(response.status === 401 ? '請先正常登入' : `HTTP_${response.status}`);
       const payload = await response.json(); if (current !== requestId) return;
+      catchup = observationCatchup(payload.data, snapshot);
+      if (catchup) { el('mo-status').textContent = catchup.message; return; }
       snapshot = normalizeObservation(payload.data, selected);
       if (!snapshot.events.some(e => e.id === selectedEventId)) selectedEventId = snapshot.events.at(-1)?.id || null;
       el('mo-status').textContent = `${snapshot.reasonCodes?.includes('STALE') ? 'STALE · 已過期觀測，非即時' : snapshot.status || '候選觀測'} · ${snapshot.mode || '模式未知'} · ${snapshot.timeframe} · 非交易建議`;
@@ -226,7 +240,13 @@ function mountObservation() {
       snapshot = null; selectedEventId = null;
       el('mo-status').textContent = '觀測不可用 · ' + (error.name === 'AbortError' ? '讀取逾時' : error.message); render(); handoff();
     } finally {
-      clearTimeout(timeout); if (current === requestId) { controller = null; root.setAttribute('aria-busy', 'false'); }
+      clearTimeout(timeout); if (current === requestId) {
+        controller = null; root.setAttribute('aria-busy', 'false');
+        if (catchup) {
+          minimumRefreshMs = catchup.retryMs;
+          catchupTimer = setTimeout(() => { catchupTimer = null; refresh(); }, catchup.retryMs);
+        }
+      }
     }
   }
   el('mo-timeframe').addEventListener('change', () => { snapshot = null; selectedEventId = null; cursorIndex = 0; render(); handoff(); refresh(true); });

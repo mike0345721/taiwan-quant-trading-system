@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 export const MARKET_CANDIDATE_SCOPE = 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE';
 export const MARKET_CANDIDATE_PREVIEW = 'CRU21_MARKET_RESEARCH_CANDIDATE';
-export const MARKET_CANDIDATE_BRANCH = 'codex/cru61-daily-use-repair-20261103';
+export const MARKET_CANDIDATE_BRANCH = 'codex/cru61-smc-cvd-profile-v1';
 const sha = value => /^[a-f0-9]{40}$/.test(value || '');
 const hash = value => /^[a-f0-9]{64}$/.test(value || '');
 const fail = code => { throw Error(code); };

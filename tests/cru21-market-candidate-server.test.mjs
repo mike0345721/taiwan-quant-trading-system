@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
 const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
   'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs',
-  'src/candidate-market-inputs.mjs',
+  'src/candidate-market-inputs.mjs', 'src/data-quality.mjs',
   'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
   'src/dashboard-dw4-evidence.mjs', 'src/dw4-evidence-conflict-monitor.mjs',
   'src/index-leadership.mjs', 'src/decision-level-watch.mjs', 'src/structural-eligibility.mjs',
@@ -24,7 +24,7 @@ const source = Object.fromEntries(actualNames.map(name => [name, fs.readFileSync
 const sourceHashes = Object.fromEntries(Object.entries(source).map(([name, bytes]) =>
   [name, crypto.createHash('sha256').update(bytes).digest('hex')]));
 const head = '1'.repeat(40), tree = '2'.repeat(40), base = '3'.repeat(40);
-const branch = 'codex/cru61-daily-use-repair-20261103';
+const branch = 'codex/cru61-smc-cvd-profile-v1';
 const appRoot = path.resolve('/synthetic-app'), readRoot = path.resolve('/synthetic-read');
 const producerRoot = path.resolve('/synthetic-producer'), dataRoot = path.join(appRoot, 'data');
 const sessionFile = path.join(dataRoot, 'sessions.json');

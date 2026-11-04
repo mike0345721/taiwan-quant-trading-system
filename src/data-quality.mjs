@@ -45,3 +45,45 @@ export function sourceQualityMetadata(key, source, snapshotDate, now = new Date(
   const metadata = SOURCE_METADATA[key] || {};
   return { freshness: evaluateSourceFreshness(key, source, snapshotDate, now), scope: metadata.scope || null, release: metadata.release || null };
 }
+
+const validTime = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+export function dailySourceStatus(key, source, { now = new Date(), calendar = null } = {}) {
+  const clock=taipeiClock(now), metadata=SOURCE_METADATA[key]||{}, currentMs=now.getTime();
+  let targetDate=clock.date,calendarReason=null;
+  if(calendar){
+    for(let offset=0;offset<370;offset++){
+      const day=new Date(Date.parse(clock.date+'T00:00:00Z')-offset*86400000).toISOString().slice(0,10);
+      const exception=calendar.exceptions?.get(day);
+      if(calendar.pendingCandidateDates?.has(day)){targetDate=null;calendarReason='CALENDAR_CANDIDATE_NOT_ACTIVATED';break;}
+      if(exception?.officialTradingDay===true||(!exception&&calendar.tradingDates?.has(day))){targetDate=day;break;}
+      if(exception?.officialTradingDay===false||calendar.nonTradingDates?.has(day))continue;
+      targetDate=null;calendarReason='CALENDAR_NOT_COVERED';break;
+    }
+  }else{targetDate=null;calendarReason='CALENDAR_UNVERIFIED';}
+  const dueAt=targetDate?new Date(`${targetDate}T00:00:00+08:00`).getTime()+(metadata.pendingUntilMinute??0)*60000:null;
+  const fetchedAt=validTime(source?.fetchedAt)&&Date.parse(source.fetchedAt)<=currentMs?source.fetchedAt:null;
+  const knownSuccess=source?.lastSuccessfulAt??(!source?.fallbackFromCache&&source?.ok?fetchedAt:null);
+  const lastSuccessfulAt=validTime(knownSuccess)&&Date.parse(knownSuccess)<=currentMs?knownSuccess:null;
+  const sourceTime=validTime(source?.sourceTime)&&Date.parse(source.sourceTime)<=currentMs?source.sourceTime:null;
+  let status,reason;
+  if(!targetDate){status='STALE';reason=calendarReason;}
+  else if(source?.fetchedAt&&!fetchedAt){status='STALE';reason='SOURCE_ATTEMPT_TIMESTAMP_INVALID_OR_FUTURE';}
+  else if(source?.ok&&fetchedAt&&!source.fallbackFromCache&&!source.error&&source.dataDate===targetDate
+    &&(!source.stale||(targetDate<clock.date&&source.staleReason==='DATA_DATE_BEFORE_CALENDAR_DAY'))){status='AVAILABLE';reason=null;}
+  else if(currentMs<dueAt){status='NOT_DUE';reason='BEFORE_EXPECTED_PUBLICATION_WINDOW';}
+  else if(fetchedAt&&Date.parse(fetchedAt)>=dueAt&&(!source?.ok||source.fallbackFromCache||source.error)){status='JOB_FAILED';reason=source.error||'SOURCE_FETCH_FAILED';}
+  else if(fetchedAt&&Date.parse(fetchedAt)>=dueAt&&source?.ok&&!source.fallbackFromCache&&source.dataDate&&source.dataDate<targetDate){status='SOURCE_NOT_PUBLISHED';reason='LATEST_SUCCESSFUL_SOURCE_RESPONSE_HAS_EARLIER_DATA_DATE';}
+  else if(!fetchedAt||Date.parse(fetchedAt)<dueAt){status='JOB_NOT_RUN';reason='NO_RECORDED_FETCH_AFTER_EXPECTED_PUBLICATION_WINDOW';}
+  else{status='STALE';reason=source?.error||'SOURCE_DATE_OR_QUALITY_NOT_CURRENT';}
+  return {status,reason,targetDate,dataDate:source?.dataDate??null,sourceTime,lastSuccessfulAt,lastAttemptAt:fetchedAt,
+    expectedAt:dueAt===null?null:new Date(dueAt).toISOString(),checkedAt:now.toISOString(),
+    jobScope:'DASHBOARD_SOURCE_REFRESH; SCHEDULED_BATCH_STATUS_IS_SEPARATE',
+    sourceTimeReason:sourceTime?null:'SOURCE_PUBLICATION_TIMESTAMP_NOT_PROVIDED'};
+}
+
+export function sourceStatusesForSnapshot(snapshot, {now=new Date(),calendar=null}={}) {
+  return Object.fromEntries(Object.keys(SOURCE_METADATA).map(key=>[key,{
+    ...(snapshot?.sources?.[key]??{}),...sourceQualityMetadata(key,snapshot?.[key],snapshot?.asOfDate,now),
+    update:dailySourceStatus(key,snapshot?.[key],{now,calendar}),
+  }]));
+}

@@ -39,7 +39,10 @@ function emit(state, type, bar, values = {}) {
   return record;
 }
 function addZone(state, type, direction, low, high, anchor, bar, extra = {}) {
-  if (state.zones.length >= 256) fail('SMC_ACTIVE_ZONE_BUDGET');
+  // Each accepted bar can emit at most two order blocks and one FVG. Bound
+  // the retained active index by that finite bar budget, not an arbitrary
+  // lifetime event count that legal long sessions can exceed.
+  if (state.zones.length >= state.maxBars*3) fail('SMC_ACTIVE_ZONE_BUDGET');
   const event = emit(state, type, bar, { direction, lower: low, upper: high, anchorTime: anchor.time, ...extra });
   state.zones.push({ id: event.id, type, direction, lower: low, upper: high, anchorTime: anchor.time,
     confirmedTime: bar.endTime, availableAt: bar.availableAt, status: 'ACTIVE' });
@@ -91,7 +94,7 @@ function processBar(state, bar) {
       const type = state.trend !== 'UNDETERMINED' && state.trend !== direction ? 'CHOCH' : 'BOS';
       const event = emit(state,type,bar,{direction,level:pivot.level,pivotId:pivot.id,anchorTime:pivot.anchorTime,
         previousStructure:state.trend,structure:direction,rule:'CLOSED_BAR_STRICT_BREAK'});
-      if (state.activeBreaks.length >= 256) fail('SMC_ACTIVE_BREAK_BUDGET');
+      if (state.activeBreaks.length >= state.maxBars*2) fail('SMC_ACTIVE_BREAK_BUDGET');
       state.trend = direction; pivot.broken = true; state.activeBreaks.push(event);
       const lower = Math.max(state.segmentStart,index-state.obLookback);
       for (let j=index-1;j>=lower;j--) {

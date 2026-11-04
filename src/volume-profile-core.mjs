@@ -31,12 +31,13 @@ function binPrice(index,size){
   return Number(`${BigInt(index)*numerator}e-${denominator.toString().length-1}`);
 }
 
-export function createVolumeProfileState({ identity, binSize = 1, valueAreaFraction = 0.7, maxBins = 20000, maxTrades = 250000 } = {}) {
+export function createVolumeProfileState({ identity, binSize = 1, valueAreaFraction = 0.7, maxBins = 20000, maxTrades = 250000, retainTrades = true } = {}) {
   if (!finite(binSize) || binSize <= 0 || !finite(valueAreaFraction) || valueAreaFraction <= 0 || valueAreaFraction > 1
       || !Number.isSafeInteger(maxBins) || maxBins < 1 || maxBins > 20000
-      || !Number.isSafeInteger(maxTrades) || maxTrades < 1 || maxTrades > 250000) fail('PROFILE_PARAMETERS_INVALID');
+      || typeof retainTrades !== 'boolean' || !Number.isSafeInteger(maxTrades) || maxTrades < 1 || maxTrades > 250000) fail('PROFILE_PARAMETERS_INVALID');
   return { schemaVersion: VOLUME_PROFILE_VERSION, identity: checkIdentity(identity), binSize, valueAreaFraction,
-    maxBins, maxTrades, bins: {}, binCount: 0, minBin: null, maxBin: null, trades: [], totalVolume: 0, lastOrdinal: null, lastAvailableAt: null, ...SAFETY };
+    maxBins, maxTrades, ...(retainTrades ? {} : {retainTrades:false,tradeCount:0,firstTrade:null,lastTrade:null,observedStart:null,observedEnd:null}),
+    bins: {}, binCount: 0, minBin: null, maxBin: null, trades: [], totalVolume: 0, lastOrdinal: null, lastAvailableAt: null, ...SAFETY };
 }
 
 function validate(state) {
@@ -47,11 +48,13 @@ function validate(state) {
 }
 
 // Only already-governed CRU34 ticks enter this boundary. UNKNOWN side is lawful volume.
-export function appendVolumeProfileTrades(before, trades, { cutoff } = {}) {
+export function appendVolumeProfileTrades(before, trades, { cutoff, mutatePrivateState = false } = {}) {
   validate(before);
   const cutoffMs = cutoff === undefined ? Infinity : timestamp(cutoff);
-  if (cutoffMs === null || !Array.isArray(trades) || trades.length > 25000 || before.trades.length + trades.length > before.maxTrades) fail('PROFILE_INPUT_BUDGET_OR_CUTOFF');
-  const state = structuredClone(before);
+  if (cutoffMs === null || !Array.isArray(trades) || trades.length > 25000 || (before.retainTrades!==false&&before.trades.length + trades.length > before.maxTrades)) fail('PROFILE_INPUT_BUDGET_OR_CUTOFF');
+  // The durable adapter owns a private clone inside its atomic transaction.
+  // Standalone callers retain the original immutable input/output contract.
+  const state = mutatePrivateState ? before : structuredClone(before);
   for (const trade of trades) {
     const at = timestamp(trade?.availableAt), event = timestamp(trade?.eventTime);
     const price = trade?.payload?.close, volume = trade?.payload?.volume;
@@ -75,8 +78,13 @@ export function appendVolumeProfileTrades(before, trades, { cutoff } = {}) {
     state.bins[index] = (state.bins[index] || 0) + volume;
     state.totalVolume += volume;
     if (!finite(state.totalVolume) || !finite(state.bins[index])) fail('PROFILE_NUMERIC_OVERFLOW');
-    state.trades.push({ bin: index, volume, eventTime: trade.eventTime, availableAt: trade.availableAt,
-      ledgerOrdinal: trade.ledgerOrdinal, recordHash: trade.recordHash });
+    const entry={ bin: index, volume, eventTime: trade.eventTime, availableAt: trade.availableAt,
+      ledgerOrdinal: trade.ledgerOrdinal, recordHash: trade.recordHash };
+    if(state.retainTrades===false){
+      state.tradeCount++;state.firstTrade??=entry;state.lastTrade=entry;
+      if(state.observedStart===null||event<timestamp(state.observedStart))state.observedStart=trade.eventTime;
+      if(state.observedEnd===null||event>timestamp(state.observedEnd))state.observedEnd=trade.eventTime;
+    }else state.trades.push(entry);
     state.lastOrdinal = trade.ledgerOrdinal; state.lastAvailableAt = trade.availableAt;
   }
   return state;
@@ -108,11 +116,22 @@ function distribution(bins, binSize, total, fraction, maxBins) {
     lvn: rows.filter(row => row.volume <= peak * 0.2).map(row => row.price) };
 }
 
-export function volumeProfileSnapshot(state, { cutoff = state?.lastAvailableAt, completeSessionEvidence = null } = {}) {
+export function volumeProfileSnapshot(state, { cutoff = state?.lastAvailableAt, completeSessionEvidence = null, history = null } = {}) {
   validate(state);
   const at = cutoff === null ? null : timestamp(cutoff);
   if (cutoff !== null && at === null) fail('PROFILE_CUTOFF_INVALID');
   const all = at !== null && (state.lastAvailableAt === null || at >= timestamp(state.lastAvailableAt));
+  if(state.retainTrades===false){
+    if(!all&&!history)fail('PROFILE_HISTORY_REQUIRED');
+    const summary=all?{bins:state.bins,totalVolume:state.totalVolume,tradeCount:state.tradeCount,
+      firstTrade:state.firstTrade,lastTrade:state.lastTrade,observedStart:state.observedStart,observedEnd:state.observedEnd}:history(cutoff);
+    // Reuse the reference renderer and completeness checks, then restore the
+    // independently stored count/range. No invented per-price trades are used.
+    const proxy={...state,retainTrades:true,trades:summary.tradeCount?[summary.firstTrade,...(summary.tradeCount>1?[summary.lastTrade]:[])]:[],
+      bins:summary.bins,totalVolume:summary.totalVolume,lastAvailableAt:summary.lastTrade?.availableAt??null};
+    const result=volumeProfileSnapshot(proxy,{cutoff,completeSessionEvidence});
+    return {...result,tradeCount:summary.tradeCount,observedStart:summary.observedStart,observedEnd:summary.observedEnd};
+  }
   const trades = all ? state.trades : state.trades.filter(trade => at !== null && timestamp(trade.availableAt) <= at && timestamp(trade.eventTime) <= at);
   const bins = all ? state.bins : {}, total = all ? state.totalVolume : trades.reduce((sum, trade) => {
     bins[trade.bin] = (bins[trade.bin] || 0) + trade.volume; return sum + trade.volume;

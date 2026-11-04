@@ -7,14 +7,15 @@ import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {materializeTxCanonicalObservations} from '../src/tx-intraday-pressure-path-efficiency.mjs';
 import {buildCru34LiveCheckpoint,cru34LiveCanonicalJson,cru34LiveHash,validateCru34LiveCheckpoint} from '../src/cru34-live-checkpoint.mjs';
 import {loadGovernedTradingCalendar} from '../src/market-state-forward-shadow-calendar.mjs';
-import {SAFETY,digest} from '../src/cvd-observation-core.mjs';
+import {SAFETY,digest,stableJson,stableJsonDigest} from '../src/cvd-observation-core.mjs';
 import {marketObservationSnapshot} from '../src/market-observation-core.mjs';
 import {parseCanonicalProducerTail,readMarketObservationProducer,clearMarketObservationProducerCache} from '../src/market-observation-producer.mjs';
 const source='sha256:'+'a'.repeat(64),base=Date.parse('2026-11-04T01:00:00Z'),iso=n=>new Date(base+n*60000).toISOString();
 const calendar=loadGovernedTradingCalendar(new URL('../config/taifex-official-calendar-2026.json',import.meta.url));
-function records(count=12){let hash='GENESIS';return Array.from({length:count},(_,i)=>{
-  const record=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:iso(i),...SAFETY,payload:{productFamily:'TX',actualContract:'TXFK6',
-    tradeDate:'2026-11-04',session:'DAY',eventTime:iso(i),close:100+i%5,volume:2,tick_type:i%3}},hash);
+function records(count=12,step=60000){let hash='GENESIS';return Array.from({length:count},(_,i)=>{
+  const at=new Date(base+i*step).toISOString();
+  const record=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:at,...SAFETY,payload:{productFamily:'TX',actualContract:'TXFK6',
+    tradeDate:'2026-11-04',session:'DAY',eventTime:at,close:100+i%5,volume:2,tick_type:i%3}},hash);
   hash=record.recordHash;return record;});}
 function producer(rows=records()){
   const canonical=materializeTxCanonicalObservations(rows,{sourceLedgerIdentity:source});
@@ -28,6 +29,98 @@ function fixture(p=producer()){
   fs.writeFileSync(checkpointPath,wire(p));return {root,checkpointPath,cacheRoot,calendar};
 }
 test.afterEach(()=>clearMarketObservationProducerCache());
+test('durable input stage survives restart and a newer publication without losing its original suffix',()=>{
+  const rows=records(6200,1000),f=fixture(producer(rows.slice(0,6000)));
+  let result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
+  assert.equal(result.reason,'VERIFIED_SOURCE_PENDING_DERIVATION');
+  result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
+  assert.equal(result.reason,'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION');assert.equal(result.state,null);
+  fs.writeFileSync(f.checkpointPath,wire(producer(rows)));clearMarketObservationProducerCache();
+  let sawPrevious=false;
+  for(let n=0;n<100;n++){
+    result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
+    if(result.state&&!result.complete){sawPrevious=true;assert.equal(result.history.getMeta('checkpoint').fragment.state.sourceOrdinal,6000);}
+    if(result.state&&result.complete)break;
+  }
+  assert.ok(sawPrevious);assert.ok(result.state&&result.complete);
+  assert.equal(result.history.getMeta('checkpoint').fragment.state.originOrdinal,1);
+  const expected=readMarketObservationProducer({...f,cacheRoot:null}),cutoff=rows.at(-1).receivedAt;
+  assert.deepEqual(marketObservationSnapshot(result.state,{cutoff,history:result.history}),marketObservationSnapshot(expected.state,{cutoff}));
+});
+test('bounded-memory canonical hash equals persisted JSON hash including numeric keys and Unicode',()=>{
+  for(const value of [null,[],{z:'漢字𝄞',a:[null,true,-2.5,{'10':1,'2':2,b:'\\"\n'}]},producer(records(100))])
+    assert.equal(stableJsonDigest(value),digest(stableJson(value)));
+});
+
+test('recovered epoch after invalid published lineage matches full recompute at each private chunk boundary',()=>{
+  let hash='GENESIS';const rows=[];
+  for(let i=0;i<6004;i++){
+    const at=new Date(base+(i===1?-1:i)*1000).toISOString(),kind=i===2?'quote_type_resubscribe':'futures_tick';
+    const row=buildLiveEventRecord({kind,code:'TXFK6',receivedAt:at,...SAFETY,payload:kind==='quote_type_resubscribe'?{product:'TX'}:
+      {productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:at,close:100+i%5,volume:2,tick_type:1}},hash);
+    rows.push(row);hash=row.recordHash;
+  }
+  const f=fixture(producer(rows.slice(0,2)));
+  let result=readMarketObservationProducer({...f,persistentHistory:true});
+  assert.equal(result.state.fragmentSemantic.currentReason,'CONTINUITY_OR_LINEAGE_AWAITING_VALID_SEGMENT');
+  fs.writeFileSync(f.checkpointPath,wire(producer(rows)));
+  result=readMarketObservationProducer({...f,persistentHistory:true});
+  assert.equal(result.reason,'DERIVATION_CATCHUP_PENDING');
+  assert.equal(result.history.getMeta('pending-derivation').fragment.state.cvd.canonicalState.epochLineageInvalid,false);
+  clearMarketObservationProducerCache();
+  for(let i=0;i<100;i++){result=readMarketObservationProducer({...f,persistentHistory:true});if(result.state)break;}
+  assert.ok(result.state);
+  const full=readMarketObservationProducer({...f,cacheRoot:null});
+  for(const n of [2002,4002,6002,6003]){
+    const cutoff=rows[n].receivedAt;
+    assert.deepEqual(marketObservationSnapshot(result.state,{cutoff,history:result.history}),marketObservationSnapshot(full.state,{cutoff}));
+  }
+});
+
+test('bounded derivation persists an unpublished cursor and resumes the same verified source after restart',()=>{
+  const rows=records(6000,1000);
+  const f=fixture(producer(rows));
+  let result=readMarketObservationProducer({...f,persistentHistory:true});
+  assert.equal(result.reason,'DERIVATION_CATCHUP_PENDING');assert.equal(result.state,null);
+  assert.equal(result.sourceProgress.derivedThroughOrdinal,2000);
+  assert.equal(result.history.getMeta('checkpoint'),null);
+  assert.equal(result.history.getMeta('pending-derivation').fragment.state.cvd.ordinal,2000);
+  clearMarketObservationProducerCache();
+  for(let i=0;i<100;i++){result=readMarketObservationProducer({...f,persistentHistory:true});if(result.state)break;}
+  assert.ok(result.state);assert.equal(result.history.getMeta('pending-derivation'),null);
+  assert.equal(result.history.getMeta('checkpoint').fragment.state.sourceOrdinal,6000);
+  assert.equal(result.history.statement('SELECT COUNT(*) AS n FROM points').get().n,6000);
+  assert.equal(result.history.getMeta('checkpoint').fragment.state.originOrdinal,1);
+  assert.ok(result.history.origin);
+  const expected=readMarketObservationProducer({...f,cacheRoot:null});
+  const cutoff=rows.at(-1).receivedAt;
+  const actual=marketObservationSnapshot(result.state,{cutoff,history:result.history});
+  assert.equal(actual.profile.totalVolume,12000);assert.equal(actual.profile.tradeCount,6000);
+  assert.deepEqual(actual,marketObservationSnapshot(expected.state,{cutoff}));
+});
+
+test('persistent production adapter stages without writes and migrates legacy origin with exact snapshots',()=>{
+  const rows=records(15),f=fixture(producer(rows.slice(0,10)));
+  const legacy=readMarketObservationProducer({...f,asOf:iso(20)});
+  const before=marketObservationSnapshot(legacy.state,{cutoff:iso(9)});
+  const legacyPath=path.join(f.cacheRoot,'market-observation',fs.readdirSync(path.join(f.cacheRoot,'market-observation')).find(n=>n.endsWith('.producer-fragment')));
+  const originalCache=fs.readFileSync(legacyPath);
+  clearMarketObservationProducerCache();
+  const first=readMarketObservationProducer({...f,persistentHistory:true,staged:true,asOf:iso(20)});
+  assert.equal(first.state,null);assert.equal(fs.readdirSync(path.dirname(legacyPath)).some(n=>n.endsWith('.sqlite')),false);
+  let migrated;
+  for(let n=0;n<10;n++){migrated=readMarketObservationProducer({...f,persistentHistory:true,staged:true,asOf:iso(20)});if(migrated.state)break;}
+  assert.ok(migrated.state);
+  assert.deepEqual(marketObservationSnapshot(migrated.state,{cutoff:iso(9),history:migrated.history}),before);
+  assert.deepEqual(fs.readFileSync(legacyPath),originalCache);
+  fs.writeFileSync(f.checkpointPath,wire(producer(rows)));
+  const advanced=readMarketObservationProducer({...f,persistentHistory:true,asOf:iso(20)});
+  assert.equal(advanced.sourceProgress.processedRecords,5);assert.equal(advanced.state.segments[0].profile.tradeCount,15);
+  const expected=marketObservationSnapshot(advanced.state,{cutoff:iso(14),history:advanced.history});
+  clearMarketObservationProducerCache();let restarted;
+  for(let i=0;i<30;i++){restarted=readMarketObservationProducer({...f,persistentHistory:true,asOf:iso(20)});if(restarted.state)break;}
+  assert.ok(restarted.state);assert.deepEqual(marketObservationSnapshot(restarted.state,{cutoff:iso(14),history:restarted.history}),expected);
+});
 
 test('wire verification retains only tail and keeps original and reduced hashes distinct',()=>{
   const p=producer(),bytes=wire(p),result=parseCanonicalProducerTail(bytes,{tailLimit:3});

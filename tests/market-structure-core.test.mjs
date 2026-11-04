@@ -9,6 +9,16 @@ const bars=[bar(0,100,102,99,101),bar(1,101,104,100,103),bar(2,103,110,102,108),
   bar(8,109,110,100,101),bar(9,101,105,96,97),bar(10,97,100,95,96),bar(11,96,101,96,100)];
 const state=(list=bars,options={})=>appendMarketStructureBars(createMarketStructureState({identity,...options}),list);
 
+test('full 840-minute session retains more than 256 unfilled FVG zones without losing events',()=>{
+  const long=Array.from({length:840},(_,i)=>bar(i,100+i*3,102+i*3,99+i*3,101+i*3));
+  const full=state(long,{maxBars:2000});let incremental=createMarketStructureState({identity,maxBars:2000});
+  for(let i=0;i<long.length;i+=60)incremental=appendMarketStructureBars(JSON.parse(JSON.stringify(incremental)),long.slice(i,i+60));
+  assert.deepEqual(incremental,full);assert.equal(full.zones.length,838);
+  assert.ok(full.zones.every(zone=>zone.status==='ACTIVE'));
+  assert.equal(marketStructureSnapshot(full).zones.length,838);
+  assert.deepEqual(marketStructureSnapshot(full,{cutoff:iso(300)}),marketStructureSnapshot(state(long.slice(0,300),{maxBars:2000})));
+});
+
 test('pivot anchor remains historical but event only exists after two right closed bars',()=>{
   assert.equal(marketStructureSnapshot(state(bars.slice(0,4))).events.filter(e=>e.type==='SWING_HIGH').length,0);
   const pivot=marketStructureSnapshot(state(bars.slice(0,5))).events.find(e=>e.type==='SWING_HIGH');

@@ -13,7 +13,7 @@ import {
 } from '../src/cru21-market-candidate.mjs';
 
 const head = '1'.repeat(40), tree = '2'.repeat(40), base = '3'.repeat(40);
-const branch = 'codex/cru61-daily-use-repair-20261103';
+const branch = 'codex/cru61-smc-cvd-profile-v1';
 const legacyBranch = 'codex/cru21-repository-closeout-20261029';
 const candidateScope = 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE';
 const candidatePreview = 'CRU21_MARKET_RESEARCH_CANDIDATE';

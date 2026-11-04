@@ -52,7 +52,8 @@ function compactDate(date) {
 }
 
 function sourceResult(source, { ok, data = null, dataDate = null, error = null, fetchedAt = new Date().toISOString(), stale = false } = {}) {
-  return { ok: Boolean(ok), source, data, dataDate, error, fetchedAt, stale };
+  return { ok: Boolean(ok), source, data, dataDate, error, fetchedAt, stale, lastSuccessfulAt:ok?fetchedAt:null,
+    staleReason:stale?(dataDate&&dataDate!==dateTaipei()?'DATA_DATE_BEFORE_CALENDAR_DAY':'SOURCE_QUALITY_STALE'):null };
 }
 
 async function fetchJson(url, { timeoutMs, headers = {} } = {}) {
@@ -726,9 +727,25 @@ function mergeFailedWithPrevious(current, previous) {
     ...previous,
     stale: true,
     fetchedAt: current.fetchedAt,
+    lastSuccessfulAt: previous.lastSuccessfulAt ?? (!previous.fallbackFromCache ? previous.fetchedAt : null),
     error: current.error,
     fallbackFromCache: true,
   };
+}
+
+export function combineMarketBreadthSources(listed, otc, {fetchedAt=new Date().toISOString(),previous=null}={}) {
+  const fallbackFromCache=Boolean(listed?.fallbackFromCache||otc?.fallbackFromCache);
+  const ok=Boolean(listed?.ok&&otc?.ok);
+  const success=[listed,otc].map(item=>item?.lastSuccessfulAt??(item?.ok&&!item?.fallbackFromCache?item.fetchedAt:null));
+  const bothKnown=success.every(value=>typeof value==='string'&&Number.isFinite(Date.parse(value)));
+  const lastSuccessfulAt=ok&&!fallbackFromCache&&bothKnown?success.sort((a,b)=>Date.parse(a)-Date.parse(b))[0]
+    :previous?.lastSuccessfulAt??null;
+  return {ok,source:'TWSE / TPEx',dataDate:[listed?.dataDate,otc?.dataDate].filter(Boolean).sort()[0]||null,
+    fetchedAt,lastSuccessfulAt,fallbackFromCache,stale:Boolean(!ok||listed.stale||otc.stale),
+    staleReason:[listed,otc].filter(item=>item?.stale).every(item=>item.staleReason==='DATA_DATE_BEFORE_CALENDAR_DAY')
+      ?'DATA_DATE_BEFORE_CALENDAR_DAY':'SOURCE_QUALITY_STALE',
+    error:[listed?.error,otc?.error].filter(Boolean).join('；')||null,
+    data:{listed:listed?.data||null,otc:otc?.data||null},listedSource:listed,otcSource:otc};
 }
 
 export class MarketDataService {
@@ -772,17 +789,7 @@ export class MarketDataService {
 
     const listed = mergeFailedWithPrevious(listedBreadth, livePrevious?.marketBreadth?.listedSource);
     const otc = mergeFailedWithPrevious(otcBreadth, livePrevious?.marketBreadth?.otcSource);
-    const marketBreadth = {
-      ok: Boolean(listed?.ok && otc?.ok),
-      source: 'TWSE / TPEx',
-      dataDate: [listed?.dataDate, otc?.dataDate].filter(Boolean).sort().at(-1) || null,
-      fetchedAt: new Date().toISOString(),
-      stale: Boolean(!listed?.ok || !otc?.ok || listed.stale || otc.stale),
-      error: [listed?.error, otc?.error].filter(Boolean).join('；') || null,
-      data: { listed: listed?.data || null, otc: otc?.data || null },
-      listedSource: listed,
-      otcSource: otc,
-    };
+    const marketBreadth = combineMarketBreadthSources(listed,otc,{previous:livePrevious?.marketBreadth});
 
     // Use authoritative price/position dates for the snapshot date. Breadth
     // feeds can return a requested weekend date while carrying older data.

@@ -22,6 +22,7 @@ export const REASON_ZH = Object.freeze({
   NOT_IN_CURRENT_SCOPE: '不在本階段範圍',
   COMPUTER_NOT_READY_BEFORE_SESSION: '電腦未在盤前就緒',
   SCHEDULED_TASK_NOT_RUN: '排程工作未執行',
+  SCHEDULED_TASK_FAILED: '排程工作已執行但此資料階段失敗',
   LATE_START: '收集啟動時間過晚',
   SUBSCRIPTION_NOT_READY: '訂閱尚未就緒',
   QUOTE_TYPE_MISSING: '必要報價類型未收到',
@@ -351,7 +352,7 @@ function batchFeed(definition, context, dailyStatus, datasetEvidence) {
   if (item && !sameDate) reasons.push('TRADE_DATE_MISMATCH');
   if (!timeBound) reasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
   if (!item && !stage) reasons.push(dailyStatus && !stageValid ? 'TIMESTAMP_LINEAGE_INSUFFICIENT' : 'ARTIFACT_NOT_WRITTEN');
-  if (stage?.ok === false) reasons.push('SCHEDULED_TASK_NOT_RUN');
+  if (stage?.ok === false) reasons.push('SCHEDULED_TASK_FAILED');
   const captureState = timeBound && DAILY_ACCEPTANCE_STATES.includes(item.captureState) ? item.captureState : 'UNKNOWN';
   const persistenceState = observed && DAILY_ACCEPTANCE_STATES.includes(item.persistenceState) ? item.persistenceState : 'UNKNOWN';
   const integrityState = timeBound && DAILY_ACCEPTANCE_STATES.includes(item.integrityState) ? item.integrityState : 'UNKNOWN';

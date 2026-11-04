@@ -129,7 +129,7 @@ function verifyCheckpointAnchor(ledgerPath, checkpoint) {
   }
 }
 
-function checkpointEvent(event) {
+export function checkpointEvent(event) {
   const payload = event.kind === 'futures_tick'
     ? {
         price: event.payload?.price ?? event.payload?.close ?? null,
@@ -184,7 +184,7 @@ function retainPressureRelevantEvents(events, cutoff) {
       || (Number.isFinite(event.eventMs) && event.eventMs >= futureQuoteFloorMs))));
 }
 
-function pruneRolling(events, cutoff) {
+export function pruneRolling(events, cutoff) {
   if (!cutoff) return [];
   const floor = cutoff.availableMs - CRU44_WINDOW_REGISTRY.window14400s.windowMs - 2_000;
   const matching = retainPressureRelevantEvents(events.filter((event) => event.actualContract === cutoff.actualContract

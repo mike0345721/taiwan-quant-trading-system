@@ -15,6 +15,7 @@ import { URL } from 'node:url';
 import { config, validateConfig } from './src/config.mjs';
 import { CacheStore } from './src/cache-store.mjs';
 import { MarketDataService } from './src/market-data.mjs';
+import { sourceStatusesForSnapshot } from './src/data-quality.mjs';
 import { enrichSnapshot } from './src/derived-metrics.mjs';
 import { buildSignal } from './src/signal-engine.mjs';
 import { buildSixAxisShadow } from './src/six-axis-shadow.mjs';
@@ -357,6 +358,7 @@ async function currentDiscussionWorkspace() {
     : await inspectIx0001Leadership({ bridge: shioaji });
   const clientSnapshot = latestSnapshot ? {
     ...latestSnapshot,
+    sources: sourceStatusesForSnapshot(latestSnapshot, {calendar:operatingCalendar??chartCalendar}),
     researchDecision: v2Research.decisionSupport(),
     priceConfirmation: loadPriceConfirmation(intradayPath),
   } : null;
@@ -670,6 +672,7 @@ const requestHandler = async (req, res) => {
         const clientHistory = latestSnapshot ? await cache.listHistory(400) : [];
         const clientSnapshot = latestSnapshot ? {
           ...latestSnapshot,
+          sources: sourceStatusesForSnapshot(latestSnapshot, {calendar:operatingCalendar??chartCalendar}),
           researchDecision: v2Research.decisionSupport(),
           priceConfirmation: loadPriceConfirmation(intradayPath),
         } : null;

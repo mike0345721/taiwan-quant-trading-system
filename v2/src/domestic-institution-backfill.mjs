@@ -123,19 +123,22 @@ export function upsertDomesticInstitutionRows(db, byDate, { sourceUrl = DOMESTIC
      open_interest_long, open_interest_short, open_interest_net, source_url, fetched_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(trade_date, institution_type) DO UPDATE SET
-      trade_long=COALESCE(excluded.trade_long, institutional_futures_detail_daily.trade_long),
-      trade_short=COALESCE(excluded.trade_short, institutional_futures_detail_daily.trade_short),
-      trade_net=COALESCE(excluded.trade_net, institutional_futures_detail_daily.trade_net),
-      open_interest_long=COALESCE(excluded.open_interest_long, institutional_futures_detail_daily.open_interest_long),
-      open_interest_short=COALESCE(excluded.open_interest_short, institutional_futures_detail_daily.open_interest_short),
-      open_interest_net=COALESCE(excluded.open_interest_net, institutional_futures_detail_daily.open_interest_net),
+      trade_long=excluded.trade_long,
+      trade_short=excluded.trade_short,
+      trade_net=excluded.trade_net,
+      open_interest_long=excluded.open_interest_long,
+      open_interest_short=excluded.open_interest_short,
+      open_interest_net=excluded.open_interest_net,
       source_url=excluded.source_url,
       fetched_at=excluded.fetched_at`);
   let rows = 0;
   for (const [tradeDate, data] of byDate) {
     for (const [type, item] of [['investment_trust', data.trust], ['dealer', data.dealer]]) {
       if (!item) continue;
-      upsert.run(tradeDate, type, item.tradeLong, item.tradeShort, item.tradeNet, item.long, item.short, item.net, sourceUrl, fetchedAt);
+      // One source observation supplies the entire tuple. Coalescing individual
+      // fields can fabricate a long/short/net combination that no source sent.
+      upsert.run(tradeDate, type, item.tradeLong ?? null, item.tradeShort ?? null, item.tradeNet ?? null,
+        item.long ?? null, item.short ?? null, item.net ?? null, sourceUrl, fetchedAt);
       rows += 1;
     }
   }
@@ -178,20 +181,25 @@ export function auditInstitutionalFuturesOiConsistency(db) {
   };
 }
 
-export function reconcileDomesticInstitutionNets(db, { fetchedAt = new Date().toISOString() } = {}) {
-  const before = auditInstitutionalFuturesOiConsistency(db);
-  const update = db.prepare(`UPDATE institutional_futures_detail_daily SET open_interest_net=?, fetched_at=?
-    WHERE trade_date=? AND institution_type=?`);
-  const reconciled = [];
-  for (const row of before.mismatchDates) {
-    if (row.detail_net == null || !row.cross_table_mismatch) continue;
-    update.run(row.final_net, fetchedAt, row.trade_date, row.institution_type);
-    reconciled.push({
-      tradeDate: row.trade_date,
-      institutionType: row.institution_type,
-      previousNet: row.detail_net,
-      finalNet: row.final_net,
-    });
-  }
-  return { reconciled, audit: auditInstitutionalFuturesOiConsistency(db) };
+export function reconcileDomesticInstitutionNets(db) {
+  const audit = auditInstitutionalFuturesOiConsistency(db);
+  // A conflicting summary is not authority to rewrite a detail row, its source
+  // timestamp, or a historical receipt. Keep discrepancies visible for a later
+  // source-backed repair; this function is deliberately read-only.
+  const quarantined = audit.mismatchDates.map(row => ({tradeDate:row.trade_date,institutionType:row.institution_type,
+    detailNet:row.detail_net,summaryNet:row.final_net,reasonCodes:[
+      ...(row.detail_net == null ? ['INSTITUTIONAL_OI_DETAIL_MISSING'] : []),
+      ...(row.cross_table_mismatch ? ['INSTITUTIONAL_OI_CROSS_TABLE_MISMATCH'] : []),
+      ...(row.internal_mismatch ? ['INSTITUTIONAL_OI_ARITHMETIC_MISMATCH'] : []),
+    ]}));
+  return { reconciled:[], quarantined, policy:'PRESERVE_SOURCE_TUPLE_AND_REPORT_DISAGREEMENT', audit };
+}
+
+export function parseDomesticOpenApiValues(row) {
+  const value = key => {
+    const raw = String(row[key] ?? '').replaceAll(',', '').trim();
+    return /^-?\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) ? Number(raw) : null;
+  };
+  return {tradeLong:value('TradingVolume(Long)'),tradeShort:value('TradingVolume(Short)'),tradeNet:value('TradingVolume(Net)'),
+    long:value('OpenInterest(Long)'),short:value('OpenInterest(Short)'),net:value('OpenInterest(Net)')};
 }

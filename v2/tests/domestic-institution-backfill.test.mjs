@@ -9,6 +9,7 @@ import {
   auditInstitutionalFuturesOiConsistency,
   downloadDomesticInstitutionPeriod,
   periodCacheIsImmutable,
+  parseDomesticOpenApiValues,
   reconcileDomesticInstitutionNets,
   selectDomesticInstitutionRanges,
   upsertDomesticInstitutionRows,
@@ -79,7 +80,7 @@ test('network failure uses only a valid existing cache as an explicit fallback',
   }
 });
 
-test('final institutional snapshot overwrites OI and quality audit compares detail net with final net', () => {
+test('source refresh replaces a complete tuple; reconciliation quarantines conflicting sources without rewriting history', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-domestic-db-'));
   const db = openDatabase(path.join(dir, 'test.sqlite'));
   try {
@@ -106,13 +107,17 @@ test('final institutional snapshot overwrites OI and quality audit compares deta
 
     const before = auditInstitutionalFuturesOiConsistency(db);
     assert.equal(before.summary.cross_table_mismatch_rows, 1);
+    const beforeRows = db.prepare('SELECT * FROM institutional_futures_detail_daily ORDER BY institution_type').all();
     const repaired = reconcileDomesticInstitutionNets(db, { fetchedAt: '2026-07-15T10:00:00.000Z' });
-    assert.deepEqual(repaired.reconciled.map((row) => row.institutionType), ['dealer']);
-    assert.equal(repaired.audit.summary.cross_table_mismatch_rows, 0);
-    assert.equal(repaired.audit.summary.internal_mismatch_rows, 1);
+    assert.deepEqual(repaired.reconciled, []);
+    assert.deepEqual(repaired.quarantined.map(row=>row.institutionType), ['dealer']);
+    assert.equal(repaired.audit.summary.cross_table_mismatch_rows, 1);
+    assert.equal(repaired.audit.summary.internal_mismatch_rows, 0);
+    assert.deepEqual(db.prepare('SELECT * FROM institutional_futures_detail_daily ORDER BY institution_type').all(), beforeRows);
 
     const failedQuality = runQualityChecks(db);
-    assert.equal(failedQuality.byRule.some((row) => row.rule_code === 'INSTITUTIONAL_OI_ARITHMETIC_MISMATCH'), true);
+    assert.equal(failedQuality.institutionalFuturesOiConsistency.summary.passed, false);
+    assert.equal(failedQuality.byRule.some((row) => row.rule_code === 'INSTITUTIONAL_OI_ARITHMETIC_MISMATCH'), false);
     db.prepare(`UPDATE institutional_futures_detail_daily
       SET open_interest_long=10,open_interest_short=30,open_interest_net=-20
       WHERE trade_date='2026-07-15' AND institution_type='dealer'`).run();
@@ -123,4 +128,19 @@ test('final institutional snapshot overwrites OI and quality audit compares deta
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('missing OpenAPI values remain unknown and a newer partial tuple cannot borrow old long/short fields', () => {
+  assert.deepEqual(parseDomesticOpenApiValues({'TradingVolume(Long)':'1,000','TradingVolume(Short)':'',
+    'TradingVolume(Net)':null,'OpenInterest(Long)':'--','OpenInterest(Short)':'0','OpenInterest(Net)':'-3'}),
+    {tradeLong:1000,tradeShort:null,tradeNet:null,long:null,short:0,net:-3});
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tw-domestic-partial-')),db=openDatabase(path.join(dir,'test.sqlite'));
+  try {
+    applyMigrations(db,migrationsPath);
+    upsertDomesticInstitutionRows(db,new Map([['2026-11-04',{dealer:{long:10,short:3,net:7}}]]));
+    upsertDomesticInstitutionRows(db,new Map([['2026-11-04',{dealer:{long:null,short:null,net:8}}]]),{fetchedAt:'2026-11-04T09:00:00Z'});
+    const row=db.prepare('SELECT * FROM institutional_futures_detail_daily').get();
+    assert.equal(row.open_interest_long,null);assert.equal(row.open_interest_short,null);assert.equal(row.open_interest_net,8);
+    assert.equal(row.fetched_at,'2026-11-04T09:00:00Z');
+  } finally {db.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

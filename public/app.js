@@ -357,9 +357,19 @@ $('app').addEventListener('click', (event) => {
 
 function sourceBadge(id, item) {
   const badge = $(id);
-  if (!item) { badge.textContent = '無資料'; badge.className = 'source-badge bad'; return; }
-  badge.textContent = `${item.dataDate || '日期未知'}${item.stale ? '・快取/舊資料' : ''}`;
-  badge.className = `source-badge ${item.ok ? (item.stale ? 'warn' : 'good') : 'bad'}`;
+  if (!badge) return;
+  const update=item?.update;
+  const labels={NOT_DUE:'未到發布時段',SOURCE_NOT_PUBLISHED:'來源尚未公布',JOB_NOT_RUN:'尚無本次更新紀錄',
+    JOB_FAILED:'本次更新失敗',STALE:'資料已過期或品質待確認',AVAILABLE:'資料可用'};
+  const status=update?.status??'STALE';
+  const stamp=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false}):'未知';
+  badge.textContent = `資料日 ${update?.dataDate||item?.dataDate||'未知'} · ${labels[status]||status} (${status})`;
+  badge.className = `source-badge source-detail ${status==='AVAILABLE'?'good':status==='JOB_FAILED'?'bad':'warn'}`;
+  const detail=document.createElement('small');detail.className='source-error';
+  detail.textContent=`來源時間 ${stamp(update?.sourceTime)} · 最後成功取得 ${stamp(update?.lastSuccessfulAt)} · 最後嘗試 ${stamp(update?.lastAttemptAt)}`;
+  badge.append(detail);
+  if(update?.reason||!update){const reason=document.createElement('small');reason.className='source-error';
+    reason.textContent=`原因：${update?.reason||'更新時間證據不足'}${item?.error&&item.error!==update?.reason?' · '+item.error:''}`;badge.append(reason);}
 }
 
 function regimeLabel(value) {
@@ -958,7 +968,7 @@ function render(snapshot) {
   const derived = snapshot.derived || {};
   const monthlyExpiry = snapshot.options?.data?.contracts?.find((item) => item.contract === futuresMarket.txDay?.contract && item.type === 'monthly');
   const failedSources = Object.values(snapshot.sources || {}).filter((item) => !item.ok).length;
-  sourceBadge('overview-date', snapshot.marketOverview);
+  sourceBadge('overview-date', {...snapshot.marketOverview,...snapshot.sources?.marketOverview});
   replaceCards('market-cards', [
     metric('加權指數', fmt(overview.twii?.price, 2), pct(overview.twii?.changePct), Math.sign(overview.twii?.change || 0)),
     metric('台指期近月', fmt(futuresMarket.txDay?.close), `${futuresMarket.txDay?.contract || '—'}・${pct(futuresMarket.txDay?.changePct)}`, Math.sign(futuresMarket.txDay?.change || 0)),
@@ -976,7 +986,7 @@ function render(snapshot) {
   ], ['加權指數', '台指期近月', '台指夜盤', '臺指波動率指數', '上市漲跌家數', '上櫃漲跌家數']);
 
   const spot = snapshot.spotInstitutional?.data || {};
-  sourceBadge('spot-date', snapshot.spotInstitutional);
+  sourceBadge('spot-date', {...snapshot.spotInstitutional,...snapshot.sources?.spotInstitutional});
   replaceCards('spot-cards', [
     metric('外資', signed(spot.foreignNetE, ' 億', 1), '當日現貨買賣超', Math.sign(spot.foreignNetE || 0)),
     metric('投信', signed(spot.trustNetE, ' 億', 1), '當日現貨買賣超', Math.sign(spot.trustNetE || 0)),
@@ -995,11 +1005,11 @@ function render(snapshot) {
   ], ['外資', '外資近5日', '外資近20日', '三大法人合計', '外資歷史百分位']);
 
   const margin = snapshot.margin?.data || {};
-  sourceBadge('margin-date', snapshot.margin);
+  sourceBadge('margin-date', {...snapshot.margin,...snapshot.sources?.margin});
 
   const inst = snapshot.futuresInstitutional?.data || {};
   const large = snapshot.largeTraders?.data || {};
-  sourceBadge('futures-date', snapshot.futuresInstitutional);
+  sourceBadge('futures-date', {...snapshot.futuresInstitutional,...snapshot.sources?.futuresInstitutional});
   replaceCards('futures-cards', [
     metric('台指期近月', fmt(futuresMarket.txDay?.close, 0), `${futuresMarket.txDay?.contract || '—'}・${pct(futuresMarket.txDay?.changePct)}`, Math.sign(futuresMarket.txDay?.change || 0)),
     metric('外資淨部位', signed(inst.foreignNet, ' 口'), inst.deltaAvailable ? `日變化 ${signed(inst.foreignNetDelta, ' 口')}` : '等待可比較交易日', Math.sign(inst.foreignNetDelta || 0)),
@@ -1032,7 +1042,7 @@ function render(snapshot) {
   const optionVolatilityNote = optionRisk.atmIv == null
     ? '官方資料尚未形成可靠 IV；不以 0 代替'
     : `${optionRisk.tradeDate || '日期待確認'}・${optionRisk.contract || '契約待確認'}・Skew ${optionRisk.skew25d == null ? '尚無可用資料' : `${fmt(optionRisk.skew25d * 100, 1)}%`}`;
-  sourceBadge('options-date', snapshot.options);
+  sourceBadge('options-date', {...snapshot.options,...snapshot.sources?.options});
   renderDealerMap(snapshot.dealerMap);
   replaceCards('options-cards', [
     metric('主力契約', options.contract || '—', `${options.contractType === 'weekly' ? '週選' : '月選'}・到期 ${options.expiryDate || '—'}・剩 ${fmt(options.daysToExpiry)} 天`),
@@ -1396,7 +1406,9 @@ function renderSources(sources) {
     for (const value of [source.dataDate || '—', timeLabel(source.fetchedAt)]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
     const status = document.createElement('td');
     const pill = document.createElement('span');
-    const freshness = source.freshness || (source.ok ? (source.stale ? 'stale' : 'current') : 'failed');
+    const freshness = source.update?({AVAILABLE:'current',NOT_DUE:'pending_publication',SOURCE_NOT_PUBLISHED:'pending_publication',
+      JOB_NOT_RUN:'stale',JOB_FAILED:'failed',STALE:'stale'}[source.update.status]||'stale')
+      :source.freshness || (source.ok ? (source.stale ? 'stale' : 'current') : 'failed');
     counts[freshness] = (counts[freshness] || 0) + 1;
     const statusViews = {
       current: ['good', '最新可用'], pending_publication: ['warn', '等待官方公布'],
@@ -1404,8 +1416,10 @@ function renderSources(sources) {
     };
     const [tone, label] = statusViews[freshness] || statusViews.failed;
     pill.className = `status ${tone}`;
-    pill.textContent = label;
+    pill.textContent = source.update?`${label} · ${source.update.status}`:label;
     status.append(pill);
+    if(source.update){const timing=document.createElement('small');timing.className='source-error';
+      timing.textContent=`來源時間 ${timeLabel(source.update.sourceTime)} · 最後成功取得 ${timeLabel(source.update.lastSuccessfulAt)}${source.update.reason?' · '+source.update.reason:''}`;status.append(timing);}
     if (source.error) { const err = document.createElement('small'); err.className = 'source-error'; err.textContent = source.error; status.append(err); }
     tr.append(status); rows.push(tr);
   }
@@ -4985,7 +4999,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
 function marketCandidateBrowserBinding(version, location) {
   if (version?.previewType !== 'CRU21_MARKET_RESEARCH_CANDIDATE'
       || version.releaseScope !== 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE'
-      || version.branch !== 'codex/cru61-daily-use-repair-20261103'
+      || version.branch !== 'codex/cru61-smc-cvd-profile-v1'
       || version.aiEnabled !== false || version.complete !== false || version.deliveryAccepted !== false
       || !/^[a-f0-9]{40}$/.test(version.exactHead || '') || version.exactHead !== version.runtimeCommit
       || version.exactHead !== version.buildCommit || !/^[a-f0-9]{40}$/.test(version.exactTree || '')

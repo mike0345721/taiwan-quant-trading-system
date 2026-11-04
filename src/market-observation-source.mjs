@@ -83,11 +83,11 @@ export function loadMarketObservation({dataRoot,cacheRoot,producerRoot=null,cale
     // A calendar-file boundary is a disclosed independent fragment, never a guessed join.
     const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(cutoff));
     const result=mode==='LIVE'
-      ? producerRoot?readMarketObservationProducer({checkpointPath:path.join(producerRoot,`${date}.checkpoint.json`),cacheRoot,calendar,asOf:cutoff,staged:true})
+      ? producerRoot?readMarketObservationProducer({checkpointPath:path.join(producerRoot,`${date}.checkpoint.json`),cacheRoot,calendar,asOf:cutoff,staged:true,persistentHistory:true})
         : {state:null,complete:false,reason:'GOVERNED_PRODUCER_ROOT_REQUIRED'}
       : readMarketObservationBatch({sourcePath:path.join(dataRoot,'live-events',`${date}.ndjson`),cacheRoot,calendar,asOf:cutoff});
     if(!result.state)return {...unavailableObservation(result.reason,selection),sourceProgress:result.sourceProgress??null};
-    const snapshot=marketObservationSnapshot(result.state,{...selection,now:now.toISOString(),sourceComplete:result.complete,
+    const snapshot=marketObservationSnapshot(result.state,{...selection,history:result.history??null,now:now.toISOString(),sourceComplete:result.complete,
       tradeDate:selectedDate,session:selectedSession,actualContract});
     if(snapshot.identity&&(snapshot.identity.tradeDate!==selectedDate||snapshot.identity.session!==selectedSession||(actualContract&&snapshot.identity.actualContract!==actualContract)))
       return unavailableObservation('SELECTED_IDENTITY_NOT_AVAILABLE_IN_PREFIX',selection);

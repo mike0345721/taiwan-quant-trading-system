@@ -24,11 +24,19 @@ try {
     startDate, endDate, cacheDir: path.join(config.root, 'data', 'official-cache'),
     onProgress: (message) => console.log(`[${new Date().toISOString()}] ${message}`),
   });
-  rebuildFeatures(db);
+  console.log(`[${new Date().toISOString()}] Starting post-import rebuildFeatures`);
+  let started = Date.now();
+  const features = rebuildFeatures(db);
+  console.log(`[${new Date().toISOString()}] Completed post-import rebuildFeatures: ${features.rows} rows / ${Date.now() - started}ms`);
+  console.log(`[${new Date().toISOString()}] Starting post-import runQualityChecks`);
+  started = Date.now();
   const quality = runQualityChecks(db);
+  console.log(`[${new Date().toISOString()}] Completed post-import runQualityChecks: ${Date.now() - started}ms`);
   fs.mkdirSync(config.reportsPath, { recursive: true });
   fs.writeFileSync(path.join(config.reportsPath, 'latest-quality.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), ...quality }, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: true, ...result, coverage: quality.coverage, issues: quality.issues, byRule: quality.byRule }, null, 2));
+  const ok = result.state === 'COMPLETE' && result.failures.length === 0;
+  console.log(JSON.stringify({ ok, ...result, coverage: quality.coverage, issues: quality.issues, byRule: quality.byRule }, null, 2));
+  if (!ok) process.exitCode = 1;
 } finally {
   db.close();
 }

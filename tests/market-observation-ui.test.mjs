@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { normalizeObservation, observationCopyText, plotObservation } from '../public/market-observation.js';
+import { normalizeObservation, observationCopyText, plotObservation, observationCatchup } from '../public/market-observation.js';
 import { inspectEngineeringDocument } from './ui-browser-engineering-helper.mjs';
 import { guestBrowserPath } from './guest-browser-path.mjs';
 import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
@@ -9,6 +9,18 @@ import { SAFETY } from '../src/cvd-observation-core.mjs';
 import { OBSERVATION_VERSION, createMarketObservationState, appendMarketObservationRecords, marketObservationSnapshot } from '../src/market-observation-core.mjs';
 
 const start = Date.parse('2026-08-20T01:00:00Z');
+test('bounded catch-up retains only the prior verified snapshot and never retries arbitrary failures rapidly', () => {
+  const prior = { snapshotId: 'prior', cutoff: '2026-08-20T01:00:00Z' };
+  const pending = { status: 'UNAVAILABLE', reasonCodes: ['DERIVATION_CATCHUP_PENDING'],
+    sourceProgress: { derivedThroughOrdinal: 2000, publishedThroughOrdinal: 1000 } };
+  assert.equal(observationCatchup(pending).retryMs, 250);
+  assert.match(observationCatchup(pending, prior).message, /仍顯示已驗證快照/);
+  assert.equal(prior.snapshotId, 'prior');
+  assert.match(observationCatchup(pending).message, /尚無可顯示/);
+  assert.equal(observationCatchup({ ...pending, reasonCodes: ['OBSERVATION_SOURCE_UNAVAILABLE'] }), null);
+  assert.equal(observationCatchup({ ...pending, reasonCodes: [...pending.reasonCodes, 'HASH_MISMATCH'] }), null);
+  assert.equal(observationCatchup({ ...pending, snapshotId: 'new' }), null);
+});
 function fixture() {
   const iso = seconds => new Date(start + seconds * 1000).toISOString();
   return { schemaVersion: OBSERVATION_VERSION, snapshotId: 'SYNTHETIC-snapshot-1', cutoff: iso(600),
@@ -159,10 +171,10 @@ for (const width of [390, 1366]) test(`synthetic observation controls, cursor, j
   const panel = index.slice(index.indexOf('          <details id="market-observation-workspace"'), index.indexOf('          <details class="dw-family-strip"'));
   const css = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8') + fs.readFileSync(new URL('../public/market-observation.css', import.meta.url), 'utf8');
   const script = fs.readFileSync(new URL('../public/market-observation.js', import.meta.url), 'utf8');
-  const setup = `<script>const sample=${JSON.stringify(actualCoreFixture())};window.errors=[];window.addEventListener('error',e=>errors.push(e.message));let fail=false,journal=0,selected=0;
+  const setup = `<script>const sample=${JSON.stringify(actualCoreFixture())};window.errors=[];window.addEventListener('error',e=>errors.push(e.message));let fail=false,journal=0,selected=0,warming=0;
   window.addEventListener('market-observation-journal',e=>{if(e.detail.snapshot.snapshotId===sample.snapshotId&&e.detail.event.id===sample.events.at(-1).id)journal++;});
   window.addEventListener('market-observation-selected',()=>selected++);
-  window.fetch=async url=>({ok:!fail,status:fail?503:200,json:async()=>({data:{...sample,timeframe:new URL(url,'http://synthetic').searchParams.get('timeframe')}})});</script>`;
+  window.fetch=async url=>({ok:!fail,status:fail?503:200,json:async()=>({data:warming-->0?{status:'UNAVAILABLE',reasonCodes:['DERIVATION_CATCHUP_PENDING'],sourceProgress:{derivedThroughOrdinal:2000,publishedThroughOrdinal:1000}}:{...sample,timeframe:new URL(url,'http://synthetic').searchParams.get('timeframe')}})});</script>`;
   const verification = `<script type="module">const sleep=ms=>new Promise(r=>setTimeout(r,ms));await sleep(50);const $=id=>document.getElementById(id),api=window.MarketObservationWorkspace;
   $('market-observation-workspace').open=true;await api.refresh();await sleep(50);
   const ready=$('mo-position').textContent===sample.summary.position&&$('mo-chart').querySelectorAll('.mo-candle-up,.mo-candle-down').length===sample.price.bars.length*2;
@@ -171,12 +183,14 @@ for (const width of [390, 1366]) test(`synthetic observation controls, cursor, j
   $('mo-layer-cvd').click();const layerOff=!$('mo-chart').querySelector('.mo-cvd-path');$('mo-layer-cvd').click();const layerOn=!!$('mo-chart').querySelector('.mo-cvd-path');
   $('mo-event-journal').click();const copy=api.copyText().includes(sample.snapshotId)&&api.copyText().includes(sample.events.at(-1).id);
   $('mo-timeframe').value='5m';$('mo-timeframe').dispatchEvent(new Event('change'));await sleep(100);const timeframe=api.currentSnapshot()?.timeframe==='5m'&&api.currentSnapshot()?.cvd.value===sample.cvd.value;
+  warming=2;await api.refresh();const warmingRetained=api.currentSnapshot()?.snapshotId===sample.snapshotId&&$('mo-status').textContent.includes('WARMING_UP')&&api.copyText().includes(sample.snapshotId);
+  await sleep(800);const warmingRecovered=!$('mo-status').textContent.includes('WARMING_UP')&&api.currentSnapshot()?.snapshotId===sample.snapshotId;
   fail=true;await api.refresh();const cleared=api.currentSnapshot()===null&&$('mo-position').textContent==='未知'&&$('mo-copy').disabled&&$('mo-chart').children.length===0;
   fail=false;await api.refresh();const recovered=$('mo-position').textContent===sample.summary.position;
-  const r=document.createElement('pre');r.id='ui-convergence-test-result';r.textContent=JSON.stringify({synthetic:true,width:innerWidth,docWidth:document.documentElement.scrollWidth,ready,compactMarkers,cursor,layerOff,layerOn,copy,timeframe,cleared,recovered,journal,selected,viewBox:$('mo-chart').getAttribute('viewBox'),errors});document.body.append(r);</script>`;
+  const r=document.createElement('pre');r.id='ui-convergence-test-result';r.textContent=JSON.stringify({synthetic:true,width:innerWidth,docWidth:document.documentElement.scrollWidth,ready,compactMarkers,cursor,layerOff,layerOn,copy,timeframe,warmingRetained,warmingRecovered,cleared,recovered,journal,selected,viewBox:$('mo-chart').getAttribute('viewBox'),errors});document.body.append(r);</script>`;
   const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}body{padding:12px;background:var(--bg)}body::before{display:none}</style><body>${panel}${setup}<script type="module">${script}</script>${verification}</body></html>`;
   const result = await inspectEngineeringDocument({ binary, html, width, hostedLinuxResearchTest: true });
   assert.equal(result.width, width); assert.ok(result.docWidth <= width + 1, JSON.stringify(result));
-  for (const key of ['ready', 'compactMarkers', 'cursor', 'layerOff', 'layerOn', 'copy', 'timeframe', 'cleared', 'recovered']) assert.equal(result[key], true, key);
+  for (const key of ['ready', 'compactMarkers', 'cursor', 'layerOff', 'layerOn', 'copy', 'timeframe', 'warmingRetained', 'warmingRecovered', 'cleared', 'recovered']) assert.equal(result[key], true, key);
   assert.equal(result.journal, 1); assert.ok(result.selected >= 3); assert.deepEqual(result.errors, []);
 });

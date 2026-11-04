@@ -2,14 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { buildCru34LiveCheckpoint } from './cru34-live-checkpoint.mjs';
-import { updateCanonicalCvdFragment } from './cvd-canonical-fragment.mjs';
+import { updateCanonicalCvdFragment,validateCanonicalCvdFragment } from './cvd-canonical-fragment.mjs';
 import { appendMarketObservationCanonical } from './market-observation-core.mjs';
 import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
 import { stableJson, digest, SAFETY } from './cvd-observation-core.mjs';
+import { MarketObservationStore } from './market-observation-store.mjs';
 
 const MAX_SOURCE=96*1024*1024,MAX_CACHE=64*1024*1024,TAIL=20000,MAX_EVENT_BYTES=128*1024;
 const resident=new Map();
 const pending=new Map();
+const stores=new Map();
+const migrations=new Map();
 const fail=reason=>{throw new Error(reason);};
 const signature=s=>[s.dev,s.ino,s.birthtimeNs,s.mtimeNs,s.size].map(String).join(':');
 
@@ -103,6 +106,8 @@ export function parseCanonicalProducerTail(bytes,{tailLimit=TAIL}={}){
     originalPhysicalSha256:crypto.createHash('sha256').update(bytes).digest('hex'),reducedCheckpointHash:reduced.checkpointHash,
     sourceEventCount:eventCount,retainedEventCount:events.length,firstRetainedOrdinal:events[0]?.ledgerOrdinal??null,
     lastRetainedOrdinal:events.at(-1)?.ledgerOrdinal??null,readBytes:bytes.length,
+    sourcePosition:{ledgerOrdinal:metadata.lastVerifiedLedgerOrdinal,startByteOffset:metadata.lastVerifiedStartByteOffset,endByteOffset:metadata.lastVerifiedEndByteOffset},
+    sourceAvailableAt:metadata.lastVerifiedAvailableAt??null,lastCanonicalEventTime:events.at(-1)?.eventMs??null,
     scope:'VALIDATED_CANONICAL_PRODUCER_TAIL_NOT_RAW_LEDGER_OR_COMPLETE_SESSION'}};
 }
 
@@ -125,6 +130,7 @@ function readCache(file){
   if(separator!==64||digest(bytes.subarray(65))!==bytes.subarray(0,64).toString('ascii'))fail('OBSERVATION_PRODUCER_CACHE_HASH');
   const body=JSON.parse(bytes.subarray(65).toString('utf8'));
   if(body.schemaVersion!=='cru61-producer-observation-cache-v1')fail('OBSERVATION_PRODUCER_CACHE_INVALID');
+  Object.defineProperty(body,'verifiedCacheBytesHash',{value:bytes.subarray(0,64).toString('ascii')});
   return body;
 }
 function writeCache(file,body){
@@ -135,20 +141,77 @@ function writeCache(file,body){
   try{fs.writeFileSync(temp,bytes,{flag:'wx'});fs.renameSync(temp,file);}finally{if(fs.existsSync(temp))fs.unlinkSync(temp);}
 }
 
-export function readMarketObservationProducer({checkpointPath,cacheRoot=null,calendar,asOf,staged=false}={}){
+function migrateLegacyCache(history,legacy){
+  const fragment=legacy.fragment.state,cvd=fragment.cvd;
+  const cursor=history.getMeta('legacy-migration')??{hash:legacy.verifiedCacheBytesHash,phase:0,index:0,segment:0};
+  if(cursor.hash!==legacy.verifiedCacheBytesHash)fail('OBSERVATION_LEGACY_MIGRATION_SOURCE_CHANGED');
+  history.beginOrigin(cvd.sourceLedgerIdentity,fragment.originOrdinal);cursor.origin=history.origin;
+  let processed=0;
+  while(cursor.phase<3&&processed<2000){
+    const rows=cursor.phase===0?cvd.quotes:cursor.phase===1?cvd.series:legacy.state.segments[cursor.segment]?.trades??[];
+    while(cursor.index<rows.length&&processed<2000){
+      const row=rows[cursor.index++];
+      if(cursor.phase===0)history.appendQuote(row);else if(cursor.phase===1)history.appendPoint(row);
+      else history.appendTrade(legacy.state.segments[cursor.segment],row);
+      processed++;
+    }
+    if(cursor.index===rows.length){cursor.index=0;if(cursor.phase===2&&cursor.segment+1<legacy.state.segments.length)cursor.segment++;else cursor.phase++;}
+  }
+  if(cursor.phase<3){history.setMeta('legacy-migration',cursor);return null;}
+  // Copy only compact state at final publication, not all retained arrays twice.
+  const {segments,...stateRest}=legacy.state,{quotes,series,...cvdRest}=cvd;
+  const body={...legacy,state:{...structuredClone(stateRest),segments:segments.map(segment=>{
+    const {trades,profile,...rest}=segment;
+    return {...structuredClone(rest),trades:[],profile:profile?{...structuredClone(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='trades'))),trades:[]}:null};
+  })},fragment:{state:{...fragment,cvd:{...structuredClone(cvdRest),quotes:[],series:structuredClone(series.slice(-1))}}}};
+  for(let index=0;index<body.state.segments.length;index++){
+    const segment=body.state.segments[index],profile=segment.profile,oldProfile=segments[index].profile;
+    if(profile){
+      profile.retainTrades=false;profile.tradeCount=oldProfile.trades.length;
+      profile.firstTrade=oldProfile.trades[0]??null;profile.lastTrade=oldProfile.trades.at(-1)??null;
+      profile.observedStart=null;profile.observedEnd=null;
+      for(const trade of oldProfile.trades){
+        if(profile.observedStart===null||Date.parse(trade.eventTime)<Date.parse(profile.observedStart))profile.observedStart=trade.eventTime;
+        if(profile.observedEnd===null||Date.parse(trade.eventTime)>Date.parse(profile.observedEnd))profile.observedEnd=trade.eventTime;
+      }
+      profile.trades=[];history.saveProfile(segment,profile.lastAvailableAt);
+    }
+  }
+  body.fragment.state.cvd.quoteFloor=cvd.quotes[0]?.ledgerOrdinal??fragment.lastCanonicalOrdinal??0;
+  body.fragment.stateHash=digest(stableJson(body.fragment.state));
+  body.state.fragmentSemantic.series=body.state.fragmentSemantic.series.slice(-1);
+  body.migratedFromLegacyBytesHash=legacy.verifiedCacheBytesHash;history.checkpoint(body);history.deleteMeta('legacy-migration');return body;
+}
+
+export function readMarketObservationProducer({checkpointPath,cacheRoot=null,calendar,asOf,staged=false,persistentHistory=false}={}){
   if(typeof checkpointPath!=='string'||!path.isAbsolute(checkpointPath))fail('OBSERVATION_PRODUCER_PATH_REQUIRED');
   if(typeof staged!=='boolean')fail('OBSERVATION_PRODUCER_STAGING_INVALID');
+  if(typeof persistentHistory!=='boolean'||(persistentHistory&&!cacheRoot))fail('OBSERVATION_PERSISTENCE_ROOT_REQUIRED');
   if(asOf&&!Number.isFinite(Date.parse(asOf)))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
   const file=path.resolve(checkpointPath),resolverIdentity=digest(stableJson(calendar));
   const cacheFile=cacheRoot?path.join(cacheRoot,'market-observation',`${digest(file+'|'+resolverIdentity)}.producer-fragment`):null;
+  const residentKey=file+(persistentHistory?'|persistent-v1':'|memory-v1');
+  const storeFile=persistentHistory?cacheFile+'.observation.sqlite':null;
+  let history=storeFile?stores.get(storeFile)??null:null;
+  const openHistory=()=>{
+    if(storeFile&&!history){history=new MarketObservationStore(storeFile,{sourcePath:file,resolverIdentity});stores.set(storeFile,history);
+      while(stores.size>2){const oldest=stores.keys().next().value;stores.get(oldest).close();stores.delete(oldest);}}
+  };
+  if(storeFile&&fs.existsSync(storeFile))openHistory();
+  if(history){const wasVerified=history.verified,verification=history.verifyStep();
+    if(!wasVerified||!verification.complete)return {state:null,complete:false,reason:'DERIVED_HISTORY_VERIFYING',sourceProgress:verification};}
   const stat=fs.lstatSync(file,{bigint:true});if(!stat.isFile()||stat.isSymbolicLink()||stat.size>BigInt(MAX_SOURCE))fail('OBSERVATION_PRODUCER_SOURCE_INVALID');
-  let cached=resident.get(file);
+  let cached=resident.get(residentKey);
   if(cached&&asOf&&Date.parse(cached.fragment?.state?.cvd?.cutoffReceivedAt)>Date.parse(asOf))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
-  if(cached&&cached.signature===signature(stat)&&cached.resolverIdentity===resolverIdentity)return {state:cached.state,complete:true,
-    reason:'PRODUCER_FRAGMENT_CAUGHT_UP',sourceProgress:{...cached.sourceProof,readBytes:0,processedRecords:0,cached:true}};
+  const stagedBody=history?.getMeta('pending-derivation')??null;
+  if(!stagedBody&&cached&&(!persistentHistory||history)&&cached.signature===signature(stat)&&cached.resolverIdentity===resolverIdentity)return {state:cached.state,complete:true,
+    reason:'PRODUCER_FRAGMENT_CAUGHT_UP',history,sourceProgress:{...cached.sourceProof,readBytes:0,processedRecords:0,cached:true}};
   let source,fromPending=false,newerPublicationPending=false;
-  const previousPending=pending.get(file);
-  if(staged&&previousPending&&previousPending.resolverIdentity===resolverIdentity
+  const previousPending=pending.get(residentKey);
+  if(stagedBody||history?.getMeta('pending-source')){
+    source=previousPending?.source??history.pendingSource();if(!source)fail('OBSERVATION_PENDING_SOURCE_MISSING');
+    fromPending=true;newerPublicationPending=source.signature!==signature(stat);
+  }else if(staged&&previousPending&&previousPending.resolverIdentity===resolverIdentity
       &&previousPending.cacheFile===cacheFile){
     source=previousPending.source;fromPending=true;
     // A verified immutable observation remains valid evidence while a newer
@@ -156,32 +219,77 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
     // than starving forever when publications outpace UI polling.
     newerPublicationPending=source.signature!==signature(stat);
   }else{
-    pending.delete(file);
+    pending.delete(residentKey);
     const started=performance.now();source=readSource(file);
     if(asOf&&Date.parse(source.checkpoint.lastVerifiedAvailableAt)>Date.parse(asOf))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
     if(staged){
-      pending.set(file,{source,resolverIdentity,cacheFile});while(pending.size>2)pending.delete(pending.keys().next().value);
+      pending.set(residentKey,{source,resolverIdentity,cacheFile});while(pending.size>2)pending.delete(pending.keys().next().value);
       return {state:null,complete:false,reason:'VERIFIED_SOURCE_PENDING_DERIVATION',sourceProgress:{...source.sourceProof,
         processedRecords:0,cached:false,stage:'VERIFIED_PENDING_DERIVATION',verificationElapsedMs:performance.now()-started}};
     }
   }
   const deriveStarted=performance.now();
-  if(!cached)cached=readCache(cacheFile);
+  openHistory();
+  const historyOpenElapsedMs=performance.now()-deriveStarted;
+  if(history&&!history.verified){const verification=history.verifyStep();
+    return {state:null,complete:false,reason:'DERIVED_HISTORY_VERIFYING',sourceProgress:verification};}
+  if(!cached)cached=history?history.getMeta('checkpoint'):readCache(cacheFile);
+  // A legacy cache is evidence with an established cumulative origin. Migration
+  // is explicit and atomic; never discard it to obtain a smaller fresh origin.
+  if(!cached&&history&&fs.existsSync(cacheFile)){
+    const stamp=signature(fs.lstatSync(cacheFile,{bigint:true}));
+    let migration=migrations.get(cacheFile);
+    if(migration&&migration.stamp!==stamp)fail('OBSERVATION_LEGACY_MIGRATION_SOURCE_CHANGED');
+    if(!migration){const legacy=readCache(cacheFile);migration={legacy,stamp,validated:false};migrations.clear();migrations.set(cacheFile,migration);
+      return {state:null,complete:false,reason:'LEGACY_CACHE_VALIDATION_PENDING',sourceProgress:{stage:'LEGACY_BYTES_VERIFIED'}};}
+    const legacy=migration.legacy;
+    if(legacy.sourcePath!==file||legacy.resolverIdentity!==resolverIdentity)fail('OBSERVATION_PRODUCER_CACHE_BINDING');
+    if(!migration.validated){validateCanonicalCvdFragment(legacy.fragment);migration.validated=true;
+      return {state:null,complete:false,reason:'LEGACY_CACHE_MIGRATION_PENDING',sourceProgress:{stage:'LEGACY_FRAGMENT_VERIFIED'}};}
+    cached=history.transaction(()=>migrateLegacyCache(history,legacy));
+    if(!cached)return {state:null,complete:false,reason:'LEGACY_CACHE_MIGRATION_PENDING',sourceProgress:history.getMeta('legacy-migration')};
+    migrations.delete(cacheFile);
+  }
   if(cached&&(cached.sourcePath!==file||cached.resolverIdentity!==resolverIdentity))fail('OBSERVATION_PRODUCER_CACHE_BINDING');
   if(asOf&&(!Number.isFinite(Date.parse(asOf))||Date.parse(source.checkpoint.lastVerifiedAvailableAt)>Date.parse(asOf)))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
-  const fragment=updateCanonicalCvdFragment(cached?.fragment??null,source.checkpoint,{resolverIdentity,
+  // Persist the verified input in its own request. Combining a durable input
+  // commit with the first derivation chunk exceeded the original worker budget
+  // under simultaneous daily-writer load. No source checkpoint is promoted here.
+  if(history&&staged&&!stagedBody&&!history.getMeta('pending-source')){
+    history.transaction(()=>history.stageSource(source));pending.set(residentKey,{source,resolverIdentity,cacheFile});
+    return {state:null,complete:false,reason:'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION',sourceProgress:{...source.sourceProof,
+      processedRecords:0,stage:'SOURCE_PERSISTED_NOT_DERIVED',historyOpenElapsedMs,persistenceElapsedMs:performance.now()-deriveStarted-historyOpenElapsedMs}};
+  }
+  const derive=()=>{
+  const previous=stagedBody??cached;
+  const fragment=updateCanonicalCvdFragment(previous?.fragment??null,source.checkpoint,{resolverIdentity,storage:history,
+    maxEvents:history?2000:20000,continuation:Boolean(stagedBody),
     resolveSessionTradeDate:eventTime=>{try{const s=classifyTxChartSession(eventTime,calendar);return {session:s.session,tradeDate:s.sessionTradeDate};}catch{return null;}}});
-  const state=appendMarketObservationCanonical(cached?.state??null,fragment,{resolveSessionTradeDate:eventTime=>{
+  const state=appendMarketObservationCanonical(previous?.state??null,fragment,{history,resolveSessionTradeDate:eventTime=>{
     try{const s=classifyTxChartSession(eventTime,calendar);return {session:s.session,tradeDate:s.sessionTradeDate};}catch{return null;}
   }});
   const body={schemaVersion:'cru61-producer-observation-cache-v1',sourcePath:file,resolverIdentity,signature:source.signature,
     sourceProof:source.sourceProof,fragment:fragment.checkpoint,state};
-  writeCache(cacheFile,body);resident.delete(file);resident.set(file,body);while(resident.size>2)resident.delete(resident.keys().next().value);
-  pending.delete(file);
-  return {state,complete:!newerPublicationPending,
+  if(history){
+    if(fragment.complete){history.checkpoint(body);history.clearPending();}
+    else{if(!history.getMeta('pending-source'))history.stageSource(source);history.setMeta('pending-derivation',{...body,origin:history.origin});}
+  }else writeCache(cacheFile,body);
+  return {body,fragment,state};
+  };
+  const {body,fragment,state}=history?history.transaction(derive):derive();
+  if(!fragment.complete){
+    pending.set(residentKey,{source,resolverIdentity,cacheFile});
+    return {state:null,history,complete:false,reason:'DERIVATION_CATCHUP_PENDING',sourceProgress:{...source.sourceProof,
+      processedRecords:fragment.canonicalEvents.length,derivedThroughOrdinal:fragment.checkpoint.state.lastCanonicalOrdinal,
+      publishedThroughOrdinal:cached?.fragment?.state.sourceOrdinal??null,readBytes:fromPending?0:source.sourceProof.readBytes,
+      stage:'PRIVATE_DERIVATION_NOT_PUBLISHED',derivationElapsedMs:performance.now()-deriveStarted}};
+  }
+  resident.delete(residentKey);resident.set(residentKey,body);while(resident.size>2)resident.delete(resident.keys().next().value);
+  pending.delete(residentKey);
+  return {state,history,complete:!newerPublicationPending,
     reason:newerPublicationPending?'PRODUCER_VERIFIED_FRAGMENT_BEHIND_PUBLICATION':'PRODUCER_FRAGMENT_CAUGHT_UP',sourceProgress:{...source.sourceProof,
     readBytes:fromPending?0:source.sourceProof.readBytes,verifiedReadBytes:source.sourceProof.readBytes,
     processedRecords:fragment.canonicalEvents.length,resetReason:fragment.resetReason,cached:false,newerPublicationPending,
     stage:fromPending?'DERIVED_FROM_VERIFIED_SOURCE':'VERIFIED_AND_DERIVED',derivationElapsedMs:performance.now()-deriveStarted}};
 }
-export function clearMarketObservationProducerCache(){resident.clear();pending.clear();}
+export function clearMarketObservationProducerCache(){resident.clear();pending.clear();migrations.clear();for(const store of stores.values())store.close();stores.clear();}

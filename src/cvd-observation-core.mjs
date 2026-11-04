@@ -12,6 +12,20 @@ export function stableJson(value) {
   return JSON.stringify(sort(value));
 }
 export const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+// Same JSON bytes as stableJson for persisted JSON values, without a second
+// full object graph and giant string during legacy-cache verification.
+export function stableJsonDigest(value) {
+  const hash=crypto.createHash('sha256');let buffer='';
+  const emit=text=>{buffer+=text;if(buffer.length>=32768){hash.update(buffer);buffer='';}};
+  const visit=x=>{
+    if(Array.isArray(x)){emit('[');x.forEach((v,i)=>{if(i)emit(',');visit(v);});emit(']');}
+    else if(x&&typeof x==='object'){
+      emit('{');const keys=Object.keys(Object.fromEntries(Object.keys(x).sort().map(k=>[k,null])));
+      keys.forEach((key,i)=>{if(i)emit(',');emit(JSON.stringify(key)+':');visit(x[key]);});emit('}');
+    }else emit(JSON.stringify(x));
+  };
+  visit(value);if(buffer)hash.update(buffer);return hash.digest('hex');
+}
 const seal = state => ({ state, stateHash: digest(stableJson(state)) });
 const identity = e => [e.actualContract, e.tradeDate, e.session, e.continuityEpoch];
 export function createCvdCheckpoint(sourceLedgerIdentity, resolverIdentity) {
@@ -36,10 +50,11 @@ export function validateCvdCheckpoint(checkpoint) {
 }
 
 // Shared canonical accumulator: caller owns a private working clone. Classification remains CRU34.
-export function accumulateCanonicalCvdEvents(state, events, { resolveSessionTradeDate = null, record = null } = {}) {
-    const quoteFor = events.some(event => event.kind === 'futures_tick')
+export function accumulateCanonicalCvdEvents(state, events, { resolveSessionTradeDate = null, record = null, storage = null } = {}) {
+    const quoteFor = storage ? tick => ({quote:storage.quoteFor(tick)}) : events.some(event => event.kind === 'futures_tick')
       ? createBestQuoteLookup([...state.quotes, ...events], { maxQuoteAgeMs: 2000 }) : null;
-    let quoteFloor = state.quotes[0]?.ledgerOrdinal ?? events[0]?.ledgerOrdinal ?? Infinity;
+    let quoteFloor = storage ? (state.quoteFloor ?? events[0]?.ledgerOrdinal ?? Infinity)
+      : state.quotes[0]?.ledgerOrdinal ?? events[0]?.ledgerOrdinal ?? Infinity;
     for (const event of events) {
       const nextIdentity = identity(event);
       if (stableJson(state.activeIdentity) !== stableJson(nextIdentity)) {
@@ -47,8 +62,10 @@ export function accumulateCanonicalCvdEvents(state, events, { resolveSessionTrad
         // Identity change is an explicit new observation segment, including a quote-only boundary.
         state.quotes = [];
         quoteFloor = event.ledgerOrdinal;
+        if (storage) state.quoteFloor = quoteFloor;
       }
       if (event.kind === 'futures_bidask') {
+        if (storage) { storage.appendQuote(event); continue; }
         if (state.quotes.length >= LIMITS.quoteCount) throw new Error('CVD_QUOTE_STATE_BUDGET');
         state.quotes.push(event); continue;
       }
@@ -96,6 +113,12 @@ export function accumulateCanonicalCvdEvents(state, events, { resolveSessionTrad
         unknownVolume: segment.unknownVolume, totalExecutedVolume: segment.totalExecutedVolume,
         classifiedCoverage: segment.classifiedCoverage, quality: segment.quality, reason: segment.reason,
         joinedContinuityStatus: event.joinedContinuityStatus, quoteConflictCount: pressure.conflict?.count ?? null });
+      if (storage) {
+        storage.appendPoint(state.series.at(-1));
+        // The complete series is committed by the caller in the same transaction.
+        // This terminal witness is sufficient for the next cumulative update.
+        state.series = state.series.slice(-1);
+      }
     }
   return state;
 }

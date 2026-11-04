@@ -9,6 +9,7 @@ import {
   DOMESTIC_INSTITUTION_SOURCE_URL as SOURCE_URL,
   dateTaipei,
   downloadDomesticInstitutionPeriod,
+  parseDomesticOpenApiValues,
   reconcileDomesticInstitutionNets,
   selectDomesticInstitutionRanges,
   upsertDomesticInstitutionRows,
@@ -57,14 +58,11 @@ async function syncLatestOpenApi() {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return 0;
   const mapped = new Map();
   for (const row of tx) {
-    const item = {
-      tradeLong: Number(row['TradingVolume(Long)']), tradeShort: Number(row['TradingVolume(Short)']), tradeNet: Number(row['TradingVolume(Net)']),
-      long: Number(row['OpenInterest(Long)']), short: Number(row['OpenInterest(Short)']), net: Number(row['OpenInterest(Net)']),
-    };
+    const item = parseDomesticOpenApiValues(row);
     if (String(row.Item).includes('投信')) mapped.set('trust', item);
     if (String(row.Item).includes('自營商')) mapped.set('dealer', item);
   }
-  return upsertDomesticInstitutionRows(db, new Map([[date, Object.fromEntries(mapped)]]), { sourceUrl: SOURCE_URL, fetchedAt: new Date().toISOString() });
+  return upsertDomesticInstitutionRows(db, new Map([[date, Object.fromEntries(mapped)]]), { sourceUrl: url, fetchedAt: new Date().toISOString() });
 }
 
 try {

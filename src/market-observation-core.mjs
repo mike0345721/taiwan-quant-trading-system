@@ -100,7 +100,7 @@ export function appendMarketObservationRecords(previous, records, options) {
   return accumulateObservationEvents(state,canonical.events,points,options.resolveSessionTradeDate);
 }
 
-export function appendMarketObservationCanonical(previous,fragment,{resolveSessionTradeDate=null}={}) {
+export function appendMarketObservationCanonical(previous,fragment,{resolveSessionTradeDate=null,history=null}={}) {
   const state=!previous||fragment.resetReason?{schemaVersion:OBSERVATION_VERSION,segments:[],...SAFETY}:structuredClone(previous);
   const timeline=lineageTimeline(state,'RETAINED_CANONICAL_PRODUCER');
   state.fragmentSemantic=fragment.cvdSemantic;
@@ -115,11 +115,19 @@ export function appendMarketObservationCanonical(previous,fragment,{resolveSessi
     timeline.highWaterMs=timeline.highWaterMs===null?physicalTerminal:Math.max(timeline.highWaterMs,physicalTerminal);
     timeline.lastWitnessMs=timeline.lastWitnessMs===null?physicalTerminal:Math.max(timeline.lastWitnessMs,physicalTerminal);
   }
-  const points=new Map(fragment.cvdSemantic.series.map(p=>[p.ledgerOrdinal,p]));
-  return accumulateObservationEvents(state,fragment.canonicalEvents,points,resolveSessionTradeDate);
+  const points=history?{get:ordinal=>history.pointFor(ordinal)}:new Map(fragment.cvdSemantic.series.map(p=>[p.ledgerOrdinal,p]));
+  return accumulateObservationEvents(state,fragment.canonicalEvents,points,resolveSessionTradeDate,history);
 }
 
-function accumulateObservationEvents(state,events,points,resolveSessionTradeDate) {
+function accumulateObservationEvents(state,events,points,resolveSessionTradeDate,history=null) {
+  const addReason=(segment,event,reason)=>{
+    if(history){
+      history.appendReason(segment,event,reason);
+      const prior=segment.reasons.find(item=>item.reason===reason);
+      if(prior){if(ms(event.availableAt)!==null&&(ms(prior.availableAt)===null||ms(event.availableAt)<ms(prior.availableAt)))prior.availableAt=event.availableAt;return;}
+    }
+    segment.reasons.push({reason,availableAt:event.availableAt});
+  };
   const quarantinedEpochs=new Set((state.lineageTimeline?.quarantinedEpochs??[]).map(item=>item.epoch));
   for(const event of events) {
     if(event.kind!=='futures_tick') continue;
@@ -140,33 +148,37 @@ function accumulateObservationEvents(state,events,points,resolveSessionTradeDate
     if(resolveSessionTradeDate){
       let governed=null;try{governed=resolveSessionTradeDate(event.eventTime,event.rawRecord);}catch{}
       if(governed?.session!==event.session||governed?.tradeDate!==event.tradeDate){
-        segment.reasons.push({reason:'GOVERNED_SESSION_BOUNDARY_INVALID',availableAt:event.availableAt});continue;
+        addReason(segment,event,'GOVERNED_SESSION_BOUNDARY_INVALID');continue;
       }
     }
     if(event.identityStatus!=='USABLE'||event.availabilityLineageStatus!=='USABLE'
       ||!finitePositive(price)||!finitePositive(volume)||ms(event.eventTime)>ms(event.availableAt)) {
-      segment.reasons.push({reason:'INVALID_TRADE_OR_TIME_LINEAGE',availableAt:event.availableAt}); continue;
+      addReason(segment,event,'INVALID_TRADE_OR_TIME_LINEAGE'); continue;
     }
-    if(segment.trades.length>=OBSERVATION_RULES.maxTrades) throw Error('OBSERVATION_TRADE_BUDGET');
+    if(!history&&segment.trades.length>=OBSERVATION_RULES.maxTrades) throw Error('OBSERVATION_TRADE_BUDGET');
     const {rawRecord,...canonical}=event;
     const trade={...canonical,eventTime:new Date(ms(event.eventTime)).toISOString(),availableAt:new Date(ms(event.availableAt)).toISOString(),
       sourceEventTime:event.eventTime,sourceAvailableAt:event.availableAt,
       payload:{...event.payload,close:price,volume,sourcePrice:event.payload.price??event.payload.close,sourceVolume:event.payload.executedVolume??event.payload.volume}};
-    segment.trades.push(trade);
+    if(history){
+      history.appendTrade(segment,trade);
+      segment.profile=appendVolumeProfileTrades(segment.profile??createVolumeProfileState({identity:segment.identity,retainTrades:false}),[trade],{mutatePrivateState:true});
+    }else segment.trades.push(trade);
     const start=Math.floor(ms(event.eventTime)/60000)*60000;
     if(segment.pending && start<ms(segment.pending.time)) {
-      segment.reasons.push({reason:'LATE_TRADE_CLOSED_BAR_NOT_REWRITTEN',availableAt:event.availableAt}); continue;
+      addReason(segment,event,'LATE_TRADE_CLOSED_BAR_NOT_REWRITTEN'); continue;
     }
     if(segment.pending && start>ms(segment.pending.time)) {
       if(segment.bars.length>=OBSERVATION_RULES.maxBars) throw Error('OBSERVATION_BAR_BUDGET');
       // Finalization is only known on the later physical record; no wall-clock backdating.
       segment.bars.push({...segment.pending,availableAt:event.availableAt,closed:true}); segment.pending=null;
+      if(history)history.saveProfile(segment,event.availableAt);
     }
     if(!segment.pending) segment.pending={time:new Date(start).toISOString(),endTime:new Date(start+60000).toISOString(),
       open:price,high:price,low:price,close:price,volume,availableAt:event.availableAt,closed:false,identity:segment.identity};
     else { const b=segment.pending;b.high=Math.max(b.high,price);b.low=Math.min(b.low,price);b.close=price;b.volume+=volume;b.availableAt=event.availableAt; }
   }
-  for(const segment of state.segments){
+  if(!history)for(const segment of state.segments){
     const added=segment.trades.filter(t=>t.ledgerOrdinal>(segment.profile?.lastOrdinal??0));
     if(added.length)segment.profile=appendVolumeProfileTrades(segment.profile??createVolumeProfileState({identity:segment.identity}),added);
   }
@@ -219,18 +231,21 @@ export function describeObservationScenario({direction,test,after,location,heldR
   return {code:'UNRESOLVED_STRUCTURE_TEST',description:'已確認結構事件；回測、成交反應與分布遷移仍待觀察'};
 }
 
-export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cutoff,now=cutoff,sourceComplete=true,tradeDate=null,session=null,actualContract=null}={}) {
+export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cutoff,now=cutoff,sourceComplete=true,tradeDate=null,session=null,actualContract=null,history=null}={}) {
   const semantic=state.fragmentSemantic??cvdSemanticResult(state.cvd).semantic;
   if(ms(cutoff)==null) return unavailableObservation('CUTOFF_REQUIRED',{timeframe,mode});
   const segment=[...state.segments].reverse().find(s=>ms(s.startAvailableAt)<=ms(cutoff)&&(!tradeDate||s.identity.tradeDate===tradeDate)&&(!session||s.identity.session===session)&&(!actualContract||s.identity.actualContract===actualContract));
   if(!segment) return unavailableObservation('NO_LAWFUL_TRADE',{timeframe,mode,cutoff});
-  const trades=segment.trades.filter(t=>ms(t.availableAt)<=ms(cutoff)&&ms(t.eventTime)<=ms(cutoff));
-  const series=semantic.series.filter(p=>p.segment===segment.cvdSegment&&ms(p.availableAt)<=ms(cutoff));
+  const trades=history?history.tradeEndpoints(segment,cutoff):segment.trades.filter(t=>ms(t.availableAt)<=ms(cutoff)&&ms(t.eventTime)<=ms(cutoff));
+  const series=history?history.minuteSeries(segment,cutoff):semantic.series.filter(p=>p.segment===segment.cvdSegment&&ms(p.availableAt)!==null&&ms(p.availableAt)<=ms(cutoff));
+  const profileAt=at=>volumeProfileSnapshot(segment.profile??createVolumeProfileState({identity:segment.identity}),
+    {cutoff:at,history:history?time=>history.profileAt(segment,time):null});
+  const windowAt=(start,end,at)=>history?history.windowEvidence(segment,start,end,at):windowEvidence(deltas,trades,start,end,at);
   const deltas=new Map();let priorPoint=null;
   for(const p of series){deltas.set(p.ledgerOrdinal,{buy:p.buyProxyVolume-(priorPoint?.buyProxyVolume??0),sell:p.sellProxyVolume-(priorPoint?.sellProxyVolume??0),
     unknown:p.unknownVolume-(priorPoint?.unknownVolume??0),total:p.totalExecutedVolume-(priorPoint?.totalExecutedVolume??0),valid:p.value!==null});priorPoint=p;}
-  const last=series.at(-1),price=trades.at(-1)?.payload.close??null;
-  const reasons=[...segment.reasons.filter(r=>ms(r.availableAt)<=ms(cutoff)).map(r=>r.reason),'CAPTURE_COMPLETENESS_UNPROVEN'];
+  const last=history?history.lastPoint(segment,cutoff):series.at(-1),price=trades.at(-1)?.payload.close??null;
+  const reasons=[...new Set(segment.reasons.filter(r=>ms(r.availableAt)!==null&&ms(r.availableAt)<=ms(cutoff)).map(r=>r.reason)),'CAPTURE_COMPLETENESS_UNPROVEN'];
   if(!sourceComplete) reasons.push('SOURCE_CATCHUP_PENDING');
   if(mode==='LIVE'&&(!last||ms(now)-ms(last.availableAt)>30000)) reasons.push('STALE');
   if(last?.classifiedCoverage!==1) reasons.push('CLASSIFIED_COVERAGE_INCOMPLETE');
@@ -243,22 +258,25 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
   let profile={state:'UNAVAILABLE',bins:[],poc:null,vah:null,val:null},structure={state:'UNAVAILABLE',events:[],zones:[]};
   let bars=[];
   try {
-    profile=volumeProfileSnapshot(segment.profile??createVolumeProfileState({identity:segment.identity}),{cutoff});
+    profile=profileAt(cutoff);
   } catch(error){reasons.push(error.message);}
   try {
     bars=aggregateObservationBars(segment.bars,timeframe,cutoff);
-    let s=createMarketStructureState({identity:segment.identity,timeframe,left:2,right:2,obLookback:12});
-    s=appendMarketStructureBars(s,bars,{cutoff});structure=marketStructureSnapshot(s,{cutoff});
+    if(history)structure=history.structureSnapshot(segment,bars,timeframe,cutoff,OBSERVATION_RULES.maxBars);
+    else{
+      let s=createMarketStructureState({identity:segment.identity,timeframe,left:2,right:2,obLookback:12,maxBars:OBSERVATION_RULES.maxBars});
+      s=appendMarketStructureBars(s,bars,{cutoff});structure=marketStructureSnapshot(s,{cutoff});
+    }
   } catch(error){reasons.push(error.message);}
   const periods={'1m':1,'5m':5,'15m':15,'30m':30,'1h':60,'4h':240},duration=(periods[timeframe]||1)*60000;
   const structuralEvents=(structure.events||[]).filter(e=>['BOS','CHOCH','CHoCH','SWEEP_HIGH','SWEEP_LOW','SWEEP'].includes(e.type));
   const events=structuralEvents.slice(-100).map((e,eventIndex)=>{
     const at=ms(e.availableAt),trigger=ms(bars[e.barIndex]?.time??e.confirmedTime)-0;
-    const approach=windowEvidence(deltas,trades,trigger-3*duration,trigger,at);
-    const test=windowEvidence(deltas,trades,trigger,ms(e.confirmedTime),at);
-    const after=windowEvidence(deltas,trades,at,Math.min(ms(cutoff),at+3*duration),ms(cutoff));
+    const approach=windowAt(trigger-3*duration,trigger,at);
+    const test=windowAt(trigger,ms(e.confirmedTime),at);
+    const after=windowAt(at,Math.min(ms(cutoff),at+3*duration),ms(cutoff));
     let historicalProfile=null;
-    try { historicalProfile=volumeProfileSnapshot(segment.profile,{cutoff:new Date(at).toISOString()}); } catch {}
+    try { historicalProfile=profileAt(new Date(at).toISOString()); } catch(error){if(history)throw error;}
     const direction=e.direction==='BEARISH'||e.direction==='DOWN'?-1:1;
     const sameForce=test.deltaCvd!==null&&test.deltaCvd*direction>0;
     const failed=after.priceDisplacement!==null&&after.priceDisplacement*direction<0;
@@ -270,7 +288,7 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
     const globalIndex=structuralEvents.indexOf(e),lastThree=structuralEvents.slice(Math.max(0,globalIndex-2),globalIndex+1);
     const alternating=lastThree.length===3&&lastThree[0].direction!==lastThree[1].direction&&lastThree[1].direction!==lastThree[2].direction;
     let afterProfile=null;
-    try{afterProfile=volumeProfileSnapshot(segment.profile,{cutoff:new Date(Math.min(ms(cutoff),at+3*duration)).toISOString()});}catch{}
+    try{afterProfile=profileAt(new Date(Math.min(ms(cutoff),at+3*duration)).toISOString());}catch(error){if(history)throw error;}
     const valueMigrated=historicalProfile?.poc!=null&&afterProfile?.poc>historicalProfile.poc;
     const scenario=describeObservationScenario({direction:e.direction,test,after,location,heldRetest,valueMigrated,alternating});
     return {...e,confirmedAt:e.availableAt,nominalCloseTime:e.confirmedTime,price:e.price??e.level,title,location,scenario,
