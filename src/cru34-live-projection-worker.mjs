@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import {
   buildCru34LiveCheckpoint,
+  buildCru34LiveCheckpointDraft,
   cru34LiveCanonicalJson,
   cru34LiveHash,
   readCru34LiveCheckpoint,
@@ -262,7 +263,7 @@ export function projectCru34LiveBatch({
   const cutoff = [...combined].reverse().find((event) => event.kind === 'futures_tick') || null;
   const rollingCanonicalEvents = pruneRolling(combined, cutoff);
   const last = batch.rows.at(-1);
-  checkpoint = buildCru34LiveCheckpoint({
+  const checkpointDraft = buildCru34LiveCheckpointDraft({
     sourceLedgerIdentity: identity,
     segmentIdentity: identity,
     lastVerifiedLedgerOrdinal: ordinalOffset + batch.rows.length,
@@ -279,6 +280,7 @@ export function projectCru34LiveBatch({
     lastEmittedSemanticHash: checkpoint?.lastEmittedSemanticHash || null,
   });
   if (!cutoff) {
+    checkpoint = buildCru34LiveCheckpoint(checkpointDraft);
     writeCru34LiveCheckpoint(checkpointPath, checkpoint);
     return Object.freeze({ status: 'WARMING_UP', checkpoint, snapshot: null });
   }
@@ -311,7 +313,7 @@ export function projectCru34LiveBatch({
     compatibilitySemanticHash: semanticContentHash,
   });
   const nextCheckpoint = buildCru34LiveCheckpoint({
-    ...checkpoint,
+    ...checkpointDraft,
     lastEmittedSemanticHash: semanticContentHash,
   });
   // Observe age AFTER the expensive calculation, immediately before publication.
@@ -341,7 +343,7 @@ export function projectCru34LiveBatch({
     validUntil: new Date(Date.parse(semanticPayload.availableAt) + staleAfterMs).toISOString(),
     heartbeatAgeMs,
     staleAfterMs,
-    lagBytes: Math.max(0, batch.observedSize - checkpoint.lastVerifiedEndByteOffset),
+    lagBytes: Math.max(0, batch.observedSize - nextCheckpoint.lastVerifiedEndByteOffset),
     checkpointIdentity: nextCheckpoint.checkpointHash,
     checkpointOrdinal: nextCheckpoint.lastVerifiedLedgerOrdinal,
     checkpointRecordHash: nextCheckpoint.lastVerifiedRecordHash,

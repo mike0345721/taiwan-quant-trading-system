@@ -23,14 +23,7 @@ function safetyValid(value) {
     && value?.executionAuthorized === false && value?.orderRoutesEnabled === false;
 }
 
-export function validateCru34LiveCheckpoint(value) {
-  if (!value || value.schemaVersion !== CRU34_LIVE_CHECKPOINT_VERSION) {
-    throw new Error('CRU43_CHECKPOINT_SCHEMA_INVALID');
-  }
-  const { checkpointHash, ...body } = value;
-  if (!/^[a-f0-9]{64}$/.test(checkpointHash || '') || cru34LiveHash(body) !== checkpointHash) {
-    throw new Error('CRU43_CHECKPOINT_HASH_INVALID');
-  }
+function validateCheckpointStructure(body) {
   if (!safetyValid(body)) throw new Error('CRU43_CHECKPOINT_SAFETY_INVALID');
   if (!/^sha256:[a-f0-9]{64}$/.test(body.sourceLedgerIdentity || '')) {
     throw new Error('CRU43_CHECKPOINT_SOURCE_IDENTITY_INVALID');
@@ -45,12 +38,23 @@ export function validateCru34LiveCheckpoint(value) {
   if (!Array.isArray(body.rollingCanonicalEvents) || body.rollingCanonicalEvents.length > 250_000) {
     throw new Error('CRU43_CHECKPOINT_ROLLING_STATE_INVALID');
   }
+}
+
+export function validateCru34LiveCheckpoint(value) {
+  if (!value || value.schemaVersion !== CRU34_LIVE_CHECKPOINT_VERSION) {
+    throw new Error('CRU43_CHECKPOINT_SCHEMA_INVALID');
+  }
+  const { checkpointHash, ...body } = value;
+  if (!/^[a-f0-9]{64}$/.test(checkpointHash || '') || cru34LiveHash(body) !== checkpointHash) {
+    throw new Error('CRU43_CHECKPOINT_HASH_INVALID');
+  }
+  validateCheckpointStructure(body);
   return Object.freeze(value);
 }
 
-export function buildCru34LiveCheckpoint(body) {
+function checkpointBody(body) {
   const { checkpointHash: ignoredHash, schemaVersion: ignoredSchema, ...cleanBody } = body || {};
-  const checkpoint = {
+  return {
     schemaVersion: CRU34_LIVE_CHECKPOINT_VERSION,
     ...cleanBody,
     formalWeight: 0,
@@ -58,6 +62,19 @@ export function buildCru34LiveCheckpoint(body) {
     executionAuthorized: false,
     orderRoutesEnabled: false,
   };
+}
+
+// Shape checks stay before Flow calculation, without hashing an intermediate
+// rolling state whose lastEmittedSemanticHash will immediately be replaced.
+// A draft has no checkpointHash and cannot pass persisted-checkpoint validation.
+export function buildCru34LiveCheckpointDraft(body) {
+  const checkpoint = checkpointBody(body);
+  validateCheckpointStructure(checkpoint);
+  return Object.freeze(checkpoint);
+}
+
+export function buildCru34LiveCheckpoint(body) {
+  const checkpoint = checkpointBody(body);
   return validateCru34LiveCheckpoint(Object.freeze({
     ...checkpoint,
     checkpointHash: cru34LiveHash(checkpoint),

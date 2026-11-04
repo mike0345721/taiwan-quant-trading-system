@@ -50,6 +50,82 @@ function fixture(initialRecords = records()) {
 
 const profile = { instrument: 'TX', product: 'TX', market: 'TAIFEX', tickSize: 1 };
 
+test('steady suffix preserves deterministic native artifacts with at most five full checkpoint hashes', (t) => {
+  // Fixed event IDs make the emitted artifact digest comparable with the same
+  // test on c320, independently of the performance assertion below.
+  let previousHash = 'GENESIS';
+  const all = records().map(({ recordHash: ignoredHash, ...record }, index) => {
+    const body = { ...record, eventId: `checkpoint-draft-regression-${index}`, previousHash };
+    const recordHash = crypto.createHash('sha256')
+      .update(`${previousHash}\n${cru34LiveCanonicalJson(body)}`).digest('hex');
+    previousHash = recordHash;
+    return { ...body, recordHash };
+  });
+  const value = fixture(all.slice(0, 12));
+  const options = { ...value, instrumentProfile: profile, maxBatchBytes: 1024 * 1024,
+    maxBatchRecords: 1000, now: new Date('2026-09-07T01:05:35Z') };
+  projectCru34LiveBatch(options);
+  fs.appendFileSync(value.ledgerPath, `${all.slice(12).map(JSON.stringify).join('\n')}\n`);
+  const originalLedger = fs.readFileSync(value.ledgerPath);
+  const createHash = crypto.createHash;
+  let checkpointHashes = 0;
+  const counter = t.mock.method(crypto, 'createHash', (...args) => {
+    const hash = createHash(...args), update = hash.update;
+    hash.update = function (data, ...rest) {
+      if (typeof data === 'string' && data.includes('"schemaVersion":"cru34-live-checkpoint-v1"')) checkpointHashes++;
+      return update.call(this, data, ...rest);
+    };
+    return hash;
+  });
+  let result;
+  try { result = projectCru34LiveBatch(options); }
+  finally { counter.mock.restore(); }
+  const reference = buildCru34SemanticPayload(buildTxIntradayResearchSnapshot(all, {
+    sourceLedgerIdentity: result.checkpoint.sourceLedgerIdentity, instrumentProfile: profile,
+  }), { tickSize: 1, sourceMode: 'LIVE' });
+  assert.deepEqual(result.snapshot.semanticPayload, reference);
+  assert.equal(result.snapshot.semanticContentHash, cru34LiveHash(reference));
+  assert.equal(result.checkpoint.lastEmittedSemanticHash, cru34LiveHash(reference));
+  assert.equal(result.checkpoint.lastVerifiedLedgerOrdinal, all.length);
+  assert.equal(result.checkpoint.lastVerifiedRecordHash, all.at(-1).recordHash);
+  assert.equal(result.checkpoint.lastVerifiedEndByteOffset, originalLedger.length);
+  assert.equal(result.snapshot.checkpointIdentity, result.checkpoint.checkpointHash);
+  assert.equal(result.snapshot.checkpointOrdinal, all.length);
+  assert.equal(result.snapshot.validUntil, '2026-09-07T01:06:00.000Z');
+  const checkpointBytes = fs.readFileSync(value.checkpointPath);
+  const snapshotBytes = fs.readFileSync(value.snapshotPath);
+  assert.equal(checkpointBytes.toString(), `${cru34LiveCanonicalJson(result.checkpoint)}\n`);
+  assert.equal(snapshotBytes.toString(), `${cru34LiveCanonicalJson(result.snapshot)}\n`);
+  assert.deepEqual(fs.readFileSync(value.ledgerPath), originalLedger);
+  // Log before the budget assertion: the old version must produce exactly the
+  // same artifact digests while failing only the redundant full-hash budget.
+  console.log(JSON.stringify({ evidence: 'checkpoint-draft-native-equivalence',
+    checkpointHash: result.checkpoint.checkpointHash, snapshotHash: result.snapshot.snapshotHash,
+    semanticContentHash: result.snapshot.semanticContentHash,
+    multiWindowContentHash: result.snapshot.multiWindowPayload.contentHash,
+    nativeCheckpointFileHash: createHash('sha256').update(checkpointBytes).digest('hex'),
+    nativeSnapshotFileHash: createHash('sha256').update(snapshotBytes).digest('hex'),
+    ordinal: result.snapshot.checkpointOrdinal, sourceAvailableAt: reference.availableAt,
+    validUntil: result.snapshot.validUntil, checkpointHashes }));
+  assert.equal(checkpointHashes, 5, 'read validation + final build/hash validation + write validation + readback validation');
+});
+
+test('quote-only suffix still commits a fully validated checkpoint without publishing a snapshot', () => {
+  const value = fixture(records().slice(0, 1));
+  const result = projectCru34LiveBatch({ ...value, instrumentProfile: profile,
+    now: new Date('2026-09-07T01:00:01Z'),
+    publishSnapshot() { assert.fail('a quote-only batch must not publish Flow'); },
+  });
+  assert.equal(result.status, 'WARMING_UP');
+  assert.equal(result.snapshot, null);
+  assert.equal(result.checkpoint.lastVerifiedLedgerOrdinal, 1);
+  assert.equal(result.checkpoint.lastEmittedSemanticHash, null);
+  assert.deepEqual(result.checkpoint.rollingCanonicalEvents, []);
+  assert.equal(fs.existsSync(value.snapshotPath), false);
+  assert.equal(fs.readFileSync(value.checkpointPath, 'utf8'), `${cru34LiveCanonicalJson(result.checkpoint)}\n`);
+  assert.equal(projectCru34LiveBatch({ ...value }).status, 'NO_COMPLETE_SUFFIX');
+});
+
 test('bounded worker produces LIVE and matches full GENESIS LIVE semantics', () => {
   const value = fixture();
   const now = new Date('2026-09-07T01:05:35.000Z');
