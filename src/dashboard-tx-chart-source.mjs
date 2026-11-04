@@ -1,17 +1,35 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
 import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
 import { CAPTURE_EVENT_KINDS, compactCaptureEvidence } from './chart-capture-coverage.mjs';
+import { readBoundedFile } from './daily-data-operations-files.mjs';
 
 const ledgerCache = new Map();
 let timestampLineageCache = new WeakMap();
 const TAIPEI_OFFSET = '+08:00';
 const PERSISTENT_CACHE_CHECKPOINT_BYTES = 64 * 1024 * 1024;
+
+export const TX_CHART_SOURCE_LIMITS = Object.freeze({
+  maxSourceBytes: 4 * 1024 * 1024, maxCacheFileBytes: 48 * 1024 * 1024,
+  maxCacheBytes: 64 * 1024 * 1024, maxRecords: 200_000, maxResidentLedgers: 4,
+});
+export function createTxChartReadBudget(limits = {}) {
+  if (!limits || typeof limits !== 'object' || Array.isArray(limits)
+      || Object.keys(limits).some(key => !Object.hasOwn(TX_CHART_SOURCE_LIMITS, key))) throw Error('TX_CHART_SOURCE_LIMIT_INVALID');
+  const value = { ...TX_CHART_SOURCE_LIMITS, ...limits };
+  for (const key of Object.keys(TX_CHART_SOURCE_LIMITS)) {
+    if (!Number.isSafeInteger(value[key]) || value[key] < 1 || value[key] > TX_CHART_SOURCE_LIMITS[key]) throw Error('TX_CHART_SOURCE_LIMIT_INVALID');
+  }
+  return { ...value, remainingSourceBytes: value.maxSourceBytes, remainingCacheBytes: value.maxCacheBytes,
+    remainingRecords: value.maxRecords, remainingCacheWriteBytes: value.maxCacheBytes,
+    sourceBytesRead: 0, cacheBytesRead: 0, cacheBytesWritten: 0 };
+}
+const limitError = code => Object.assign(new Error(code), { chartLimit: true });
+const requestBudgetError = () => Object.assign(limitError('TX_CHART_CACHE_REQUEST_BUDGET_EXCEEDED'), { requestBudget: true });
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -55,20 +73,50 @@ function cachePaths(sourcePath, cacheRoot) {
   };
 }
 
-function readPersistentCache(sourcePath, sourceStat, cacheRoot) {
+function readPersistentCache(sourcePath, sourceStat, cacheRoot, budget = null) {
   const files = cachePaths(sourcePath, cacheRoot);
   if (!files || !fs.existsSync(files.records) || !fs.existsSync(files.metadata)) return null;
   try {
-    const metadata = JSON.parse(fs.readFileSync(files.metadata, 'utf8'));
-    const bytes = fs.readFileSync(files.records);
+    let metadataBytes;
+    if (budget) {
+      const metadataSize = fs.statSync(files.metadata).size;
+      if (metadataSize > 64 * 1024) throw limitError('TX_CHART_CACHE_BUDGET_EXCEEDED');
+      if (metadataSize > budget.remainingCacheBytes) throw requestBudgetError();
+      budget.remainingCacheBytes -= metadataSize; budget.cacheBytesRead += metadataSize;
+      metadataBytes = readBoundedFile(files.metadata, metadataSize).toString('utf8');
+    } else metadataBytes = fs.readFileSync(files.metadata, 'utf8');
+    const metadata = JSON.parse(metadataBytes);
+    if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v3'
+      || metadata.sourcePath !== path.resolve(sourcePath)
+      || !Number.isSafeInteger(metadata.sourceOffset) || metadata.sourceOffset < 0 || metadata.sourceOffset > sourceStat.size
+      || !Number.isSafeInteger(metadata.recordCount) || metadata.recordCount < 0) return null;
+    if (budget) {
+      const size = fs.statSync(files.records).size;
+      if (!Number.isSafeInteger(metadata.cacheSize) || metadata.cacheSize !== size
+          || size > budget.maxCacheFileBytes || metadata.recordCount > budget.maxRecords) throw limitError('TX_CHART_CACHE_BUDGET_EXCEEDED');
+      if (size > budget.remainingCacheBytes || metadata.recordCount > budget.remainingRecords) throw requestBudgetError();
+      budget.remainingCacheBytes -= size;
+      budget.cacheBytesRead += size;
+    }
+    const bytes = budget ? readBoundedFile(files.records, Math.min(budget.maxCacheFileBytes, metadata.cacheSize)) : fs.readFileSync(files.records);
+    const cacheHashState = crypto.createHash('sha256').update(bytes);
     if (metadata.schemaVersion !== 'dw2-tx-tick-cache-v3'
       || metadata.sourcePath !== path.resolve(sourcePath)
       || !Number.isInteger(metadata.sourceOffset)
       || metadata.sourceOffset < 0
       || metadata.sourceOffset > sourceStat.size
       || metadata.cacheSize !== bytes.length
-      || metadata.cacheHash !== sha256(bytes)) return null;
-    const records = bytes.toString('utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+      || metadata.cacheHash !== cacheHashState.copy().digest('hex')) return null;
+    const records = [], text = bytes.toString('utf8');
+    let offset = 0;
+    while (offset < text.length) {
+      const newline = text.indexOf('\n', offset), end = newline < 0 ? text.length : newline;
+      if (end > offset) {
+        if (records.length >= metadata.recordCount) return null;
+        records.push(JSON.parse(text.slice(offset, end)));
+      }
+      offset = end + 1;
+    }
     if (records.length !== metadata.recordCount) return null;
     return {
       offset: metadata.sourceOffset,
@@ -77,36 +125,57 @@ function readPersistentCache(sourcePath, sourceStat, cacheRoot) {
       files,
       persistedRecordCount: records.length,
       persistedSourceOffset: metadata.sourceOffset,
+      cacheHashState,
+      persistedCacheSize: bytes.length,
     };
-  } catch { return null; }
+  } catch (error) { if (error.chartLimit) throw error; return null; }
 }
 
-function writePersistentCache(sourcePath, cached, cacheRoot) {
+function writePersistentCache(sourcePath, cached, cacheRoot, budget = null) {
   const files = cached.files || cachePaths(sourcePath, cacheRoot);
   if (!files || cached.remainder) return;
-  fs.mkdirSync(path.dirname(files.records), { recursive: true });
   const persistedRecordCount = Number.isInteger(cached.persistedRecordCount) ? cached.persistedRecordCount : 0;
-  const canAppend = cached.forceRewrite !== true && fs.existsSync(files.records) && persistedRecordCount <= cached.records.length;
+  const canAppend = cached.forceRewrite !== true && cached.cacheHashState && fs.existsSync(files.records)
+    && fs.statSync(files.records).size === cached.persistedCacheSize && persistedRecordCount <= cached.records.length;
   const newRecords = cached.records.slice(persistedRecordCount);
+  // Count UTF-8 bytes before publication. An oversized derived cache must not
+  // replace a valid checkpoint or make the next reader exceed its own limit.
+  const serialize = (records, existingBytes = 0) => {
+    const parts = []; let size = 0;
+    for (const record of records) {
+      const line = JSON.stringify(compactTickRecord(record)) + '\n';
+      size += Buffer.byteLength(line);
+      if (budget && (size + existingBytes > budget.maxCacheFileBytes || size > budget.remainingCacheWriteBytes)) throw limitError('TX_CHART_CACHE_WRITE_BUDGET_EXCEEDED');
+      parts.push(line);
+    }
+    if (budget) { budget.remainingCacheWriteBytes -= size; budget.cacheBytesWritten += size; }
+    return Buffer.from(parts.join(''), 'utf8');
+  };
+  let cacheHashState, cacheSize;
   if (canAppend) {
+    const appended = serialize(newRecords, cached.persistedCacheSize);
+    cacheHashState = cached.cacheHashState.copy().update(appended);
+    cacheSize = cached.persistedCacheSize + appended.length;
     if (newRecords.length) {
-      fs.appendFileSync(files.records, `${newRecords.map((record) => JSON.stringify(compactTickRecord(record))).join('\n')}\n`, 'utf8');
+      fs.appendFileSync(files.records, appended);
     }
   } else {
     const recordsTemp = `${files.records}.${process.pid}.tmp`;
-    const initialBytes = Buffer.from(cached.records.map((record) => JSON.stringify(compactTickRecord(record))).join('\n') + (cached.records.length ? '\n' : ''), 'utf8');
+    const initialBytes = serialize(cached.records);
+    fs.mkdirSync(path.dirname(files.records), { recursive: true });
     fs.writeFileSync(recordsTemp, initialBytes);
     fs.renameSync(recordsTemp, files.records);
+    cacheHashState = crypto.createHash('sha256').update(initialBytes);
+    cacheSize = initialBytes.length;
   }
-  const bytes = fs.existsSync(files.records) ? fs.readFileSync(files.records) : Buffer.alloc(0);
   const metadataTemp = `${files.metadata}.${process.pid}.tmp`;
   const metadata = {
     schemaVersion: 'dw2-tx-tick-cache-v3',
     sourcePath: path.resolve(sourcePath),
     sourceOffset: cached.offset,
     recordCount: cached.records.length,
-    cacheSize: bytes.length,
-    cacheHash: sha256(bytes),
+    cacheSize,
+    cacheHash: cacheHashState.copy().digest('hex'),
     sourceImmutable: false,
     derivedCacheOnly: true,
     formalWeight: 0,
@@ -119,6 +188,8 @@ function writePersistentCache(sourcePath, cached, cacheRoot) {
   cached.persistedRecordCount = cached.records.length;
   cached.persistedSourceOffset = cached.offset;
   cached.forceRewrite = false;
+  cached.cacheHashState = cacheHashState;
+  cached.persistedCacheSize = cacheSize;
 }
 
 function dateShift(date, days) {
@@ -194,12 +265,25 @@ function parseCandidateLine(line, records) {
   try { records.push(compactTickRecord(JSON.parse(line))); return true; } catch { return false; }
 }
 
-export function readTxLiveEventLedger(filePath, { cacheRoot = null, includeCaptureEvidence = false } = {}) {
+export function readTxLiveEventLedger(filePath, { cacheRoot = null, includeCaptureEvidence = false, budget = null, withProgress = false } = {}) {
   const absolute = path.resolve(filePath);
-  if (!fs.existsSync(absolute)) return Object.freeze([]);
+  if (!fs.existsSync(absolute)) return withProgress ? { records: [], progress: { sourceDate: path.basename(absolute), state: 'MISSING', complete: false, reasonCodes: ['TX_CHART_SOURCE_MISSING'] } } : Object.freeze([]);
   const stat = fs.statSync(absolute);
   let cached = ledgerCache.get(absolute);
-  if (!cached) cached = readPersistentCache(absolute, stat, cacheRoot);
+  const reasons = []; let preserveExistingCache = false;
+  if (!cached) {
+    try { cached = readPersistentCache(absolute, stat, cacheRoot, budget); }
+    catch (error) {
+      if (!error.chartLimit) throw error;
+      // Exhausting this request's remainder says nothing about whether the
+      // checkpoint is reusable by a later single-date request. Leave residency
+      // untouched and do not fall back to scanning its raw source in this call.
+      if (error.requestBudget) return withProgress ? { records: [], progress: { sourceDate: path.basename(absolute),
+        state: 'REQUEST_BUDGET_EXHAUSTED', complete: false, observedSize: stat.size,
+        reasonCodes: [error.message] } } : Object.freeze([]);
+      reasons.push(error.message); preserveExistingCache = true;
+    }
+  }
   if (!cached || stat.size < cached.offset) cached = {
     offset: 0,
     remainder: '',
@@ -208,35 +292,72 @@ export function readTxLiveEventLedger(filePath, { cacheRoot = null, includeCaptu
     persistedRecordCount: 0,
     persistedSourceOffset: 0,
     forceRewrite: true,
+    persistenceBlocked: preserveExistingCache,
   };
   // Remember a restored checkpoint even when no new suffix has arrived.
   ledgerCache.set(absolute, cached);
-  if (stat.size === cached.offset) return Object.freeze(includeCaptureEvidence ? [...cached.records] : cached.records.filter(record => record.kind === 'futures_tick'));
-  const fd = fs.openSync(absolute, 'r');
-  const decoder = new StringDecoder('utf8');
-  const buffer = Buffer.allocUnsafe(8 * 1024 * 1024);
-  let position = cached.offset;
-  let pending = cached.remainder;
-  try {
-    while (position < stat.size) {
-      const bytes = fs.readSync(fd, buffer, 0, Math.min(buffer.length, stat.size - position), position);
-      if (!bytes) break;
-      position += bytes;
-      const text = pending + decoder.write(buffer.subarray(0, bytes));
-      const lines = text.split('\n');
-      pending = lines.pop() || '';
-      for (const line of lines) parseCandidateLine(line, cached.records);
+  if (budget) {
+    ledgerCache.delete(absolute); ledgerCache.set(absolute, cached);
+    let residentRecords = [...ledgerCache.values()].reduce((count, value) => count + value.records.length, 0);
+    while (ledgerCache.size > 1 && (ledgerCache.size > budget.maxResidentLedgers || residentRecords > budget.maxRecords)) {
+      const oldest = ledgerCache.keys().next().value;
+      residentRecords -= ledgerCache.get(oldest).records.length; ledgerCache.delete(oldest);
     }
-    pending += decoder.end();
-  } finally { fs.closeSync(fd); }
-  cached.offset = position;
-  cached.remainder = pending;
-  ledgerCache.set(absolute, cached);
-  const uncheckpointedBytes = cached.offset - (cached.persistedSourceOffset || 0);
-  if (cacheRoot && (cached.forceRewrite === true || uncheckpointedBytes >= PERSISTENT_CACHE_CHECKPOINT_BYTES)) {
-    writePersistentCache(absolute, cached, cacheRoot);
   }
-  return Object.freeze(includeCaptureEvidence ? [...cached.records] : cached.records.filter(record => record.kind === 'futures_tick'));
+  if (stat.size > cached.offset && (!budget || cached.records.length <= budget.remainingRecords)) {
+    const fd = fs.openSync(absolute, 'r');
+    try {
+      while (cached.offset < stat.size) {
+        const length = Math.min(8 * 1024 * 1024, stat.size - cached.offset, budget?.remainingSourceBytes ?? Infinity);
+        if (!length) { reasons.push('TX_CHART_SOURCE_BUDGET_EXCEEDED'); break; }
+        const buffer = Buffer.allocUnsafe(length);
+        const bytes = fs.readSync(fd, buffer, 0, length, cached.offset);
+        if (budget) { budget.remainingSourceBytes -= bytes; budget.sourceBytesRead += bytes; }
+        if (!bytes) break;
+        const terminal = buffer.subarray(0, bytes).lastIndexOf(0x0a);
+        if (terminal < 0) { cached.remainder = 'PENDING_COMPLETE_LINE'; reasons.push('TX_CHART_COMPLETE_LINE_PENDING'); break; }
+        const added = [];
+        for (const line of buffer.subarray(0, terminal + 1).toString('utf8').split('\n')) parseCandidateLine(line, added);
+        if (budget && cached.records.length + added.length > budget.remainingRecords) { reasons.push('TX_CHART_RECORD_BUDGET_EXCEEDED'); break; }
+        // A complete prefix and its records commit together; retry never duplicates a partial batch.
+        for (const record of added) cached.records.push(record);
+        cached.offset += terminal + 1;
+        cached.remainder = '';
+        if (terminal + 1 < bytes && cached.offset + bytes - terminal - 1 === stat.size) {
+          reasons.push('TX_CHART_COMPLETE_LINE_PENDING'); break;
+        }
+      }
+    } finally { fs.closeSync(fd); }
+  }
+  const withinRecords = !budget || cached.records.length <= budget.remainingRecords;
+  if (budget) {
+    let residentRecords = [...ledgerCache.values()].reduce((count, value) => count + value.records.length, 0);
+    while (ledgerCache.size > 1 && residentRecords > budget.maxRecords) {
+      const oldest = ledgerCache.keys().next().value;
+      residentRecords -= ledgerCache.get(oldest).records.length; ledgerCache.delete(oldest);
+    }
+  }
+  if (!withinRecords) reasons.push('TX_CHART_RECORD_BUDGET_EXCEEDED');
+  const selected = withinRecords ? cached.records : [];
+  if (budget) budget.remainingRecords -= selected.length;
+  const complete = withinRecords && cached.offset === stat.size;
+  if (!complete && !reasons.length) reasons.push('TX_CHART_SOURCE_CATCHUP_PENDING');
+  const uncheckpointedBytes = cached.offset - (cached.persistedSourceOffset || 0);
+  const checkpointBytes = budget ? Math.min(PERSISTENT_CACHE_CHECKPOINT_BYTES, budget.maxSourceBytes) : PERSISTENT_CACHE_CHECKPOINT_BYTES;
+  if (cached.persistenceBlocked) reasons.push('TX_CHART_EXISTING_CACHE_PRESERVED');
+  if (cacheRoot && !cached.persistenceBlocked && withinRecords && cached.records.length && (cached.forceRewrite === true || uncheckpointedBytes >= checkpointBytes)) {
+    try { writePersistentCache(absolute, cached, cacheRoot, budget); }
+    catch (error) {
+      // A failed atomic metadata publication must not make the next append duplicate bytes.
+      cached.forceRewrite = true;
+      if (!budget) throw error;
+      reasons.push(error.chartLimit ? error.message : 'TX_CHART_CACHE_CHECKPOINT_FAILED');
+    }
+  }
+  const records = Object.freeze(includeCaptureEvidence ? [...selected] : selected.filter(record => record.kind === 'futures_tick'));
+  return withProgress ? { records, progress: { sourceDate: path.basename(absolute), complete,
+    state: complete ? 'COMPLETE' : 'CATCHUP_PENDING', sourceOffset: cached.offset, observedSize: stat.size,
+    reasonCodes: [...new Set(reasons)] } } : records;
 }
 
 function chartTimestampMs(value) {
@@ -330,13 +451,20 @@ function attachTimestampLineageQuality(chart, violations, { timeframe, tradeDate
   return attachTimestampDependencyQuality(Object.freeze(next), scoped, { cutoff });
 }
 
-function readPriorDayLevel(archiveDir, calendar, tradeDate, selectedContract, contractMonth) {
+function readPriorDayLevel(archiveDir, calendar, tradeDate, selectedContract, contractMonth, budget = null) {
   const priorTradeDate = previousOfficial(calendar, tradeDate);
   if (!priorTradeDate) return null;
   const filePath = path.join(archiveDir, `${priorTradeDate}-day.json`);
   if (!fs.existsSync(filePath)) return null;
   try {
-    const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    let bytes;
+    if (budget) {
+      const size = fs.statSync(filePath).size;
+      if (size > Math.min(2 * 1024 * 1024, budget.remainingCacheBytes)) return null;
+      budget.remainingCacheBytes -= size; budget.cacheBytesRead += size;
+      bytes = readBoundedFile(filePath, size).toString('utf8');
+    } else bytes = fs.readFileSync(filePath, 'utf8');
+    const payload = JSON.parse(bytes);
     const bars = Array.isArray(payload.bars) ? payload.bars : [];
     if (payload.product !== 'TX' || payload.session !== 'day' || !bars.length) return null;
     const availableAt = fs.statSync(filePath).mtime.toISOString();
@@ -391,6 +519,20 @@ function attachPriorDayLevels(chart, priorDay, cutoff) {
   return chart;
 }
 
+const CURRENT_SOURCE_LEVELS = new Set(['currentDayHigh', 'currentDayLow', 'nightHigh', 'nightLow', 'vwap', 'openingRangeHigh', 'openingRangeLow']);
+function restrictPartialSource(value) {
+  if (!value || typeof value !== 'object') return value;
+  const reason = 'SOURCE_CATCHUP_PENDING';
+  return { ...value, ...(value.status === 'READY' ? { status: 'QUALITY_INSUFFICIENT' } : {}),
+    qualityStatus: 'QUALITY_INSUFFICIENT', qualityReasons: [...new Set([...(value.qualityReasons || []), reason])],
+    fullSessionVerified: false, sourceComplete: false, coverageState: 'PARTIAL', sourceReadReason: reason,
+    captureCoverage: { ...value.captureCoverage, state: value.captureCoverage?.state === 'KNOWN_INTERRUPTION' ? 'KNOWN_INTERRUPTION' : 'SOURCE_PARTIAL',
+      completeMarketWindow: false, sourceComplete: false, reason },
+    structureEligibility: { ...value.structureEligibility, state: 'BLOCKED',
+      reasonCodes: [...new Set([...(value.structureEligibility?.reasonCodes || []), reason])], executionAuthorized: false },
+  };
+}
+
 export function loadTxDecisionChart({
   dataRoot,
   calendar,
@@ -402,6 +544,7 @@ export function loadTxDecisionChart({
   asOf = null,
   now = new Date(),
   cacheRoot = null,
+  sourceBudget = null,
 } = {}) {
   if (!dataRoot || !calendar) throw new Error('TX_CHART_SOURCE_CONFIG_REQUIRED');
   const defaults = resolveDefaultChartSelection(calendar, now);
@@ -410,7 +553,9 @@ export function loadTxDecisionChart({
   const cutoff = asOf || now.toISOString();
   if (!selectedTradeDate) return buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
   const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
-  const records = ledgerDates.flatMap((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`), { cacheRoot, includeCaptureEvidence: true }));
+  const sources = ledgerDates.map((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`),
+    { cacheRoot, includeCaptureEvidence: true, budget: sourceBudget, withProgress: true }));
+  const records = sources.flatMap(source => source.records);
   const lineage = normalizeTimestampLineageForChart(records, calendar);
   const initial = buildTxDecisionChart(lineage.records, {
     calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate,
@@ -424,12 +569,26 @@ export function loadTxDecisionChart({
     cutoff,
   });
   const priorDay = governedInitial.actualContract && governedInitial.contractMonth
-    ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, governedInitial.actualContract, governedInitial.contractMonth)
+    ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, governedInitial.actualContract, governedInitial.contractMonth, sourceBudget)
     : null;
   const result = attachSourceTimeStructureEligibility(attachPriorDayLevels(governedInitial, priorDay, cutoff), records,
     { calendar, cutoff, explicitAsOf: asOf != null });
+  const complete = sources.every(source => source.progress.complete);
+  const limited = sourceBudget && !complete;
+  const qualityReasons = [...new Set([...(result.qualityReasons || []), ...(limited ? ['SOURCE_CATCHUP_PENDING'] : [])])];
   return Object.freeze({
     ...result,
+    ...(sourceBudget ? { sourceComplete: complete, sourceReadState: complete ? 'COMPLETE' : 'CATCHUP_PENDING',
+      sourceProgress: sources.map(source => source.progress), sourceReadBytes: sourceBudget.sourceBytesRead,
+      cacheReadBytes: sourceBudget.cacheBytesRead, cacheWriteBytes: sourceBudget.cacheBytesWritten } : {}),
+    ...(limited ? { ...restrictPartialSource(result), status: result.bars?.length ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
+      reason: 'SOURCE_CATCHUP_PENDING', qualityStatus: 'QUALITY_INSUFFICIENT', qualityReasons,
+      coverageState: 'PARTIAL', fullSessionVerified: false,
+      bars: (result.bars || []).map(restrictPartialSource), vwap: (result.vwap || []).map(restrictPartialSource),
+      openingRange: restrictPartialSource(result.openingRange),
+      ...(result.sessionCoverage ? { sessionCoverage: Object.fromEntries(Object.entries(result.sessionCoverage).map(([key, value]) => [key, restrictPartialSource(value)])) } : {}),
+      levels: Object.fromEntries(Object.entries(result.levels || {}).map(([key, value]) => [key,
+        CURRENT_SOURCE_LEVELS.has(key) ? restrictPartialSource(value) : value])) } : {}),
     sourceLedgerDates: Object.freeze(ledgerDates),
     sourceLedgerIdentity: Object.freeze(ledgerDates.map((date) => `live-events:${date}:TX_EXECUTED_TICK`)),
   });

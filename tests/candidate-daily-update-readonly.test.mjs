@@ -59,7 +59,7 @@ function harness(flag) {
   async function request(url, { method = 'GET', authenticated = true, csrf = true, body = {} } = {}) {
     const res = { setHeader() {} };
     await context.handle({ url, method, body, headers: {
-      ...(authenticated ? { cookie: `twchip_session=${session.id}` } : {}),
+      ...(authenticated ? { cookie: `${config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session'}=${session.id}` } : {}),
       ...(csrf ? { 'x-csrf-token': session.csrf } : {}),
     } }, res);
     return res;

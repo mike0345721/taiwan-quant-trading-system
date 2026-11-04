@@ -33,7 +33,7 @@ function ui() {
   const state = { decisionWorkspace: {}, txChartTimeframe: '5m', txChartRequestId: 0, txChartLoading: false,
     txChartSeries: series, txChartBarCount: 0, txChartPayload: null };
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
-  const context = vm.createContext({ state, $: node, Date: Clock, Intl, URLSearchParams, document: { querySelector: () => null },
+  const context = vm.createContext({ state, $: node, Date: Clock, Intl, URLSearchParams, AbortController, setTimeout, clearTimeout, document: { querySelector: () => null },
     terminalWrite: write, dwText: write, terminalUnavailable: (reason) => `UNAVAILABLE · ${reason}`,
     finiteNumber: (v) => v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null,
     fmt: (v, n = 0) => Number(v).toFixed(n), signed: (v, suffix = '', n = 0) => `${Number(v).toFixed(n)}${suffix}`,
@@ -54,7 +54,7 @@ function ui() {
 function assertStale(h) {
   assert.match(h.node('tt-top-trust').textContent, /^資料過期 · 品質 PASS$/);
   assert.match(h.node('tt-top-trust').className, /is-unavailable/);
-  assert.match(h.node('dw-chart-mode').textContent, /^資料過期 · 來源 .*09:14:57 · LIVE · 5m · READ ONLY$/);
+  assert.match(h.node('dw-chart-mode').textContent, /資料過期 · 來源 .*09:14:57 · LIVE · 5m · READ ONLY$/);
 }
 
 test('the visible main-price badge expires at 120 seconds without hiding historical bars or changing quality', () => {

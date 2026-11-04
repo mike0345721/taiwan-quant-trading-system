@@ -22,13 +22,14 @@
   }
 
   // A presentation projection, never a replacement for backend eligibility or R:R rules.
-  function derive({ chart = null, flow = null, watch = null, marketOperating = null, dashboardError = null, chartError = null, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
+  function derive({ chart = null, flow = null, watch = null, marketOperating = null, dashboardError = null, chartError = null, requestedTimeframe = null, chartLoading = false, focusAllowed = false, rendered = false, now = Date.now() } = {}) {
     const marketBlocked = marketOperating && marketOperating.marketShouldBeActive !== true;
     const marketClosed = marketOperating?.state === 'MARKET_CLOSED';
     const hasChart = Boolean(chart?.bars?.length && rendered);
     const replay = chart?.mode === 'REPLAY';
     const chartFresh = chart?.mode === 'LIVE' && fresh(chart.availableAt, now) && identity(chart);
-    const chartCurrent = hasChart && chartFresh && !chartError && !marketBlocked;
+    const periodPending = Boolean(chart?.timeframe && requestedTimeframe && chart.timeframe !== requestedTimeframe);
+    const chartCurrent = hasChart && chartFresh && !chartError && !periodPending && !marketBlocked;
     const chartQualified = chartCurrent && chart.qualityStatus === 'PASS';
     const flowCurrent = Boolean(!marketBlocked && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
       && (flow.source.validUntil == null || (Number.isFinite(time(flow.source.validUntil)) && time(flow.source.validUntil) >= now)));
@@ -40,7 +41,11 @@
     const noReference = !blocking && watch?.decisionFocus?.state === 'NO_ACTIVE_REFERENCE';
     const failure = Boolean(chartError || dashboardError);
     let status = '資料準備中', message = '尚未取得完整資料，不提供當下判讀。', tone = 'muted';
-    if (failure) {
+    if (periodPending) {
+      status = chartLoading ? '圖表週期切換中' : '圖表週期尚未更新'; tone = 'limited';
+      message = `${requestedTimeframe} ${chartLoading ? '載入中' : '尚未取得'}；目前保留 ${chart.timeframe} 快照，不能當作新週期或即時盤況。`;
+      if (chartError === 'CHART_REQUEST_TIMEOUT') message += ' 圖表請求逾時，等待後續更新恢復。';
+    } else if (failure) {
       status = chartCurrent ? '部分資料更新中斷' : '資料更新中斷'; tone = 'blocked';
       message = chartCurrent ? '圖表有獨立更新；完整盤況尚未恢復，暫停合併判讀。' : '未能取得新資料；保留畫面不是即時盤況，暫停當下判讀。';
     } else if (marketBlocked) {
@@ -67,7 +72,9 @@
             : flowCurrent ? '部分研究證據不足；數值依各欄品質限制呈現。' : '尚無合格力道資料；原因與最後來源時間可在明細查看。';
     return Object.freeze({
       status, message, tone, hasChart, chartCurrent, chartQualified, flowCurrent, flowQualified, mismatch,
-      chartLabel: !hasChart ? '圖表尚未就緒' : replay ? '歷史回放' : !chartCurrent ? '已載入快照・非即時' : chartQualified ? '觀察資料合格' : '圖表資料受限',
+      chartLabel: periodPending ? `${requestedTimeframe} ${chartLoading ? '載入中' : '尚未更新'}・保留 ${chart.timeframe} 快照`
+        : !hasChart ? '圖表尚未就緒' : replay ? '歷史回放' : !chartCurrent ? '已載入快照・非即時' : chartQualified ? '觀察資料合格' : '圖表資料受限',
+      periodPending,
       chartTime: stamp(chart?.availableAt), flowTime: stamp(flow?.source?.availableAt),
       price: hasChart && number(chart?.lastPrice) !== null ? chart.lastPrice.toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : '—',
       priceLabel: chartCurrent ? '成交價' : hasChart ? '上一筆' : '尚未取得價格',
@@ -554,7 +561,8 @@
     const model = $('ai-model')?.value ? $('ai-model').selectedOptions?.[0]?.textContent : '尚未選擇模型';
     const account = $('ai-account')?.value ? '帳號已連接' : '帳號狀態待確認';
     const phase = $('ai-status')?.dataset.phase;
-    root.textContent = busy ? '分析處理中・收合不會取消' : ['FAILED', 'INTERRUPTED', 'TIMED_OUT'].includes(phase) ? '上次操作未完成・展開查看' : account + ' · ' + model;
+    root.textContent = phase === 'DISABLED' ? 'DISABLED_BY_OWNER · AI 已依擁有者決定停用'
+      : busy ? '分析處理中・收合不會取消' : ['FAILED', 'INTERRUPTED', 'TIMED_OUT'].includes(phase) ? '上次操作未完成・展開查看' : account + ' · ' + model;
   }
 
   function render(root, input) {
@@ -575,7 +583,7 @@
       : input.marketOperating?.state === 'UNAVAILABLE' ? '開休市日曆未驗證'
       : [input.chart?.tradeDate, ({ DAY: '日盤', NIGHT: '夜盤' })[input.chart?.session] || input.chart?.session].filter(Boolean).join(' · ') || '盤別尚未確認');
     text('tt-top-trust', view.status); text('tt-top-updated', view.chartTime);
-    text('dw-chart-mode', (view.chartCurrent ? '觀察模式' : '非即時') + ' · ' + (input.chart?.timeframe || '—') + ' · 只讀');
+    text('dw-chart-mode', (view.periodPending ? view.chartLabel : (view.chartCurrent ? '觀察模式' : '非即時') + ' · ' + (input.chart?.timeframe || '—')) + ' · 只讀');
     text('dw-chart-status', view.chartLabel); text('home-chart-notice', view.chartCurrent ? '' : view.chartLabel + ' · 截至 ' + view.chartTime);
     const notice = document.getElementById('home-chart-notice'); if (notice) notice.hidden = view.chartCurrent || !view.hasChart;
     const badge = document.getElementById('dw-chart-status');

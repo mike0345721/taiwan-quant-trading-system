@@ -33,7 +33,7 @@ import { appendDecisionJournal, readDecisionJournal, appendDecisionOutcome, read
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
 import { loadOperatingCalendar } from './src/operating-calendar.mjs';
-import { loadTxDecisionChart } from './src/dashboard-tx-chart-source.mjs';
+import { createTxChartService } from './src/dashboard-tx-chart-service.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity, validateFormalRuntimeVersionTruth } from './src/runtime-identity.mjs';
@@ -137,6 +137,10 @@ const v2ReaderBinding = createGovernedV2Reader({
 const v2Research = new V2ResearchService(config.v2DatabasePath, config.v2ReportPath, { readerBinding: v2ReaderBinding });
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || readDataRoot);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
+// One bounded, on-demand calculation worker. HTTP and health must never scan
+// or normalize a market ledger on the main event loop.
+const txChartService = createTxChartService({ dataRoot: txChartDataRoot,
+  cacheRoot: txChartCacheRoot, calendar: chartCalendar });
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
   : null;
@@ -199,20 +203,13 @@ function currentObservedFlow() {
 }
 
 async function currentDecisionLevelWatch(chart = null) {
-  const selectedChart = chart || loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
-    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const selectedChart = chart || await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
   const marketPulse = await currentMarketPulse(selectedChart);
   return buildDecisionLevelWatch({ chart: selectedChart, observedFlow: currentObservedFlow(), marketPulse, snapshotTime: new Date().toISOString() });
 }
 
 async function currentMarketPulse(chart = null) {
-  const selectedChart = chart || loadTxDecisionChart({
-    dataRoot: txChartDataRoot,
-    cacheRoot: txChartCacheRoot,
-    calendar: chartCalendar,
-    timeframe: '5m',
-    mode: 'LIVE',
-  });
+  const selectedChart = chart || await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
   const bridgeLatest = config.cru55Acceptance
     ? { state: 'UNAVAILABLE', reason: 'ISOLATED_ACCEPTANCE_NO_LIVE_BRIDGE', data: null }
     : await inspectShioajiLatest();
@@ -234,8 +231,7 @@ function currentCru46RuntimeReadiness() {
       actualDataMode: expectedDataMode.toUpperCase(), sourceClean: sourceCleanAtStartup,
       host: config.host, port: config.port, previewType: process.env.DASHBOARD_PREVIEW_TYPE,
     });
-  const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
-    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const chartPayload = txChartService.peek({ timeframe: '5m', mode: 'LIVE' });
   const flow = loadDashboardObservedFlow({ liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath });
   const vendor = inspectChartVendorRuntime({ bundlePath: lightweightChartsPath,
     packagePath: lightweightChartsPackagePath, expectedVersion: '5.2.0' });
@@ -259,7 +255,7 @@ async function decisionWorkspacePayload(snapshot, service) {
     baseRoot: forwardShadowBaseRoot,
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
-  const chart = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot, calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+  const chart = await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
   const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
     ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
     : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
@@ -311,6 +307,7 @@ async function currentDiscussionWorkspace() {
   clientSnapshot.sixAxisShadow = buildSixAxisShadow(clientSnapshot);
   const servicePayload = {
     readOnly: true,
+    candidateReadOnly: config.candidateReadOnly,
     brokerConnected: shioaji.connected,
     brokerMarketData: shioaji,
     lastRefreshError,
@@ -322,11 +319,8 @@ async function currentDiscussionWorkspace() {
   return decisionWorkspacePayload(clientSnapshot, servicePayload);
 }
 
-function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
-  const chart = loadTxDecisionChart({
-    dataRoot: txChartDataRoot,
-    cacheRoot: txChartCacheRoot,
-    calendar: chartCalendar,
+async function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
+  const chart = await txChartService.load({
     timeframe: '5m',
     mode,
     tradeDate,
@@ -386,7 +380,13 @@ async function refreshSnapshot() {
 
 function getSession(req) {
   const cookies = parseCookies(req.headers.cookie || '');
-  return sessions.get(cookies[cru55 ? 'cru55_main_session' : 'twchip_session']);
+  return sessions.get(cookies[runtimeSessionCookieName()]);
+}
+
+function runtimeSessionCookieName() {
+  // Cookies are shared across localhost ports. Candidate login/logout must not
+  // replace or clear the formal dashboard's browser session.
+  return cru55 ? 'cru55_main_session' : config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session';
 }
 
 function requireSession(req, res) {
@@ -489,7 +489,7 @@ const requestHandler = async (req, res) => {
       const sessionTtlMs = remember ? config.rememberedSessionTtlMs : config.sessionTtlMs;
       const session = sessions.create(ip, sessionTtlMs);
       const secure = config.cookieSecure || isHttps;
-      res.setHeader('Set-Cookie', sessionCookie(session.id, { secure, maxAgeSeconds: sessionTtlMs / 1000 }).replace(/^twchip_session=/, cru55 ? 'cru55_main_session=' : 'twchip_session='));
+      res.setHeader('Set-Cookie', sessionCookie(session.id, { secure, maxAgeSeconds: sessionTtlMs / 1000 }).replace(/^twchip_session=/, runtimeSessionCookieName() + '='));
       sendJson(res, 200, { ok: true, csrfToken: session.csrf, expiresAt: session.expiresAt });
       return;
     }
@@ -506,7 +506,7 @@ const requestHandler = async (req, res) => {
       const session = requireSession(req, res);
       if (!session || !requireCsrf(req, res, session)) return;
       sessions.delete(session.id);
-      res.setHeader('Set-Cookie', clearSessionCookie({ secure: config.cookieSecure || isHttps }).replace(/^twchip_session=/, cru55 ? 'cru55_main_session=' : 'twchip_session='));
+      res.setHeader('Set-Cookie', clearSessionCookie({ secure: config.cookieSecure || isHttps }).replace(/^twchip_session=/, runtimeSessionCookieName() + '='));
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -600,6 +600,7 @@ const requestHandler = async (req, res) => {
         }
         const servicePayload = {
           readOnly: true,
+          candidateReadOnly: config.candidateReadOnly,
           brokerConnected: shioaji.connected,
           brokerMarketData: shioaji,
           lastRefreshError,
@@ -623,8 +624,7 @@ const requestHandler = async (req, res) => {
       if (req.method === 'POST' && pathname === '/api/v1/cru46-browser-runtime-proof') {
         if (!requireCsrf(req, res, session)) return;
         const candidate = await readJson(req, { maxBytes: 16 * 1024 });
-        const chartPayload = loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
-          calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' });
+        const chartPayload = await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
         const chart = inspectChartPayload(chartPayload);
         const flow = inspectObservedFlowPayload(loadDashboardObservedFlow({
           liveSnapshotPath: cru34LiveSnapshotPath, liveStatusPath: cru34LiveStatusPath }),
@@ -682,10 +682,7 @@ const requestHandler = async (req, res) => {
         const selectedSession = ['DAY', 'NIGHT'].includes(sessionType) ? sessionType : null;
         const actualContract = url.searchParams.get('actualContract') || null;
         const asOf = url.searchParams.get('asOf') || null;
-        const chart = loadTxDecisionChart({
-          dataRoot: txChartDataRoot,
-          cacheRoot: txChartCacheRoot,
-          calendar: chartCalendar,
+        const chart = await txChartService.load({
           timeframe,
           mode,
           tradeDate,
@@ -704,7 +701,7 @@ const requestHandler = async (req, res) => {
         const selectedSession = ['DAY', 'NIGHT'].includes(sessionType) ? sessionType : null;
         const actualContract = url.searchParams.get('actualContract') || null;
         const asOf = url.searchParams.get('asOf') || null;
-        const { feed } = loadMarketChangeFeed({ mode, tradeDate, session: selectedSession, actualContract, asOf });
+        const { feed } = await loadMarketChangeFeed({ mode, tradeDate, session: selectedSession, actualContract, asOf });
         sendJson(res, 200, { ok: true, data: feed });
         return;
       }
@@ -862,16 +859,14 @@ server.headersTimeout = 10_000;
 server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 100;
 
-// Warm immutable ledger normalization before accepting requests so the first chart
-// cannot starve concurrent bridge responses on the HTTP event loop.
-if (!cru55 && !config.cru55Acceptance) {
-  try { loadTxDecisionChart({ dataRoot: txChartDataRoot, cacheRoot: txChartCacheRoot,
-    calendar: chartCalendar, timeframe: '5m', mode: 'LIVE' }); }
-  catch (error) { console.error('[chart warmup]', error.message); }
-}
 server.listen(config.port, config.host, async () => {
   console.log(`台股決策雷達 V3.7.3：${localMarketOnly ? 'https' : 'http'}://${config.host}:${config.port}`);
   console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
+  // Warm only after listening, through the same bounded worker as chart requests.
+  // Health reads cached evidence and truthfully reports pending/stale state.
+  if (!cru55 && !config.cru55Acceptance) {
+    void txChartService.load({ timeframe: '5m', mode: 'LIVE' });
+  }
   // Always check upstream sources on startup. The cached snapshot is shown only
   // while this first refresh is in progress or if an official source fails.
   refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
@@ -886,6 +881,7 @@ if (!cru55 && !config.cru55Acceptance && config.refreshIntervalMs > 0) {
 }
 
 function shutdown(signal) {
+  void txChartService.close();
   void inlineAssistant.close();
   console.log(`收到 ${signal}，停止服務…`);
   server.close(() => process.exit(0));

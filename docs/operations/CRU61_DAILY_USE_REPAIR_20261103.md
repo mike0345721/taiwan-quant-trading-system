@@ -230,3 +230,79 @@ now compare the physicalFileHash, retaining the immutable byte pin and existing
 governance validation. New regressions use the real governed calendar loaders,
 reproduce the prior rejection, and reject absent/wrong physical identity even
 when a semantic hash matches. No source calendar or manifest was altered.
+
+## 2026-11-04: actual1D failure and bounded chart recovery
+
+Candidate6dd7ca8 passed CI352, cold start and same-PID entry reuse. The Owner
+logged in normally and six intraday chart intervals rendered. Selecting1D then
+left the previous4h chart pending and caused Flow request timeouts. The1D path
+adds the preceding-night ledger to a synchronous reader without a request byte
+budget; cold cache loading and checkpoint hashing also read whole files.
+Health itself called the synchronous chart loader. Thus successful CI and the
+six shorter intervals did not establish all-feature acceptance.
+
+Only the proven owned candidate was stopped after the Owner authorized normal
+review of the original refused CIM query. PID, executable, command and exact UTC
+creation ticks matched its startup receipt. The formal processes were not stopped.
+The formal health response recovered after this action, but resource-contention
+causality was not independently established. The original failure and stop
+receipts remain under the local recovery root.
+
+HTTP chart consumers now await one on-demand calculation worker; health only
+peeks at a bounded-age result and reports missing/stale evidence explicitly.
+Warmup runs after the listener is available. The worker has no listener,
+collector, broker or network route. It receives explicit chart roots/calendar,
+an empty environment and empty execArgv, so the parent's --env-file is not
+inherited. Queue, deadline, idle lifetime and memory are bounded; termination
+must complete before another worker can start. This is calculation isolation
+inside the existing dashboard, not an additional product runtime.
+
+Each worker request shares a4MiB raw-read budget, a64MiB cache-read budget with
+48MiB per-file maximum, and a200000-record limit. Completed prefixes and their
+cursor advance together. A pending suffix remains pending, never zero-filled.
+Derived cache append hashing is incremental; cache publication failures and
+oversize inputs remain explicit. Reaching a selected file's current EOF proves
+reader progress only, not complete capture of a market session. Partial input
+keeps observed numeric values with SOURCE_CATCHUP_PENDING and blocks dependent
+structure/full-session claims. Independent governed prior-day levels retain
+their own provenance. Large extrema calculations use iteration instead of
+spreading an unbounded array into Math.max/Math.min.
+
+The browser request has a10-second deadline and cancels superseded chart
+requests. Pending or failed changes identify both the requested interval and
+the retained old snapshot; they cannot label the old4h series as a successful
+1D update. Recovery accepts only a response matching the active interval.
+Deliberate chart cancellation does not expire a guest session, while real auth
+expiry and network failures retain their existing handling. The AI summary
+shows DISABLED_BY_OWNER when the existing service reports its disabled phase.
+
+The prior proof sender also skipped normal ReaderOnly18723 entirely. It now
+accepts the authenticated service's explicit candidateReadOnly flag only on
+the existing local candidate endpoint with valid runtime identity, and sends
+the same real canvas/series/visible-Flow measurements through the existing
+authenticated, CSRF-protected route. Backend proof and market-quality gates
+are unchanged; no proof is fabricated by this change.
+
+Candidate authentication also uses a separate cookie name: browser cookies do
+not isolate localhost ports, so the previous shared name let candidate login
+or logout replace the formal browser's cookie. Only the existing read-only
+candidate flag selects the candidate name. Default/formal and CRU55 names,
+password verification, CSRF and Secure/HttpOnly/SameSite attributes remain
+unchanged. Synthetic session tests reproduce the collision without inspecting
+any real browser cookie or credential. An old candidate session requires normal
+login again; it is not copied or promoted into the new session namespace.
+
+Isolated evidence includes the original UI failures, actual handler concurrency
+checks, cancellation/auth regressions, and a75000-observation synthetic cold
+cache producing a real1D bar within the default worker deadline while the main
+event loop advances. Windows refused temporary-file rename in one test lane;
+that original failure is preserved and is not counted as a native PASS. Exact
+committed-head CI, required native retesting and repaired real-browser acceptance
+must be recorded separately before claiming delivery.
+
+The morning batch is also distinct from checkpoint scheduling: on11/04 the
+08:30 batch actually ended FAILED at08:37 with critical continuity evidence,
+plus historical OI quality debt, while DAY/EOD/FINAL were still NOT_DUE. The
+morning market_daily presence check has no publication-due contract; absence
+alone cannot establish SOURCE_NOT_PUBLISHED. No schedules, raw history or
+historical receipts were changed to make these results pass.

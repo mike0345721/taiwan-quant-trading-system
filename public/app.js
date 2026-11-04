@@ -9,6 +9,7 @@ const state = {
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartVolumeCount: 0,
   txChartLoading: false, txChartRequestId: 0, txChartPendingFit: false,
+  txChartRequestTimeframe: null, txChartAbortController: null,
   txChartPalette: 'red-up',
   marketChangeFeed: null,
   indexLeadership: null, indexLeadershipLoading: false,
@@ -192,7 +193,13 @@ async function api(path, options = {}) {
   if (options.method && options.method !== 'GET' && state.csrfToken) headers['X-CSRF-Token'] = state.csrfToken;
   let response;
   try { response = await fetch(path, { credentials: 'same-origin', ...options, headers }); }
-  catch (error) { if (state.guestReadOnly) expireGuestView(); throw error; }
+  catch (error) {
+    const chartCancelled = path.startsWith('/api/v1/tx-chart?') && options.signal?.aborted
+      && ['CHART_REQUEST_SUPERSEDED', 'CHART_REQUEST_TIMEOUT'].includes(options.signal.reason)
+      && (error === options.signal.reason || error?.name === 'AbortError');
+    if (state.guestReadOnly && !chartCancelled) expireGuestView();
+    throw error;
+  }
   let payload = null;
   try { payload = await response.json(); } catch { payload = { ok: false, error: 'INVALID_RESPONSE' }; }
   if (state.guestReadOnly && response.status === 410) expireGuestView();
@@ -3546,6 +3553,7 @@ function renderHomeWorkspace() {
     flowDefinitions: OBSERVED_FLOW_WINDOW_REGISTRY, selectedFlowWindow: observedFlowSelectedWindow,
     pulse: state.marketPulse, leadership: state.indexLeadership,
     dashboardError: state.homeDashboardError || null, chartError: state.homeChartError || null,
+    requestedTimeframe: state.txChartTimeframe, chartLoading: state.txChartLoading,
     focusAllowed: matches && watch?.state === 'READY' && Boolean(watch?.nextWatch),
     rendered: state.txChartBarCount > 0,
   });
@@ -3566,6 +3574,16 @@ function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace
   if (topTrust) topTrust.className = `dw-status-pill ${warning ? 'is-unavailable' : healthTone(quality || 'UNAVAILABLE')}`;
   const mode = `${chart?.mode || terminalUnavailable('MODE_NOT_REPORTED')} · ${chart?.timeframe || state.txChartTimeframe} · READ ONLY`;
   dwText('dw-chart-mode', warning ? `${warning} · ${sourceLabel} · ${mode}` : mode);
+  const differentPeriod = chart?.timeframe && chart.timeframe !== state.txChartTimeframe;
+  const requestWarning = differentPeriod
+    ? `${state.txChartTimeframe} ${state.txChartLoading ? '載入中' : '尚未更新'} · 仍顯示 ${chart.timeframe} 快照`
+    : state.homeChartError ? '圖表更新失敗 · 保留上次快照' : null;
+  $('dw-chart-canvas')?.setAttribute('aria-busy', String(state.txChartLoading));
+  if (requestWarning) {
+    dwText('dw-chart-mode', `${requestWarning} · ${warning ? warning + ' · ' : ''}${sourceLabel} · ${mode}`);
+    dwText('dw-chart-status', `${state.homeChartError === 'CHART_REQUEST_TIMEOUT' ? '圖表請求逾時 · ' : ''}${requestWarning}`);
+    if ($('dw-chart-status')) $('dw-chart-status').className = 'dw-status-pill is-unavailable';
+  }
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
 }
 
@@ -4817,25 +4835,49 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
   if (state.txChartLoading) {
     state.txChartPendingFit = state.txChartPendingFit || fit;
+    if (state.txChartRequestTimeframe && state.txChartRequestTimeframe !== state.txChartTimeframe) {
+      state.txChartAbortController?.abort('CHART_REQUEST_SUPERSEDED');
+    }
     return;
   }
   const requestId = ++state.txChartRequestId;
   const timeframe = state.txChartTimeframe;
   state.txChartLoading = true;
+  state.txChartRequestTimeframe = timeframe;
+  const controller = new AbortController();
+  state.txChartAbortController = controller;
+  if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
+  else {
+    dwText('dw-chart-status', `${timeframe} 載入中`);
+    $('dw-chart-canvas')?.setAttribute('aria-busy', 'true');
+  }
+  // Bound the whole request, including a stalled response body. The abort also releases fetch.
+  const cancelled = new Promise((_, reject) => controller.signal.addEventListener('abort', () => {
+    reject(new Error(controller.signal.reason === 'CHART_REQUEST_SUPERSEDED' ? 'CHART_REQUEST_SUPERSEDED' : 'CHART_REQUEST_TIMEOUT'));
+  }, { once: true }));
+  const timer = setTimeout(() => controller.abort('CHART_REQUEST_TIMEOUT'), 10_000);
   const params = new URLSearchParams({ timeframe, mode: 'LIVE' });
   try {
-    const payload = await api(`/api/v1/tx-chart?${params}`);
+    const payload = await Promise.race([api(`/api/v1/tx-chart?${params}`, { signal: controller.signal, cache: 'no-store' }), cancelled]);
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    if (payload.data?.timeframe !== timeframe) throw new Error('CHART_RESPONSE_TIMEFRAME_MISMATCH');
     state.homeChartError = null;
     renderTxDecisionChart(payload.data, { fit });
   } catch (error) {
     if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    if (controller.signal.reason === 'CHART_REQUEST_SUPERSEDED') return;
     state.homeChartError = error?.message || 'CHART_REFRESH_FAILED';
-    if (globalThis.HomeWorkspace) renderHomeWorkspace();
+    if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
+    else renderTxDecisionChart({ timeframe, mode: 'LIVE', status: 'UNAVAILABLE', reason: state.homeChartError, bars: [], levels: {} });
     throw error;
   } finally {
+    clearTimeout(timer);
     state.txChartLoading = false;
-    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) {
+    state.txChartAbortController = null;
+    state.txChartRequestTimeframe = null;
+    $('dw-chart-canvas')?.setAttribute('aria-busy', 'false');
+    if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
+    if (controller.signal.reason === 'CHART_REQUEST_SUPERSEDED' || requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) {
       const pendingFit = state.txChartPendingFit;
       state.txChartPendingFit = false;
       await loadTxDecisionChart({ fit: pendingFit });
@@ -4843,14 +4885,20 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }
 }
 
-async function reportCru46BrowserRuntimeProof() {
+async function reportCru46BrowserRuntimeProof(service = null) {
   const version = state.decisionWorkspace?.runtimeVersion;
   const isPreview = ['INTEGRATION_OWNER_PREVIEW', 'CRU44_OWNER_PREVIEW', 'CRU21_OWNER_PREVIEW'].includes(version?.previewType);
   const isFormalRuntime = !version?.previewType && version?.syncState === 'SYNCED'
     && /^[0-9a-f]{40}$/.test(version?.runtimeCommit || '')
     && version.runtimeCommit === version.approvedMainCommit
     && window.location?.hostname === '127.0.0.1' && window.location?.port === '8787';
-  if (!isPreview && !isFormalRuntime) return;
+  const isReaderCandidate = service?.candidateReadOnly === true && !version?.previewType
+    && /^[0-9a-f]{40}$/.test(version?.runtimeCommit || '')
+    && typeof version?.runtimeStartedAt === 'string'
+    && /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(version.runtimeStartedAt)
+    && Number.isFinite(Date.parse(version.runtimeStartedAt))
+    && window.location?.hostname === '127.0.0.1' && window.location?.port === '18723';
+  if (!isPreview && !isFormalRuntime && !isReaderCandidate) return;
   const target = $('dw-chart-canvas');
   const rect = target?.getBoundingClientRect();
   const api = window.LightweightCharts;
@@ -5185,7 +5233,7 @@ async function loadDashboard() {
     else renderHomeWorkspace();
   });
   await loadLiveMarketPulse().catch(() => {});
-  if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
+  if (!state.guestReadOnly) { await reportCru46BrowserRuntimeProof(payload.service); await loadDecisionJournal(); renderPrelive(payload.service?.prelive); }
   if (!state.guestReadOnly && payload.service?.prelive?.marketFeed?.replayImported) await loadReplay(Number.MAX_SAFE_INTEGER, state.replayDate);
   terminalRoot?.setAttribute('data-dashboard-load-state', 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
@@ -5256,7 +5304,8 @@ function selectChartTimeframe(timeframe) {
     item.classList.toggle('is-selected', selected);
     item.setAttribute('aria-pressed', String(selected));
   });
-  loadTxDecisionChart({ fit: true }).catch((error) => renderTxDecisionChart({ status: 'UNAVAILABLE', reason: error.message, bars: [], levels: {} }));
+  // The loader owns failure presentation and retains explicitly labelled previous-period bars.
+  loadTxDecisionChart({ fit: true }).catch(() => {});
 }
 
 function bindObservationControls() {

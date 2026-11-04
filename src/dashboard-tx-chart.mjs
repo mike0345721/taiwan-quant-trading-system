@@ -55,6 +55,13 @@ function finite(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function maximum(rows, field) {
+  return rows.reduce((value, row) => Math.max(value, row[field]), -Infinity);
+}
+function minimum(rows, field) {
+  return rows.reduce((value, row) => Math.min(value, row[field]), Infinity);
+}
+
 function timestampMs(value) {
   if (typeof value !== 'string' || !value.trim()) return null;
   const text = value.trim();
@@ -422,8 +429,8 @@ function buildDailyTradeDateBar(base, {
     actualContract: selectedContract,
     contractMonth: ordered[0]?.contractMonth || null,
     open: ordered[0].price,
-    high: Math.max(...ordered.map((tick) => tick.price)),
-    low: Math.min(...ordered.map((tick) => tick.price)),
+    high: maximum(ordered, 'price'),
+    low: minimum(ordered, 'price'),
     close: ordered.at(-1).price,
     volume: ordered.reduce((sum, tick) => sum + tick.volume, 0),
     firstEventTime: ordered[0].exchangeTimestamp,
@@ -515,11 +522,11 @@ function openingRange(ticks, asOfMs) {
   const openingTicks = ticks.filter((tick) => tick.exchangeMs >= startMs && tick.exchangeMs < endMs);
   if (!openingTicks.length) return Object.freeze({ status: 'UNAVAILABLE', high: null, low: null, reason: 'OPENING_RANGE_TICKS_UNAVAILABLE' });
   const qualityStatus = openingTicks.some((tick) => tick.sequenceGap > 0) ? 'QUALITY_INSUFFICIENT' : 'PASS';
-  const lastInputAvailableMs = Math.max(...openingTicks.map((tick) => tick.availableMs));
+  const lastInputAvailableMs = maximum(openingTicks, 'availableMs');
   return Object.freeze({
     status: qualityStatus === 'PASS' ? 'READY' : 'QUALITY_INSUFFICIENT',
-    high: Math.max(...openingTicks.map((tick) => tick.price)),
-    low: Math.min(...openingTicks.map((tick) => tick.price)),
+    high: maximum(openingTicks, 'price'),
+    low: minimum(openingTicks, 'price'),
     source: 'FROZEN_T0_DAY_OPENING_RANGE_0845_0900',
     tradeDate: ticks[0].tradeDate,
     session: 'DAY',
@@ -564,8 +571,8 @@ export function buildTxDecisionChart(records, {
     const or = dayTicks.length
       ? openingRange(dayTicks, asOfMs)
       : Object.freeze({ status: 'NOT_APPLICABLE', high: null, low: null, reason: 'DAY_OPENING_RANGE_NOT_AVAILABLE' });
-    const sessionHigh = (ticks) => ticks.length ? Math.max(...ticks.map((tick) => tick.price)) : null;
-    const sessionLow = (ticks) => ticks.length ? Math.min(...ticks.map((tick) => tick.price)) : null;
+    const sessionHigh = (ticks) => ticks.length ? maximum(ticks, 'price') : null;
+    const sessionLow = (ticks) => ticks.length ? minimum(ticks, 'price') : null;
     const unavailablePrior = (name) => Object.freeze({ name, availability: 'UNAVAILABLE', value: null, reason: 'PRIOR_DAY_SOURCE_UNAVAILABLE' });
     const levels = Object.freeze({
       currentDayHigh: level('CURRENT_DAY_HIGH', sessionHigh(dayTicks), dayTicks, 'ACTUAL_TX_TICK_STREAM'),
@@ -644,8 +651,8 @@ export function buildTxDecisionChart(records, {
   const vwap1m = cumulativeSessionVwap(selectedOneMinute);
   const vwap = timeframeResult.status === 'READY' ? vwapForTimeframe(vwap1m, bars) : Object.freeze([]);
   const or = openingRange(selectedTicks, asOfMs);
-  const sessionHigh = selectedTicks.length ? Math.max(...selectedTicks.map((tick) => tick.price)) : null;
-  const sessionLow = selectedTicks.length ? Math.min(...selectedTicks.map((tick) => tick.price)) : null;
+  const sessionHigh = selectedTicks.length ? maximum(selectedTicks, 'price') : null;
+  const sessionLow = selectedTicks.length ? minimum(selectedTicks, 'price') : null;
   const latestVwap = vwap1m.at(-1)?.value ?? null;
   const priorCompatible = priorDay && priorDay.actualContract === selectedContract;
   const unavailablePrior = (name) => Object.freeze({ name, availability: 'UNAVAILABLE', value: null, reason: priorDay ? 'ACTUAL_CONTRACT_MISMATCH' : 'PRIOR_DAY_SOURCE_UNAVAILABLE' });
