@@ -75,6 +75,23 @@ test('transaction failure cannot commit quotes, points, source progress or a new
   }finally{f.store.close();}
 });
 
+test('cutoff ordinal memo observes transaction writes and cannot survive rollback',()=>{
+  const f=open();try{
+    const rows=fixture(3),stored=append(null,checkpoint(rows),f.store),segment=stored.state.segments[0],cutoff=rows.at(-1).receivedAt;
+    const point=f.store.lastPoint(segment,cutoff),ordinal=point.ledgerOrdinal;
+    assert.equal(f.store.ordinalAt('points',segment,cutoff),ordinal);
+    assert.throws(()=>f.store.transaction(()=>{
+      f.store.appendPoint({...point,ledgerOrdinal:ordinal+1});
+      assert.equal(f.store.ordinalAt('points',segment,cutoff),ordinal+1);
+      f.store.appendPoint({...point,ledgerOrdinal:ordinal+2});
+      assert.equal(f.store.ordinalAt('points',segment,cutoff),ordinal+2);
+      throw Error('INJECTED_ROLLBACK');
+    }),/INJECTED_ROLLBACK/);
+    assert.equal(f.store.ordinalAt('points',segment,cutoff),ordinal);
+    assert.deepEqual(f.store.lastPoint(segment,cutoff),point);
+  }finally{f.store.close();}
+});
+
 test('indexed quote selection retains physically older eligible quote for a late tick and identity-return boundary',()=>{
   const rows=fixture(4,{step:1000}),canonical=materializeTxCanonicalObservations(rows,{sourceLedgerIdentity:source}).events,f=open();
   try{f.store.transaction(()=>{f.store.beginOrigin(source,1);for(const event of canonical)if(event.kind==='futures_bidask')f.store.appendQuote(event);});

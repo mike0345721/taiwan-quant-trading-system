@@ -86,7 +86,7 @@ export class MarketObservationStore {
       this.setMeta('indexes',this.pendingIndexes);
       this.db.exec('COMMIT');this.ordinalCache?.clear();this.receipts=next;this.indexes=this.pendingIndexes;this.verifyCursor=next.length;this.knownStamp=fileStamp(this.file);return value;
     }catch(error){this.db.exec('ROLLBACK');this.origin=origin;this.knownStamp=fileStamp(this.file);throw error;}
-    finally{this.pendingIntegrity=null;this.pendingIndexes=null;}}
+    finally{this.ordinalCache?.clear();this.pendingIntegrity=null;this.pendingIndexes=null;}}
   track(table,values){
     if(!this.pendingIntegrity)throw Error('OBSERVATION_STORE_TRANSACTION_REQUIRED');
     const items=(this.pendingIntegrity[table] ??= []),line=JSON.stringify(values)+'\n',bytes=Buffer.byteLength(line);
@@ -175,13 +175,14 @@ export class MarketObservationStore {
   ordinalAt(table,segment,cutoff){
     this.assertVerified();if(!['trades','points'].includes(table))throw Error('OBSERVATION_ORDINAL_TABLE_INVALID');
     const at=Date.parse(cutoff),key=stableJson([table,this.origin,segment.cvdSegment,at]);this.ordinalCache??=new Map();
-    if(this.ordinalCache.has(key))return this.ordinalCache.get(key);
+    const cacheable=!this.pendingIntegrity;
+    if(cacheable&&this.ordinalCache.has(key))return this.ordinalCache.get(key);
     // Covering availability index establishes a physical upper bound even if
     // receivedAt regresses. Never assume time order equals physical order.
     const index=table==='trades'?'trade_available':'point_time';
     const ordinal=this.statement(`SELECT MAX(ordinal) AS ordinal FROM ${table} INDEXED BY ${index} WHERE origin=? AND segment=? AND at<=?`)
       .get(this.origin,segment.cvdSegment,at).ordinal??0;
-    this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);
+    if(cacheable){this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);}
     return ordinal;
   }
   lastPoint(segment,cutoff){return this.pointFor(this.ordinalAt('points',segment,cutoff));}
