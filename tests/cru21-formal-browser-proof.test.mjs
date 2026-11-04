@@ -118,7 +118,7 @@ test('dashboard supplies the actual service flag to the normal proof submission 
     loadHistory: async () => {}, loadBacktest: async () => {}, loadIndexLeadership: async () => {},
     renderIndexLeadershipFailure() {}, renderDecisionWorkspace: value => { h.context.state.decisionWorkspace = value; },
     loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {}, loadDecisionJournal: async () => {}, renderPrelive() {} });
-  h.context.state.csrfToken = 'SYNTHETIC_SESSION'; h.node('decision-workspace').setAttribute = () => {};
+  h.context.state.csrfToken = 'fixture-csrf'; h.node('decision-workspace').setAttribute = () => {};
   const actualApi = h.context.api;
   h.context.api = async (route, options) => route === '/api/v1/dashboard' ? { service, decisionWorkspace: workspace } : actualApi(route, options);
   const start = app.indexOf('async function loadDashboard('), end = app.indexOf('\n}', start) + 2;

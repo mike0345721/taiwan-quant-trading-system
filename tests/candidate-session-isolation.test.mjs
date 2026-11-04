@@ -12,7 +12,7 @@ function harness(candidateReadOnly, cru55 = null) {
     cru55, formalEntry: null, URL, crypto: { randomUUID: () => 'synthetic-session-test' }, console,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
     loginLimiter: { check: () => ({ allowed: true }), success() {} },
-    readJson: async () => ({ password: 'synthetic-test-only' }),
+    readJson: async () => ({ password: 'fixture' }),
     sendJson(res, status, body) { res.status = status; res.body = body; },
   };
   const auth = source.slice(source.indexOf('function getSession(req)'), source.indexOf('const inlineEnabled ='));
