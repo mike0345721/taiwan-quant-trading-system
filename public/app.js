@@ -323,6 +323,7 @@ function metric(label, value, note = '', direction = 0) {
 
 function replaceCards(id, cards, priorityLabels = []) {
   const target = $(id);
+  for (const card of cards) appendMetricSources(card, id, state.snapshot);
   const byLabel = new Map(cards.map((card) => [card.dataset.label, card]));
   const prioritized = priorityLabels.map((label) => byLabel.get(label)).filter(Boolean);
   const prioritySet = new Set(priorityLabels);
@@ -355,15 +356,40 @@ $('app').addEventListener('click', (event) => {
   toggle.textContent = opening ? '×' : '?';
 });
 
-function sourceBadge(id, item) {
-  const badge = $(id);
+function metricSourceKeys(group, label, snapshot) {
+  if (label === '期現貨基差') return ['futuresMarket', 'marketOverview'];
+  if (['台指期近月','台指夜盤','近月成交量','夜盤未平倉量','未平倉單日增減','近月／次月價差','價格 × OI 判讀'].includes(label)) return ['futuresMarket'];
+  if (label === '市場未平倉') return snapshot?.largeTraders?.data?.marketOi ? ['largeTraders'] : ['futuresMarket'];
+  if (label.startsWith('Top ')) return ['largeTraders'];
+  if (label === '距離結算日') return ['futuresMarket','options'];
+  if (label === '臺指波動率指數') return ['taiwanVix'];
+  if (['上市漲跌家數','上櫃漲跌家數','上市上漲／下跌','上櫃上漲／下跌'].includes(label)) return ['marketBreadth'];
+  if (label === '資料異常') return Object.keys(snapshot?.sources || {});
+  if (['上漲成交量占比','電子／金融／傳產強弱','前十大權值股貢獻'].includes(label)) return ['notConnected'];
+  if (label === '選擇權波動資料') return ['optionVolatilityDerived'];
+  return [{ 'market-cards':'marketOverview','spot-cards':'spotInstitutional','futures-cards':'futuresInstitutional','options-cards':'options' }[group] || 'unknown'];
+}
+
+function appendMetricSources(card, group, snapshot) {
+  const keys=metricSourceKeys(group,card.dataset.label,snapshot);
+  for(const key of keys.length?keys:['unknown']) {
+    const badge=document.createElement('div');badge.dataset.sourceKey=key;
+    const item={...snapshot?.[key],...snapshot?.sources?.[key]};
+    if(key==='optionVolatilityDerived')item.update={status:'STALE',dataDate:snapshot?.researchDecision?.v362Risk?.options?.tradeDate??null,
+      reason:'DERIVED_PUBLICATION_TIME_NOT_PROVIDED',sourceTime:null,lastSuccessfulAt:null,lastAttemptAt:null};
+    paintSourceBadge(badge,item);card.append(badge);
+  }
+}
+
+function sourceBadge(id, item) { paintSourceBadge($(id),item); }
+function paintSourceBadge(badge, item) {
   if (!badge) return;
   const update=item?.update;
   const labels={NOT_DUE:'未到發布時段',SOURCE_NOT_PUBLISHED:'來源尚未公布',JOB_NOT_RUN:'尚無本次更新紀錄',
     JOB_FAILED:'本次更新失敗',STALE:'資料已過期或品質待確認',AVAILABLE:'資料可用'};
   const status=update?.status??'STALE';
   const stamp=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false}):'未知';
-  badge.textContent = `資料日 ${update?.dataDate||item?.dataDate||'未知'} · ${labels[status]||status} (${status})`;
+  badge.textContent = `來源資料日 ${update?.dataDate||item?.dataDate||'未知'} · ${labels[status]||status} (${status})`;
   badge.className = `source-badge source-detail ${status==='AVAILABLE'?'good':status==='JOB_FAILED'?'bad':'warn'}`;
   const detail=document.createElement('small');detail.className='source-error';
   detail.textContent=`來源時間 ${stamp(update?.sourceTime)} · 最後成功取得 ${stamp(update?.lastSuccessfulAt)} · 最後嘗試 ${stamp(update?.lastAttemptAt)}`;
