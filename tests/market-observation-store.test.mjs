@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { MarketObservationStore } from '../src/market-observation-store.mjs';
 import { SAFETY,stableJson,digest } from '../src/cvd-observation-core.mjs';
 import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
@@ -33,6 +34,19 @@ function append(previous,producer,store=null){const run=()=>{
   const result={fragment:fragment.checkpoint,state};if(store)store.checkpoint(result);return result;
 };return store?store.transaction(run):run();}
 function snap(current,cutoff,store=null,timeframe='1m'){return marketObservationSnapshot(current.state,{cutoff,history:store,timeframe});}
+
+test('repeated initialization failures close the SQLite handle and preserve the original reason',()=>{
+  const f=open();f.store.db.exec("UPDATE meta SET hash='corrupted' WHERE key='binding'");f.store.close();
+  const close=DatabaseSync.prototype.close,exec=DatabaseSync.prototype.exec;let closed=0;
+  DatabaseSync.prototype.close=function(){closed++;return close.call(this);};
+  try{
+    for(let i=0;i<3;i++)assert.throws(()=>new MarketObservationStore(f.file,{source,resolverIdentity}),/OBSERVATION_STORE_METADATA_HASH/);
+    assert.equal(closed,3);
+    DatabaseSync.prototype.exec=function(sql){if(sql.startsWith('PRAGMA'))throw Error('INJECTED_PRAGMA_FAILURE');return exec.call(this,sql);};
+    assert.throws(()=>new MarketObservationStore(f.file,{source,resolverIdentity}),/INJECTED_PRAGMA_FAILURE/);
+    assert.equal(closed,4);
+  }finally{DatabaseSync.prototype.close=close;DatabaseSync.prototype.exec=exec;}
+});
 
 test('persistent full/chunk/restart preserve every snapshot value and historical event against reference core',()=>{
   const rows=fixture(),full=append(null,checkpoint(rows)),f=open();let stored=null;

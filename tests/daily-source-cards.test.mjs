@@ -11,16 +11,17 @@ const binary=process.platform==='linux'?(()=>{const b=guestBrowserPath();return 
   ['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);
 for(const width of [390,1366])test(`each daily card retains its own mixed-source status at ${width}px`,{skip:!binary,timeout:40000},async()=>{
   const html=`<!doctype html><meta charset="utf-8"><style>${css}body{padding:12px}body::before{display:none}</style>
-    <div id="market-cards"></div><div id="futures-cards"></div><div id="options-cards"></div><script>
+    <div id="market-cards"></div><div id="futures-cards"></div><div id="options-cards"></div><div id="spot-cards"></div><script>
     const $=id=>document.getElementById(id),FIELD_HELP={};
     const update=(status,date,reason=null)=>({status,dataDate:date,reason,sourceTime:'2026-11-04T08:01:00Z',lastSuccessfulAt:'2026-11-04T08:02:00Z',lastAttemptAt:'2026-11-04T08:03:00Z'});
-    const state={snapshot:{largeTraders:{data:{marketOi:42}},sources:{
+    const state={snapshot:{largeTraders:{data:{marketOi:0}},sources:{
       marketOverview:{update:update('AVAILABLE','2026-11-04')},taiwanVix:{update:update('JOB_FAILED','2026-11-03','VIX_FETCH_FAILED')},
       futuresMarket:{update:update('STALE','2026-11-02','OLD_FUTURES')},largeTraders:{update:update('SOURCE_NOT_PUBLISHED','2026-11-03','WAIT_SOURCE')},
       options:{update:update('AVAILABLE','2026-11-04')}}}};
     ${cards}${badges}
     replaceCards('market-cards',[metric('加權指數','20000'),metric('臺指波動率指數','30'),metric('期現貨基差','10')]);
-    replaceCards('futures-cards',[metric('台指期近月','20010'),metric('Top 5 L/S','1.2'),metric('市場未平倉','42')]);
+    replaceCards('futures-cards',[metric('台指期近月','20010'),metric('Top 5 L/S','1.2'),metric('市場未平倉','0'),metric('未平倉單日增減','50'),metric('價格 × OI 判讀','已取得比較資料')]);
+    replaceCards('spot-cards',[metric('法人與指數背離','資料累積中')]);
     replaceCards('options-cards',[metric('Call 未平倉量','100')]);
     const find=label=>[...document.querySelectorAll('.metric-card')].find(c=>c.dataset.label===label);
     const vix=find('臺指波動率指數'),basis=find('期現貨基差');
@@ -30,10 +31,15 @@ for(const width of [390,1366])test(`each daily card retains its own mixed-source
       times:['來源時間','最後成功取得','最後嘗試'].every(k=>vix.textContent.includes(k)),
       composite:basis.querySelectorAll('[data-source-key]').length===2&&basis.textContent.includes('OLD_FUTURES'),
       large:find('Top 5 L/S').textContent.includes('SOURCE_NOT_PUBLISHED')&&find('市場未平倉').textContent.includes('WAIT_SOURCE'),
+      oi:find('未平倉單日增減').textContent.includes('WAIT_SOURCE')&&find('價格 × OI 判讀').textContent.includes('HISTORICAL_SOURCE_EVIDENCE_INCOMPLETE'),
+      unavailable:find('法人與指數背離').textContent.includes('DATA_NOT_CONNECTED')&&!find('法人與指數背離').textContent.includes('AVAILABLE'),
       everyCard:[...document.querySelectorAll('.metric-card')].every(c=>c.querySelector('[data-source-key]'))};
+    state.snapshot.largeTraders.data.marketOi=null;
+    replaceCards('futures-cards',[metric('Top 5 多方集中度','10%')]);
+    result.denominator=find('Top 5 多方集中度').textContent.includes('WAIT_SOURCE')&&!find('Top 5 多方集中度').textContent.includes('OLD_FUTURES');
     const out=document.createElement('pre');out.id='ui-convergence-test-result';out.textContent=JSON.stringify(result);document.body.append(out);
     </script>`;
   const result=await inspectEngineeringDocument({binary,html,width,hostedLinuxResearchTest:true});
-  for(const key of ['available','failed','ownDate','reason','times','composite','large','everyCard'])assert.equal(result[key],true,key);
+  for(const key of ['available','failed','ownDate','reason','times','composite','large','oi','unavailable','denominator','everyCard'])assert.equal(result[key],true,key);
   assert.ok(result.docWidth<=width+1,JSON.stringify(result));
 });

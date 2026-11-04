@@ -8,7 +8,7 @@ import { cru34LiveHash } from '../src/cru34-live-checkpoint.mjs';
 // Execute the actual private pure helper without invoking file projection,
 // checkpoint publication or the Producer runner.
 const source=fs.readFileSync(new URL('../src/cru34-live-projection-worker.mjs',import.meta.url),'utf8');
-const begin=source.indexOf('function retainPressureRelevantEvents('),end=source.indexOf('\nfunction pruneRolling(',begin);
+const begin=source.indexOf('function retainPressureRelevantEvents('),end=source.indexOf('\nexport function pruneRolling(',begin);
 assert.ok(begin>=0&&end>begin,'retention helper source boundary must exist');
 const context={createBestQuoteLookup,evaluateBestQuoteEligibility};
 vm.runInNewContext(source.slice(begin,end)+';globalThis.retain=retainPressureRelevantEvents;',context);

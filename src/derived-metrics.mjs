@@ -14,6 +14,28 @@ function finite(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function finiteDifference(current, previous) {
+  const a = finite(current), b = finite(previous);
+  return a == null || b == null ? null : a - b;
+}
+
+function concentration(numerator, denominator) {
+  const n = finite(numerator);
+  return n == null || denominator == null || denominator <= 0 ? null : n / denominator * 100;
+}
+
+function oiSource(snapshot) {
+  return snapshot?.largeTraders?.data?.marketOi != null ? 'largeTraders' : 'futuresMarket';
+}
+
+function historicalSource(snapshot, key) {
+  const item = {...snapshot?.[key], ...snapshot?.sources?.[key]};
+  return {key, dataDate:item.dataDate??null, sourceTime:item.update?.sourceTime??item.sourceTime??null,
+    lastSuccessfulAt:item.lastSuccessfulAt??(item.ok&&!item.fallbackFromCache?item.fetchedAt:null)??null,
+    lastAttemptAt:item.fetchedAt??null, ok:item.ok===true&&!item.stale&&!item.fallbackFromCache&&!item.error,
+    reason:item.error??item.staleReason??null};
+}
+
 function sumLast(rows, path, count) {
   const values = rows.slice(-count).map((row) => finite(value(row, path))).filter((item) => item != null);
   return values.length === count ? values.reduce((sum, item) => sum + item, 0) : null;
@@ -51,8 +73,8 @@ function optionContractChanges(currentContracts = [], previousContracts = []) {
       const previousStrike = previousStrikes.get(Number(item.strike));
       return {
         strike: Number(item.strike),
-        callOiDelta: previousStrike ? finite(item.callOi) - finite(previousStrike.callOi) : null,
-        putOiDelta: previousStrike ? finite(item.putOi) - finite(previousStrike.putOi) : null,
+        callOiDelta: previousStrike ? finiteDifference(item.callOi, previousStrike.callOi) : null,
+        putOiDelta: previousStrike ? finiteDifference(item.putOi, previousStrike.putOi) : null,
       };
     });
     return {
@@ -64,8 +86,8 @@ function optionContractChanges(currentContracts = [], previousContracts = []) {
       putOi: finite(contract.putOi),
       oiPcRatio: finite(contract.oiPcRatio),
       comparisonAvailable: Boolean(prior),
-      callOiDelta: prior ? finite(contract.callOi) - finite(prior.callOi) : null,
-      putOiDelta: prior ? finite(contract.putOi) - finite(prior.putOi) : null,
+      callOiDelta: prior ? finiteDifference(contract.callOi, prior.callOi) : null,
+      putOiDelta: prior ? finiteDifference(contract.putOi, prior.putOi) : null,
       topCallOiIncreases: strikeChanges.filter((item) => item.callOiDelta > 0).sort((a, b) => b.callOiDelta - a.callOiDelta).slice(0, 3),
       topPutOiIncreases: strikeChanges.filter((item) => item.putOiDelta > 0).sort((a, b) => b.putOiDelta - a.putOiDelta).slice(0, 3),
     };
@@ -92,6 +114,11 @@ export function enrichSnapshot(snapshot, history = []) {
   const basis = tx != null && twii != null ? tx - twii : null;
   const previousOi = finite(previous?.largeTraders?.data?.marketOi ?? previous?.futuresMarket?.data?.txDay?.openInterest);
   const currentOi = finite(snapshot.largeTraders?.data?.marketOi ?? futuresMarket.txDay?.openInterest);
+  const oiComparisonReason = currentOi==null||previousOi==null?'OI_COMPARISON_VALUE_MISSING'
+    :oiSource(snapshot)!==oiSource(previous)?'OI_SOURCE_SCOPE_MISMATCH'
+    :oiSource(snapshot)==='futuresMarket'&&(!futuresMarket.txDay?.contract||!previous?.futuresMarket?.data?.txDay?.contract)?'OI_CONTRACT_IDENTITY_MISSING'
+    :oiSource(snapshot)==='futuresMarket'&&futuresMarket.txDay.contract!==previous.futuresMarket.data.txDay.contract?'OI_CONTRACT_CHANGED':null;
+  const concentrationOi = finite(snapshot.largeTraders?.data?.marketOi);
   const optionContract = snapshot.options?.data?.contract;
   const previousOption = previous?.options?.data?.contract === optionContract ? previous.options.data : null;
   const contractChanges = optionContractChanges(snapshot.options?.data?.contracts, previous?.options?.data?.contracts);
@@ -114,18 +141,20 @@ export function enrichSnapshot(snapshot, history = []) {
       foreignPercentile252: percentile(throughCurrent.slice(-252), 'spotInstitutional.data.foreignNetE', finite(spot.foreignNetE)),
     },
     futures: {
-      foreignNetDelta: previous ? finite(futures.foreignNet) - finite(previous?.futuresInstitutional?.data?.foreignNet) : null,
-      foreignShortDelta: previous ? finite(futures.foreignShort) - finite(previous?.futuresInstitutional?.data?.foreignShort) : null,
-      foreignNet5dDelta: throughCurrent.length >= 6 ? finite(futures.foreignNet) - finite(throughCurrent.at(-6)?.futuresInstitutional?.data?.foreignNet) : null,
-      openInterestDelta: currentOi != null && previousOi != null ? currentOi - previousOi : null,
-      top5LongConcentration: currentOi ? finite(snapshot.largeTraders?.data?.top5Long) / currentOi * 100 : null,
-      top5ShortConcentration: currentOi ? finite(snapshot.largeTraders?.data?.top5Short) / currentOi * 100 : null,
-      top10LongConcentration: currentOi ? finite(snapshot.largeTraders?.data?.top10Long) / currentOi * 100 : null,
-      top10ShortConcentration: currentOi ? finite(snapshot.largeTraders?.data?.top10Short) / currentOi * 100 : null,
+      foreignNetDelta: previous ? finiteDifference(futures.foreignNet, previous?.futuresInstitutional?.data?.foreignNet) : null,
+      foreignShortDelta: previous ? finiteDifference(futures.foreignShort, previous?.futuresInstitutional?.data?.foreignShort) : null,
+      foreignNet5dDelta: throughCurrent.length >= 6 ? finiteDifference(futures.foreignNet, throughCurrent.at(-6)?.futuresInstitutional?.data?.foreignNet) : null,
+      openInterestDelta: oiComparisonReason==null ? currentOi - previousOi : null,
+      openInterestComparisonReason: oiComparisonReason,
+      openInterestSources: {current:oiSource(snapshot),previous:historicalSource(previous,oiSource(previous))},
+      top5LongConcentration: concentration(snapshot.largeTraders?.data?.top5Long,concentrationOi),
+      top5ShortConcentration: concentration(snapshot.largeTraders?.data?.top5Short,concentrationOi),
+      top10LongConcentration: concentration(snapshot.largeTraders?.data?.top10Long,concentrationOi),
+      top10ShortConcentration: concentration(snapshot.largeTraders?.data?.top10Short,concentrationOi),
     },
     options: {
-      callOiDelta: previousOption ? finite(snapshot.options?.data?.totalCallOi) - finite(previousOption.totalCallOi) : null,
-      putOiDelta: previousOption ? finite(snapshot.options?.data?.totalPutOi) - finite(previousOption.totalPutOi) : null,
+      callOiDelta: previousOption ? finiteDifference(snapshot.options?.data?.totalCallOi, previousOption.totalCallOi) : null,
+      putOiDelta: previousOption ? finiteDifference(snapshot.options?.data?.totalPutOi, previousOption.totalPutOi) : null,
       contractChanges,
     },
   };

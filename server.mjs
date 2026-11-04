@@ -87,6 +87,8 @@ import {
 } from './src/http-utils.mjs';
 
 import { createDashboardServer, assertLocalMarketMode } from './src/dashboard-local-tls.mjs';
+const [nodeMajor,nodeMinor]=process.versions.node.split('.').map(Number);
+if(nodeMajor<22||(nodeMajor===22&&nodeMinor<13)||(nodeMajor===23&&nodeMinor<4))throw new Error('DAILY_RELEASE_REQUIRES_NODE_22_13_OR_23_4_OR_NEWER');
 validateConfig();
 // Fail before cache/session/account initialization for an invalid scoped release.
 const marketCandidate = assertMarketCandidateMode(process.env, config);

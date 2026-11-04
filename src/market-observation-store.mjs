@@ -24,6 +24,7 @@ export class MarketObservationStore {
     fs.mkdirSync(path.dirname(file),{recursive:true});
     if(fs.existsSync(file)&&(!fs.lstatSync(file).isFile()||fs.lstatSync(file).isSymbolicLink()))throw Error('OBSERVATION_STORE_PATH_INVALID');
     this.db=new DatabaseSync(file);this.file=file;this.statements=new Map();this.origin=null;
+    try {
     this.db.exec(`PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA cache_size=-8192;
       PRAGMA temp_store=FILE; PRAGMA mmap_size=0; PRAGMA busy_timeout=1000; PRAGMA max_page_count=4194304;`);
     try{this.db.exec(`BEGIN IMMEDIATE;
@@ -45,18 +46,19 @@ export class MarketObservationStore {
       CREATE TABLE IF NOT EXISTS profiles(origin TEXT,segment INTEGER,at INTEGER,ordinal INTEGER,json TEXT,hash TEXT,
         PRIMARY KEY(origin,segment,at));
       CREATE TABLE IF NOT EXISTS reasons(origin TEXT,ordinal INTEGER,segment INTEGER,at INTEGER,code TEXT,PRIMARY KEY(origin,ordinal,code)); COMMIT;`);
-    }catch(error){try{this.db.exec('ROLLBACK');}finally{this.db.close();}throw error;}
+    }catch(error){try{this.db.exec('ROLLBACK');}catch{}throw error;}
     const expected={version:OBSERVATION_STORE_VERSION,...binding},old=this.getMeta('binding'),checkpoint=this.getMeta('checkpoint');
     const integrity=this.getMeta('integrity'),indexes=this.getMeta('indexes');
     if((checkpoint&&(!old||!integrity||!indexes))||(!integrity&&Object.keys(columns).some(table=>
-      this.statement(`SELECT 1 FROM ${table} LIMIT 1`).get()))){this.close();throw Error('OBSERVATION_STORE_INTEGRITY_ROOT_MISSING');}
-    if(old&&stableJson(old)!==stableJson(expected)){this.close();throw Error('OBSERVATION_STORE_BINDING_MISMATCH');}
+      this.statement(`SELECT 1 FROM ${table} LIMIT 1`).get())))throw Error('OBSERVATION_STORE_INTEGRITY_ROOT_MISSING');
+    if(old&&stableJson(old)!==stableJson(expected))throw Error('OBSERVATION_STORE_BINDING_MISMATCH');
     if(!old)this.setMeta('binding',expected);
     this.origin=this.getMeta('pending-derivation')?.origin??this.getMeta('legacy-migration')?.origin??checkpoint?.origin??null;
     this.receipts=integrity??[];this.verifyCursor=0;this.verified=!checkpoint&&this.receipts.length===0;
     this.indexes=indexes??{minutes:{hash:'0'.repeat(64),count:0},profiles:{hash:'0'.repeat(64),count:0}};
     this.indexVerification=null;
     this.knownStamp=fileStamp(this.file);
+    } catch(error) {try{this.db.close();}catch{}throw error;}
   }
   statement(sql){if(!this.statements.has(sql))this.statements.set(sql,this.db.prepare(sql));return this.statements.get(sql);}
   getMeta(key){const row=this.statement('SELECT json,hash FROM meta WHERE key=?').get(key);

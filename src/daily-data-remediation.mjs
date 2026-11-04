@@ -14,6 +14,10 @@ group('LATE_START COMPUTER_NOT_READY_BEFORE_SESSION SCHEDULED_TASK_NOT_RUN',
   'STARTUP_OPERATIONS', 'STARTUP_SCHEDULING', false, true, false,
   '唯讀核對登入、既有排程紀錄、launcher 與第一筆事件；於適用交易日驗證啟動時序。',
   '修復需變更 startup/scheduler 時另交受控 lane；不得診斷成 source 故障。');
+
+group('SCHEDULED_TASK_FAILED', 'DAILY_DATA_OPERATIONS', 'SCHEDULED_STAGE_DIAGNOSIS', true, false, false,
+  '核對既有排程實際執行、失敗階段、來源發布與 writer 日誌；分別保留整批失敗及當日獨立合格資料。',
+  '需切換正式 writer 或排程時走既定操作門檻；手動重跑成功不取代排程驗收。');
 group('STALE_DELIVERY PROVIDER_RECONNECT CALLBACK_ERROR WRITER_ERROR QUEUE_DROP QUEUE_BACKLOG CONTINUITY_BREAK STALE_OR_DELAYED DUPLICATE_RATE_EXCEEDED VOLUME_RECONCILIATION_MISMATCH',
   'CRU49_RUNTIME_OR_SUCCESSOR', 'RUNTIME_CONTINUITY', false, true, false,
   '唯讀比對事件、callback、writer、ledger 與既有 runtime checkpoint；交 runtime lane 處理。',

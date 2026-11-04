@@ -25,10 +25,14 @@ PR109／110 不是相對 main 的獨立完整產品。發布審查須保留以�
 
 LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／young generation 32 MiB、一個 active／一個 queued，health 只 peek 已有結果。V8 上限不是整個程序 RSS 上限。
 
+完整每日版本使用 Node 22.13+ 的 22.x 或 Node 23.4+，因私有歷史使用無需旗標的內建 SQLite；本機測試 Node 24.18.0，CI 使用 Node 22.x。啟動不符版本時在服務監聽前明確失敗，不把舊圖表能啟動當成三模組相容。
+
 1. 來源：驗證原始 canonical checkpoint bytes/hash，最大 96 MiB／250,000 retained events；冷起始最多取 20,000 筆 canonical 片段。來源 physical hash、原／縮減 checkpoint hash、ordinal、byte offsets、availableAt 分開揭露。
 2. 請求：來源驗證、持久化 verified input、每次至多 2,000 筆推導、歷史驗證及 legacy cache 遷移各自有界。未完成的來源不發布成完整快照；重啟沿已封存 input/cursor 繼續。
 3. 記憶體：最多兩個開啟 store／resident source，SQLite page cache 每個 8 MiB，temp 在磁碟、mmap 關閉；完整 quote/trade/point 保存在私有 SQLite。私有 schema 在一個 transaction 建立，避免每個 DDL 各做 durable commit。
 4. 儲存：每個 derived store 最大 4,194,304 頁（預設 4 KiB 頁約 16 GiB）；沒有任意刪除 quote、舊點或原始 ledger。不同日期的 store 保留，總磁碟需求隨天數增加，須按實測每日用量規劃，不宣稱無限容量。不得靠清空 store 偽造相同 CVD 起點。
+
+   scoped 候選允許唯一 `market-observation` 子目錄及已知 cache/SQLite/暫存檔名；拒絕 nested directories、symlink／hardlink 與超過 4,096 entries 的 namespace。此為啟動／請求路徑檢查預算，不是整盤事件容量；達限時明示停止並保留檔案，不能偷偷刪歷史。已識別的 SQLite rollback journal／原子暫存檔消失競爭不誤拒整頁。
 5. 畫面：K 線最多 400、CVD 分鐘點 2,000、價位 bins 2,000、事件 200、區域 100；這些顯示限制不改累積量或原始分類。SMC 計算上限來自 2,000 bars 的可推導事件數，保留合法較早活動區域。
 
 私有交易同時提交資料、索引摘要與 cursor；chunk receipts／row hashes 驗證重啟歷史。舊 JSON cache 先驗 bytes，再以不複製整個物件圖的 canonical hash 驗 fragment，分批遷移，不改原 cache。UNKNOWN、品質、原始 ordinal、event time／availableAt、合約／盤別／交易日／epoch、晚到與時鐘倒退均保留。

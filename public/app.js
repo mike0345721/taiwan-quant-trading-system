@@ -357,15 +357,18 @@ $('app').addEventListener('click', (event) => {
 });
 
 function metricSourceKeys(group, label, snapshot) {
+  const oi=snapshot?.derived?.futures?.openInterestSources?.current
+    ??(snapshot?.largeTraders?.data?.marketOi!=null?'largeTraders':'futuresMarket');
   if (label === '期現貨基差') return ['futuresMarket', 'marketOverview'];
-  if (['台指期近月','台指夜盤','近月成交量','夜盤未平倉量','未平倉單日增減','近月／次月價差','價格 × OI 判讀'].includes(label)) return ['futuresMarket'];
-  if (label === '市場未平倉') return snapshot?.largeTraders?.data?.marketOi ? ['largeTraders'] : ['futuresMarket'];
+  if (['台指期近月','台指夜盤','近月成交量','夜盤未平倉量','近月／次月價差'].includes(label)) return ['futuresMarket'];
+  if (label === '市場未平倉') return [oi];
+  if (['未平倉單日增減','價格 × OI 判讀'].includes(label)) return [oi,'previousOpenInterest'];
   if (label.startsWith('Top ')) return ['largeTraders'];
   if (label === '距離結算日') return ['futuresMarket','options'];
   if (label === '臺指波動率指數') return ['taiwanVix'];
   if (['上市漲跌家數','上櫃漲跌家數','上市上漲／下跌','上櫃上漲／下跌'].includes(label)) return ['marketBreadth'];
   if (label === '資料異常') return Object.keys(snapshot?.sources || {});
-  if (['上漲成交量占比','電子／金融／傳產強弱','前十大權值股貢獻'].includes(label)) return ['notConnected'];
+  if (['上漲成交量占比','電子／金融／傳產強弱','前十大權值股貢獻','法人與指數背離'].includes(label)) return ['notConnected'];
   if (label === '選擇權波動資料') return ['optionVolatilityDerived'];
   return [{ 'market-cards':'marketOverview','spot-cards':'spotInstitutional','futures-cards':'futuresInstitutional','options-cards':'options' }[group] || 'unknown'];
 }
@@ -375,9 +378,20 @@ function appendMetricSources(card, group, snapshot) {
   for(const key of keys.length?keys:['unknown']) {
     const badge=document.createElement('div');badge.dataset.sourceKey=key;
     const item={...snapshot?.[key],...snapshot?.sources?.[key]};
+    if(key==='previousOpenInterest'){
+      const prior=snapshot?.derived?.futures?.openInterestSources?.previous;
+      const validTime=Number.isFinite(Date.parse(prior?.lastSuccessfulAt))&&Date.parse(prior.lastSuccessfulAt)<=Date.now();
+      const comparisonReason=snapshot?.derived?.futures?.openInterestComparisonReason;
+      const complete=prior?.ok&&prior.dataDate&&validTime&&!comparisonReason;
+      item.update={...prior,status:complete?'AVAILABLE':'STALE',
+        reason:comparisonReason??prior?.reason??(complete?null:'HISTORICAL_SOURCE_EVIDENCE_INCOMPLETE')};
+    }
+    if(key==='notConnected')item.update={status:'STALE',reason:'DATA_NOT_CONNECTED'};
     if(key==='optionVolatilityDerived')item.update={status:'STALE',dataDate:snapshot?.researchDecision?.v362Risk?.options?.tradeDate??null,
       reason:'DERIVED_PUBLICATION_TIME_NOT_PROVIDED',sourceTime:null,lastSuccessfulAt:null,lastAttemptAt:null};
-    paintSourceBadge(badge,item);card.append(badge);
+    paintSourceBadge(badge,item);
+    if(key==='previousOpenInterest')badge.prepend(document.createTextNode('前一比較來源 · '));
+    card.append(badge);
   }
 }
 
@@ -1050,8 +1064,8 @@ function render(snapshot) {
     metric('Top 10 L/S', large.top10Short ? fmt(large.top10Long / large.top10Short, 2) : '—', `${fmt(large.top10Long)} / ${fmt(large.top10Short)}・僅看集中方向`, large.top10Short ? (large.top10Long / large.top10Short > 1.05 ? 1 : large.top10Long / large.top10Short < 0.95 ? -1 : 0) : 0),
     metric('Top 5 多方集中度', derived.futures?.top5LongConcentration == null ? '—' : `${fmt(derived.futures.top5LongConcentration, 1)}%`, '前五大多方／市場 OI'),
     metric('Top 5 空方集中度', derived.futures?.top5ShortConcentration == null ? '—' : `${fmt(derived.futures.top5ShortConcentration, 1)}%`, '前五大空方／市場 OI'),
-    metric('市場未平倉', `${fmt(large.marketOi || futuresMarket.txDay?.openInterest)} 口`, '大額交易人資料口徑'),
-    metric('未平倉單日增減', derived.futures?.openInterestDelta == null ? '資料累積中' : signed(derived.futures.openInterestDelta, ' 口'), '與前一交易日比較', Math.sign(derived.futures?.openInterestDelta || 0)),
+    metric('市場未平倉', `${fmt(large.marketOi ?? futuresMarket.txDay?.openInterest)} 口`, large.marketOi!=null?'大額交易人資料口徑':'期貨行情 OI 口徑'),
+    metric('未平倉單日增減', derived.futures?.openInterestDelta == null ? '資料不足或不可比較' : signed(derived.futures.openInterestDelta, ' 口'), `比較資料日 ${derived.previousDataDate||'未知'}・${derived.futures?.openInterestComparisonReason||'相同來源口徑'}`, Math.sign(derived.futures?.openInterestDelta || 0)),
     metric('期現貨基差', signed(derived.market?.basis, ' 點', 2), '近月期貨－加權指數', Math.sign(derived.market?.basis || 0)),
     metric('近月／次月價差', derived.market?.calendarSpread == null ? '尚無次月資料' : signed(derived.market.calendarSpread, ' 點', 2), '次月－近月', Math.sign(derived.market?.calendarSpread || 0)),
     metric('價格 × OI 判讀', derived.futures?.openInterestDelta == null ? '資料累積中' : '已取得比較資料', '僅列可能解釋，不是確定方向'),

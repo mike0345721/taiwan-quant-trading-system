@@ -58,7 +58,7 @@ function syntheticMarketInputs() {
   return { chart, flow };
 }
 
-function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} } = {}) {
+function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, nodeVersion=process.versions.node } = {}) {
   const counters = { network: 0, bridge: 0, spawn: 0, marketConstructor: 0, marketRefresh: 0,
     cacheConstructor: 0, cacheInit: 0, cacheRead: 0, cacheWrite: 0, intervals: 0,
     credential: 0, aiOperation: 0, forbiddenOther: 0, tlsCapture: 0, fsReads: [], fsWrites: [], git: [], chartSelections: [] };
@@ -119,7 +119,8 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
       assert.ok(directories.has(name) || memory.has(name)); return name;
     },
     readdirSync(name) {
-      assert.ok([path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'decision-workspace')].includes(name)); return [];
+      assert.ok([path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'dashboard-chart-cache/market-observation'), path.join(dataRoot, 'decision-workspace')].includes(name));
+      return [...new Set([...directories,...memory.keys()])].filter(p=>p!==name&&path.dirname(p)===name).map(p=>path.basename(p));
     },
   }, { get(target, key) { return Object.hasOwn(target, key) ? target[key] : () => deny('filesystem:' + String(key)); } });
   const memoryPromises = new Proxy({}, { get() { return async () => deny('filesystem-promises'); } });
@@ -187,7 +188,13 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
       const result = () => observed.chart ? structuredClone(observed.chart) : off();
       return { async load(selection) {
         counters.chartSelections.push(structuredClone(selection));
-        if (selection?.observation === true) return observed.observation ? structuredClone(observed.observation) : off();
+        if (selection?.observation === true) {
+          if(observed.persistObservationNamespace){
+            const dir=path.join(dataRoot,'dashboard-chart-cache/market-observation');directories.add(dir);
+            memory.set(path.join(dir,'a'.repeat(64)+'.producer-fragment.observation.sqlite'),Buffer.from('SYNTHETIC_NAMESPACE_ONLY'));
+          }
+          return observed.observation ? structuredClone(observed.observation) : off();
+        }
         if (observed.chartError) return off();
         return result();
       }, peek: result, async close() { return deny('close'); } };
@@ -253,7 +260,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
     'node:fs': { default: memoryFs }, 'node:fs/promises': { default: memoryPromises },
     'node:path': { default: path }, 'node:url': { URL }, 'node:child_process': child };
   const context = vm.createContext({ Buffer, URL, TextEncoder, TextDecoder, AbortController, AbortSignal,
-    structuredClone, process: Object.freeze({ env: Object.freeze(env), execPath: '/synthetic/node', platform: process.platform,
+    structuredClone, process: Object.freeze({ env: Object.freeze(env), execPath: '/synthetic/node', platform: process.platform, versions:{...process.versions,node:nodeVersion},
       on(signal) { assert.ok(['SIGINT', 'SIGTERM'].includes(signal)); }, exit() { return deny('exit'); } }),
     fetch() { return deny('network'); }, console: Object.freeze({ log() {}, warn() {}, error() {} }),
     setInterval() { return deny('intervals'); }, clearInterval() {},
@@ -594,6 +601,22 @@ test('candidate health distinguishes unaccepted AI-off identity from formal acce
   assert.equal(body.candidateRelease.scope, 'MARKET_RESEARCH_AI_DISABLED_CANDIDATE');
   assert.equal(body.candidateRelease.aiEnabled, false); assert.equal(body.candidateRelease.deliveryAccepted, false);
   noExternalEffects(h);
+});
+
+test('candidate remains usable after an observation store appears inside its private cache',async()=>{
+  const observed={persistObservationNamespace:true},h=harness({observed});await h.start();const auth=await h.login();
+  await h.dispatch('GET','/api/v1/market-observation?mode=LIVE',auth);
+  assert.equal(h.counters.chartSelections.at(-1)?.observation,true);
+  assert.equal((await h.dispatch('GET','/healthz')).status,200);
+  assert.equal((await h.dispatch('GET','/api/session',auth)).json().authenticated,true);
+  noExternalEffects(h);
+});
+
+test('unsupported Node versions fail before candidate cache or session initialization',async()=>{
+  for(const nodeVersion of ['20.20.0','22.12.0','23.3.0']){
+    const h=harness({nodeVersion});await assert.rejects(h.start(),/DAILY_RELEASE_REQUIRES_NODE/);
+    assert.equal(h.counters.cacheConstructor,0);assert.deepEqual(h.counters.fsWrites,[]);noExternalEffects(h);
+  }
 });
 
 test('copy context uses the same qualified partial inputs and rereads EOD without acquisition', async () => {

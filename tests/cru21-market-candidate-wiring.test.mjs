@@ -77,6 +77,17 @@ test('candidate rejects inherited Git identity/config overrides',t=>{
   for(const key of ['GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_CONFIG_COUNT','git_config_global'])
     assert.throws(()=>assertMarketCandidateMode({...env,[key]:'synthetic-override'},config));
 });
+
+test('observation persistence namespace permits only the dedicated files and disappearing transaction temps',t=>{
+  const {roots}=fixture(t),dir=path.join(roots.chartCacheRoot,'market-observation');fs.mkdirSync(dir);
+  const stem='a'.repeat(64)+'.producer-fragment.observation.sqlite';fs.writeFileSync(path.join(dir,stem),'SYNTHETIC_NAMESPACE_ONLY');
+  assert.equal(assertMarketCandidateFilesystemRoots(roots),true);
+  const io={...fs,readdirSync(p){return p===dir?[stem,stem+'-journal']:fs.readdirSync(p);}};
+  assert.equal(assertMarketCandidateFilesystemRoots(roots,io),true,'known disappearing rollback journal');
+  const linked={...fs,lstatSync(p){if(p===path.join(dir,stem))return {isSymbolicLink:()=>false,isFile:()=>true,nlink:2};return fs.lstatSync(p);}};
+  assert.throws(()=>assertMarketCandidateFilesystemRoots(roots,linked),/PATH_ALIAS/);
+  fs.mkdirSync(path.join(dir,'nested'));assert.throws(()=>assertMarketCandidateFilesystemRoots(roots),/PATH_ALIAS/);
+});
 test('candidate query dates cannot escape approved ledger root',()=>{
   for(const suffix of ['tradeDate=../../outside','tradeDate=2026-02-31','tradeDate=2026-01-01&tradeDate=2026-01-02',
     'timeframe=../../outside','mode=MOCK','actualContract=../outside','asOf=../outside'])

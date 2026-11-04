@@ -92,6 +92,18 @@ export function assertMarketCandidateFilesystemRoots(roots, io = fs) {
   for (const dir of [roots.chartCacheRoot, path.join(roots.privateDataRoot, 'decision-workspace')]) {
     for (const name of io.readdirSync(dir)) {
       if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') fail('MARKET_CANDIDATE_PATH_ALIAS');
+      if(dir===roots.chartCacheRoot&&name==='market-observation'){
+        const observationRoot=path.join(dir,name);inspect(observationRoot,true);
+        const files=io.readdirSync(observationRoot);
+        if(files.length>4096)fail('MARKET_CANDIDATE_NAMESPACE_BUDGET');
+        for(const file of files){
+          if(!/^[a-f0-9]{64}(?:\.json(?:\.\d+\.tmp)?|\.producer-fragment(?:\.\d+\.[a-f0-9-]{36}\.tmp|\.observation\.sqlite(?:-journal)?)?)$/.test(file))fail('MARKET_CANDIDATE_PATH_ALIAS');
+          // Known atomic temp / SQLite rollback-journal files can disappear
+          // between enumeration and lstat; aliases and unknown children cannot.
+          inspect(path.join(observationRoot,file),false,/\.tmp$|-journal$/.test(file));
+        }
+        continue;
+      }
       inspect(path.join(dir, name), false);
     }
   }
