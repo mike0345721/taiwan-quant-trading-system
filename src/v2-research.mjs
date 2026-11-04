@@ -5,6 +5,7 @@ import { config } from './config.mjs';
 import { buildV3Decision } from './v3-decision.mjs';
 import { buildV362RiskSummary } from './v362-risk.mjs';
 import { buildOptionsSmartRadar } from './options-smart-radar.mjs';
+import { newV2ReadBudget } from './dashboard-v2-reader-binding.mjs';
 
 const DAY_OPTIONS = new Set([20, 60, 120, 250]);
 const DELTA_COLUMNS = Object.freeze({
@@ -13,6 +14,16 @@ const DELTA_COLUMNS = Object.freeze({
   5: ['call_oi_delta_5d', 'put_oi_delta_5d'],
 });
 const CONTRACT_RE = /^\d{6}(?:[WF]\d)?$/;
+const readerError = code => Object.assign(new Error(code), { statusCode: 503 });
+
+export function readBoundedStrikeHistory(db, { contract, latestDate, strikes, hasCallClose, hasPutClose }) {
+  if (strikes.length > 2000) throw readerError('V2_STRIKE_BUDGET_EXCEEDED');
+  const statement = db.prepare(`SELECT trade_date AS tradeDate, strike, call_volume AS callVolume, put_volume AS putVolume,
+    ${hasCallClose ? 'call_close' : 'NULL'} AS callClose, ${hasPutClose ? 'put_close' : 'NULL'} AS putClose
+    FROM options_strike_daily INDEXED BY idx_options_strike
+    WHERE contract=? AND strike=? AND trade_date<=? ORDER BY trade_date DESC LIMIT 21`);
+  return strikes.flatMap(row => statement.all(contract, row.strike, latestDate));
+}
 
 export function normalizeResearchQuery({ days, delta, contract } = {}) {
   const parsedDays = Number.parseInt(days, 10);
@@ -25,7 +36,9 @@ export function normalizeResearchQuery({ days, delta, contract } = {}) {
 }
 
 export class V2ResearchService {
-  constructor(databasePath = config.v2DatabasePath, reportPath = config.v2ReportPath) {
+  constructor(databasePath = config.v2DatabasePath, reportPath = config.v2ReportPath, { readerBinding = null } = {}) {
+    this.readerBinding = readerBinding;
+    if (readerBinding) { databasePath = readerBinding.paths.database; reportPath = readerBinding.paths.primaryReport; }
     this.databasePath = databasePath;
     this.reportPath = reportPath;
     this.basisTermReportPath = path.join(path.dirname(reportPath), 'basis-term-structure-research.json');
@@ -41,10 +54,29 @@ export class V2ResearchService {
     this.v362FinalPath = path.join(path.dirname(reportPath), 'v3-6-2-cross-market-research.json');
     this.v362AuditPath = path.join(path.dirname(reportPath), 'v3-6-2-collection-audit.json');
     this.dailyUpdateStatusPath = path.join(path.dirname(reportPath), 'v3-daily-update-status.json');
+    this.readerRolesByPath = new Map();
+    if (readerBinding) {
+      const properties = { reportPath: 'primaryReport', basisTermReportPath: 'basisTerm', noTradeReportPath: 'noTrade',
+        holdingReportPath: 'holding', pairedReportPath: 'paired', forwardLedgerPath: 'forwardLedger',
+        v3ForwardStatusPath: 'v3ForwardStatus', oiAuditPath: 'oiAudit', v34ForwardStatusPath: 'v34ForwardStatus',
+        foreignRiskReportPath: 'foreignRisk', v362ExtendedPath: 'extendedFactor', v362FinalPath: 'crossMarket',
+        v362AuditPath: 'collectionAudit', dailyUpdateStatusPath: 'dailyUpdateStatus' };
+      for (const [property, role] of Object.entries(properties)) {
+        this[property] = readerBinding.paths[role]; this.readerRolesByPath.set(this[property], role);
+      }
+    }
   }
 
+  readerIdentity() { return this.readerBinding?.identity() ?? null; }
+
   decisionSupport() {
+    const budget = newV2ReadBudget(), readerArtifacts = {};
     const read = (filePath) => {
+      if (this.readerBinding) {
+        const role = this.readerRolesByPath.get(filePath), result = this.readerBinding.read(role, budget);
+        readerArtifacts[role] = { state: result.state, reasonCodes: result.reasonCodes };
+        return result.value;
+      }
       try { return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : null; } catch { return null; }
     };
     const veto = read(this.noTradeReportPath); const holding = read(this.holdingReportPath); const paired = read(this.pairedReportPath);
@@ -54,22 +86,28 @@ export class V2ResearchService {
     const highVolatility = veto?.studies?.find((item) => item.key === 'high_vol_regime');
     const foldChoices = holding?.development?.folds?.reduce((counts, fold) => ({ ...counts, [fold.choice]: (counts[fold.choice] || 0) + 1 }), {}) || {};
     const holdoutComparisons = paired?.families?.flatMap((family) => family.holdout?.comparisons || []) || [];
-    let forwardRecords = 0;
-    try { if (fs.existsSync(this.forwardLedgerPath)) forwardRecords = fs.readFileSync(this.forwardLedgerPath, 'utf8').split(/\r?\n/).filter(Boolean).length; } catch { forwardRecords = 0; }
-    let v3 = { available: false, reason: 'V2_DATABASE_NOT_READY' };
-    let v362Risk = { available: false, reason: 'V2_DATABASE_NOT_READY' };
+    let forwardRecords = this.readerBinding ? read(this.forwardLedgerPath) : 0;
+    if (!this.readerBinding) {
+      try { if (fs.existsSync(this.forwardLedgerPath)) forwardRecords = fs.readFileSync(this.forwardLedgerPath, 'utf8').split(/\r?\n/).filter(Boolean).length; } catch { forwardRecords = 0; }
+    }
+    const databaseReason = this.readerBinding ? (this.readerBinding.validated ? 'V2_READER_DATABASE_UNAVAILABLE' : 'V2_READER_BINDING_UNVERIFIED') : 'V2_DATABASE_NOT_READY';
+    let v3 = { available: false, reason: databaseReason };
+    let v362Risk = { available: false, reason: databaseReason };
     let globalContext = { available: false, latest: [], coverage: [] };
     if (this.available()) {
-      const db = new DatabaseSync(this.databasePath, { readOnly: true });
+      let db = this.readerBinding ? null : new DatabaseSync(this.databasePath, { readOnly: true });
       try {
+        db ||= new DatabaseSync(this.databasePath, { readOnly: true });
         db.exec('PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;');
         v3 = buildV3Decision(db);
         v362Risk = buildV362RiskSummary(db, { v3, extendedReport: v362Extended, finalReport: v362Final, auditReport: v362Audit });
         globalContext = this.#globalContext(db);
       } catch (error) {
-        v3 = { available: false, reason: 'V3_DECISION_UNAVAILABLE', detail: error.message };
+        v3 = this.readerBinding ? { available: false, reason: 'V2_READER_DATABASE_UNAVAILABLE' }
+          : { available: false, reason: 'V3_DECISION_UNAVAILABLE', detail: error.message };
+        if (this.readerBinding) v362Risk = { available: false, reason: 'V2_READER_DATABASE_UNAVAILABLE' };
       } finally {
-        db.close();
+        db?.close();
       }
     }
     return {
@@ -84,7 +122,8 @@ export class V2ResearchService {
       holding: holding ? { finalChoice: holding.finalHoldout?.choice, foldChoices, caveat: holding.caveat } : null,
       incremental: paired ? { holdoutSupportedComparisons: holdoutComparisons.filter((item) => item.supported).length,
         holdoutTotalComparisons: holdoutComparisons.length, verdict: holdoutComparisons.some((item) => item.supported) ? 'candidate_only' : 'not_supported' } : null,
-      forward: { records: forwardRecords, status: forwardRecords ? 'tracking' : 'awaiting_new_data' },
+      forward: { records: forwardRecords, status: forwardRecords === null ? 'UNKNOWN' : forwardRecords ? 'tracking' : 'awaiting_new_data' },
+      ...(this.readerBinding ? { readerArtifacts } : {}),
       v3: { ...v3, forward: v3Forward, v34Forward, foreignRiskResearch: foreignRisk, oiAudit },
       v362Risk,
       globalContext,
@@ -92,10 +131,15 @@ export class V2ResearchService {
   }
 
   available() {
+    if (this.readerBinding) return this.readerBinding.databaseAvailable();
     return fs.existsSync(this.databasePath) && fs.statSync(this.databasePath).size > 0;
   }
 
   dailyUpdateStatus() {
+    if (this.readerBinding) {
+      const result = this.readerBinding.read('dailyUpdateStatus');
+      return result.value ?? { state: 'unavailable', reasonCodes: result.reasonCodes, formalResearchRerun: false };
+    }
     try {
       return fs.existsSync(this.dailyUpdateStatusPath)
         ? JSON.parse(fs.readFileSync(this.dailyUpdateStatusPath, 'utf8'))
@@ -106,6 +150,11 @@ export class V2ResearchService {
   }
 
   backtestReport() {
+    if (this.readerBinding) {
+      const result = this.readerBinding.read('primaryReport');
+      if (result.value === null) throw readerError(result.reasonCodes[0]);
+      return result.value;
+    }
     if (!fs.existsSync(this.reportPath)) {
       const error = new Error('V2_BACKTEST_NOT_READY');
       error.statusCode = 503;
@@ -116,13 +165,15 @@ export class V2ResearchService {
 
   query(input = {}) {
     if (!this.available()) {
+      if (this.readerBinding) throw readerError(this.readerBinding.validated ? 'V2_READER_DATABASE_UNAVAILABLE' : 'V2_READER_BINDING_UNVERIFIED');
       const error = new Error('V2_DATABASE_NOT_READY');
       error.statusCode = 503;
       throw error;
     }
     const query = normalizeResearchQuery(input);
-    const db = new DatabaseSync(this.databasePath, { readOnly: true });
+    let db = this.readerBinding ? null : new DatabaseSync(this.databasePath, { readOnly: true });
     try {
+      db ||= new DatabaseSync(this.databasePath, { readOnly: true });
       db.exec('PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;');
       const latestOptionDate = db.prepare('SELECT MAX(trade_date) AS value FROM options_contract_daily').get()?.value;
       const contracts = latestOptionDate ? db.prepare(`
@@ -145,8 +196,11 @@ export class V2ResearchService {
         termStructure: this.#termStructure(db, query.days),
         service: { readOnly: true, brokerConnected: false, rawSqlAccepted: false },
       };
+    } catch (error) {
+      if (this.readerBinding && error.message !== 'V2_STRIKE_BUDGET_EXCEEDED') throw readerError('V2_READER_DATABASE_UNAVAILABLE');
+      throw error;
     } finally {
-      db.close();
+      db?.close();
     }
   }
 
@@ -204,9 +258,11 @@ export class V2ResearchService {
         c.call_oi_delta_1d AS callOiDelta1d, c.put_oi_delta_1d AS putOiDelta1d,
         c.${callColumn} AS callDelta, c.${putColumn} AS putDelta
       FROM options_strike_daily s LEFT JOIN option_oi_changes c USING(trade_date, contract, strike)
-      WHERE s.trade_date=? AND s.contract=? ORDER BY s.strike
+      WHERE s.trade_date=? AND s.contract=? ORDER BY s.strike ${this.readerBinding ? 'LIMIT 2001' : ''}
     `).all(latestDate, contract);
-    const strikeHistory = db.prepare(`
+    const strikeHistory = this.readerBinding
+      ? readBoundedStrikeHistory(db, { contract, latestDate, strikes, hasCallClose, hasPutClose })
+      : db.prepare(`
       SELECT trade_date AS tradeDate, strike, call_volume AS callVolume, put_volume AS putVolume,
         ${hasCallClose ? 'call_close' : 'NULL'} AS callClose,
         ${hasPutClose ? 'put_close' : 'NULL'} AS putClose
@@ -295,13 +351,19 @@ export class V2ResearchService {
       basis_change_1d_bps AS basisChange1dBps, basis_change_5d_bps AS basisChange5dBps
       FROM basis_term_structure_daily ORDER BY trade_date DESC LIMIT ?`).all(days).reverse();
     let scoreDecision = null;
-    if (fs.existsSync(this.basisTermReportPath)) {
+    let readerArtifact;
+    if (this.readerBinding) {
+      const result = this.readerBinding.read('basisTerm');
+      scoreDecision = result.value?.scoreDecision ?? null;
+      readerArtifact = { state: result.state, reasonCodes: result.reasonCodes };
+    } else if (fs.existsSync(this.basisTermReportPath)) {
       try { scoreDecision = JSON.parse(fs.readFileSync(this.basisTermReportPath, 'utf8')).scoreDecision ?? null; } catch { scoreDecision = null; }
     }
     return {
       available: history.length > 0,
       latest: history.at(-1) ?? null,
       history,
+      ...(this.readerBinding ? { readerArtifact } : {}),
       productionScoreWeight: scoreDecision?.productionWeight ?? 0,
       decision: scoreDecision?.decision ?? '研究資料已建立，尚未通過正式評分驗證。',
     };

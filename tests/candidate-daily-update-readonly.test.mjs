@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { SessionStore, parseCookies, safeEqual } from '../src/security.mjs';
+import { readDataOperationsReaderIdentity } from '../src/dashboard-data-operations-reader-identity.mjs';
 
 const serverSource = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 const configSource = fs.readFileSync(new URL('../src/config.mjs', import.meta.url), 'utf8');
@@ -41,6 +42,7 @@ function harness(flag) {
     runtimeVersion: { approvedMainCommit: 'b'.repeat(40), syncState: 'MISMATCH' },
     inlineEnabled: false, localMarketOnly: false, productSurfaceContract: {}, operatingCalendar: null,
     assessTaifexMarketSession: () => ({ state: 'UNKNOWN' }),
+    readDataOperationsReaderIdentity,
     v2Research: { dailyUpdateStatus: () => structuredClone(batchStatus) },
     sendJson(res, status, body) { res.status = status; res.body = JSON.parse(JSON.stringify(body)); },
     readJson: async req => req.body,

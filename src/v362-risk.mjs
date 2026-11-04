@@ -14,8 +14,15 @@ const SOURCE_LABELS = Object.freeze({
 const TRACKED_SOURCES = Object.keys(SOURCE_LABELS);
 
 function finite(value) {
+  if (value == null || !['number', 'string'].includes(typeof value)
+    || (typeof value === 'string' && value.trim() === '')) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function difference(current, previous) {
+  const a = finite(current), b = finite(previous);
+  return a == null || b == null ? null : finite(a - b);
 }
 
 export function classifyV362Risk(input = {}) {
@@ -31,13 +38,15 @@ export function classifyV362Risk(input = {}) {
   const shortAdd1d = finite(input.shortAdd1d);
   const shortAddThreshold = finite(input.shortAddThreshold);
 
+  const vixKnown = vix5dPct != null || (vix != null && vixThreshold != null);
+  const atmKnown = atmIv != null && atmHigh != null;
+  const skewKnown = skew != null && skewHigh != null;
   const vixHigh = (vix5dPct != null && vix5dPct >= 10) || (vix != null && vixThreshold != null && vix >= vixThreshold);
   const vixMedium = !vixHigh && vix5dPct != null && vix5dPct > 0;
   const atmAlert = atmIv != null && atmHigh != null && atmIv >= atmHigh;
   const skewAlert = skew != null && skewHigh != null && skew >= skewHigh;
   const optionAlert = atmAlert || skewAlert;
-  const availableRiskInputs = [vix, vix5dPct, atmIv, skew].filter((value) => value != null).length;
-  const level = availableRiskInputs === 0 ? 'unknown' : (vixHigh || optionAlert ? 'high' : (vixMedium ? 'medium' : 'low'));
+  const level = !vixKnown && !atmKnown && !skewKnown ? 'unknown' : (vixHigh || optionAlert ? 'high' : (vixMedium ? 'medium' : 'low'));
 
   let foreignDirection = 'unknown';
   if (foreign5d != null && foreignThreshold != null) {
@@ -52,8 +61,8 @@ export function classifyV362Risk(input = {}) {
 
   return {
     level,
-    vixLevel: vixHigh ? 'high' : vixMedium ? 'medium' : vix == null && vix5dPct == null ? 'unknown' : 'low',
-    optionLevel: optionAlert ? 'high' : atmIv == null && skew == null ? 'unknown' : 'normal',
+    vixLevel: vixHigh ? 'high' : vixMedium ? 'medium' : !vixKnown ? 'unknown' : 'low',
+    optionLevel: optionAlert ? 'high' : !atmKnown && !skewKnown ? 'unknown' : 'normal',
     atmAlert,
     skewAlert,
     foreignDirection,
@@ -113,8 +122,8 @@ export function buildV362RiskSummary(db, { v3 = {}, extendedReport = null, final
     FROM futures_positions_daily WHERE trade_date<=? AND foreign_net IS NOT NULL
     ORDER BY trade_date DESC LIMIT 6
   `).all(marketDate) : [];
-  const foreign5d = foreignRows.length >= 6 ? finite(foreignRows[0].foreignNet - foreignRows[5].foreignNet) : null;
-  const shortAdd1d = foreignRows.length >= 2 ? finite(foreignRows[0].foreignShort - foreignRows[1].foreignShort) : null;
+  const foreign5d = foreignRows.length >= 6 ? difference(foreignRows[0].foreignNet, foreignRows[5].foreignNet) : null;
+  const shortAdd1d = foreignRows.length >= 2 ? difference(foreignRows[0].foreignShort, foreignRows[1].foreignShort) : null;
   const classification = classifyV362Risk({
     vix,
     vix5dPct,

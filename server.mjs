@@ -16,6 +16,7 @@ import { buildSignal } from './src/signal-engine.mjs';
 import { buildSixAxisShadow } from './src/six-axis-shadow.mjs';
 import { backtestComponents } from './src/backtest.mjs';
 import { V2ResearchService } from './src/v2-research.mjs';
+import { createGovernedV2Reader } from './src/dashboard-v2-reader-binding.mjs';
 import { loadPriceConfirmation } from './src/intraday-confirmation.mjs';
 import { listReplayDays, loadCatalogReplay } from './src/intraday-replay-catalog.mjs';
 import { marketFeedReadiness } from './src/market-feed.mjs';
@@ -24,6 +25,7 @@ import { costScenarios } from './v2/src/trading-costs.mjs';
 import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { resolveOperationsReader } from './src/data-operations-binding.mjs';
+import { readDataOperationsReaderIdentity } from './src/dashboard-data-operations-reader-identity.mjs';
 import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
 import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
@@ -96,7 +98,6 @@ const marketData = new MarketDataService({ timeoutMs: config.upstreamTimeoutMs, 
 const expectedDataMode = config.mockData ? 'mock' : 'live';
 const sessions = new SessionStore(config.sessionTtlMs, { filePath: path.join(config.dataDir, 'sessions.json') });
 const loginLimiter = new LoginRateLimiter();
-const v2Research = new V2ResearchService();
 let dailyUpdateProcess = null;
 // Explicit source bindings read existing governed products; private writes stay in config.dataDir.
 const readDataRoot = resolveDashboardReadDataRoot({
@@ -127,6 +128,13 @@ try {
     allowCandidate: process.env.DASHBOARD_PREVIEW_TYPE === 'CRU21_OWNER_PREVIEW',
   });
 } catch { /* Unknown operating governance stays unavailable; no fake open/closed. */ }
+const v2ReaderBinding = createGovernedV2Reader({
+  mode: config.candidateV2Binding, candidateReadOnly: config.candidateReadOnly,
+  manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH, calendar: operatingCalendar,
+  overrides: Object.fromEntries(['V2_RESEARCH_DATABASE_PATH', 'V2_BACKTEST_REPORT_PATH', 'V2_DATABASE_PATH', 'DATA_OPERATIONS_OUTPUT_ROOT']
+    .map(key => [key, process.env[key]])),
+});
+const v2Research = new V2ResearchService(config.v2DatabasePath, config.v2ReportPath, { readerBinding: v2ReaderBinding });
 const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || readDataRoot);
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
@@ -430,6 +438,14 @@ const requestHandler = async (req, res) => {
         service: 'tw-chip-dashboard-v1',
         runtimeCommit: runtimeIdentity.commit,
         candidateReadOnly: config.candidateReadOnly,
+        v2Reader: config.candidateV2Binding ? v2Research.readerIdentity() : null,
+        dataOperationsReader: readDataOperationsReaderIdentity({
+          candidateReadOnly: config.candidateReadOnly,
+          manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH,
+          dataRoot: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
+          outputRoot: process.env.DATA_OPERATIONS_OUTPUT_ROOT,
+          calendar: operatingCalendar,
+        }),
         inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
         localRelease: localMarketOnly ? { scope:'MARKET_RESEARCH_AI_DISABLED', transport:'HTTPS',
           certificateSha256:process.env.DASHBOARD_TLS_CERT_SHA256, marketDataQualified:false } : null,
@@ -834,7 +850,8 @@ const requestHandler = async (req, res) => {
     const status = Number.isInteger(error.statusCode) ? error.statusCode : 500;
     if (status >= 500) console.error(`[server] ${req.method} ${pathname}:`, error.message);
     const knownResearchUnavailable = status === 503
-      && ['V2_DATABASE_NOT_READY', 'V2_BACKTEST_NOT_READY'].includes(error.message);
+      && (['V2_DATABASE_NOT_READY', 'V2_BACKTEST_NOT_READY', 'V2_STRIKE_BUDGET_EXCEEDED'].includes(error.message)
+        || /^V2_READER_(BINDING_UNVERIFIED|DATABASE_UNAVAILABLE|ARTIFACT_(MISSING|OVERSIZE|UNVERIFIED|UNREADABLE|INVALID)|PAYLOAD_BUDGET_EXCEEDED)$/.test(error.message));
     sendJson(res, status, { ok: false, error: status >= 500 && !knownResearchUnavailable ? 'INTERNAL_ERROR' : error.message });
   }
 };

@@ -167,3 +167,57 @@ Recovery evidence is local under `data/daily-use-recovery-20261103/`. Candidate
 login, all-feature browser acceptance, cold/duplicate startup, recovery and
 rollback remain BLOCKED/NOT RUN; REBOOT_NOT_RUN. The prepared local entry is
 not installed. Formal merge/cutover remain explicitly excluded by the Owner.
+
+## 2026-11-04 governed reader repair
+
+The later Owner-authorized finite comparison located the routing conflict:
+only the existing governed operations manifest was present; the other four
+reader/writer routing keys were absent. It disclosed no values and changed no
+settings. That one-time diagnostic permission is consumed. The separately
+authorized original r2 fixtures ran through normal platform review: before
+36 pass / 8 fail, after44 pass. Historical refusals remain separate receipts.
+
+The candidate now versions its existing local entry as
+`scripts/start-research-workbench.ps1`. ReaderOnly accepts only the verified
+manifest/calendar/source tuple, and checks the running process's actual
+operations and V2 reader identities during cold start, warm reuse and final
+acceptance. It cannot start a missing Bridge or Producer. The entry restores
+300-second official refresh, retains normal authentication, and does not install
+or replace the formal launcher. See `CANDIDATE_READER_ENTRY.md`.
+
+Candidate-relative V2 defaults pointed to missing files. Explicit
+`DASHBOARD_CANDIDATE_V2_BINDING=GOVERNED_ACTIVE_V1`, valid only with the read-only
+candidate flag, now selects the already governed active database and a finite
+list of existing artifact roles. No arbitrary path override or default/formal
+root changes are introduced. Session, journal and caches stay private. Health
+reads only binding and file metadata. Missing forward data stays UNKNOWN/null.
+Report reads are capped at8MiB per file and16MiB per payload, including failed
+reads; existing per-strike indexed queries materialize at most21 rows for each
+of at most2000 current strikes. Missing index/open/query errors degrade explicitly
+without migration or writer startup. This does not establish freshness, complete
+history, or a CPU deadline for every legacy query.
+
+The existing risk summary also coerced null/empty inputs and missing subtraction
+operands into zero, and could classify a value without its threshold as normal.
+These cases now remain unknown; real numeric zero and independently valid VIX
+change evidence retain their existing meaning. Regression fixtures reproduce
+each failure before the repair and use an isolated in-memory database.
+
+The new entry pure-JS fixtures passed11 cases. Its final PowerShell fixture was
+initially refused before execution by Windows in the restricted tool environment;
+after a new explicit Owner grant, the same PowerShell5.1 mechanism through normal
+platform review passed36 cases. No execution policy or trust setting changed.
+Source reviews, committed-head focused checks and CI are bound in the local
+recovery receipts; no earlier SHA's CI is relabelled as new acceptance.
+
+Separately, tiny synthetic input reproduced a midnight projection defect in both
+existing Producer and candidate: selection of the new calendar file skips the
+prior file's complete suffix and resets same-night warmup. This is still OPEN;
+no raw ledger was replayed or rewritten, and no Producer was changed. A later TX
+delivery interruption began upstream of the projection; callback resumption alone
+does not prove valid real trades. Keep these source limitations visible without
+blocking otherwise qualified current-file observations.
+
+At this source checkpoint, candidate live/browser/cold-warm/recovery acceptance
+remains NOT RUN, formal remains unchanged, and REBOOT_NOT_RUN. The final local
+checkpoint records subsequent actual results separately.

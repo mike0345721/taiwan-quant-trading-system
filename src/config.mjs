@@ -7,6 +7,8 @@ const appRoot = path.resolve(__dirname, '..');
 // Explicit reader boundary; absent/0 preserves the existing formal behavior.
 const candidateReadOnly = process.env.DASHBOARD_CANDIDATE_READ_ONLY;
 if (candidateReadOnly && !['0', '1'].includes(candidateReadOnly)) throw Error('CANDIDATE_READ_ONLY_FLAG_INVALID');
+const candidateV2Binding = process.env.DASHBOARD_CANDIDATE_V2_BINDING || '';
+if (candidateV2Binding && (candidateV2Binding !== 'GOVERNED_ACTIVE_V1' || candidateReadOnly !== '1')) throw Error('CANDIDATE_V2_BINDING_INVALID');
 // Refuse incompatible managed inputs before opening an acceptance/binding file.
 if (process.env.DASHBOARD_RELEASE_SCOPE && Object.entries(process.env)
   .some(([key,value]) => value && /^(CRU55_|FORWARD_SHADOW_)/i.test(key))) throw Error('LOCAL_MARKET_MODE_REJECTED');
@@ -50,6 +52,7 @@ export const config = Object.freeze({
   cru55Candidate,
   cru55Acceptance: acceptance,
   candidateReadOnly: candidateReadOnly === '1',
+  candidateV2Binding,
   dataDir: acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot, 'data')),
   historyDir: path.join(acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot,'data')), 'history'),
   // Explicit read-only research inputs; never redirected to the caller cwd.
