@@ -16,7 +16,10 @@ const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
   'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
   'src/dashboard-dw4-evidence.mjs', 'src/dw4-evidence-conflict-monitor.mjs',
   'src/index-leadership.mjs', 'src/decision-level-watch.mjs', 'src/structural-eligibility.mjs',
-  'src/decision-quality-p0.mjs', 'src/scenario-target-diagnostics.mjs'];
+  'src/decision-quality-p0.mjs', 'src/scenario-target-diagnostics.mjs',
+  'src/market-observation-journal.mjs', 'src/market-observation-core.mjs',
+  'src/cvd-observation-core.mjs', 'src/tx-intraday-pressure-path-efficiency.mjs',
+  'src/volume-profile-core.mjs', 'src/market-structure-core.mjs'];
 const source = Object.fromEntries(actualNames.map(name => [name, fs.readFileSync(path.join(sourceRoot, name), 'utf8')]));
 const sourceHashes = Object.fromEntries(Object.entries(source).map(([name, bytes]) =>
   [name, crypto.createHash('sha256').update(bytes).digest('hex')]));
@@ -58,7 +61,7 @@ function syntheticMarketInputs() {
 function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} } = {}) {
   const counters = { network: 0, bridge: 0, spawn: 0, marketConstructor: 0, marketRefresh: 0,
     cacheConstructor: 0, cacheInit: 0, cacheRead: 0, cacheWrite: 0, intervals: 0,
-    credential: 0, aiOperation: 0, forbiddenOther: 0, tlsCapture: 0, fsReads: [], fsWrites: [], git: [] };
+    credential: 0, aiOperation: 0, forbiddenOther: 0, tlsCapture: 0, fsReads: [], fsWrites: [], git: [], chartSelections: [] };
   const memory = new Map([[sessionFile, Buffer.from('{}\n')]]);
   const directories = new Set([appRoot, readRoot, producerRoot, dataRoot,
     path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'decision-workspace')]);
@@ -182,7 +185,9 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
     'src/dashboard-tx-chart-service.mjs': { createTxChartService(options) {
       assert.equal(options.dataRoot, readRoot); assert.equal(options.cacheRoot, path.join(dataRoot, 'dashboard-chart-cache'));
       const result = () => observed.chart ? structuredClone(observed.chart) : off();
-      return { async load() {
+      return { async load(selection) {
+        counters.chartSelections.push(structuredClone(selection));
+        if (selection?.observation === true) return observed.observation ? structuredClone(observed.observation) : off();
         if (observed.chartError) return off();
         return result();
       }, peek: result, async close() { return deny('close'); } };
@@ -244,7 +249,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {} }
     },
   };
   const network = new Proxy({}, { get() { return () => deny('network'); } });
-  const builtins = { 'node:http': { default: network }, 'node:crypto': { default: crypto },
+  const builtins = { 'node:http': { default: network }, 'node:crypto': { default: crypto, createHash: crypto.createHash },
     'node:fs': { default: memoryFs }, 'node:fs/promises': { default: memoryPromises },
     'node:path': { default: path }, 'node:url': { URL }, 'node:child_process': child };
   const context = vm.createContext({ Buffer, URL, TextEncoder, TextDecoder, AbortController, AbortSignal,
@@ -345,6 +350,43 @@ test('missing input snapshot remains 503 and no Bridge/upstream fallback is used
     assert.equal(response.json().data.reason, 'MARKET_CANDIDATE_NO_LIVE_BRIDGE');
   }
   noExternalEffects(h);
+});
+
+test('observation route authenticates before worker dispatch and retains exact research snapshot without side effects', async () => {
+  const cutoff = '2026-11-04T01:05:00.000Z';
+  const observation = { schemaVersion: 'cru61-market-observation-v1', syntheticFixture: true,
+    snapshotId: 'a'.repeat(64), cutoff, timeframe: '1m', mode: 'REPLAY', status: 'OBSERVATION_CANDIDATE',
+    identity: { actualContract: 'TXFK6', tradeDate: '2026-11-04', session: 'DAY',
+      continuityEpoch: 'TX:1', sourceLedgerIdentity: 'sha256:' + 'b'.repeat(64) },
+    price: { bars: [], last: 101 }, cvd: { value: 2, series: [{ availableAt: cutoff }],
+      observedStart: cutoff, classifiedCoverage: 1, unknownVolume: 0 },
+    profile: { poc: 101, vah: 101, val: 101, binSize: 1, valueAreaFraction: 0.7,
+      partial: true, observedStart: cutoff, observedEnd: cutoff },
+    summary: { position: 'synthetic observed fragment', force: 'BUY_PROXY', structure: 'unconfirmed',
+      counterEvidence: 'shared inputs', dataStatus: 'CAPTURE_COMPLETENESS_UNPROVEN' },
+    rules: { fixtureOnly: true }, reasonCodes: ['CAPTURE_COMPLETENESS_UNPROVEN'], events: [],
+    researchOnly: true, formalWeight: 0, executionAuthorized: false, orderRoutesEnabled: false };
+  const h = harness({ observed: { observation } }); await h.start();
+  const before = h.counters.chartSelections.length;
+  assert.equal((await h.dispatch('GET', '/api/v1/market-observation')).status, 401);
+  assert.equal((await h.dispatch('GET', '/api/v1/market-observation', { cookie: 'twchip_session=foreign-synthetic-id' })).status, 401);
+  assert.equal(h.counters.chartSelections.length, before);
+  const auth = await h.login();
+  const response = await h.dispatch('GET', '/api/v1/market-observation?timeframe=1m&mode=REPLAY&tradeDate=2026-11-04&session=DAY&actualContract=TXFK6&asOf=' + cutoff, auth);
+  assert.equal(response.status, 200);
+  assert.deepEqual(h.counters.chartSelections.slice(before), [{ observation: true, timeframe: '1m', mode: 'REPLAY',
+    tradeDate: '2026-11-04', session: 'DAY', actualContract: 'TXFK6', asOf: cutoff }]);
+  const { journalSnapshot, ...returned } = response.json().data;
+  assert.deepEqual(returned, observation);
+  assert.equal(journalSnapshot.marketObservation.snapshotId, observation.snapshotId);
+  assert.deepEqual(journalSnapshot.marketObservation.summary, observation.summary);
+  assert.match(journalSnapshot.snapshotHash, /^[a-f0-9]{64}$/);
+  assert.equal(journalSnapshot.executionAuthorized, false); assert.equal(journalSnapshot.orderRoutesEnabled, false);
+  const blocked = await h.dispatch('POST', '/api/v1/market-observation', { ...auth, body: { collect: true } });
+  assert.equal(blocked.status, 403); assert.equal(blocked.json().error, 'MARKET_CANDIDATE_READ_ONLY');
+  assert.equal((await h.dispatch('GET', '/healthz')).status, 200);
+  assert.equal(h.counters.chartSelections.length, before + 1, 'blocked writes and health must not queue observation work');
+  assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
 });
 
 test('existing chart and Flow remain visible through actual builders when the EOD cache is missing', async t => {
@@ -576,14 +618,16 @@ test('copy context uses the same qualified partial inputs and rereads EOD withou
 
 test('date traversal, duplicate selectors and foreign query fields refuse before chart dispatch', async () => {
   const h = harness(); await h.start(); const auth = await h.login();
+  const before = h.counters.chartSelections.length;
   for (const query of ['tradeDate=..%2F..%2Fforeign', 'tradeDate=2026-02-30', 'tradeDate=2026-11-02&tradeDate=2026-11-01',
     'mode=MOCK', 'actualContract=TX%2F..%2Fforeign', 'file=foreign-data-root']) {
-    for (const route of ['/api/v1/tx-chart', '/api/v1/market-changes']) {
+    for (const route of ['/api/v1/tx-chart', '/api/v1/market-changes', '/api/v1/market-observation']) {
       const response = await h.dispatch('GET', route + '?' + query, auth);
       assert.equal(response.status, 400, route + '?' + query);
       assert.equal(response.json().error, 'MARKET_CANDIDATE_QUERY_REJECTED');
     }
   }
+  assert.equal(h.counters.chartSelections.length, before, 'rejected selectors must not dispatch chart or observation work');
   assert.deepEqual(h.counters.fsWrites, [sessionFile]); noExternalEffects(h);
 });
 
