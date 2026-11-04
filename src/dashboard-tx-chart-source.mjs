@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
 import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
+import { buildChartTrendStrength } from './trend-strength-adx.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
 import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
 import { CAPTURE_EVENT_KINDS, compactCaptureEvidence } from './chart-capture-coverage.mjs';
@@ -551,7 +552,10 @@ export function loadTxDecisionChart({
   const selectedTradeDate = tradeDate || defaults.tradeDate;
   const selectedSession = timeframe === '1D' ? 'NIGHT_PLUS_DAY' : (session || defaults.session);
   const cutoff = asOf || now.toISOString();
-  if (!selectedTradeDate) return buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
+  if (!selectedTradeDate) {
+    const empty = buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
+    return Object.freeze({ ...empty, trendStrength: buildChartTrendStrength(empty) });
+  }
   const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
   const sources = ledgerDates.map((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`),
     { cacheRoot, includeCaptureEvidence: true, budget: sourceBudget, withProgress: true }));
@@ -576,7 +580,7 @@ export function loadTxDecisionChart({
   const complete = sources.every(source => source.progress.complete);
   const limited = sourceBudget && !complete;
   const qualityReasons = [...new Set([...(result.qualityReasons || []), ...(limited ? ['SOURCE_CATCHUP_PENDING'] : [])])];
-  return Object.freeze({
+  const chart = Object.freeze({
     ...result,
     ...(sourceBudget ? { sourceComplete: complete, sourceReadState: complete ? 'COMPLETE' : 'CATCHUP_PENDING',
       sourceProgress: sources.map(source => source.progress), sourceReadBytes: sourceBudget.sourceBytesRead,
@@ -592,6 +596,9 @@ export function loadTxDecisionChart({
     sourceLedgerDates: Object.freeze(ledgerDates),
     sourceLedgerIdentity: Object.freeze(ledgerDates.map((date) => `live-events:${date}:TX_EXECUTED_TICK`)),
   });
+  // Derive only after the existing source/capture restrictions have been applied.
+  // This reads the already bounded OHLC projection, never the raw ledger again.
+  return Object.freeze({ ...chart, trendStrength: buildChartTrendStrength(chart) });
 }
 
 export function clearTxChartLedgerCache() {

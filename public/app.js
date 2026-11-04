@@ -3559,6 +3559,62 @@ function renderHomeWorkspace() {
   });
 }
 
+function renderTrendStrength(chart) {
+  if (!$('tt-trend-main')) return;
+  const trend = chart?.trendStrength;
+  const numeric = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
+  const sourceMs = Date.parse(chart?.availableAt || '');
+  const now = Date.now();
+  const identityMatches = ['actualContract', 'tradeDate', 'session', 'sessionId'].every(key =>
+    typeof chart?.[key] === 'string' && chart[key].length > 0 && trend?.identity?.[key] === chart[key]);
+  let blocked = !trend ? 'TREND_SOURCE_UNAVAILABLE'
+    : trend.schemaVersion !== 'trend-strength-adx14-v1' || trend.indicator !== 'ADX' || trend.period !== 14
+      || !identityMatches || trend.timeframe !== chart.timeframe || trend.mode !== chart.mode
+      || trend.asOf !== chart.asOf || trend.sourceAvailableAt !== chart.availableAt ? 'TREND_IDENTITY_MISMATCH'
+      : !['LIVE', 'REPLAY'].includes(chart.mode) ? 'TREND_MODE_UNAVAILABLE'
+        : chart.timeframe !== state.txChartTimeframe ? 'CHART_TIMEFRAME_PENDING'
+          : state.homeChartError ? 'CHART_REFRESH_FAILED'
+            : !['READY', 'FORMING', 'QUALITY_INSUFFICIENT'].includes(chart.status) ? 'CHART_UNAVAILABLE'
+              : chart.mode === 'LIVE' && state.decisionWorkspace?.marketOperating?.marketShouldBeActive === false ? 'MARKET_NOT_ACTIVE'
+                : chart.mode === 'LIVE' && (!Number.isFinite(sourceMs) || sourceMs > now + 5000) ? 'SOURCE_TIME_UNVERIFIED'
+                  : chart.mode === 'LIVE' && now - sourceMs > 120000 ? 'SOURCE_STALE' : null;
+  const value = numeric(trend?.value), plus = numeric(trend?.plusDI), minus = numeric(trend?.minusDI);
+  const hasValue = value != null && value >= 0 && value <= 100 && plus != null && plus >= 0 && plus <= 100
+    && minus != null && minus >= 0 && minus <= 100;
+  const measurable = ['READY', 'QUALITY_INSUFFICIENT'].includes(trend?.state);
+  const count = Number.isSafeInteger(trend?.closedBarCount) && trend.closedBarCount >= 0 ? trend.closedBarCount : null;
+  const closedMs = Date.parse(trend?.lastClosedBarAt || ''), cutoffMs = Date.parse(chart?.asOf || '');
+  const lastEventMs = Date.parse(chart?.lastEventTime || '');
+  if (!blocked && measurable && (!(count >= 28) || !Number.isFinite(closedMs) || !Number.isFinite(cutoffMs)
+    || !Number.isFinite(lastEventMs) || closedMs > cutoffMs || closedMs > lastEventMs || closedMs > sourceMs)) blocked = 'TREND_CLOSED_BARS_UNVERIFIED';
+  if (!blocked && measurable && !hasValue) blocked = 'TREND_VALUE_INVALID';
+  const visible = !blocked && measurable && hasValue;
+  const labels = { READY: '已收K線觀察', QUALITY_INSUFFICIENT: '資料受限', WARMING_UP: '樣本累積中', UNAVAILABLE: '暫不可用' };
+  const blockLabels = { TREND_SOURCE_UNAVAILABLE: '尚未取得指標', TREND_IDENTITY_MISMATCH: '資料身分不符',
+    TREND_MODE_UNAVAILABLE: '模式未確認', CHART_TIMEFRAME_PENDING: '週期切換中', CHART_REFRESH_FAILED: '更新中斷',
+    CHART_UNAVAILABLE: '圖表暫不可用', MARKET_NOT_ACTIVE: '非交易時段', SOURCE_TIME_UNVERIFIED: '資料時間未確認',
+    SOURCE_STALE: '資料已過期', TREND_VALUE_INVALID: '指標數值未確認', TREND_CLOSED_BARS_UNVERIFIED: '收盤樣本未確認' };
+  const capacityLimited = Array.isArray(trend?.reasonCodes) && trend.reasonCodes.includes('SESSION_CAPACITY_BELOW_REQUIRED_BARS');
+  const label = blocked ? blockLabels[blocked] : capacityLimited ? '此週期單盤樣本不足' : labels[trend?.state] || '暫不可用';
+  const modeLabel = chart?.mode === 'REPLAY' ? '歷史回放 · ' : '';
+  dwText('tt-trend-main', visible ? `ADX(14) ${fmt(value, 2)}` : label);
+  dwText('tt-summary-strength', visible ? `${modeLabel}${chart.timeframe} ADX ${fmt(value, 2)} · ${label}` : label);
+  dwText('tt-trend-strength', visible ? fmt(value, 2) : '—');
+  dwText('tt-trend-direction', visible ? `＋DI ${fmt(plus, 2)} / −DI ${fmt(minus, 2)}` : '—');
+  const delta = numeric(trend?.deltaADX);
+  dwText('tt-trend-change', visible && delta != null ? signed(delta, ' ADX', 2) : visible ? '再等一根已收K線' : '—');
+  dwText('tt-trend-sample', `${modeLabel}${chart?.timeframe || '週期未取得'} · 連續已收K線 ${count == null ? '未知' : count} 根 · 首值至少 28 根；${capacityLimited ? '本週期現有單盤資料無法累積足夠樣本，可切換 1m／5m 查看；不跨盤拼接。' : '不是穩定性或研究通過證明。'}`);
+  dwText('tt-trend-source', `合約 ${chart?.actualContract || '未知'} · ${chart?.tradeDate || '日期未知'} · ${chart?.session || '盤別未知'} · 計算起點 ${trend?.firstUsedBarAt ? timeLabel(trend.firstUsedBarAt) : '未取得'} · 最後已收K線 ${trend?.lastClosedBarAt ? timeLabel(trend.lastClosedBarAt) : '未取得'} · 來源 ${Number.isFinite(sourceMs) ? timeLabel(chart.availableAt) : '未取得'}`);
+  const resetReasons = Array.isArray(trend?.limitations) ? trend.limitations.filter(code => typeof code === 'string' && code.startsWith('RESET_AFTER_')) : [];
+  const reasons = [...new Set([blocked, ...(Array.isArray(trend?.reasonCodes) ? trend.reasonCodes : []), ...resetReasons].filter(Boolean))];
+  dwText('tt-trend-reasons', `狀態：${label} · ${reasons.length ? reasons.join(' · ') : '無計算阻擋'}；只對已收到的 K 線描述，不保證完整行情。`);
+  const trust = $('tt-trend-trust');
+  if (trust) {
+    trust.textContent = modeLabel + label;
+    trust.className = `dw-status-pill ${visible && trend.state === 'READY' ? 'is-ready' : 'is-unavailable'}`;
+  }
+}
+
 function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace?.globalStatus?.dataHealth) {
   const sourceTime = Date.parse(chart?.availableAt || '');
   const sourceTimeKnown = Number.isFinite(sourceTime);
@@ -3585,6 +3641,7 @@ function renderTxChartFreshness(chart, fallbackQuality = state.decisionWorkspace
     if ($('dw-chart-status')) $('dw-chart-status').className = 'dw-status-pill is-unavailable';
   }
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
+  renderTrendStrength(chart);
 }
 
 function renderTerminalShell(workspace, chart = state.txChartPayload) {
@@ -3656,7 +3713,6 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   renderTxChartFreshness(chart, global.dataHealth);
 
   terminalWrite('tt-summary-price', currentFacts.priceStructureFact || null, { reason: 'PRICE_STRUCTURE_FACT_UNAVAILABLE' });
-  dwText('tt-summary-strength', 'RESEARCH_PENDING');
   terminalWrite('tt-summary-vwap', vwap == null ? null : fmt(vwap, 2) + captureCoverageWarning(chart?.levels?.vwap, true), { reason: chart?.levels?.vwap?.reason || 'VWAP_UNAVAILABLE' });
   const breadthAvailability = dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState;
   const flowAvailability = dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState;
@@ -3665,10 +3721,6 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   terminalWrite('tt-summary-risk', decision.risk && decision.risk !== 'UNAVAILABLE' ? decision.risk : null, { reason: 'RISK_STATUS_UNAVAILABLE' });
   updateTerminalSummaryDisclosure();
 
-  dwText('tt-trend-main', 'RESEARCH_PENDING');
-  dwText('tt-trend-direction', 'RESEARCH_PENDING');
-  dwText('tt-trend-strength', 'RESEARCH_PENDING');
-  dwText('tt-trend-change', 'RESEARCH_PENDING');
   const trendBreadthAvailability = dw4FamilyEvidence(contract, 'PARTICIPATION_BREADTH')?.availabilityState;
   const trendFuturesAvailability = dw4FamilyEvidence(contract, 'FUTURES_INSTITUTIONAL')?.availabilityState;
   for (const [id, value] of [
@@ -3683,11 +3735,6 @@ function renderTerminalShell(workspace, chart = state.txChartPayload) {
   ]) {
     const target = $(id)?.querySelector('header strong');
     if (target) target.textContent = value;
-  }
-  const trendTrust = $('tt-trend-trust');
-  if (trendTrust) {
-    trendTrust.textContent = 'RESEARCH_PENDING';
-    trendTrust.className = 'dw-status-pill is-unavailable';
   }
 
   renderTerminalEvidenceCard('futures', contract, 'FUTURES_INSTITUTIONAL', 'Futures context is currently UNAVAILABLE.');

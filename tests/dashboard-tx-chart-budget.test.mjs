@@ -40,11 +40,30 @@ test('partial inputs preserve numeric observations but block current derived qua
   fs.writeFileSync(file,prefix+line(row('2026-08-12T09:01:01+08:00',103)));
   const chart=loadTxDecisionChart({dataRoot:root,calendar,timeframe:'5m',tradeDate:'2026-08-12',session:'DAY',now:new Date('2026-08-12T09:01:30+08:00'),sourceBudget:createTxChartReadBudget({maxSourceBytes:Buffer.byteLength(prefix)})});
   assert.equal(chart.status,'QUALITY_INSUFFICIENT');assert.equal(chart.sourceComplete,false);assert.ok(chart.bars.length>0);
+  assert.equal(chart.trendStrength.indicator,'ADX');
+  assert.notEqual(chart.trendStrength.state,'READY');
+  assert.equal(chart.trendStrength.value,null);
   for(const value of [chart,...chart.bars,...chart.vwap,chart.levels.vwap,chart.levels.currentDayHigh,chart.openingRange]) {
     assert.equal(value.structureEligibility.state,'BLOCKED');assert.ok(value.structureEligibility.reasonCodes.includes('SOURCE_CATCHUP_PENDING'));
     assert.equal(value.captureCoverage.completeMarketWindow,false);assert.equal(value.fullSessionVerified,false);
   }
   assert.equal(chart.bars[0].close,100);assert.equal(chart.openingRange.high,101);assert.equal(chart.levels.currentDayHigh.value,102);
+});
+
+test('the actual bounded chart response publishes ADX from closed bars, without adding a raw source read',t=>{
+  const root=fixture(t),file=path.join(root,'live-events','2026-08-12.ndjson');
+  const start=Date.parse('2026-08-12T08:45:00+08:00');
+  const records=Array.from({length:29},(_,i)=>row(new Date(start+i*60000+1000).toISOString(),100+i));
+  const bytes=records.map(line).join('');fs.writeFileSync(file,bytes);
+  const chart=loadTxDecisionChart({dataRoot:root,calendar,timeframe:'1m',tradeDate:'2026-08-12',session:'DAY',
+    now:new Date(start+28*60000+2000),sourceBudget:createTxChartReadBudget()});
+  assert.equal(chart.trendStrength.indicator,'ADX');assert.equal(chart.trendStrength.period,14);
+  assert.equal(chart.trendStrength.closedBarCount,28);assert.equal(chart.trendStrength.value,100);
+  assert.equal(chart.trendStrength.lastClosedBarAt,new Date(start+28*60000).toISOString());
+  assert.equal(chart.trendStrength.sourceAvailableAt,chart.availableAt);
+  assert.equal(chart.trendStrength.identity.actualContract,chart.actualContract);
+  assert.equal(chart.trendStrength.asOf,chart.asOf);assert.equal(chart.sourceReadBytes,Buffer.byteLength(bytes));
+  assert.equal(chart.trendStrength.formalWeight,0);assert.equal(chart.trendStrength.executionAuthorized,false);
 });
 test('cache size is checked before cache contents are read and oversized checkpoints are not written',t=>{
   const root=fixture(t),file=path.join(root,'live-events','2026-08-12.ndjson'),cacheRoot=path.join(root,'cache');

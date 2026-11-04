@@ -65,6 +65,7 @@ function windowContract(label, source, truthState = null, unavailableReason = nu
       totalExecutedVolume: pressure.totalExecutedVolume ?? null,
       netAggressiveFlowProxy: pressure.netAggressiveFlowProxy ?? null,
       pressureRatio: pressure.pressureRatio ?? null,
+      direction: pressure.direction || 'UNAVAILABLE',
       classifiedCoverage: pressure.classifiedCoverage ?? null,
       bestQuoteCrossCheck: pressure.bestQuoteCrossCheck ? {
         matchedCoverage: pressure.bestQuoteCrossCheck.matchedCoverage ?? null,

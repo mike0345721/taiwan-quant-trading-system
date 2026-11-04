@@ -137,8 +137,9 @@ test('Trader Terminal formal typography has an 11px floor', () => {
 test('Trader Terminal wires only governed descriptive values and preserves unavailable reasons', () => {
   const app = read('public', 'app.js');
   const terminalSource = app.slice(app.indexOf('function terminalUnavailable'), app.indexOf('function leadershipRow'));
-  assert.match(app, /tt-summary-strength', 'RESEARCH_PENDING'/);
-  assert.match(app, /tt-trend-direction', 'RESEARCH_PENDING'/);
+  assert.match(app, /function renderTrendStrength\(chart\)/);
+  assert.match(app, /trend\.indicator !== 'ADX' \|\| trend\.period !== 14/);
+  assert.doesNotMatch(app, /tt-summary-strength', 'RESEARCH_PENDING'|tt-trend-direction', 'RESEARCH_PENDING'/);
   assert.match(app, /tt-trend-price-track', 'RESEARCH_PENDING'/);
   assert.match(terminalSource, /levels\?\.previousClose/);
   assert.match(terminalSource, /txDay\.openInterest/);

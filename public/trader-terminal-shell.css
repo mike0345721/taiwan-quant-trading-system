@@ -493,6 +493,8 @@
 .dw-observed-flow-detail dd { min-width: 0; margin: 0; color: #c8d4df; font: 600 11px/1.35 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
 .dw-observed-flow-detail ul { margin: 0; padding-left: 18px; color: #a9b7c6; }
 .tt-card-trend .tt-main-answer { color: var(--tt-accent); font-size: 22px; }
+.tt-card-trend .tt-card-values { min-width: 0; overflow-wrap: anywhere; }
+.tt-card-trend .tt-card-values p { margin: 0; line-height: 1.45; }
 .tt-card-trend .tt-trend-strength { color: #83df86; }
 .tt-card-trend #tt-trend-change { color: #f5c76c; }
 .tt-card-futures .tt-main-answer { font-size: 20px; }

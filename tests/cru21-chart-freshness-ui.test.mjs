@@ -47,7 +47,7 @@ function ui() {
     chartSeriesData: (value) => ({ candles: value.bars || [], volumes: (value.bars || []).map((bar) => ({ time: bar.time, value: bar.volume })), vwap: [] }),
     marketChangeMarkerData: () => [], dwHumanize: (value) => value, api: async () => { throw Error('OFFLINE_TEST'); },
   });
-  vm.runInContext(['timeLabel', 'healthTone', 'renderTxChartFreshness', 'renderTerminalShell', 'renderTxDecisionChart']
+  vm.runInContext(['timeLabel', 'healthTone', 'renderTrendStrength', 'renderTxChartFreshness', 'renderTerminalShell', 'renderTxDecisionChart']
     .map(source).join('\n') + '\nasync ' + source('loadTxDecisionChart'), context);
   return { state, node, context, writes, setNow: (value) => { now = value; } };
 }

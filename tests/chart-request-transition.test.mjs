@@ -29,7 +29,7 @@ function harness() {
   });
   // The production loader and freshness renderer run unchanged; only transport and DOM are isolated.
   context.globalThis = context;
-  vm.runInContext(source('renderTxChartFreshness') + '\nasync ' + source('loadTxDecisionChart'), context);
+  vm.runInContext(source('renderTrendStrength') + '\n' + source('renderTxChartFreshness') + '\nasync ' + source('loadTxDecisionChart'), context);
   return { state, node, timers, calls, renders, context };
 }
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };

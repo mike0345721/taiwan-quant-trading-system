@@ -68,7 +68,7 @@
       ['風險衝突', 'Risk', 'tt-summary-risk'],
     ];
     labels.forEach(([label, subtitle, id], index) => {
-      const metric = appendMetric(metrics, label, id, label === '趨勢強度' ? 'RESEARCH_PENDING' : 'UNAVAILABLE', subtitle);
+      const metric = appendMetric(metrics, label, id, 'UNAVAILABLE', subtitle);
       metric.classList.add('tt-ribbon-item');
       metric.dataset.ribbonIndex = String(index);
     });
@@ -206,9 +206,9 @@
   function buildTrendVisual(cardNode) {
     const overview = element('div', 'tt-compact-metrics tt-trend-overview');
     overview.append(
-      compactMetric('方向', 'tt-trend-direction'),
-      compactMetric('強度', 'tt-trend-strength', 'RESEARCH_PENDING'),
-      compactMetric('強度變化', 'tt-trend-change'),
+      compactMetric('方向性移動（非交易方向）', 'tt-trend-direction'),
+      compactMetric('ADX(14)', 'tt-trend-strength'),
+      compactMetric('較前一根已收K線', 'tt-trend-change'),
     );
     const factors = element('div', 'tt-track-list tt-trend-factors');
     for (const [label, id, state] of [
@@ -220,7 +220,12 @@
       ['期貨流向', 'tt-trend-futures-track', 'UNAVAILABLE'],
     ]) factors.append(trackRow(label, id, state));
     const detail = cardNode.querySelector('.tt-card-values');
-    detail.append(element('span', 'tt-detail-only', '回檔品質 Pullback Quality · RESEARCH_PENDING'));
+    detail.append(
+      Object.assign(element('p', '', '等待已收盤 K 線'), { id: 'tt-trend-sample' }),
+      Object.assign(element('p', '', '資料時間未取得'), { id: 'tt-trend-source' }),
+      Object.assign(element('p', '', '原因：尚未取得資料'), { id: 'tt-trend-reasons' }),
+      element('p', 'tt-trend-background-note', '以下為獨立背景，未納入 ADX；價格結構／VWAP 控制／路徑效率合成研究與回檔品質仍未完成。'),
+    );
     insertVisual(cardNode, overview);
     insertVisual(cardNode, factors);
   }
@@ -663,8 +668,7 @@
     const summary = summaryLine();
     const primary = element('div', 'tt-primary-grid');
     const tierOne = element('aside', 'tt-tier-one-grid');
-    const trend = card('trend', '', '趨勢強度', 'Trend Strength', 'tt-trend-main', '正式研究尚未完成；空軌不代表 0、Neutral 或任何分數。', 'RESEARCH_PENDING');
-    trend.querySelector('#tt-trend-main').textContent = 'RESEARCH_PENDING';
+    const trend = card('trend', '', '趨勢強度', 'ADX(14) · 已收盤 K 線', 'tt-trend-main', 'ADX 衡量方向性移動的強度，不表示漲跌方向、勝率或買賣訊號；不合成下方背景欄位。');
     buildTrendVisual(trend);
     const futures = card('futures', '', '期貨流向', 'Futures Flow', 'tt-futures-main', 'OI 與法人部位只作描述背景，不代表多空意圖。');
     buildFuturesVisual(futures);

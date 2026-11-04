@@ -26,7 +26,7 @@ function ui(){
     dw4FamilyEvidence:()=>null,updateTerminalSummaryDisclosure(){},renderTerminalEvidenceCard(){},renderGlobalTiles(){},
     terminalBreadthCounts:()=>null,terminalHealthSummary:()=>({value:null}),
     api:async()=>{throw Error('OFFLINE_TEST');}});
-  vm.runInContext(source('terminalWrite')+'\n'+source('renderTxChartFreshness')+'\n'+source('renderLiveMarketPulse')+'\nasync '+source('loadLiveMarketPulse')+'\n'+source('renderTerminalShell'),context);
+  vm.runInContext(source('terminalWrite')+'\n'+source('renderTrendStrength')+'\n'+source('renderTxChartFreshness')+'\n'+source('renderLiveMarketPulse')+'\nasync '+source('loadLiveMarketPulse')+'\n'+source('renderTerminalShell'),context);
   return {state,node,context,setNow:v=>{now=v;}};
 }
 test('chart shell rerenders never replace the live RVOL/basis with EOD placeholders',()=>{

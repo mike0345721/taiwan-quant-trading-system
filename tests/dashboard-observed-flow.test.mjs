@@ -104,6 +104,36 @@ test('stale is a source truth state independent from research quality', () => {
   assert.equal(contract.source.sourceMode, 'HISTORICAL');
 });
 
+test('all governed windows preserve source pressure direction without deriving missing direction', () => {
+  const read = governedReadResult();
+  const directions = ['BUY_SIDE', 'SELL_SIDE', 'BALANCED', 'UNAVAILABLE', undefined, 'BUY_SIDE'];
+  const keys = ['primary60s', 'context300s', 'window900s', 'window1800s', 'window3600s', 'window14400s'];
+  for (const [index, key] of keys.entries()) {
+    const evidence = structuredClone(read.snapshot.primary60s);
+    const direction = directions[index];
+    const buyProxyVolume = direction === 'BUY_SIDE' ? 3 : direction === 'SELL_SIDE' ? 1 : 2;
+    const sellProxyVolume = 4 - buyProxyVolume;
+    const unknownVolume = direction === 'UNAVAILABLE' ? 1 : 0;
+    evidence.status = unknownVolume ? 'QUALITY_INSUFFICIENT' : 'READY';
+    Object.assign(evidence.pressure, {
+      status: evidence.status, direction, buyProxyVolume, sellProxyVolume, unknownVolume,
+      classifiedVolume: 4, totalExecutedVolume: 4 + unknownVolume,
+      netAggressiveFlowProxy: buyProxyVolume - sellProxyVolume,
+      pressureRatio: (buyProxyVolume - sellProxyVolume) / 4,
+      classifiedCoverage: 4 / (4 + unknownVolume),
+      unavailableReason: unknownVolume ? 'PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE' : null,
+    });
+    read.snapshot[key] = index < 2 ? evidence : { truthState: 'LIVE', evidence };
+  }
+  const contract = buildDashboardObservedFlow(read);
+  for (const [index, key] of keys.entries()) {
+    assert.equal(contract.windows[key].pressure.direction, directions[index] ?? 'UNAVAILABLE', key);
+    assert.equal(contract.windows[key].pressure.status,
+      directions[index] === 'UNAVAILABLE' ? 'QUALITY_INSUFFICIENT' : 'READY', 'serializer cannot change quality');
+  }
+  assert.equal(contract.formalDirection, 'NOT_PROMOTED');
+});
+
 test('unavailable reader result clears all descriptive windows and exposes the exact reason', () => {
   const contract = buildDashboardObservedFlow({
     truthState: 'UNAVAILABLE', unavailableReason: 'ARTIFACT_HASH_INVALID', snapshot: null,
