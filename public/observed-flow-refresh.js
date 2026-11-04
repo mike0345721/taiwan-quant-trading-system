@@ -10,6 +10,16 @@
       value?.lineage?.sourceLedgerIdentity, i?.instrument, i?.actualContract, i?.tradeDate, i?.session, i?.continuityEpoch];
     return parts.every(v => v != null && v !== '') ? JSON.stringify(parts) : null;
   }
+  // Daily bars cover a trade date; Flow keeps its actual DAY/NIGHT source identity.
+  // This is display compatibility only, never a continuity or quality override.
+  function matchesChartIdentity(chart, flowIdentity) {
+    if (!['actualContract', 'tradeDate'].every(key => typeof chart?.[key] === 'string'
+        && chart[key] && chart[key] === flowIdentity?.[key])) return false;
+    if (chart.timeframe === '1D') return chart.mode === 'LIVE'
+      && chart.session === 'NIGHT_PLUS_DAY' && ['DAY', 'NIGHT'].includes(flowIdentity?.session);
+    return typeof chart.session === 'string' && Boolean(chart.session)
+      && chart.session === flowIdentity?.session;
+  }
   function createFlowChannel({ now = Date.now, monotonic = () => performance.now(), request,
     render = () => {}, authenticated = () => true, visible = () => true, chartIdentity = () => null,
     onUnauthorized = () => {}, schedule = setTimeout, cancel = clearTimeout,
@@ -24,7 +34,7 @@
       if (failure) return { ...value, sourceState: 'UNAVAILABLE', unavailableReason: failure, windows: null };
       const chart = chartIdentity();
       if (chart?.actualContract && chart?.tradeDate && chart?.session && value.identity
-          && ['actualContract', 'tradeDate', 'session'].some(key => chart[key] !== value.identity[key])) {
+          && !matchesChartIdentity(chart, value.identity)) {
         return { ...value, sourceState: 'UNAVAILABLE', unavailableReason: 'CHART_FLOW_IDENTITY_MISMATCH', windows: null };
       }
       if (!['LIVE', 'WARMING_UP'].includes(value.sourceState)) return value;
@@ -104,5 +114,5 @@
     return { ticket, merge, view, fail, reset, start, stop, poll, visibilityChanged,
       isCurrentSession: token => token?.generation === generation };
   }
-  root.Cru49Flow = Object.freeze({ createFlowChannel });
+  root.Cru49Flow = Object.freeze({ createFlowChannel, matchesChartIdentity });
 })(globalThis);

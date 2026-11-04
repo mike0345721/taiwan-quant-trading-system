@@ -7,6 +7,8 @@
   const fresh = (value, now) => Number.isFinite(time(value)) && time(value) <= now + 5000 && now - time(value) <= 120000;
   const identity = value => identityKeys.every(key => typeof value?.[key] === 'string' && value[key]);
   const same = (a, b) => identity(a) && identity(b) && identityKeys.every(key => a[key] === b[key]);
+  const flowMatchesChart = (chart, flowIdentity) => typeof global.Cru49Flow?.matchesChartIdentity === 'function'
+    ? global.Cru49Flow.matchesChartIdentity(chart, flowIdentity) : same(chart, flowIdentity);
   const stamp = value => Number.isFinite(time(value)) ? new Date(value).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }) : '來源時間未知';
 
   function flowFreshness(flow, now = Date.now()) {
@@ -31,10 +33,10 @@
     const periodPending = Boolean(chart?.timeframe && requestedTimeframe && chart.timeframe !== requestedTimeframe);
     const chartCurrent = hasChart && chartFresh && !chartError && !periodPending && !marketBlocked;
     const chartQualified = chartCurrent && chart.qualityStatus === 'PASS';
-    const flowCurrent = Boolean(!marketBlocked && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && same(chart, flow.identity) && fresh(flow.source?.availableAt, now)
+    const flowCurrent = Boolean(!marketBlocked && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState) && flow.windows && flowMatchesChart(chart, flow.identity) && fresh(flow.source?.availableAt, now)
       && (flow.source.validUntil == null || (Number.isFinite(time(flow.source.validUntil)) && time(flow.source.validUntil) >= now)));
     const flowQualified = flowCurrent && flow.sourceState === 'LIVE' && ['PASS', 'READY'].includes(flow.researchQuality?.status);
-    const mismatch = Boolean(chart && flow?.identity && identity(chart) && identity(flow.identity) && !same(chart, flow.identity));
+    const mismatch = Boolean(chart && flow?.identity && identity(chart) && identity(flow.identity) && !flowMatchesChart(chart, flow.identity));
     const watchFresh = Boolean(watch && fresh(watch.sourceAvailableAt, now) && same(chart, watch.identity));
     const blocking = Boolean(dashboardError || !chartQualified || !flowQualified || !watchFresh || mismatch);
     const active = !dashboardError && chartCurrent && watchFresh && focusAllowed && watch?.decisionFocus?.state === 'ACTIVE_REFERENCE'; // Preserve already-qualified price-only references; do not invent a new eligibility gate.
@@ -91,7 +93,7 @@
     const transport = (!marketOperating || marketOperating.marketShouldBeActive === true) && ['LIVE', 'WARMING_UP'].includes(flow?.sourceState)
       && identity(flow?.identity) && fresh(flow?.source?.availableAt, now)
       && (expires == null || (Number.isFinite(time(expires)) && time(expires) >= now));
-    const comparable = chart?.mode === 'LIVE' && same(chart, flow?.identity);
+    const comparable = chart?.mode === 'LIVE' && flowMatchesChart(chart, flow?.identity);
     const freshness = flowFreshness(flow, now);
     const rawState = ['READY', 'PARTIAL', 'QUALITY_INSUFFICIENT'];
     return flowDefinitions.filter(d => d.data === 'GOVERNED').map(d => {
