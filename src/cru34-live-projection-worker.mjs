@@ -11,7 +11,7 @@ import { buildCru34SemanticPayload, CRU34_SOURCE_MODE_LIVE } from './cru34-snaps
 import { publishCru34Snapshot } from './cru34-snapshot-publisher.mjs';
 import { buildTxIntradayResearchSnapshot, CONTEXT_WINDOW_MS } from './tx-intraday-research-snapshot.mjs';
 import {
-  evaluateBestQuoteEligibility,
+  createBestQuoteLookup,
   materializeTxCanonicalObservations,
 } from './tx-intraday-pressure-path-efficiency.mjs';
 import {
@@ -168,17 +168,14 @@ function checkpointEvent(event) {
 
 function retainPressureRelevantEvents(events, cutoff) {
   const retainedQuoteOrdinals = new Set();
+  const quoteFor = createBestQuoteLookup(events, { maxQuoteAgeMs: 2_000 });
   for (let tickIndex = 0; tickIndex < events.length; tickIndex += 1) {
     const tick = events[tickIndex];
     if (tick.kind !== 'futures_tick') continue;
-    for (let quoteIndex = tickIndex - 1; quoteIndex >= 0; quoteIndex -= 1) {
-      const quote = events[quoteIndex];
-      if (quote.kind !== 'futures_bidask' || quote.ledgerOrdinal >= tick.ledgerOrdinal) continue;
-      if (evaluateBestQuoteEligibility(quote, tick, { maxQuoteAgeMs: 2_000 }).eligible) {
-        retainedQuoteOrdinals.add(quote.ledgerOrdinal);
-        break;
-      }
-    }
+    // Retention only considers the physical prefix before this tick. The
+    // existing lookup preserves the frozen quote eligibility predicate.
+    const { quote } = quoteFor(tick, tickIndex);
+    if (quote) retainedQuoteOrdinals.add(quote.ledgerOrdinal);
   }
   const futureQuoteFloorMs = cutoff.eventMs - 2_000;
   return events.filter((event) => event.kind === 'futures_tick'
