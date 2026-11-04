@@ -138,7 +138,7 @@ export function marketCandidateRouteAllowed(method, pathname) {
 }
 
 export function marketCandidateQueryAllowed(url) {
-  if (!['/api/v1/tx-chart', '/api/v1/market-changes'].includes(url.pathname)) return true;
+  if (!['/api/v1/tx-chart', '/api/v1/market-changes', '/api/v1/market-observation'].includes(url.pathname)) return true;
   if ([...url.searchParams.keys()].some(key => !['timeframe','mode','tradeDate','session','actualContract','asOf'].includes(key)
       || url.searchParams.getAll(key).length !== 1)) return false;
   const date = url.searchParams.get('tradeDate');

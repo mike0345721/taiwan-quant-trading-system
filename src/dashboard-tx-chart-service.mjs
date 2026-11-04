@@ -8,6 +8,7 @@ function normalize(input = {}) {
   if (!frames.has(timeframe) || !['LIVE','REPLAY'].includes(mode)) throw Error('CHART_SELECTION_INVALID');
   const value = { timeframe, mode, tradeDate: input.tradeDate || null, session: input.session || null,
     actualContract: input.actualContract || null, asOf: input.asOf || null };
+  if (input.observation === true) value.observation = true;
   if (value.tradeDate && !/^\d{4}-\d{2}-\d{2}$/.test(value.tradeDate)) throw Error('CHART_SELECTION_INVALID');
   if (value.session && !['DAY','NIGHT'].includes(value.session)) throw Error('CHART_SELECTION_INVALID');
   if (value.actualContract && !/^TXF[A-L]\d$/.test(value.actualContract)) throw Error('CHART_SELECTION_INVALID');
@@ -21,7 +22,7 @@ function unavailable(selection, reason) {
     formalWeight:0,researchOnly:true,executionAuthorized:false,orderRoutesEnabled:false };
 }
 
-export function createTxChartService({ dataRoot, cacheRoot = null, calendar, sourceLimits = {},
+export function createTxChartService({ dataRoot, cacheRoot = null, calendar, sourceLimits = {}, producerRoot = null,
   requestTimeoutMs = 8000, idleTimeoutMs = 30000, maxQueue = 1, cacheTtlMs = 1000,
   peekMaxAgeMs = 10000, maxCacheEntries = 8,
   workerFactory = (url, options) => new Worker(url, options), clock = () => Date.now(),
@@ -34,7 +35,7 @@ export function createTxChartService({ dataRoot, cacheRoot = null, calendar, sou
       || !Number.isInteger(cacheTtlMs) || cacheTtlMs < 0 || cacheTtlMs > peekMaxAgeMs
       || maxCacheEntries > 16 || requestTimeoutMs > 15000 || idleTimeoutMs > 60000) throw Error('CHART_SERVICE_LIMIT_INVALID');
   createTxChartReadBudget(sourceLimits);
-  const base = structuredClone({ dataRoot,cacheRoot,calendar,sourceLimits });
+  const base = structuredClone({ dataRoot,cacheRoot,calendar,sourceLimits,...(producerRoot?{producerRoot}:{}) });
   const cached = new Map(), pending = new Map();
   let worker = null, terminating = null, active = null, queued = null, sequence = 0, idleTimer = null, closed = false;
 

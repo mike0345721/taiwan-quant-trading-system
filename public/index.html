@@ -17,6 +17,8 @@
   <link rel="stylesheet" href="/ask-gpt-inline.css">
   <script src="/ask-gpt-inline.js?v=home2" defer></script>
   <link rel="stylesheet" href="/home-workspace.css?v=home2">
+  <link rel="stylesheet" href="/market-observation.css?v=cru61-v1">
+  <script type="module" src="/market-observation.js?v=cru61-v1"></script>
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
@@ -416,6 +418,33 @@
               </section>
             </aside>
           </div>
+
+          <details id="market-observation-workspace" class="mo-workspace" aria-busy="false">
+            <summary>SMC＋CVD＋成交量分布<small>位置、事件成交與結構 · 研究觀測</small></summary>
+            <div class="mo-body">
+              <div class="mo-toolbar">
+                <label>結構週期<select id="mo-timeframe"><option value="1m">1 分</option><option value="5m">5 分</option><option value="15m">15 分</option></select></label>
+                <label><input id="mo-layer-smc" type="checkbox" checked>SMC／FVG／OB</label>
+                <label><input id="mo-layer-cvd" type="checkbox" checked>CVD</label>
+                <label><input id="mo-layer-profile" type="checkbox" checked>成交量分布</label>
+                <button id="mo-refresh" type="button" class="secondary">更新觀測</button>
+              </div>
+              <p id="mo-status" class="mo-status" role="status">展開後讀取同一快照；缺值不補零。</p>
+              <dl class="mo-summary"><div><dt>位置</dt><dd id="mo-position">未知</dd></div><div><dt>成交力道</dt><dd id="mo-force">未知</dd></div><div><dt>結構</dt><dd id="mo-structure">未知</dd></div><div><dt>反證</dt><dd id="mo-counterEvidence">未知</dd></div><div><dt>資料狀態</dt><dd id="mo-dataStatus">未知</dd></div></dl>
+              <svg id="mo-chart" class="mo-chart" viewBox="0 0 960 470" role="img" aria-label="同一快照的價格與 SMC、CVD 副圖及價格側成交量分布。左右鍵移動共用時間游標。" tabindex="0"></svg>
+              <p id="mo-cursor" class="mo-cursor" aria-live="polite">移動游標，或用左右鍵查看價格與 CVD。</p>
+              <p class="mo-note">△／▽ 已確認高低點；B 結構突破；C 結構轉變；↶／↷ 掃過收回。標記位於首次確認時刻，圖形錨點與完整證據列於事件詳情。</p>
+              <p id="mo-profile-note" class="mo-note">成交量分布不是實際持倉或主力成本。CVD 是成交分類代理。</p>
+              <p id="mo-lineage" class="mo-lineage">尚無快照。</p>
+              <div class="mo-events">
+                <label for="mo-events">已確認事件與當時證據</label><select id="mo-events"><option value="">尚無已確認事件</option></select>
+                <div id="mo-event-detail" class="mo-event-detail"><p>未確認圖形不列入事件序列。</p></div>
+                <div class="mo-toolbar"><button id="mo-copy" type="button" class="secondary" disabled>複製觀測給 ChatGPT</button><button id="mo-event-journal" type="button" class="secondary" disabled>帶入手動日誌</button></div>
+                <p id="mo-feedback" class="mo-note" role="status"></p><textarea id="mo-copy-fallback" class="mo-copy-fallback" aria-label="手動複製觀測文字" readonly hidden></textarea>
+              </div>
+              <p class="mo-note">三者共用價格與成交來源，不能算三票或三份獨立證據。吸收僅為待驗候選；FVG／Order Block 不代表機構身分、隱藏訂單或實際停損量。AI 維持關閉，無下單功能。</p>
+            </div>
+          </details>
 
           <details class="dw-family-strip" aria-labelledby="dw-family-title">
             <summary class="dw-family-strip-heading">

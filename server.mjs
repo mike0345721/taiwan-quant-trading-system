@@ -38,6 +38,7 @@ import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-c
 import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
 import { loadOperatingCalendar } from './src/operating-calendar.mjs';
 import { createTxChartService } from './src/dashboard-tx-chart-service.mjs';
+import { observationDecisionSnapshot } from './src/market-observation-journal.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
 import { buildRuntimeVersionStatus, readRuntimeIdentity, validateFormalRuntimeVersionTruth } from './src/runtime-identity.mjs';
@@ -175,8 +176,6 @@ const txChartDataRoot = path.resolve(process.env.TX_CHART_DATA_ROOT || readDataR
 const txChartCacheRoot = path.resolve(process.env.TX_CHART_CACHE_ROOT || path.join(config.dataDir, 'dashboard-chart-cache'));
 // One bounded, on-demand calculation worker. HTTP and health must never scan
 // or normalize a market ledger on the main event loop.
-const txChartService = createTxChartService({ dataRoot: txChartDataRoot,
-  cacheRoot: txChartCacheRoot, calendar: chartCalendar });
 const cru34SnapshotArtifactPath = process.env.CRU34_SNAPSHOT_ARTIFACT_PATH
   ? path.resolve(process.env.CRU34_SNAPSHOT_ARTIFACT_PATH)
   : null;
@@ -193,6 +192,8 @@ const lightweightChartsPackagePath = path.resolve(process.env.DASHBOARD_LIGHTWEI
   || path.join(config.appRoot, 'node_modules', 'lightweight-charts', 'package.json'));
 const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || readDataRoot);
 const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(cru34LiveDataRoot, 'runtime', 'cru34-live', 'latest.json'));
+const txChartService = createTxChartService({ dataRoot: txChartDataRoot,
+  cacheRoot: txChartCacheRoot, calendar: chartCalendar, producerRoot: cru34LiveProjectionRoot });
 const runtimeIdentity = marketCandidateStartup?.runtimeIdentity || readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = marketCandidateStartup?.approvedMainIdentity || readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = marketCandidateStartup?.runtimeStartedAt || new Date().toISOString();
@@ -760,6 +761,18 @@ const requestHandler = async (req, res) => {
         } catch {
           sendJson(res, 503, { ok: false, error: 'DECISION_JOURNAL_UNAVAILABLE' });
         }
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/market-observation') {
+        const data = await txChartService.load({ observation: true,
+          timeframe: url.searchParams.get('timeframe') || '1m',
+          mode: url.searchParams.get('mode') === 'REPLAY' ? 'REPLAY' : 'LIVE',
+          tradeDate: url.searchParams.get('tradeDate') || null,
+          session: url.searchParams.get('session') || null,
+          actualContract: url.searchParams.get('actualContract') || null,
+          asOf: url.searchParams.get('asOf') || null });
+        sendJson(res, 200, { ok: true, data: { ...data, journalSnapshot: observationDecisionSnapshot(data) } });
         return;
       }
 

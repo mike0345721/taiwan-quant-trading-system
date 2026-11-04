@@ -14,6 +14,7 @@ on:
       - codex/cru21-emergency-market-calendar-qa-20261023
       - codex/cru21-preopen-integrated-candidate-20261023
       - codex/cru21-flow-freshness-repair-20261027
+      - codex/cru61-smc-cvd-profile-v1
 
 permissions:
   contents: read

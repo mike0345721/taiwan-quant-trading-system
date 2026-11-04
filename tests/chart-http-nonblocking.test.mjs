@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { SessionStore, parseCookies, safeEqual } from '../src/security.mjs';
 import { inspectChartPayload } from '../src/dashboard-runtime-readiness.mjs';
+import { observationDecisionSnapshot } from '../src/market-observation-journal.mjs';
 
 const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 
@@ -47,6 +48,7 @@ function harness() {
     assessTaifexMarketSession: () => ({ state: 'UNKNOWN' }),
     buildMarketChangeFeed: chart => ({ events: [], chartStatus: chart.status }),
     chartMarkersFromEvents: () => [],
+    observationDecisionSnapshot,
   };
   const auth = source.slice(source.indexOf('function getSession(req)'), source.indexOf('const inlineEnabled ='));
   const readiness = source.slice(source.indexOf('function currentCru46RuntimeReadiness()'), source.indexOf('function readLocalJson('));
@@ -103,4 +105,15 @@ test('market changes wait for a resolved chart and chart calculations remain aut
   const result = await pending;
   assert.equal(result.status, 200);
   assert.equal(result.body.data.chartStatus, 'QUALITY_INSUFFICIENT');
+});
+test('observation API shares the bounded worker, authentication and exact returned snapshot without health rescans', async () => {
+  const h=harness();
+  assert.equal((await h.request('/api/v1/market-observation',false)).status,401);
+  const pending=h.request('/api/v1/market-observation?timeframe=1m&mode=REPLAY&asOf=2026-11-04T01:05:00Z');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.selections[0].observation,true);assert.equal(h.selections[0].timeframe,'1m');
+  assert.equal((await h.request('/healthz',false)).status,200);assert.equal(h.selections.length,1);
+  const snapshot={schemaVersion:'cru61-market-observation-v1',status:'UNAVAILABLE',snapshotId:null,cutoff:'2026-11-04T01:05:00Z',reasonCodes:['NO_LAWFUL_TRADE'],cvd:{value:null},profile:{poc:null},events:[]};
+  h.queued.shift()(snapshot);const response=await pending;
+  assert.equal(response.status,200);assert.deepEqual(response.body.data,{...snapshot,journalSnapshot:null});
 });

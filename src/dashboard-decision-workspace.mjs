@@ -363,6 +363,20 @@ export function validateDecisionSnapshot(snapshot) {
     throw new Error('DECISION_SNAPSHOT_LEVEL_WATCH_AUTHORIZATION_BOUNDARY');
   }
   if (!/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')) throw new Error('DECISION_SNAPSHOT_HASH_INVALID');
+  if (snapshot.marketObservation) {
+    const observation = snapshot.marketObservation;
+    if (observation.formalWeight !== 0 || observation.researchOnly !== true || observation.executionAuthorized !== false
+      || observation.orderRoutesEnabled !== false || !/^[a-f0-9]{64}$/.test(observation.snapshotId || '')
+      || observation.cutoff !== snapshot.snapshotTime || observation.identity?.actualContract !== snapshot.contract
+      || observation.identity?.tradeDate !== snapshot.tradeDate || observation.identity?.session !== snapshot.session
+      || !Array.isArray(observation.events) || observation.events.length > 100
+      || observation.events.some(event => !Number.isFinite(Date.parse(event.confirmedAt)) || Date.parse(event.confirmedAt) > Date.parse(observation.cutoff)
+        || !Number.isFinite(Date.parse(event.availableAt)) || Date.parse(event.availableAt) > Date.parse(observation.cutoff)
+        || ['actualContract','tradeDate','session','continuityEpoch','sourceLedgerIdentity'].some(key => event.identity?.[key] !== observation.identity?.[key])
+        || event.formalWeight !== 0 || event.researchOnly !== true || event.executionAuthorized !== false || event.orderRoutesEnabled !== false)) {
+      throw new Error('DECISION_SNAPSHOT_OBSERVATION_INVALID');
+    }
+  }
   if (snapshot.identityState != null) {
     const identityComplete = Boolean(snapshot.tradeDate && snapshot.contract && snapshot.session);
     const identityPresent = Boolean(snapshot.tradeDate || snapshot.contract || snapshot.session);

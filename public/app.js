@@ -5184,6 +5184,13 @@ function renderJournalHistory(rows, outcomes = []) {
       const unavailable = document.createElement('p'); unavailable.textContent = '原始快照不可用；不以目前盤況代替。'; details.append(unavailable);
     } else {
       line('快照時間', snapshot.snapshotTime);
+      if (snapshot.marketObservation) {
+        const observation = snapshot.marketObservation;
+        line('整合快照', observation.snapshotId); line('觀測截至', observation.cutoff);
+        line('成交位置', observation.summary?.position); line('成交力道', observation.summary?.force);
+        line('結構', observation.summary?.structure); line('反證', observation.summary?.counterEvidence);
+        line('資料狀態', observation.summary?.dataStatus);
+      }
       line('契約', snapshot.contract); line('盤別', snapshot.session); line('交易日', snapshot.tradeDate);
       line('價格', snapshot.price?.value); line('價格來源時間', snapshot.price?.availableAt);
       line('價格狀態', snapshot.price?.availability); line('價格限制', snapshot.price?.reason);
@@ -5472,10 +5479,28 @@ $('dw-lock-snapshot').addEventListener('click', () => {
   state.lockedDecisionSnapshot = JSON.parse(JSON.stringify(snapshot));
   dwText('dw-snapshot-status', `LOCKED ${snapshot.snapshotTime} · ${snapshot.snapshotHash}`);
 });
+window.addEventListener('market-observation-journal', (event) => {
+  const observation = event.detail?.snapshot;
+  const selected = event.detail?.event;
+  const snapshot = observation?.journalSnapshot;
+  if (!snapshot || !selected || snapshot.marketObservation?.snapshotId !== observation.snapshotId) {
+    dwText('dw-journal-feedback', '整合事件快照不可用，未鎖定或儲存。'); return;
+  }
+  state.lockedDecisionSnapshot = JSON.parse(JSON.stringify(snapshot));
+  state.journalIntent = 'NO_TRADE';
+  document.querySelectorAll('[data-journal-intent]').forEach(button => button.classList.toggle('is-selected', button.dataset.journalIntent === 'NO_TRADE'));
+  $('dw-journal-setup').value = `${selected.type} · ${selected.id}`;
+  $('dw-journal-reason').value = `${selected.title}；ΔCVD ${selected.deltaCvd ?? '未知'}；${(selected.contraryEvidence || []).join('；')}`;
+  $('dw-journal-invalidation').value = (selected.invalidationConditions || []).join('；');
+  dwText('dw-snapshot-status', `LOCKED 整合事件 ${observation.cutoff} · ${snapshot.snapshotHash}`);
+  dwText('dw-journal-feedback', '已鎖定畫面同一快照；請核對後按儲存，Outcome 沿用既有 Review。');
+  $('dw-journal-form').scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
 $('dw-copy-chatgpt').addEventListener('click', async () => {
   const workspace = state.decisionWorkspace;
   if (!workspace?.chatGptCopy) { dwText('dw-journal-feedback', 'Copy context UNAVAILABLE'); return; }
-  await copyToClipboard(workspace.chatGptCopy);
+  const observationCopy = window.MarketObservationWorkspace?.copyText() || '';
+  await copyToClipboard(workspace.chatGptCopy + (observationCopy ? `\n\n另附三模組觀測快照（各自 cutoff／身分明示）\n${observationCopy}` : ''));
   dwText('dw-journal-feedback', 'ChatGPT discussion context copied · NOT A TRADING SIGNAL');
 });
 $('dw-copy-gpt-prompt').addEventListener('click', async () => {
