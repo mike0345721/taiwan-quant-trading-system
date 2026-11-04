@@ -84,7 +84,7 @@ export class MarketObservationStore {
       for(const [table,items] of Object.entries(this.pendingIntegrity))for(const item of items)next.push({table,origin:item.origin,start:item.start,end:item.end,count:item.count,hash:item.hash.digest('hex')});
       if(next.length!==this.receipts.length||!this.getMeta('integrity'))this.setMeta('integrity',next);
       this.setMeta('indexes',this.pendingIndexes);
-      this.db.exec('COMMIT');this.receipts=next;this.indexes=this.pendingIndexes;this.verifyCursor=next.length;this.knownStamp=fileStamp(this.file);return value;
+      this.db.exec('COMMIT');this.ordinalCache?.clear();this.receipts=next;this.indexes=this.pendingIndexes;this.verifyCursor=next.length;this.knownStamp=fileStamp(this.file);return value;
     }catch(error){this.db.exec('ROLLBACK');this.origin=origin;this.knownStamp=fileStamp(this.file);throw error;}
     finally{this.pendingIntegrity=null;this.pendingIndexes=null;}}
   track(table,values){
@@ -102,7 +102,7 @@ export class MarketObservationStore {
   assertVerified(){if(!this.verified)throw Error('OBSERVATION_DERIVED_HISTORY_VERIFYING');}
   verifyStep(){
     const stamp=fileStamp(this.file);
-    if(stamp!==this.knownStamp){this.receipts=this.getMeta('integrity')??[];this.indexes=this.getMeta('indexes');this.verifyCursor=0;this.indexVerification=null;this.verified=false;this.knownStamp=stamp;}
+    if(stamp!==this.knownStamp){this.ordinalCache?.clear();this.receipts=this.getMeta('integrity')??[];this.indexes=this.getMeta('indexes');this.verifyCursor=0;this.indexVerification=null;this.verified=false;this.knownStamp=stamp;}
     if(this.verified)return {complete:true,verifiedChunks:this.verifyCursor,totalChunks:this.receipts.length};
     const deadline=performance.now()+750;let verifiedRows=0;
     do{
@@ -172,7 +172,19 @@ export class MarketObservationStore {
     }
   }
   pointFor(ordinal){return parse(this.statement('SELECT json FROM points WHERE origin=? AND ordinal=?').get(this.origin,ordinal));}
-  lastPoint(segment,cutoff){this.assertVerified();return parse(this.statement('SELECT json FROM points WHERE origin=? AND segment=? AND at<=? ORDER BY ordinal DESC LIMIT 1').get(this.origin,segment.cvdSegment,Date.parse(cutoff)));}
+  ordinalAt(table,segment,cutoff){
+    this.assertVerified();if(!['trades','points'].includes(table))throw Error('OBSERVATION_ORDINAL_TABLE_INVALID');
+    const at=Date.parse(cutoff),key=stableJson([table,this.origin,segment.cvdSegment,at]);this.ordinalCache??=new Map();
+    if(this.ordinalCache.has(key))return this.ordinalCache.get(key);
+    // Covering availability index establishes a physical upper bound even if
+    // receivedAt regresses. Never assume time order equals physical order.
+    const index=table==='trades'?'trade_available':'point_time';
+    const ordinal=this.statement(`SELECT MAX(ordinal) AS ordinal FROM ${table} INDEXED BY ${index} WHERE origin=? AND segment=? AND at<=?`)
+      .get(this.origin,segment.cvdSegment,at).ordinal??0;
+    this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);
+    return ordinal;
+  }
+  lastPoint(segment,cutoff){return this.pointFor(this.ordinalAt('points',segment,cutoff));}
   structureSnapshot(segment,bars,timeframe,cutoff,maxBars){
     this.assertVerified();
     const cacheKey=`structure:${this.origin}:${segment.cvdSegment}:${timeframe}`;
@@ -195,15 +207,15 @@ export class MarketObservationStore {
       observedStart:profile.observedStart,observedEnd:profile.observedEnd})};
     const old=this.checked(this.statement('SELECT * FROM profiles WHERE origin=? AND segment=? AND at=?').get(row.origin,row.segment,row.at));
     this.statement('INSERT OR REPLACE INTO profiles VALUES(?,?,?,?,?,?)').run(...Object.values(row),this.updateIndex('profiles',row,old));}
-  tradeEndpoints(segment,cutoff){const args=[this.origin,segment.cvdSegment,Date.parse(cutoff),Date.parse(cutoff)];
-    const first=parse(this.statement('SELECT json FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND at<=? AND event_ms<=? ORDER BY ordinal LIMIT 1').get(...args));
-    const last=parse(this.statement('SELECT json FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND at<=? AND event_ms<=? ORDER BY ordinal DESC LIMIT 1').get(...args));
+  tradeEndpoints(segment,cutoff){const args=[this.origin,segment.cvdSegment,this.ordinalAt('trades',segment,cutoff),Date.parse(cutoff),Date.parse(cutoff)];
+    const first=parse(this.statement('SELECT json FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND ordinal<=? AND at<=? AND event_ms<=? ORDER BY ordinal LIMIT 1').get(...args));
+    const last=parse(this.statement('SELECT json FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND ordinal<=? AND at<=? AND event_ms<=? ORDER BY ordinal DESC LIMIT 1').get(...args));
     return first?[first,...(last.ledgerOrdinal===first.ledgerOrdinal?[]:[last])]:[];}
   minuteSeries(segment,cutoff){const at=Date.parse(cutoff),minute=Math.floor(at/60000);
     this.assertVerified();
     const rows=this.statement('SELECT * FROM minutes WHERE origin=? AND segment=? AND minute<? ORDER BY first_ordinal DESC LIMIT 2000').all(this.origin,segment.cvdSegment,minute).map(row=>this.checked(row));
-    const last=this.statement('SELECT json,ordinal FROM points WHERE origin=? AND segment=? AND minute=? AND at<=? ORDER BY ordinal DESC LIMIT 1').get(this.origin,segment.cvdSegment,minute,at);
-    if(last){const first=this.statement('SELECT MIN(ordinal) AS ordinal FROM points WHERE origin=? AND segment=? AND minute=? AND at<=?').get(this.origin,segment.cvdSegment,minute,at);
+    const last=this.statement('SELECT json,ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=? ORDER BY ordinal DESC LIMIT 1').get(this.origin,segment.cvdSegment,minute*60000,at);
+    if(last){const first=this.statement('SELECT MIN(ordinal) AS ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=?').get(this.origin,segment.cvdSegment,minute*60000,at);
       rows.push({...last,first_ordinal:first.ordinal});}
     return rows.sort((a,b)=>a.first_ordinal-b.first_ordinal).slice(-2000).map(parse);}
   profileAt(segment,cutoff){const at=Date.parse(cutoff);
@@ -213,7 +225,7 @@ export class MarketObservationStore {
     // Exact suffix after a saved prefix; late event times are not dropped. The
     // availableAt bound makes earlier profile snapshots immutable to later data.
     const rows=this.statement(`SELECT bin,SUM(volume) AS volume,COUNT(*) AS count,MIN(event_ms) AS lo,MAX(event_ms) AS hi
-      FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND ordinal>? AND at<=? AND event_ms<=? GROUP BY bin`).all(this.origin,segment.cvdSegment,row?.ordinal??0,at,at);
+      FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND ordinal>? AND ordinal<=? AND at<=? AND event_ms<=? GROUP BY bin`).all(this.origin,segment.cvdSegment,row?.ordinal??0,this.ordinalAt('trades',segment,cutoff),at,at);
     for(const item of rows){result.bins[item.bin]=(result.bins[item.bin]??0)+item.volume;result.totalVolume+=item.volume;result.tradeCount+=item.count;
       if(result.observedStart===null||item.lo<Date.parse(result.observedStart))result.observedStart=iso(item.lo);
       if(result.observedEnd===null||item.hi>Date.parse(result.observedEnd))result.observedEnd=iso(item.hi);}

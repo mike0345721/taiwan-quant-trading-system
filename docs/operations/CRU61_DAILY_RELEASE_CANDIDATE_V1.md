@@ -37,6 +37,8 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 私有交易同時提交資料、索引摘要與 cursor；chunk receipts／row hashes 驗證重啟歷史。舊 JSON cache 先驗 bytes，再以不複製整個物件圖的 canonical hash 驗 fragment，分批遷移，不改原 cache。UNKNOWN、品質、原始 ordinal、event time／availableAt、合約／盤別／交易日／epoch、晚到與時鐘倒退均保留。
 
+歷史 cutoff 先從 availability covering index 取得可知的最大 physical ordinal，再限定 profile 尾端與交易端點查詢，保留 `availableAt`／event time 過濾，不假設時間順序等於原始順序。至多 256 筆 cutoff 索引 memo 於私有 transaction 提交或外部檔案變動後失效；當分鐘 CVD 查詢使用相同語意的時間範圍索引。完整盤負載已保存的資料可在獨立副本重新驗證歷史查詢，不覆寫原 FAIL 收據。
+
 完整 raw history、可得 canonical fragment 與冷 Producer checkpoint 是不同證據範圍。冷來源沒有的 noncanonical 歷史或跨 GENESIS 連續性不可還原。全量／增量／重啟比較必須使用相同可得資料，不宣稱冷片段是完整盤。
 
 容量驗證以官方 TX 夜盤 15:00 至次日 05:00 的 14 小時為最長盤別。來源三個固定範圍速率樣本只是估計，不是全天速率上界；以 20 events/s、3 quote:1 trade 的合成整盤驗證 1,008,000 events，另外用實際 retention 函式產生四小時 checkpoint，再交原 worker。保留每次 FAIL、CPU/耗時、RSS/heap、來源位置與結果雜湊，最終同版收據才決定容量 PASS。
