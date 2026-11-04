@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { projectCru34LiveBatch } from '../src/cru34-live-projection-worker.mjs';
+import { projectCru34CalendarBatch } from '../src/cru34-calendar-rollover.mjs';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
 import {
@@ -55,25 +55,9 @@ process.on('exit', releaseLock);
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
 
-function taipeiDate(now = new Date()) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(now).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
 function sessionTradeDate(eventTime) {
   const classified = classifyTxChartSession(eventTime, calendar);
   return { tradeDate: classified.sessionTradeDate, session: classified.session };
-}
-
-function pathsForToday() {
-  const date = taipeiDate();
-  return {
-    ledgerPath: path.join(dataRoot, 'live-events', `${date}.ndjson`),
-    checkpointPath: path.join(projectionRoot, `${date}.checkpoint.json`),
-    snapshotPath: path.join(projectionRoot, 'latest.json'),
-  };
 }
 
 async function writeStatus(status, fields = {}) {
@@ -127,21 +111,17 @@ function controlledStop() {
 }
 
 async function run() {
-  const paths = pathsForToday();
   try {
-    if (!fs.existsSync(paths.ledgerPath)) {
-      await writeStatus('UNAVAILABLE', { reason: 'CURRENT_LEDGER_MISSING' });
-      return;
-    }
-    const result = projectCru34LiveBatch({
-      ...paths,
+    const result = projectCru34CalendarBatch({
+      dataRoot, projectionRoot,
       resolveSessionTradeDate: sessionTradeDate,
       staleAfterMs,
       maxBatchBytes,
       maxBatchRecords,
     });
-    await writeStatus('AVAILABLE', {
-      reason: null, truthState: result.status,
+    await writeStatus(result.status === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'AVAILABLE', {
+      reason: result.reason || null, truthState: result.status,
+      calendarRollover: result.calendarRollover,
       checkpointOrdinal: result.checkpoint?.lastVerifiedLedgerOrdinal || 0,
       checkpointRecordHash: result.checkpoint?.lastVerifiedRecordHash || null,
       snapshotHash: result.snapshot?.snapshotHash || null,
