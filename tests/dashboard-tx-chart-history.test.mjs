@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {loadGovernedTradingCalendar} from '../src/market-state-forward-shadow-calendar.mjs';
@@ -109,10 +110,10 @@ function smallHistory(t,maxSourceBytes=1024){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-growing-line-'));
   const file=path.join(root,'source.ndjson'),cacheRoot=path.join(root,'cache');
   t.after(()=>{clearTxChartLedgerCache();fs.rmSync(root,{recursive:true,force:true});});
-  const read=()=>{const budget=createTxChartReadBudget({maxSourceBytes});
+  const read=(sourceBytes=maxSourceBytes)=>{const budget=createTxChartReadBudget({maxSourceBytes:sourceBytes});
     const result=readTxChartHistory({dataRoot:root,cacheRoot,files:[file],budget,
       decode:line=>line.trim()?JSON.parse(line):null,normalize:()=>({key:null,violation:null}),calendar:{}});
-    assert.ok(budget.sourceBytesRead<=maxSourceBytes);return result;};
+    assert.ok(budget.sourceBytesRead<=sourceBytes);return result;};
   return {root,file,cacheRoot,read};
 }
 test('a complete near-budget line advances while the source keeps growing between every poll',t=>{
@@ -168,6 +169,7 @@ test('a freshly captured complete line requires a further source check after com
   assert.equal(committed.sources[0].progress.cacheRecordCount,2);
   assert.equal(committed.sources[0].progress.complete,false);
   assert.ok(committed.sources[0].progress.reasonCodes.includes('TX_CHART_SNAPSHOT_RECHECK_PENDING'));
+  assert.equal(read().sources[0].progress.complete,false,'old checkpoints must pass before the new cursor check');
   assert.equal(read().sources[0].progress.complete,true);
 });
 
@@ -189,5 +191,77 @@ test('a fresh large-line read commits its rewritten middle in the same phase wit
   try{const rows=db.prepare('SELECT json FROM events WHERE source=? ORDER BY offset').all(committed.sources[0].id);
     assert.equal(JSON.parse(rows[1].json).value,'new');
   }finally{db.close();}
+  assert.equal(read().sources[0].progress.complete,false);
   assert.equal(read().sources[0].progress.complete,true);
+});
+
+function freshReadWithOldTailDebt(t,rewrite){
+  const f=smallHistory(t,2048),base={before:'x'.repeat(1180),value:'old',after:''};
+  const prefix=JSON.stringify({...base,after:'y'.repeat(1438-Buffer.byteLength(JSON.stringify(base)))})+'\n';
+  assert.equal(Buffer.byteLength(prefix),1439);fs.writeFileSync(f.file,prefix);f.read();
+  const partial=JSON.stringify({padding:'z'.repeat(2031)});assert.equal(Buffer.byteLength(partial),2045);
+  fs.appendFileSync(f.file,partial);f.read();f.read();fs.appendFileSync(f.file,'\n');
+  assert.ok(f.read().sources[0].progress.reasonCodes.includes('TX_CHART_PARTIAL_LINE_VALIDATION_PENDING'));
+  const current=rewrite?prefix.replace('"value":"old"','"value":"new"'):prefix;
+  assert.equal(current.slice(0,512),prefix.slice(0,512));
+  if(rewrite)assert.notEqual(current.slice(-512),prefix.slice(-512));
+  fs.writeFileSync(f.file,current+partial+'\n{}\n');
+  const committed=f.read();assert.equal(committed.sources[0].progress.complete,false);
+  assert.equal(committed.sources[0].progress.cacheRecordCount,2);
+  assert.deepEqual([...committed.raw],[],'unverified checkpoint debt must block history iterators');
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{const debt=db.prepare('SELECT * FROM checkpoint_debt WHERE source=?').get(committed.sources[0].id);
+    assert.equal(debt.offset,1439);assert.equal(debt.tailSize,512);
+  }finally{db.close();}
+  return {...f,committed};
+}
+for(const restart of [false,true])test(`old-tail rewrite plus growth resets the generation before completion${restart?' after restart':''}`,t=>{
+  const f=freshReadWithOldTailDebt(t,true),oldId=f.committed.sources[0].id;
+  if(restart)clearTxChartLedgerCache();
+  let result;for(let i=0;i<20;i++){result=f.read();if(result.sources[0].progress.complete)break;}
+  assert.equal(result.sources[0].progress.complete,true);assert.notEqual(result.sources[0].id,oldId);
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{const rows=db.prepare('SELECT json FROM events WHERE source=? ORDER BY offset').all(result.sources[0].id);
+    assert.equal(rows.length,3);assert.equal(JSON.parse(rows[0].json).value,'new');
+    assert.ok(db.prepare('SELECT count(*) n FROM events WHERE source=?').get(oldId).n>0,'old generation evidence remains');
+  }finally{db.close();}
+});
+test('checkpoint debt survives restart and validates over bounded requests before the current cursor',t=>{
+  const f=freshReadWithOldTailDebt(t,false);clearTxChartLedgerCache();
+  for(let i=0;i<4;i++){
+    const result=f.read(256);assert.equal(result.sources[0].progress.complete,false);assert.deepEqual([...result.raw],[]);
+    assert.ok(result.sources[0].progress.reasonCodes.includes(i===3?'TX_CHART_CURRENT_CHECKPOINT_VALIDATION_PENDING':'TX_CHART_PRIOR_CHECKPOINT_VALIDATION_PENDING'));
+  }
+  const result=f.read();assert.equal(result.sources[0].progress.complete,true);assert.equal(result.sources[0].progress.cacheRecordCount,3);
+});
+
+test('pre-debt recipe caches rederive new generations instead of trusting rows without durable checkpoints',t=>{
+  const f=fixture(t);complete(f);clearTxChartLedgerCache();
+  const legacy=createHash('sha256').update(JSON.stringify(['tx-chart-history-v2',calendar],(_key,value)=>value instanceof Map?[...value]:value instanceof Set?[...value]:value)).digest('hex');
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));let oldIds;
+  try{const sources=db.prepare('SELECT id,identity FROM sources').all();oldIds=sources.map(s=>s.id);
+    for(const s of sources)db.prepare('UPDATE sources SET identity=? WHERE id=?').run(s.identity.replace(/[a-f0-9]{64}$/,legacy),s.id);
+    db.exec("UPDATE events SET json='obsolete-derived-row'");
+  }finally{db.close();}
+  const result=complete(f);assert.equal(result.sourceEventCount,140);assert.equal(result.lastPrice,20140);
+  const check=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{assert.ok(check.prepare('SELECT id FROM active').all().every(row=>!oldIds.includes(row.id)));
+    assert.equal(check.prepare("SELECT count(*) n FROM events WHERE json='obsolete-derived-row'").get().n,140);
+  }finally{check.close();}
+});
+
+test('interrupted fresh-read commit rolls back checkpoint debt with its cursor and rows',t=>{
+  const f=smallHistory(t);fs.writeFileSync(f.file,'{}\n');f.read();
+  fs.appendFileSync(f.file,JSON.stringify({padding:'x'.repeat(1006)}));f.read();f.read();fs.appendFileSync(f.file,'\n');f.read();
+  const exec=DatabaseSync.prototype.exec;let interrupted=false;
+  DatabaseSync.prototype.exec=function(sql){if(sql==='COMMIT'&&!interrupted){interrupted=true;throw Error('SYNTHETIC_DEBT_COMMIT_INTERRUPTION');}return exec.call(this,sql);};
+  try{assert.throws(()=>f.read(),/SYNTHETIC_DEBT_COMMIT_INTERRUPTION/);}finally{DatabaseSync.prototype.exec=exec;}
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{assert.equal(db.prepare('SELECT count(*) n FROM checkpoint_debt').get().n,0);
+    assert.equal(db.prepare('SELECT offset FROM sources JOIN active ON sources.id=active.id').get().offset,3);
+    assert.equal(db.prepare('SELECT count(*) n FROM events').get().n,1);
+  }finally{db.close();}
+  clearTxChartLedgerCache();let result;
+  for(let i=0;i<12;i++){result=f.read();if(result.sources[0].progress.complete)break;}
+  assert.equal(result.sources[0].progress.complete,true);assert.equal(result.sources[0].progress.cacheRecordCount,2);
 });

@@ -38,6 +38,8 @@ function openStore(dataRoot,cacheRoot){
       CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY,path TEXT,identity TEXT,offset INTEGER,
         observed INTEGER,mtime REAL,headSize INTEGER,headHash TEXT,tailSize INTEGER,tailHash TEXT,count INTEGER);
       CREATE TABLE IF NOT EXISTS active(path TEXT PRIMARY KEY,id INTEGER);
+      CREATE TABLE IF NOT EXISTS checkpoint_debt(source INTEGER PRIMARY KEY,offset INTEGER,
+        headSize INTEGER,headHash TEXT,tailSize INTEGER,tailHash TEXT);
       CREATE TABLE IF NOT EXISTS events(source INTEGER,offset INTEGER,json TEXT,key TEXT,
         event REAL,available REAL,violation TEXT,rawHash TEXT,keyHash TEXT,violationHash TEXT,PRIMARY KEY(source,offset));
       CREATE INDEX IF NOT EXISTS event_order ON events(event,available,source,offset);
@@ -63,19 +65,42 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
   ordinary(file);const stat=fs.statSync(file),fd=fs.openSync(file,'r'),reasons=[];
   try{
     let s=q('SELECT sources.* FROM sources JOIN active ON sources.id=active.id WHERE active.path=?').get(file);
+    let reset=!s||s.identity!==identity(stat)+':'+normalizationIdentity||stat.size<s.offset;
+    const debt=s&&!reset?q('SELECT * FROM checkpoint_debt WHERE source=?').get(s.id):null;
+    if(debt){
+      const debtStamp=`debt:${identity(stat)}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${debt.offset}`;
+      let check=store.sourceChecks.get(s.id);
+      if(check?.stamp!==debtStamp)check={stamp:debtStamp,head:Buffer.alloc(0),tail:Buffer.alloc(0)};
+      for(const [field,size,start] of [['head',debt.headSize,0],['tail',debt.tailSize,debt.offset-debt.tailSize]]){
+        const amount=Math.min(size-check[field].length,budget.remainingSourceBytes);
+        if(amount>0)check[field]=Buffer.concat([check[field],readBytes(fd,amount,start+check[field].length,budget)]);
+      }
+      store.sourceChecks.set(s.id,check);
+      if(check.head.length!==debt.headSize||check.tail.length!==debt.tailSize)return {id:s.id,readBlocked:true,
+        progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,sourceOffset:s.offset,observedSize:stat.size,
+          reasonCodes:['TX_CHART_PRIOR_CHECKPOINT_VALIDATION_PENDING']}};
+      reset=hash(check.head)!==debt.headHash||hash(check.tail)!==debt.tailHash;
+      if(!reset){
+        assertUnchanged(store);db.exec('BEGIN IMMEDIATE');
+        try{q('DELETE FROM checkpoint_debt WHERE source=?').run(s.id);db.exec('COMMIT');acceptOwnWrite(store);}
+        catch(e){try{db.exec('ROLLBACK');}catch{}throw e;}
+        store.sourceChecks.delete(s.id);
+        return {id:s.id,readBlocked:true,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
+          sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_CURRENT_CHECKPOINT_VALIDATION_PENDING']}};
+      }
+    }
     const staged=s&&store.pending.get(s.id);
     // A near-budget line needs its own read phase: checkpoint bytes must not
     // permanently consume the space needed to re-read that entire line.
     // Read and commit fresh bytes in the SAME phase; never publish a complete
     // line retained across polls. The prior guard supplies committed-prefix
     // checkpoints, and the new cursor must pass another guard before publishing.
-    const freshRead=staged?.freshRead&&staged.offset===s.offset&&staged.identity===identity(stat)
+    const freshRead=!reset&&staged?.freshRead&&staged.offset===s.offset&&staged.identity===identity(stat)
       &&s.identity===identity(stat)+':'+normalizationIdentity&&stat.size>=staged.observedSize
       &&(stat.size>staged.observedSize||(stat.mtimeMs===staged.mtime&&stat.ctimeMs===staged.ctime))
       &&staged.head?.length===s.headSize&&staged.tail?.length===s.tailSize
       &&hash(staged.head)===s.headHash&&hash(staged.tail)===s.tailHash;
     let head=freshRead?staged.head:Buffer.alloc(0),tail=freshRead?staged.tail:Buffer.alloc(0);
-    let reset=!s||s.identity!==identity(stat)+':'+normalizationIdentity||stat.size<s.offset;
     if(s&&!reset&&s.offset&&!freshRead){
       const sourceStamp=`${identity(stat)}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${s.offset}`;
       let check=store.sourceChecks.get(s.id);
@@ -152,6 +177,10 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
             const headSize=Math.min(512,offset),tailSize=Math.min(512,offset);
             const nextHead=s.offset>=512?head:Buffer.concat([head,bytes.subarray(0,committed)]).subarray(0,headSize);
             const nextTail=Buffer.concat([tail,bytes.subarray(Math.max(0,committed-512),committed)]).subarray(-tailSize);
+            // Persist the overwritten checkpoint in the cursor transaction.
+            // A restart must not forget the guard skipped by this read phase.
+            if(freshRead)q('INSERT INTO checkpoint_debt VALUES(?,?,?,?,?,?)')
+              .run(s.id,s.offset,s.headSize,s.headHash,s.tailSize,s.tailHash);
             q('UPDATE sources SET offset=?,observed=?,mtime=?,headSize=?,headHash=?,tailSize=?,tailHash=?,count=count+? WHERE id=?')
               .run(offset,stat.size,stat.mtimeMs,headSize,hash(nextHead),tailSize,hash(nextTail),added,s.id);
             const verified=store.verified.get(s.id);
@@ -171,7 +200,7 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
     if(freshReadCommitted)reasons.push('TX_CHART_SNAPSHOT_RECHECK_PENDING');
     const complete=!freshReadCommitted&&s.offset===stat.size;
     if(!complete&&!reasons.length)reasons.push(budget.remainingRecords===0?'TX_CHART_RECORD_BATCH_PENDING':'TX_CHART_SOURCE_CATCHUP_PENDING');
-    return {id:s.id,progress:{sourceDate:path.basename(file),state:complete?'COMPLETE':'CATCHUP_PENDING',complete,
+    return {id:s.id,readBlocked:freshReadCommitted,progress:{sourceDate:path.basename(file),state:complete?'COMPLETE':'CATCHUP_PENDING',complete,
       sourceOffset:s.offset,observedSize:stat.size,reasonCodes:reasons}};
   }finally{fs.closeSync(fd);}
 }
@@ -196,12 +225,14 @@ function verifySource(store,id,budget){
   store.verified.set(id,v);return v.count===s.count;
 }
 export function readTxChartHistory({dataRoot,cacheRoot,files,budget,decode,normalize,calendar}){
-  const normalizationIdentity=hash(JSON.stringify([version,calendar],(_key,value)=>value instanceof Map?[...value]:value instanceof Set?[...value]:value));
+  // Pre-debt caches may contain a skipped old-tail check with no durable debt.
+  // Re-derive those sources as new generations; preserve their original rows.
+  const normalizationIdentity=hash(JSON.stringify([version,'checkpoint-debt-v1',calendar],(_key,value)=>value instanceof Map?[...value]:value instanceof Set?[...value]:value));
   const store=openStore(dataRoot,cacheRoot),sources=files.map(file=>source(store,file,budget,decode,normalize,normalizationIdentity));
   const ids=sources.map(s=>s.id).filter(id=>id!=null),where=ids.length?`source IN (${ids.map(()=>'?').join(',')})`:'0';
   for(const map of [store.pending,store.sourceChecks,store.verified])for(const id of map.keys())if(!ids.includes(id))map.delete(id);
   const validationBytesBefore=budget.cacheBytesRead;
-  let verified=true;
+  let verified=!sources.some(source=>source.readBlocked);
   for(const source of sources)if(source.id!=null&&!verifySource(store,source.id,budget)){
     verified=false;source.progress={...source.progress,complete:false,state:'CACHE_VALIDATION_PENDING',reasonCodes:[...source.progress.reasonCodes,'TX_CHART_CACHE_VALIDATION_PENDING']};}
   for(const source of sources)if(source.id!=null){
