@@ -365,15 +365,16 @@ test('new generations reject orphan rows before trusting a reused source id',t=>
   }finally{check.close();}
 });
 
-for(const corruption of ['deleted row','extra hashed row','count too high','count too low']){
+for(const corruption of ['deleted row','extra hashed row','negative offset','NULL offset','count too high','count too low']){
   test(`bounded cold verification rejects ${corruption} before rendering`,t=>{
     const f=coldMultiSourceHistory(t);f.read();
     const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
     try{
       const id=db.prepare('SELECT max(id) id FROM active').get().id;
       if(corruption==='deleted row')db.prepare('DELETE FROM events WHERE source=? AND offset=(SELECT max(offset) FROM events WHERE source=?)').run(id,id);
-      else if(corruption==='extra hashed row'){
-        const offset=db.prepare('SELECT max(offset)+1 n FROM events WHERE source=?').get(id).n;
+      else if(corruption==='extra hashed row'||corruption==='negative offset'||corruption==='NULL offset'){
+        const offset=corruption==='negative offset'?-2:corruption==='NULL offset'?null:
+          db.prepare('SELECT max(offset)+1 n FROM events WHERE source=?').get(id).n;
         const prefix=`${id}:${offset}:`,json='{}',hash=value=>createHash('sha256').update(value).digest('hex'),rawHash=hash(prefix+json);
         db.prepare('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,offset,json,null,null,null,null,rawHash,
           hash(prefix+JSON.stringify([null,null,null,rawHash])),hash(prefix));

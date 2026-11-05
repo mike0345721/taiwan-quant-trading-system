@@ -220,6 +220,12 @@ function acceptOwnWrite(store){if(store.q('PRAGMA data_version').get().data_vers
 function verifySource(store,id,budget,slice){
   const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0,complete:false};
   if(v.complete&&v.count===s.count)return true;
+  if(v.count===0){
+    // The cursor starts at -1. Check the first index entry explicitly because
+    // NULL and negative offsets can otherwise be omitted from the range scan.
+    const first=store.q('SELECT offset FROM events WHERE source=? ORDER BY offset LIMIT 1').get(id);
+    if(first&&(first.offset===null||first.offset<0))throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+  }
   const rows=store.q('SELECT * FROM events WHERE source=? AND offset>? ORDER BY offset').iterate(id,v.offset);
   try{
     // Check before fetching the next SQLite row. Finish all three hashes for an
