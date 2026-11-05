@@ -26,7 +26,7 @@ import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { resolveOperationsReader } from './src/data-operations-binding.mjs';
 import { readDataOperationsReaderIdentity } from './src/dashboard-data-operations-reader-identity.mjs';
-import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
+import { buildDecisionWorkspace, copyForChatGpt, validateDecisionSnapshot } from './src/dashboard-decision-workspace.mjs';
 import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal, appendDecisionOutcome, readDecisionOutcomes } from './src/decision-journal.mjs';
@@ -249,7 +249,7 @@ function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 }
 
-async function decisionWorkspacePayload(snapshot, service) {
+async function decisionWorkspacePayload(snapshot, service, { capture = false } = {}) {
   const indexLeadership = service?.indexLeadership || null;
   const runtimeTruth = await readDashboardRuntimeTruth({
     baseRoot: forwardShadowBaseRoot,
@@ -279,15 +279,16 @@ async function decisionWorkspacePayload(snapshot, service) {
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
   const observedFlow = currentObservedFlow();
   const marketPulse = await currentMarketPulse(chart);
-  return { ...buildDecisionWorkspace({
+  const workspace = { ...buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
     marketPulse,
   }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar) };
+  return capture ? { workspace, chart } : workspace;
 }
 
-async function currentDiscussionWorkspace() {
+async function currentDiscussionWorkspace(options = {}) {
   if (!latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
     try { await refreshSnapshot(); } catch { /* retain truthful unavailable state below */ }
   }
@@ -316,7 +317,22 @@ async function currentDiscussionWorkspace() {
     productSurface: productSurfaceContract,
     indexLeadership,
   };
-  return decisionWorkspacePayload(clientSnapshot, servicePayload);
+  return decisionWorkspacePayload(clientSnapshot, servicePayload, options);
+}
+
+function decisionCaptureEnvelope(capture, timeframe) {
+  const workspace = capture?.workspace, chart = capture?.chart, snapshot = workspace?.snapshot;
+  if (!snapshot || !chart || timeframe !== '5m' || chart.timeframe !== timeframe) throw Error('DECISION_CAPTURE_UNAVAILABLE');
+  validateDecisionSnapshot(snapshot);
+  const cutoff = Date.parse(chart.asOf), captured = Date.parse(snapshot.snapshotTime);
+  if (!Number.isFinite(cutoff) || !Number.isFinite(captured) || cutoff > captured
+      || snapshot.contract !== chart.actualContract || snapshot.tradeDate !== chart.tradeDate || snapshot.session !== chart.session
+      || !snapshot.contract || !snapshot.tradeDate || !snapshot.session
+      || workspace.chatGptCopy !== copyForChatGpt(snapshot)
+      || (snapshot.price?.value ?? null) !== (chart.lastPrice ?? null)
+      || (snapshot.VWAP?.value ?? null) !== (chart.levels?.vwap?.availability === 'AVAILABLE' ? chart.levels.vwap.value : null)) throw Error('DECISION_CAPTURE_INCONSISTENT');
+  return { schemaVersion: 'decision-capture-v1', captureId: snapshot.snapshotHash,
+    capturedAt: snapshot.snapshotTime, chartCutoff: chart.asOf, workspace, chart };
 }
 
 async function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
@@ -553,6 +569,20 @@ const requestHandler = async (req, res) => {
 
       if (req.method === 'GET' && pathname === '/api/v1/decision-level-watch') {
         sendJson(res, 200, { ok: true, data: await currentDecisionLevelWatch() }, { 'Cache-Control': 'no-store' });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {
+        const timeframe = url.searchParams.get('timeframe') || '5m';
+        if (timeframe !== '5m') {
+          sendJson(res, 400, { ok: false, error: 'DECISION_CAPTURE_REQUIRES_5M' }, { 'Cache-Control': 'no-store' }); return;
+        }
+        try {
+          const capture = await currentDiscussionWorkspace({ capture: true });
+          sendJson(res, 200, { ok: true, data: decisionCaptureEnvelope(capture, timeframe) }, { 'Cache-Control': 'no-store' });
+        } catch {
+          sendJson(res, 503, { ok: false, error: 'DECISION_CAPTURE_UNAVAILABLE' }, { 'Cache-Control': 'no-store' });
+        }
         return;
       }
 
