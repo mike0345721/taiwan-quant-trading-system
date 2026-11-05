@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import vm from 'node:vm';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
-import { buildTxDecisionChart } from '../src/dashboard-tx-chart.mjs';
+import { buildTxDecisionChart, classifyTxChartSession } from '../src/dashboard-tx-chart.mjs';
 import { loadTxDecisionChart, clearTxChartLedgerCache } from '../src/dashboard-tx-chart-source.mjs';
 import { attachTimestampDependencyQuality } from '../src/chart-timestamp-dependency-quality.mjs';
 import { attachSourceTimeStructureEligibility } from '../src/source-time-structure.mjs';
@@ -334,4 +335,86 @@ test('loader and restored caches preserve unknown raw sequence evidence and reje
     assert.ok(reasons(loadTxDecisionChart(args)).includes('RAW_SEQUENCE_GAP_OR_UNKNOWN'));
     assert.equal(JSON.parse(fs.readFileSync(metadataPath)).schemaVersion,'dw2-tx-tick-cache-v3');
   }
+});
+
+// Execute the actual private cache helper with an instrumented original
+// classifier. No production exports or alternate classification rules are added.
+function sessionCacheHarness() {
+  let calls = 0;
+  const source = fs.readFileSync(new URL('../src/source-time-structure.mjs', import.meta.url), 'utf8')
+    .replace(/^import .+;\r?$/gm, '').replace(/^export /gm, '');
+  const cached = vm.runInNewContext(source + '\nsourceSession;', {
+    classifyTxChartSession(time, selectedCalendar) { calls++; return classifyTxChartSession(time, selectedCalendar); },
+  });
+  return { classify(time, selectedCalendar = calendar, record = { payload: { datetime: time } }) {
+    const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(time) ? time : time + '+08:00';
+    return cached(record, selectedCalendar, Date.parse(zoned));
+  }, get calls() { return calls; } };
+}
+function classificationOutcome(fn) {
+  try { return { context: fn() }; } catch (error) { return { error: error.message }; }
+}
+
+test('minute session cache matches original classifier across day/night open, close, midnight and dates', () => {
+  const cached = sessionCacheHarness();
+  const boundaries = [
+    '2026-10-13T08:45:00+08:00', '2026-10-13T13:45:00+08:00',
+    '2026-10-13T15:00:00+08:00', '2026-10-14T00:00:00+08:00',
+    '2026-10-14T05:00:00+08:00', '2026-10-14T08:45:00+08:00',
+    '2026-10-16T15:00:00+08:00', '2026-10-17T00:00:00+08:00',
+    '2026-10-17T05:00:00+08:00', '2026-10-18T08:45:00+08:00',
+  ];
+  for (const boundary of boundaries) {
+    const at = Date.parse(boundary);
+    const sequence = [-60001, -60000, -1001, -1000, -1, 0, 1, 500, 999, 1000, 1001, 59999, 60000, 60001];
+    // Repeat in reverse physical order so an error or a later minute cannot
+    // supply a stale success when an earlier source timestamp arrives late.
+    for (const offset of [...sequence, ...sequence.toReversed()]) {
+      const value = iso(at + offset);
+      assert.deepEqual(classificationOutcome(() => cached.classify(value)),
+        classificationOutcome(() => classifyTxChartSession(value, calendar)), `${boundary} ${offset}`);
+    }
+  }
+  for (const close of ['2026-10-13T13:45:00+08:00', '2026-10-14T05:00:00+08:00']) {
+    assert.ok(cached.classify(close));
+    assert.throws(() => cached.classify(iso(Date.parse(close) + 1000)), /TX_CHART_EVENT_OUTSIDE_GOVERNED_SESSION/);
+    assert.deepEqual(cached.classify(close), classifyTxChartSession(close, calendar));
+  }
+});
+
+test('minute cache retains timezone, nanosecond, record-mutation and calendar identity semantics', () => {
+  const cached = sessionCacheHarness();
+  const times = [
+    '2026-10-13T15:00:00.000000001', '2026-10-13T15:00:59.999999999+08:00',
+    '2026-10-13T07:00:42.123456789Z', '2026-10-13T09:00:20.500000001+02:00',
+    '2026-10-13T06:59:59.999999999Z', '2026-10-13T15:01:00.000000001+08:00',
+    '2026-10-14T05:00:00.999999999', '2026-10-14T05:00:01.000000001',
+    '2026-10-13T13:45:00.999999999+08:00', '2026-10-13T13:45:01.000000001+08:00',
+  ];
+  const record = { payload: { datetime: '' } };
+  for (const time of times) {
+    record.payload.datetime = time;
+    assert.deepEqual(classificationOutcome(() => cached.classify(time, calendar, record)),
+      classificationOutcome(() => classifyTxChartSession(time, calendar)), time);
+  }
+  const revised = { ...calendar, tradingDates: new Set([...calendar.tradingDates].filter(date => date !== '2026-10-13')),
+    nonTradingDates: new Set([...calendar.nonTradingDates, '2026-10-13']) };
+  for (const selectedCalendar of [calendar, revised, calendar]) {
+    const time = '2026-10-13T15:00:40.999999999+08:00';
+    assert.deepEqual(classificationOutcome(() => cached.classify(time, selectedCalendar)),
+      classificationOutcome(() => classifyTxChartSession(time, selectedCalendar)));
+  }
+});
+
+test('minute cache avoids repeated classifier work without retaining a session-wide tick history', () => {
+  const cached = sessionCacheHarness();
+  for (let second = 0; second < 120; second++) {
+    for (let fraction = 0; fraction < 5; fraction++) {
+      const time = iso(start + second * 1000 + fraction * 100);
+      assert.deepEqual(cached.classify(time), classifyTxChartSession(time, calendar));
+    }
+  }
+  assert.equal(cached.calls, 2, '600 distinct records across two minutes require two classifications');
+  cached.classify(iso(start));
+  assert.equal(cached.calls, 3, 'only the latest minute is retained, not the session');
 });

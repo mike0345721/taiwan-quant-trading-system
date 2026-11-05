@@ -5,7 +5,7 @@ const FIVE_MINUTES = 300_000;
 const FRESH_MS = 120_000;
 const TIME_REASON = 'TIMESTAMP_LINEAGE_INSUFFICIENT';
 const SESSION_CACHE = new WeakMap();
-const SESSION_SECOND_CACHE = new WeakMap();
+const SESSION_MINUTE_CACHE = new WeakMap();
 const CURRENT_LEVELS = ['currentDayHigh', 'currentDayLow', 'nightHigh', 'nightLow', 'vwap', 'openingRangeHigh', 'openingRangeLow'];
 const finitePositive = value => typeof value !== 'boolean' && value !== '' && value != null
   && Number.isFinite(Number(value)) && Number(value) > 0;
@@ -31,15 +31,20 @@ function sourceSession(record, calendar, eventMs) {
   const time = record.payload.datetime;
   const cached = SESSION_CACHE.get(record);
   if (cached?.time === time && cached.calendar === calendar) return cached.context;
-  // The classifier uses calendar date/hour/minute/whole second, including the
-  // 13:45:00 and 05:00:00 closing seconds. Raw timestamp validation and the
-  // nine-digit chronology comparison still run for every record before/after
-  // this lookup. Retain only one successful second per calendar, never errors.
-  const second = Math.floor(eventMs / 1000);
-  const recent = SESSION_SECOND_CACHE.get(calendar);
-  if (recent?.second === second) return recent.context;
+  // Classification is constant within a Taipei minute except the first second
+  // of 13:45 and 05:00. Keep those closing seconds separate from the remainder
+  // of their minute. eventMs has already passed raw timestamp validation; this
+  // cache does not replace the per-record nine-digit chronology/quality audit.
+  // An epoch minute also separates dates and midnight. Retain one successful
+  // context per calendar, never unresolved sessions or classification errors.
+  const minute = Math.floor(eventMs / 60_000);
+  const taipeiMinute = ((minute + 8 * 60) % 1440 + 1440) % 1440;
+  const closingSecond = (taipeiMinute === 13 * 60 + 45 || taipeiMinute === 5 * 60)
+    && eventMs - minute * 60_000 < 1000;
+  const recent = SESSION_MINUTE_CACHE.get(calendar);
+  if (recent?.minute === minute && recent.closingSecond === closingSecond) return recent.context;
   const context = classifyTxChartSession(time, calendar);
-  if (calendar !== null && ['object', 'function'].includes(typeof calendar)) SESSION_SECOND_CACHE.set(calendar, { second, context });
+  if (calendar !== null && ['object', 'function'].includes(typeof calendar)) SESSION_MINUTE_CACHE.set(calendar, { minute, closingSecond, context });
   SESSION_CACHE.set(record, { time, calendar, context });
   return context;
 }
