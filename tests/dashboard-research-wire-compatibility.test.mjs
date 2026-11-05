@@ -20,7 +20,7 @@ const digest=raw=>crypto.createHash('sha256').update(raw).digest('hex');
 let root,manifest;
 before(()=>{
   root=fs.mkdtempSync(path.join(os.tmpdir(),'research-python-wire-'));
-  const producer=spawnSync('python3',['-B',fileURLToPath(new URL('./fixtures/research-python-ledger-wire.py',import.meta.url)),repo,root],{
+  const producer=spawnSync(process.platform==='win32'?'python':'python3',['-B',fileURLToPath(new URL('./fixtures/research-python-ledger-wire.py',import.meta.url)),repo,root],{
     encoding:'utf8',env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'},timeout:15000,
   });
   assert.equal(producer.status,0,JSON.stringify({code:producer.error?.code ?? null,
