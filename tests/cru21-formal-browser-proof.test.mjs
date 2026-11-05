@@ -12,7 +12,7 @@ function harness(version=formalVersion(),location={hostname:'127.0.0.1',port:'87
   const nodes=new Map();
   const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:id==='dw-chart-status'?'READY':'',offsetParent:{},getClientRects:()=>[{}],getBoundingClientRect:()=>({width:900,height:280}),querySelectorAll:()=>[{},{},{}]});return nodes.get(id);};
   const flow={windows:{primary60s:{status:'READY'},context300s:{status:'READY'}}};
-  const context=vm.createContext({state:{decisionWorkspace:{runtimeVersion:version},txChartPayload:{status:'READY'},txChartBarCount:21,txChartVolumeCount:21},
+  const context=vm.createContext({state:{dashboardRequestId:0,decisionWorkspace:{runtimeVersion:version},txChartPayload:{status:'READY'},txChartBarCount:21,txChartVolumeCount:21},
     $:node,lastObservedFlowValue:flow,window:{location,LightweightCharts:{createChart(){},CandlestickSeries:{},HistogramSeries:{}}},
     api:async(route,options)=>{calls.push({route,method:options.method,body:JSON.parse(options.body)});return{ok:true};}});
   vm.runInContext(code,context);
@@ -110,19 +110,39 @@ test('ReaderOnly routing retains actual missing canvas, series, Flow and pending
   for (const key of ['chartStatusVisible', 'observedFlow1m', 'observedFlow5m', 'observedFlow15m', 'observedFlow30m', 'observedFlow1h', 'observedFlow4h']) assert.equal(body[key], false);
 });
 
-test('dashboard supplies the actual service flag to the normal proof submission path', async () => {
-  const h = harness(candidateVersion(), candidateLocation);
-  const service = { candidateReadOnly: true };
-  const workspace = { runtimeVersion: candidateVersion() };
+function wireDashboardLoader(h, response) {
   Object.assign(h.context, { flowChannel: { ticket: () => ({}), isCurrentSession: () => true, merge() {} },
     loadHistory: async () => {}, loadBacktest: async () => {}, loadIndexLeadership: async () => {},
     renderIndexLeadershipFailure() {}, renderDecisionWorkspace: value => { h.context.state.decisionWorkspace = value; },
     loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {}, loadDecisionJournal: async () => {}, renderPrelive() {} });
   h.context.state.csrfToken = 'fixture-csrf'; h.node('decision-workspace').setAttribute = () => {};
   const actualApi = h.context.api;
-  h.context.api = async (route, options) => route === '/api/v1/dashboard' ? { service, decisionWorkspace: workspace } : actualApi(route, options);
+  h.context.api = async (route, options) => route === '/api/v1/dashboard' ? response() : actualApi(route, options);
   const start = app.indexOf('async function loadDashboard('), end = app.indexOf('\n}', start) + 2;
   vm.runInContext(app.slice(start, end), h.context);
+}
+
+test('dashboard supplies the actual service flag to the normal proof submission path', async () => {
+  const h = harness(candidateVersion(), candidateLocation);
+  const service = { candidateReadOnly: true };
+  const workspace = { runtimeVersion: candidateVersion() };
+  wireDashboardLoader(h, () => ({ service, decisionWorkspace: workspace }));
   await h.context.loadDashboard();
+  assert.equal(h.context.state.dashboardRequestId, 1);
   assert.equal(h.calls.length, 1); assert.equal(h.calls[0].body.candleCount, 21);
+});
+
+test('a dashboard response superseded by a capture cannot replace its workspace or submit stale proof', async () => {
+  const h = harness(candidateVersion(), candidateLocation);
+  let complete;
+  wireDashboardLoader(h, () => new Promise(resolve => { complete = resolve; }));
+  const pending = h.context.loadDashboard();
+  assert.equal(h.context.state.dashboardRequestId, 1);
+  const capturedWorkspace = { runtimeVersion: candidateVersion(), captured: true };
+  h.context.state.decisionWorkspace = capturedWorkspace;
+  h.context.state.dashboardRequestId += 1;
+  complete({ service: { candidateReadOnly: true }, decisionWorkspace: { stale: true } });
+  await pending;
+  assert.equal(h.context.state.decisionWorkspace, capturedWorkspace);
+  assert.equal(h.calls.length, 0);
 });
