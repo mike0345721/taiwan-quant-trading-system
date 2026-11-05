@@ -265,3 +265,67 @@ test('interrupted fresh-read commit rolls back checkpoint debt with its cursor a
   for(let i=0;i<12;i++){result=f.read();if(result.sources[0].progress.complete)break;}
   assert.equal(result.sources[0].progress.complete,true);assert.equal(result.sources[0].progress.cacheRecordCount,2);
 });
+
+function coldMultiSourceHistory(t,{largeLastRow=false}={}){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-cold-history-')),cacheRoot=path.join(root,'cache');
+  const files=[path.join(root,'2026-11-04.ndjson'),path.join(root,'2026-11-05.ndjson')];
+  const expected=[];
+  for(const [source,count] of [1500,1800].entries()){
+    const rows=Array.from({length:count},(_,index)=>({source,index,
+      ...(largeLastRow&&source===1&&index===count-1?{padding:'x'.repeat(2*1024*1024)}:{})}));
+    expected.push(...rows);fs.writeFileSync(files[source],rows.map(JSON.stringify).join('\n')+'\n');
+  }
+  t.after(()=>{clearTxChartLedgerCache();fs.rmSync(root,{recursive:true,force:true});});
+  const read=()=>{
+    const budget=createTxChartReadBudget();
+    const result=readTxChartHistory({dataRoot:root,cacheRoot,files,budget,decode:JSON.parse,
+      normalize:()=>({key:null,violation:null}),calendar:{}});
+    assert.ok(budget.sourceBytesRead<=budget.maxSourceBytes);assert.ok(budget.cacheBytesRead<=budget.maxCacheBytes);
+    assert.ok(budget.remainingRecords>=0);return result;
+  };
+  const initial=read();assert.deepEqual([...initial.raw],expected,'populate from the source before dropping all resident trust');
+  clearTxChartLedgerCache();
+  return {root,cacheRoot,read,expected};
+}
+const verifiedHistoryRows=result=>result.sources.reduce((sum,source)=>sum+source.progress.cacheVerifiedRecords,0);
+function finishColdHistory(f,first){
+  let result=first,previous=0;
+  for(let poll=0;poll<20;poll++){
+    const count=verifiedHistoryRows(result);
+    assert.ok(count-previous<=2000,'all sources share one bounded validation unit');assert.ok(count>=previous);
+    if(result.sources.every(source=>source.progress.complete)){
+      assert.equal(count,f.expected.length);assert.deepEqual([...result.raw],f.expected);return result;
+    }
+    assert.deepEqual([...result.raw],[]);assert.deepEqual([...result.ordered],[]);assert.deepEqual(result.violations,[]);
+    if(count===f.expected.length)assert.ok(result.sources.every(source=>source.progress.state==='CACHE_VALIDATED_AWAITING_RENDER'),
+      'the final validation batch must not also render');
+    previous=count;result=f.read();
+  }
+  assert.fail('cold history failed to make bounded progress');
+}
+
+test('cold cross-source history validates over multiple requests and restart cannot reuse resident trust',t=>{
+  const f=coldMultiSourceHistory(t),first=f.read();
+  assert.ok(verifiedHistoryRows(first)>0);assert.ok(verifiedHistoryRows(first)<=2000);
+  assert.ok(verifiedHistoryRows(first)<f.expected.length);assert.deepEqual([...first.raw],[]);
+  clearTxChartLedgerCache();
+  const restarted=f.read();assert.ok(verifiedHistoryRows(restarted)<=2000);
+  assert.ok(verifiedHistoryRows(restarted)<f.expected.length);finishColdHistory(f,restarted);
+});
+
+test('a legal multi-megabyte row still validates after the cold shared row slice yields',t=>{
+  const f=coldMultiSourceHistory(t,{largeLastRow:true});finishColdHistory(f,f.read());
+});
+
+test('tampering beyond the first cold validation batch is rejected before any source can publish',t=>{
+  const f=coldMultiSourceHistory(t),first=f.read();assert.ok(verifiedHistoryRows(first)<f.expected.length);
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+  try{db.exec("UPDATE events SET json='{\"changed\":true}' WHERE source=(SELECT max(id) FROM active) AND offset=(SELECT max(offset) FROM events WHERE source=(SELECT max(id) FROM active))");}
+  finally{db.close();}
+  let rejected=false;
+  for(let poll=0;poll<20;poll++){
+    try{const result=f.read();assert.ok(!result.sources.every(source=>source.progress.complete));assert.deepEqual([...result.raw],[]);}
+    catch(error){assert.match(error.message,/TX_CHART_HISTORY_ROW_HASH_MISMATCH/);rejected=true;break;}
+  }
+  assert.equal(rejected,true);
+});

@@ -211,16 +211,23 @@ function checked(row,kind){const prefix=`${row.source}:${row.offset}:`;
 function assertUnchanged(store){if(stamp(store.file)!==store.knownStamp||store.q('PRAGMA data_version').get().data_version!==store.dataVersion)
   throw Error('TX_CHART_HISTORY_CHANGED_DURING_READ');}
 function acceptOwnWrite(store){if(store.q('PRAGMA data_version').get().data_version!==store.dataVersion){store.verified.clear();throw Error('TX_CHART_HISTORY_CHANGED_DURING_WRITE');}store.knownStamp=stamp(store.file);}
-function verifySource(store,id,budget){
+function verifySource(store,id,budget,slice){
   const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0};
   if(v.count===s.count)return true;
-  for(const row of store.q('SELECT * FROM events WHERE source=? AND offset>? ORDER BY offset').iterate(id,v.offset)){
-    const bytes=Buffer.byteLength(row.json)+Buffer.byteLength(row.key??'')+Buffer.byteLength(row.violation??'');
-    if(!budget.remainingRecords||bytes>budget.remainingCacheBytes)break;
-    checked(row,'raw');checked(row,'key');checked(row,'violation');
-    budget.remainingRecords--;budget.remainingCacheBytes-=bytes;budget.cacheBytesRead+=bytes;
-    v.offset=row.offset;v.count++;
-  }
+  const rows=store.q('SELECT * FROM events WHERE source=? AND offset>? ORDER BY offset').iterate(id,v.offset);
+  try{
+    // Check before fetching the next SQLite row. Finish all three hashes for an
+    // admitted row even if it crosses the cooperative time slice; a large legal
+    // row must remain admissible under the original cache-byte budget.
+    while(slice.remainingRows>0&&budget.remainingRecords>0&&performance.now()<slice.until){
+      const next=rows.next();if(next.done)break;const row=next.value;
+      const bytes=Buffer.byteLength(row.json)+Buffer.byteLength(row.key??'')+Buffer.byteLength(row.violation??'');
+      if(bytes>budget.remainingCacheBytes)break;
+      checked(row,'raw');checked(row,'key');checked(row,'violation');
+      slice.remainingRows--;budget.remainingRecords--;budget.remainingCacheBytes-=bytes;budget.cacheBytesRead+=bytes;
+      v.offset=row.offset;v.count++;
+    }
+  }finally{rows.return();}
   if(v.count>s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
   store.verified.set(id,v);return v.count===s.count;
 }
@@ -232,8 +239,11 @@ export function readTxChartHistory({dataRoot,cacheRoot,files,budget,decode,norma
   const ids=sources.map(s=>s.id).filter(id=>id!=null),where=ids.length?`source IN (${ids.map(()=>'?').join(',')})`:'0';
   for(const map of [store.pending,store.sourceChecks,store.verified])for(const id of map.keys())if(!ids.includes(id))map.delete(id);
   const validationBytesBefore=budget.cacheBytesRead;
+  // One shared validation unit for the entire request, not one per source.
+  // This is cooperative scheduling inside the existing worker/byte limits.
+  const verificationSlice={remainingRows:2000,until:performance.now()+750};
   let verified=!sources.some(source=>source.readBlocked);
-  for(const source of sources)if(source.id!=null&&!verifySource(store,source.id,budget)){
+  for(const source of sources)if(source.id!=null&&!verifySource(store,source.id,budget,verificationSlice)){
     verified=false;source.progress={...source.progress,complete:false,state:'CACHE_VALIDATION_PENDING',reasonCodes:[...source.progress.reasonCodes,'TX_CHART_CACHE_VALIDATION_PENDING']};}
   for(const source of sources)if(source.id!=null){
     const count=store.q('SELECT count FROM sources WHERE id=?').get(source.id).count;
