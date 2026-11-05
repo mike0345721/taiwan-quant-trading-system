@@ -122,9 +122,10 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
       }catch(e){try{db.exec('ROLLBACK');}catch{}throw e;}
       s=q('SELECT sources.* FROM sources JOIN active ON sources.id=active.id WHERE active.path=?').get(file);
       if(s.offset)throw Error('TX_CHART_HISTORY_RESET_INVALID');
-      store.verified.set(s.id,{count:0,offset:-1});acceptOwnWrite(store);head=Buffer.alloc(0);tail=Buffer.alloc(0);
+      store.verified.set(s.id,{count:0,offset:-1,complete:true});acceptOwnWrite(store);head=Buffer.alloc(0);tail=Buffer.alloc(0);
     }
-    if(q('SELECT count(*) n FROM events WHERE source=?').get(s.id).n!==s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+    // Count integrity is checked when the bounded verification cursor reaches
+    // EOF. A separate count(*) here scans the whole cold index before yielding.
     const pending=store.pending.get(s.id);
     const carryValid=pending?.offset===s.offset&&pending.identity===identity(stat)
       &&stat.size>=pending.observedSize&&stat.size>=s.offset+pending.bytes.length
@@ -184,7 +185,7 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
             q('UPDATE sources SET offset=?,observed=?,mtime=?,headSize=?,headHash=?,tailSize=?,tailHash=?,count=count+? WHERE id=?')
               .run(offset,stat.size,stat.mtimeMs,headSize,hash(nextHead),tailSize,hash(nextTail),added,s.id);
             const verified=store.verified.get(s.id);
-            if(verified?.count===s.count)store.verified.set(s.id,{count:s.count+added,offset:offset-1});
+            if(verified?.complete&&verified.count===s.count)store.verified.set(s.id,{count:s.count+added,offset:offset-1,complete:true});
             s={...s,offset,count:s.count+added};
             freshReadCommitted=!!freshRead;
           }
@@ -212,24 +213,29 @@ function assertUnchanged(store){if(stamp(store.file)!==store.knownStamp||store.q
   throw Error('TX_CHART_HISTORY_CHANGED_DURING_READ');}
 function acceptOwnWrite(store){if(store.q('PRAGMA data_version').get().data_version!==store.dataVersion){store.verified.clear();throw Error('TX_CHART_HISTORY_CHANGED_DURING_WRITE');}store.knownStamp=stamp(store.file);}
 function verifySource(store,id,budget,slice){
-  const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0};
-  if(v.count===s.count)return true;
+  const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0,complete:false};
+  if(v.complete&&v.count===s.count)return true;
   const rows=store.q('SELECT * FROM events WHERE source=? AND offset>? ORDER BY offset').iterate(id,v.offset);
   try{
     // Check before fetching the next SQLite row. Finish all three hashes for an
     // admitted row even if it crosses the cooperative time slice; a large legal
     // row must remain admissible under the original cache-byte budget.
     while(slice.remainingRows>0&&budget.remainingRecords>0&&performance.now()<slice.until){
-      const next=rows.next();if(next.done)break;const row=next.value;
+      const next=rows.next();
+      if(next.done){
+        if(v.count!==s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+        v.complete=true;break;
+      }
+      const row=next.value;
       const bytes=Buffer.byteLength(row.json)+Buffer.byteLength(row.key??'')+Buffer.byteLength(row.violation??'');
       if(bytes>budget.remainingCacheBytes)break;
       checked(row,'raw');checked(row,'key');checked(row,'violation');
       slice.remainingRows--;budget.remainingRecords--;budget.remainingCacheBytes-=bytes;budget.cacheBytesRead+=bytes;
       v.offset=row.offset;v.count++;
+      if(v.count>s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
     }
   }finally{rows.return();}
-  if(v.count>s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
-  store.verified.set(id,v);return v.count===s.count;
+  store.verified.set(id,v);return v.complete&&v.count===s.count;
 }
 export function readTxChartHistory({dataRoot,cacheRoot,files,budget,decode,normalize,calendar}){
   // Pre-debt caches may contain a skipped old-tail check with no durable debt.

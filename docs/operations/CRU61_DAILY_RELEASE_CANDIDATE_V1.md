@@ -85,6 +85,8 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 冷啟 hash 驗證在同請求的所有來源共用 2,000 列／750ms 合作式切片，取下一列前檢查；已取出的合法列仍完成 raw、key、violation 三項 hash。750ms 不是同步磁碟讀取的硬逾時保證，原 8 秒 worker 驗收仍適用。逐列大小與總位元組品質限制不變；切片未完不輸出部分歷史，程序重啟重新驗證，已驗證的新寫入不重掃。
 
+冷啟列數檢查也在同一有界游標內完成，不先執行整盤 `count(*)`。游標須實際抵達 EOF 且已驗列數等於 metadata 才建立完整信任；刪列、額外有效 hash 列或 metadata 計數不符皆拒絕。只有當前程序內已驗證的來源與受控 transaction 新寫入可以延續此信任，外部 stamp／data_version 變動及重啟仍清除它。
+
 排序串流按原 event／available／eventId 順序計算；source-time／capture audit 單次遍歷原始順序，保留舊陣列實作為回歸 oracle。SQLite page cache 8 MiB、temp 磁碟、mmap 關閉及每 store 約 16 GiB 上限與其他私有歷史一致，最多四個開啟 chart store。`historyReadBytes=NOT_MEASURED` 明示未量測實體磁碟 I/O；寫入計數為 serialized logical rows，不能聲稱實體讀寫零或等於來源讀取預算。原 raw ledger、legacy cache 和歷史失敗收據均保留。
 
 Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩個 chunk、輸入 chunk 與進度 header 的 serialized logical bytes 合計至多 2 MiB，每個 chunk 至多 1,000 events／1 MiB。這不是 SQLite 實體 I/O、索引／完整性 metadata 或 fsync 耗時保證；原 8 秒請求門檻仍須實測。STAGING 未完成不開始推導，READY 與最後 chunk 同 transaction 提交；重啟重讀來源、核對既有發布 anchor 與完整舊 checkpoint hash，不能混接已改動或失去中段的來源。

@@ -266,11 +266,11 @@ test('interrupted fresh-read commit rolls back checkpoint debt with its cursor a
   assert.equal(result.sources[0].progress.complete,true);assert.equal(result.sources[0].progress.cacheRecordCount,2);
 });
 
-function coldMultiSourceHistory(t,{largeLastRow=false}={}){
+function coldMultiSourceHistory(t,{largeLastRow=false,counts=[1500,1800]}={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-cold-history-')),cacheRoot=path.join(root,'cache');
   const files=[path.join(root,'2026-11-04.ndjson'),path.join(root,'2026-11-05.ndjson')];
   const expected=[];
-  for(const [source,count] of [1500,1800].entries()){
+  for(const [source,count] of counts.entries()){
     const rows=Array.from({length:count},(_,index)=>({source,index,
       ...(largeLastRow&&source===1&&index===count-1?{padding:'x'.repeat(2*1024*1024)}:{})}));
     expected.push(...rows);fs.writeFileSync(files[source],rows.map(JSON.stringify).join('\n')+'\n');
@@ -329,3 +329,41 @@ test('tampering beyond the first cold validation batch is rejected before any so
   }
   assert.equal(rejected,true);
 });
+
+test('matching cached count at the slice boundary is not trusted until the cursor reaches EOF',t=>{
+  t.mock.method(performance,'now',()=>0);
+  const f=coldMultiSourceHistory(t,{counts:[1000,1000]}),first=f.read();
+  assert.equal(verifiedHistoryRows(first),2000);
+  assert.ok(first.sources.some(source=>!source.progress.complete));assert.deepEqual([...first.raw],[]);
+  const next=f.read();assert.ok(next.sources.every(source=>source.progress.complete));assert.deepEqual([...next.raw],f.expected);
+});
+
+test('the shared cold verification deadline yields before the row cap and resumes',t=>{
+  const f=coldMultiSourceHistory(t);let clock=0;
+  t.mock.method(performance,'now',()=>clock+=100);
+  const first=f.read();assert.ok(verifiedHistoryRows(first)>0&&verifiedHistoryRows(first)<2000);
+  assert.deepEqual([...first.raw],[]);t.mock.restoreAll();finishColdHistory(f,first);
+});
+
+for(const corruption of ['deleted row','extra hashed row','count too high','count too low']){
+  test(`bounded cold verification rejects ${corruption} before rendering`,t=>{
+    const f=coldMultiSourceHistory(t);f.read();
+    const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+    try{
+      const id=db.prepare('SELECT max(id) id FROM active').get().id;
+      if(corruption==='deleted row')db.prepare('DELETE FROM events WHERE source=? AND offset=(SELECT max(offset) FROM events WHERE source=?)').run(id,id);
+      else if(corruption==='extra hashed row'){
+        const offset=db.prepare('SELECT max(offset)+1 n FROM events WHERE source=?').get(id).n;
+        const prefix=`${id}:${offset}:`,json='{}',hash=value=>createHash('sha256').update(value).digest('hex'),rawHash=hash(prefix+json);
+        db.prepare('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,offset,json,null,null,null,null,rawHash,
+          hash(prefix+JSON.stringify([null,null,null,rawHash])),hash(prefix));
+      }else db.prepare(`UPDATE sources SET count=count${corruption==='count too high'?'+':'-'}1 WHERE id=?`).run(id);
+    }finally{db.close();}
+    let rejected=false;
+    for(let poll=0;poll<20;poll++){
+      try{const result=f.read();assert.ok(result.sources.some(source=>!source.progress.complete));assert.deepEqual([...result.raw],[]);}
+      catch(error){assert.match(error.message,/TX_CHART_HISTORY_ROW_COUNT_MISMATCH/);rejected=true;break;}
+    }
+    assert.equal(rejected,true);
+  });
+}
