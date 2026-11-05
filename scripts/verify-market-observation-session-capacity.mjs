@@ -31,15 +31,18 @@ if(paired){fs.mkdirSync(path.join(root,'live-events'),{recursive:true});
 let hash='GENESIS',canonicalState=null,retained=[],count=0,restarted=false,last=null;
 const began=new Date().toISOString(),wall=performance.now(),requests=[],samples=[],snapshots=[],oracle={buy:0,sell:0,unknown:0,total:0,bins:{}};
 let maxRss=0,maxHeap=0,maxExternal=0,maxRequestMs=0;
-function measure(fn,label){const at=performance.now(),value=fn(),elapsedMs=performance.now()-at,m=process.memoryUsage();
+function recordRequest(label,elapsedMs,details={}){const m=process.memoryUsage();
   maxRequestMs=Math.max(maxRequestMs,elapsedMs);maxRss=Math.max(maxRss,m.rss);maxHeap=Math.max(maxHeap,m.heapUsed);maxExternal=Math.max(maxExternal,m.external);
-  requests.push({label,ordinal:count,elapsedMs,reason:value?.reason??null,sourceProgress:value?.sourceProgress??null});
+  requests.push({label,ordinal:count,elapsedMs,memory:m,...details});}
+function measure(fn,label){const at=performance.now(),value=fn(),elapsedMs=performance.now()-at;
+  recordRequest(label,elapsedMs,{reason:value?.reason??null,sourceProgress:value?.sourceProgress??null});
   assert.ok(elapsedMs<8000,`${label} exceeded existing 8 second request budget: ${elapsedMs}`);return value;}
 function save(final=false,error=null){const result={evidenceType:'ISOLATED_SYNTHETIC_NOT_LIVE',began,ended:new Date().toISOString(),elapsedSeconds:(performance.now()-wall)/1000,
   status:error?'FAIL':final?'PASS':'RUNNING',error:error?String(error.stack):null,scope:{eventsPerSecond:20,quotePerTrade:3,totalEvents:total,
     syntheticDurationSeconds:total/20,batch,restartAt,physicalOrdinal:count,sourceIdentity:source,tradeDate:'2026-11-05',session:'NIGHT',actualContract:'TXFK6',
     singleContinuousSyntheticLedger:true,crossCalendarRawLedgerJoinProven:false},budgets:{requestMs:8000,nodeOldSpaceMiB:256},
-  measurements:{maxRequestMs,maxRss,maxHeap,maxExternal,requestCount:requests.length},oracle,samples,snapshots,...SAFETY};
+  measurements:{maxRequestMs,maxRss,maxHeap,maxExternal,requestCount:requests.length,
+    memoryScope:{rss:'whole process sampled after requests, includes worker',heap:'parent/controller V8 heap only',external:'parent/controller external memory only',peaks:'sampled maxima, not continuous high-water marks',workerHeap:'NOT_MEASURED; 256 MiB old-generation limit is not an RSS limit'}},oracle,samples,snapshots,...SAFETY};
   fs.writeFileSync(summaryPath,JSON.stringify(result,null,2));return result;}
 try{
 while(count<total){
@@ -108,7 +111,7 @@ if(paired){
     try{let ready=false;
       for(let poll=0;poll<2000;poll++){
         const at=performance.now(),chart=await service.load(selection),elapsedMs=performance.now()-at;
-        requests.push({label:phase,poll,elapsedMs,reason:chart.reason,observationReasons:chart.marketObservation?.reasonCodes});
+        recordRequest(phase,elapsedMs,{poll,reason:chart.reason,observationReasons:chart.marketObservation?.reasonCodes});
         assert.ok(elapsedMs<8000&& !/TIMEOUT|WORKER_UNAVAILABLE/.test(chart.reason||''),`${phase}:${elapsedMs}:${chart.reason}`);
         if(chart.sourceComplete&&chart.marketObservation?.snapshotId&&!chart.marketObservation.reasonCodes.includes('SOURCE_CATCHUP_PENDING')){
           const observation=chart.marketObservation;assert.equal(observation.cutoff,chart.asOf);

@@ -115,5 +115,5 @@ test('observation API shares the bounded worker, authentication and exact return
   assert.equal((await h.request('/healthz',false)).status,200);assert.equal(h.selections.length,1);
   const snapshot={schemaVersion:'cru61-market-observation-v1',status:'UNAVAILABLE',snapshotId:null,cutoff:'2026-11-04T01:05:00Z',reasonCodes:['NO_LAWFUL_TRADE'],cvd:{value:null},profile:{poc:null},events:[]};
   h.queued.shift()(snapshot);const response=await pending;
-  assert.equal(response.status,200);assert.deepEqual(response.body.data,{...snapshot,journalSnapshot:null});
+  assert.equal(response.status,200);assert.deepEqual(response.body.data,{...snapshot,journalSnapshot:null,journalCopy:null});
 });
