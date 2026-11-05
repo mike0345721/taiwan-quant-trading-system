@@ -91,4 +91,6 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩個 chunk、輸入 chunk 與進度 header 的 serialized logical bytes 合計至多 2 MiB，每個 chunk 至多 1,000 events／1 MiB。這不是 SQLite 實體 I/O、索引／完整性 metadata 或 fsync 耗時保證；原 8 秒請求門檻仍須實測。STAGING 未完成不開始推導，READY 與最後 chunk 同 transaction 提交；重啟重讀來源、核對既有發布 anchor 與完整舊 checkpoint hash，不能混接已改動或失去中段的來源。
 
+重啟時，已驗證的私有歷史可重用已發布狀態。條件包括重新讀驗目前來源、檔案身分及來源 proof 一致、fragment 的合約來源／游標／截止時間／origin 相符，且沒有正在接續的輸入或推導。來源改變後仍走原分批持久化與接續流程。
+
 完成推導後的輸入清理另以可重啟的進度分批執行，不在發布請求一次刪除整個輸入。合法舊 cache 單列可能超過新清理預算；本次清理保留該列與 `DEFERRED_RETAINED` 收據、繼續進度，明示仍占磁碟空間。正式 staged 路徑採 generation key，不再使用這些舊 key；既有非 staged API 仍可能重用舊輸入 key，因此此收據不是 immutable 原始資料封存。非 staged API 保留相容行為，不宣稱同樣的每請求輸入寫入上限。

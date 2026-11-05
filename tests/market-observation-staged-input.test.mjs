@@ -135,6 +135,27 @@ function producerFixture(t,initial){
 }
 function completeProducer(f){let result;for(let i=0;i<100;i++){result=f.read();if(result.complete&&result.state)return result;}assert.fail('producer did not complete');}
 
+test('restart reuses verified same-publication history without restaging it, then accepts new input',t=>{
+  const rows=records(80),f=producerFixture(t,publication(rows.slice(0,60)));
+  const first=completeProducer(f),cutoff=rows[59].receivedAt;
+  const expected=marketObservationSnapshot(first.state,{cutoff,history:first.history});
+  while(first.history.getMeta('pending-source-cleanup'))f.read();
+  clearMarketObservationProducerCache();let restored;
+  for(let i=0;i<100;i++){
+    restored=f.read();
+    assert.notEqual(restored.sourceProgress?.stage,'SOURCE_PERSISTING');
+    assert.notEqual(restored.sourceProgress?.stage,'SOURCE_PERSISTED_NOT_DERIVED');
+    if(restored.complete&&restored.state)break;
+  }
+  assert.equal(restored.sourceProgress.stage,'RESTORED_VERIFIED_PUBLICATION');
+  assert.deepEqual(marketObservationSnapshot(restored.state,{cutoff,history:restored.history}),expected);
+  assert.equal(restored.history.getMeta('pending-source'),null);
+  f.publish(publication(rows));
+  const advanced=completeProducer(f);
+  assert.equal(advanced.history.getMeta('checkpoint').fragment.state.lastCanonicalOrdinal,80);
+  assert.equal(advanced.history.getMeta('checkpoint').fragment.state.originOrdinal,1);
+});
+
 test('producer resumes an incomplete durable source after restart without deriving partial input',t=>{
   const rows=records(3500),f=producerFixture(t,publication(rows));f.read();const first=f.read();
   assert.equal(first.sourceProgress.stage,'SOURCE_PERSISTING');assert.equal(first.state,null);

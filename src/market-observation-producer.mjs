@@ -274,7 +274,8 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
   const historyOpenElapsedMs=performance.now()-deriveStarted;
   if(history&&!history.verified){const verification=history.verifyStep();
     return {state:null,complete:false,reason:'DERIVED_HISTORY_VERIFYING',sourceProgress:verification};}
-  if(!cached)cached=history?history.getMeta('checkpoint'):readCache(cacheFile);
+  const restored = !cached && history ? history.getMeta('checkpoint') : null;
+  if(!cached)cached=history?restored:readCache(cacheFile);
   // A legacy cache is evidence with an established cumulative origin. Migration
   // is explicit and atomic; never discard it to obtain a smaller fresh origin.
   if(!cached&&history&&fs.existsSync(cacheFile)){
@@ -293,6 +294,25 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
   }
   if(cached&&(cached.sourcePath!==file||cached.resolverIdentity!==resolverIdentity))fail('OBSERVATION_PRODUCER_CACHE_BINDING');
   if(asOf&&(!Number.isFinite(Date.parse(asOf))||Date.parse(source.checkpoint.lastVerifiedAvailableAt)>Date.parse(asOf)))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
+  // The same already-published input needs no second durable copy after a
+  // restart. Both the history and the current physical publication have been
+  // verified above. In-flight input always takes the normal recovery path.
+  if(staged&&restored&&restored===cached&&!stagedBody&&!inputStage&&!readyInput
+    &&restored.signature===source.signature&&source.signature===signature(stat)
+    &&stableJson(restored.sourceProof)===stableJson(source.sourceProof)){
+    const fragment=validateCanonicalCvdFragment(restored.fragment);
+    if(fragment.resolverIdentity!==resolverIdentity||fragment.sourceCheckpointHash!==source.checkpoint.checkpointHash
+      ||fragment.sourceOrdinal!==source.checkpoint.lastVerifiedLedgerOrdinal
+      ||fragment.sourceRecordHash!==source.checkpoint.lastVerifiedRecordHash
+      ||fragment.cvd.cutoffReceivedAt!==(source.checkpoint.lastVerifiedAvailableAt??null)
+      ||fragment.cvd.sourceLedgerIdentity!==source.checkpoint.sourceLedgerIdentity
+      ||restored.origin!==history.origin)fail('OBSERVATION_PRODUCER_CACHE_BINDING');
+    resident.set(residentKey,restored);while(resident.size>2)resident.delete(resident.keys().next().value);
+    pending.delete(residentKey);
+    return {state:restored.state,history,complete:true,reason:'PRODUCER_FRAGMENT_CAUGHT_UP',
+      sourceProgress:{...source.sourceProof,readBytes:0,verifiedReadBytes:source.sourceProof.readBytes,
+        processedRecords:0,cached:true,stage:'RESTORED_VERIFIED_PUBLICATION'}};
+  }
   // Persist the verified input in its own request. Combining a durable input
   // commit with the first derivation chunk exceeded the original worker budget
   // under simultaneous daily-writer load. No source checkpoint is promoted here.
