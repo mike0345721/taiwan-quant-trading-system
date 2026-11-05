@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import crypto from 'node:crypto';
-import { digest, stableJson } from './cvd-observation-core.mjs';
+import { digest, stableJson,stableJsonDigest } from './cvd-observation-core.mjs';
 import { evaluateBestQuoteEligibility } from './tx-intraday-pressure-path-efficiency.mjs';
 import { createMarketStructureState,appendMarketStructureBars,marketStructureSnapshot } from './market-structure-core.mjs';
 
@@ -15,6 +15,11 @@ const iso=ms=>new Date(ms).toISOString();
 const columns={quotes:'origin,ordinal,identity,event_ms,at,json',points:'origin,ordinal,segment,at,minute,buy,sell,unknown,total,valid,json',
   trades:'origin,ordinal,segment,event_ms,at,price,volume,bin,json',reasons:'origin,ordinal,segment,at,code'};
 const fileStamp=file=>{const s=fs.statSync(file,{bigint:true});return `${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`;};
+// Logical input JSON payload limits, not SQLite page/journal I/O or the small
+// integrity/index metadata written by the enclosing transaction.
+export const INPUT_STAGE_LIMITS=Object.freeze({chunks:2,bytes:2*1024*1024,chunkBytes:1024*1024,chunkEvents:1000});
+const inputKey=(generation,index)=>`pending-input-${generation}-${index}`;
+const inputAnchor=event=>event?{ordinal:event.ledgerOrdinal,hash:event.recordHash}:null;
 export class MarketObservationStore {
   constructor(file,binding){
     if(!path.isAbsolute(file)||!file.endsWith('.observation.sqlite'))throw Error('OBSERVATION_STORE_PATH_INVALID');
@@ -72,11 +77,107 @@ export class MarketObservationStore {
     for(let n=0;n<chunks;n++)this.setMeta(`pending-source-${n}`,rollingCanonicalEvents.slice(n*1000,(n+1)*1000));
     this.setMeta('pending-source',{...source,checkpoint,chunks});
   }
+  inputStage(){const header=this.getMeta('pending-input');
+    if(header&&header.generation!==this.inputGeneration(header.source))throw Error('OBSERVATION_INPUT_GENERATION_BINDING');
+    return header;}
+  inputGeneration(source){return digest(stableJson({binding:this.getMeta('binding'),
+    physicalHash:source.sourceProof.originalPhysicalSha256,checkpointHash:source.checkpoint.checkpointHash}));}
+  inputHeader(source){const {rollingCanonicalEvents:events,...checkpoint}=source.checkpoint;
+    return {format:'bounded-input-v1',state:'STAGING',generation:this.inputGeneration(source),source:{...source,checkpoint},
+      totalEvents:events.length,nextEvent:0,chunks:[],firstEvent:inputAnchor(events[0]),lastEvent:inputAnchor(events.at(-1))};}
+  stageSourceStep(source){
+    if(!this.pendingIntegrity)throw Error('OBSERVATION_STORE_TRANSACTION_REQUIRED');
+    const generation=this.inputGeneration(source),events=source.checkpoint.rollingCanonicalEvents;
+    let header=this.inputStage();
+    if(header&&header.generation!==generation)throw Error('OBSERVATION_INPUT_STAGE_SOURCE_CHANGED');
+    if(!header)header=this.inputHeader(source);
+    if(header.state!=='STAGING'||header.totalEvents!==events.length||header.nextEvent>events.length)throw Error('OBSERVATION_INPUT_STAGE_INVALID');
+    let written=0,count=0;
+    // Reserve the final header and two new descriptors before spending bytes on
+    // rows. The header itself is part of this request's persistence budget.
+    const reserve=Buffer.byteLength(JSON.stringify(header))+2048;
+    if(reserve>INPUT_STAGE_LIMITS.bytes)throw Error('OBSERVATION_INPUT_HEADER_BUDGET');
+    while(header.nextEvent<events.length&&count<INPUT_STAGE_LIMITS.chunks){
+      const chunk={generation,index:header.chunks.length,start:header.nextEvent,events:[]};
+      let bytes=Buffer.byteLength(JSON.stringify(chunk));
+      const limit=Math.min(INPUT_STAGE_LIMITS.chunkBytes,INPUT_STAGE_LIMITS.bytes-reserve-written);
+      while(header.nextEvent+chunk.events.length<events.length&&chunk.events.length<INPUT_STAGE_LIMITS.chunkEvents){
+        const event=events[header.nextEvent+chunk.events.length],size=Buffer.byteLength(JSON.stringify(event))+(chunk.events.length?1:0);
+        if(bytes+size>limit)break;chunk.events.push(event);bytes+=size;
+      }
+      if(!chunk.events.length){if(!count)throw Error('OBSERVATION_INPUT_EVENT_BUDGET');break;}
+      const json=JSON.stringify(chunk);if(Buffer.byteLength(json)!==bytes)throw Error('OBSERVATION_INPUT_BYTE_ACCOUNTING');
+      this.setMeta(inputKey(generation,chunk.index),chunk);
+      header.chunks.push({index:chunk.index,start:chunk.start,count:chunk.events.length,bytes,hash:digest(json)});
+      header.nextEvent+=chunk.events.length;written+=bytes;count++;
+    }
+    const complete=header.nextEvent===header.totalEvents;
+    if(complete){header.state='READY';this.setMeta('pending-source',header);this.deleteMeta('pending-input');}
+    else this.setMeta('pending-input',header);
+    written+=Buffer.byteLength(JSON.stringify(header));
+    if(written>INPUT_STAGE_LIMITS.bytes)throw Error('OBSERVATION_INPUT_WRITE_BUDGET');
+    return {complete,generation,persistedEvents:header.nextEvent,totalEvents:header.totalEvents,
+      persistedChunks:header.chunks.length,writtenChunks:count,writtenBytes:written,
+      writeMeasurement:'LOGICAL_INPUT_JSON_BYTES_EXCLUDES_SQLITE_IO_AND_INTEGRITY_METADATA'};
+  }
+  inputChunk(header,part){
+    const chunk=this.getMeta(inputKey(header.generation,part.index));
+    if(!chunk||chunk.generation!==header.generation||chunk.index!==part.index||chunk.start!==part.start
+      ||!Array.isArray(chunk.events)||chunk.events.length!==part.count
+      ||digest(JSON.stringify(chunk))!==part.hash)throw Error('OBSERVATION_INPUT_CHUNK_INVALID');
+    return chunk.events;
+  }
+  abandonInput(replacementSource){
+    const header=this.inputStage();if(!header)return;
+    if(this.getMeta('pending-derivation')||this.getMeta('pending-source'))throw Error('OBSERVATION_INPUT_ALREADY_DERIVING');
+    const replacement=this.inputHeader(replacementSource),replacementGeneration=replacement.generation;
+    this.setMeta(`input-abandoned-${header.generation}`,{...header,state:'ABANDONED',replacementGeneration});
+    this.queueInputCleanup(header);this.setMeta('pending-input',replacement);
+  }
+  queueInputCleanup(header){
+    if(this.getMeta('pending-source-cleanup'))throw Error('OBSERVATION_INPUT_CLEANUP_BUSY');
+    const legacy=header.format!=='bounded-input-v1';
+    const chunks=legacy?Array.from({length:header.chunks},(_,index)=>{const key=`pending-source-${index}`;
+      return {key,bytes:this.statement('SELECT length(CAST(json AS BLOB)) bytes FROM meta WHERE key=?').get(key)?.bytes??0};}):
+      header.chunks.map(part=>({key:inputKey(header.generation,part.index),bytes:part.bytes}));
+    this.setMeta('pending-source-cleanup',{generation:header.generation??digest(stableJson(header)),legacy,next:0,chunks});
+  }
+  cleanupSourceStep(){
+    const cleanup=this.getMeta('pending-source-cleanup');if(!cleanup)return {complete:true,deletedChunks:0,deletedBytes:0};
+    let count=0,bytes=0,retainedChunks=0,retainedBytes=0;const reserve=Buffer.byteLength(JSON.stringify(cleanup))+2048;
+    while(cleanup.next<cleanup.chunks.length&&count<INPUT_STAGE_LIMITS.chunks){
+      const part=cleanup.chunks[cleanup.next],row=this.statement('SELECT length(CAST(json AS BLOB)) bytes FROM meta WHERE key=?').get(part.key);
+      if(row&&row.bytes!==part.bytes)throw Error('OBSERVATION_INPUT_CLEANUP_SIZE');
+      if(cleanup.legacy&&part.bytes+reserve>INPUT_STAGE_LIMITS.bytes){
+        // Existing caches allowed 16 MiB per row. Retain that derivative with
+        // a receipt rather than exceeding the new budget or blocking forever.
+        this.setMeta(`input-cleanup-retained-${cleanup.generation}-${cleanup.next}`,
+          {state:'DEFERRED_RETAINED',generation:cleanup.generation,key:part.key,bytes:part.bytes,reason:'LEGACY_CHUNK_EXCEEDS_CLEANUP_BUDGET'});
+        cleanup.next++;count++;retainedChunks++;retainedBytes+=part.bytes;continue;
+      }
+      if(bytes+part.bytes+reserve>INPUT_STAGE_LIMITS.bytes)break;
+      this.deleteMeta(part.key);cleanup.next++;count++;bytes+=part.bytes;
+    }
+    const complete=cleanup.next===cleanup.chunks.length;
+    if(complete)this.deleteMeta('pending-source-cleanup');else this.setMeta('pending-source-cleanup',cleanup);
+    return {complete,deletedChunks:count-retainedChunks,deletedBytes:bytes,retainedChunks,retainedBytes};
+  }
   pendingSource(){const header=this.getMeta('pending-source');if(!header)return null;
+    if(header.format==='bounded-input-v1'){
+      if(header.generation!==this.inputGeneration(header.source))throw Error('OBSERVATION_INPUT_GENERATION_BINDING');
+      if(header.state!=='READY'||header.nextEvent!==header.totalEvents)throw Error('OBSERVATION_INPUT_NOT_READY');
+      const events=[];for(const [index,part] of header.chunks.entries()){
+        if(part.index!==index||part.start!==events.length)throw Error('OBSERVATION_INPUT_CHUNK_ORDER');
+        events.push(...this.inputChunk(header,part));}
+      if(events.length!==header.totalEvents)throw Error('OBSERVATION_INPUT_EVENT_COUNT');
+      const checkpoint={...header.source.checkpoint,rollingCanonicalEvents:events},{checkpointHash,...body}=checkpoint;
+      if(stableJsonDigest(body)!==checkpointHash)throw Error('OBSERVATION_INPUT_CHECKPOINT_HASH');
+      return {...header.source,checkpoint};
+    }
     const events=[];for(let n=0;n<header.chunks;n++){const rows=this.getMeta(`pending-source-${n}`);if(!rows)throw Error('OBSERVATION_PENDING_SOURCE_MISSING');events.push(...rows);}
     const {chunks,...source}=header;return {...source,checkpoint:{...header.checkpoint,rollingCanonicalEvents:events}};}
   clearPending(){const header=this.getMeta('pending-source');
-    for(let n=0;n<(header?.chunks??0);n++)this.deleteMeta(`pending-source-${n}`);
+    if(header)this.queueInputCleanup(header);
     this.deleteMeta('pending-source');this.deleteMeta('pending-derivation');}
   transaction(fn){this.assertVerified();this.db.exec('BEGIN IMMEDIATE');const origin=this.origin;
     this.pendingIntegrity={};this.pendingIndexes=structuredClone(this.indexes);

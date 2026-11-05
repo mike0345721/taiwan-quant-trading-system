@@ -33,8 +33,13 @@ test('durable input stage survives restart and a newer publication without losin
   const rows=records(6200,1000),f=fixture(producer(rows.slice(0,6000)));
   let result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
   assert.equal(result.reason,'VERIFIED_SOURCE_PENDING_DERIVATION');
-  result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
-  assert.equal(result.reason,'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION');assert.equal(result.state,null);
+  for(let poll=0;poll<100;poll++){
+    result=readMarketObservationProducer({...f,persistentHistory:true,staged:true});
+    assert.equal(result.state,null,'partial input persistence must never derive or publish');
+    if(result.sourceProgress?.stage==='SOURCE_PERSISTED_NOT_DERIVED')break;
+  }
+  assert.equal(result.reason,'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION');
+  assert.equal(result.sourceProgress.stage,'SOURCE_PERSISTED_NOT_DERIVED');
   fs.writeFileSync(f.checkpointPath,wire(producer(rows)));clearMarketObservationProducerCache();
   let sawPrevious=false;
   for(let n=0;n<100;n++){

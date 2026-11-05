@@ -5,7 +5,7 @@ import { buildCru34LiveCheckpoint } from './cru34-live-checkpoint.mjs';
 import { updateCanonicalCvdFragment,validateCanonicalCvdFragment } from './cvd-canonical-fragment.mjs';
 import { appendMarketObservationCanonical } from './market-observation-core.mjs';
 import { classifyTxChartSession } from './dashboard-tx-chart.mjs';
-import { stableJson, digest, SAFETY } from './cvd-observation-core.mjs';
+import { stableJson,stableJsonDigest, digest, SAFETY } from './cvd-observation-core.mjs';
 import { MarketObservationStore } from './market-observation-store.mjs';
 
 const MAX_SOURCE=96*1024*1024,MAX_CACHE=64*1024*1024,TAIL=20000,MAX_EVENT_BYTES=128*1024;
@@ -183,6 +183,36 @@ function migrateLegacyCache(history,legacy){
   body.migratedFromLegacyBytesHash=legacy.verifiedCacheBytesHash;history.checkpoint(body);history.deleteMeta('legacy-migration');return body;
 }
 
+function canReplacePartialInput(history,header,source,cached){
+  const old=header.source.checkpoint,next=source.checkpoint,before=cached?.fragment?.state;
+  if(next.sourceLedgerIdentity!==old.sourceLedgerIdentity||next.lastVerifiedLedgerOrdinal<old.lastVerifiedLedgerOrdinal
+    ||(before&&before.cvd.sourceLedgerIdentity!==next.sourceLedgerIdentity))return false;
+  const byOrdinal=new Map(next.rollingCanonicalEvents.map(event=>[event.ledgerOrdinal,event]));
+  const tick=before?.cvd?.series?.at(-1),anchor=before?
+    {ordinal:before.lastTickOrdinal??tick?.ledgerOrdinal??before.lastCanonicalOrdinal,
+      hash:before.lastTickHash??tick?.recordHash??before.lastCanonicalHash}:header.firstEvent;
+  for(const expected of [anchor,header.lastEvent]){
+    if(!expected||byOrdinal.get(expected.ordinal)?.recordHash!==expected.hash)return false;
+  }
+  // Check the persisted prefix and reconstruct the entire original vector,
+  // including its not-yet-persisted middle, against the old sealed checkpoint.
+  const original=[];
+  for(const [index,part] of header.chunks.entries()){
+    if(part.index!==index||part.start!==original.length)return false;
+    original.push(...history.inputChunk(header,part));
+  }
+  for(const event of original){
+    if(before&&event.ledgerOrdinal<=before.lastCanonicalOrdinal)continue;
+    const replacement=byOrdinal.get(event.ledgerOrdinal);
+    if(!replacement||stableJson(replacement)!==stableJson(event))return false;
+  }
+  const from=original.at(-1)?.ledgerOrdinal??((header.firstEvent?.ordinal??0)-1);
+  original.push(...next.rollingCanonicalEvents.filter(event=>event.ledgerOrdinal>from&&event.ledgerOrdinal<=header.lastEvent.ordinal));
+  if(original.length!==header.totalEvents)return false;
+  const {checkpointHash,...body}=old;
+  return stableJsonDigest({...body,rollingCanonicalEvents:original})===checkpointHash;
+}
+
 export function readMarketObservationProducer({checkpointPath,cacheRoot=null,calendar,asOf,staged=false,persistentHistory=false}={}){
   if(typeof checkpointPath!=='string'||!path.isAbsolute(checkpointPath))fail('OBSERVATION_PRODUCER_PATH_REQUIRED');
   if(typeof staged!=='boolean')fail('OBSERVATION_PRODUCER_STAGING_INVALID');
@@ -198,18 +228,29 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
       while(stores.size>2){const oldest=stores.keys().next().value;stores.get(oldest).close();stores.delete(oldest);}}
   };
   if(storeFile&&fs.existsSync(storeFile))openHistory();
-  if(history){const wasVerified=history.verified,verification=history.verifyStep();
+  if(history){const wasVerified=history.verified,previousStamp=history.knownStamp,verification=history.verifyStep();
+    if(previousStamp!==history.knownStamp){const input=pending.get(residentKey);if(input)delete input.readyGeneration;}
     if(!wasVerified||!verification.complete)return {state:null,complete:false,reason:'DERIVED_HISTORY_VERIFYING',sourceProgress:verification};}
+  while(history?.getMeta('pending-source-cleanup')){
+    const cleanup=history.transaction(()=>history.cleanupSourceStep());
+    if(staged)return {state:null,complete:false,reason:'VERIFIED_SOURCE_PENDING_DERIVATION',
+      sourceProgress:{stage:'SOURCE_INPUT_CLEANUP_PENDING',processedRecords:0,...cleanup}};
+  }
   const stat=fs.lstatSync(file,{bigint:true});if(!stat.isFile()||stat.isSymbolicLink()||stat.size>BigInt(MAX_SOURCE))fail('OBSERVATION_PRODUCER_SOURCE_INVALID');
   let cached=resident.get(residentKey);
   if(cached&&asOf&&Date.parse(cached.fragment?.state?.cvd?.cutoffReceivedAt)>Date.parse(asOf))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
   const stagedBody=history?.getMeta('pending-derivation')??null;
-  if(!stagedBody&&cached&&(!persistentHistory||history)&&cached.signature===signature(stat)&&cached.resolverIdentity===resolverIdentity)return {state:cached.state,complete:true,
+  const inputStage=history?.inputStage(),readyInput=history?.getMeta('pending-source');
+  if(stagedBody&&!readyInput)fail('OBSERVATION_PENDING_SOURCE_MISSING');
+  if(readyInput?.format==='bounded-input-v1'&&readyInput.generation!==history.inputGeneration(readyInput.source))fail('OBSERVATION_INPUT_GENERATION_BINDING');
+  if(!stagedBody&&!inputStage&&!readyInput&&cached&&(!persistentHistory||history)&&cached.signature===signature(stat)&&cached.resolverIdentity===resolverIdentity)return {state:cached.state,complete:true,
     reason:'PRODUCER_FRAGMENT_CAUGHT_UP',history,sourceProgress:{...cached.sourceProof,readBytes:0,processedRecords:0,cached:true}};
   let source,fromPending=false,newerPublicationPending=false;
   const previousPending=pending.get(residentKey);
-  if(stagedBody||history?.getMeta('pending-source')){
-    source=previousPending?.source??history.pendingSource();if(!source)fail('OBSERVATION_PENDING_SOURCE_MISSING');
+  if(stagedBody||readyInput){
+    const residentMatches=previousPending&&(!readyInput?.generation||
+      (previousPending.readyGeneration===readyInput.generation&&history.inputGeneration(previousPending.source)===readyInput.generation));
+    source=residentMatches?previousPending.source:history.pendingSource();if(!source)fail('OBSERVATION_PENDING_SOURCE_MISSING');
     fromPending=true;newerPublicationPending=source.signature!==signature(stat);
   }else if(staged&&previousPending&&previousPending.resolverIdentity===resolverIdentity
       &&previousPending.cacheFile===cacheFile){
@@ -255,10 +296,22 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
   // Persist the verified input in its own request. Combining a durable input
   // commit with the first derivation chunk exceeded the original worker budget
   // under simultaneous daily-writer load. No source checkpoint is promoted here.
-  if(history&&staged&&!stagedBody&&!history.getMeta('pending-source')){
-    history.transaction(()=>history.stageSource(source));pending.set(residentKey,{source,resolverIdentity,cacheFile});
-    return {state:null,complete:false,reason:'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION',sourceProgress:{...source.sourceProof,
-      processedRecords:0,stage:'SOURCE_PERSISTED_NOT_DERIVED',historyOpenElapsedMs,persistenceElapsedMs:performance.now()-deriveStarted-historyOpenElapsedMs}};
+  if(history&&!stagedBody&&!history.getMeta('pending-source')&&(staged||history.inputStage())){
+    const partial=history.inputStage();
+    if(partial&&partial.generation!==history.inputGeneration(source)){
+      if(!canReplacePartialInput(history,partial,source,cached))fail('OBSERVATION_INPUT_REACQUISITION_GAP');
+      history.transaction(()=>history.abandonInput(source));
+      pending.set(residentKey,{source,resolverIdentity,cacheFile});
+      if(staged)return {state:null,complete:false,reason:'VERIFIED_SOURCE_PENDING_DERIVATION',
+        sourceProgress:{...source.sourceProof,processedRecords:0,stage:'SOURCE_REACQUISITION_CLEANUP_PENDING'}};
+      while(history.getMeta('pending-source-cleanup'))history.transaction(()=>history.cleanupSourceStep());
+    }
+    let persisted;
+    do{persisted=history.transaction(()=>history.stageSourceStep(source));}while(!staged&&!persisted.complete);
+    pending.set(residentKey,{source,resolverIdentity,cacheFile});
+    if(staged)return {state:null,complete:false,reason:persisted.complete?'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION':'VERIFIED_SOURCE_PENDING_DERIVATION',sourceProgress:{...source.sourceProof,
+      processedRecords:0,stage:persisted.complete?'SOURCE_PERSISTED_NOT_DERIVED':'SOURCE_PERSISTING',...persisted,
+      historyOpenElapsedMs,persistenceElapsedMs:performance.now()-deriveStarted-historyOpenElapsedMs}};
   }
   const derive=()=>{
   const previous=stagedBody??cached;
@@ -278,7 +331,7 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
   };
   const {body,fragment,state}=history?history.transaction(derive):derive();
   if(!fragment.complete){
-    pending.set(residentKey,{source,resolverIdentity,cacheFile});
+    pending.set(residentKey,{source,resolverIdentity,cacheFile,readyGeneration:readyInput?.generation});
     return {state:null,history,complete:false,reason:'DERIVATION_CATCHUP_PENDING',sourceProgress:{...source.sourceProof,
       processedRecords:fragment.canonicalEvents.length,derivedThroughOrdinal:fragment.checkpoint.state.lastCanonicalOrdinal,
       publishedThroughOrdinal:cached?.fragment?.state.sourceOrdinal??null,readBytes:fromPending?0:source.sourceProof.readBytes,
