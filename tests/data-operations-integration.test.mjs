@@ -125,7 +125,7 @@ test('Windows simultaneous catch-up launchers wait for owned guard then complete
   const f=buildFixture(t,true), guard=path.join(f.options.outputRoot,'.manual-run.guard'), owner=crypto.randomUUID();
   fs.mkdirSync(f.options.outputRoot,{recursive:true});fs.writeFileSync(guard,owner,{flag:'wx'});
   const children=CHECKPOINT_TYPES.map(checkpoint=>{
-    const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(source,'scripts/run-daily-data-operations-hidden.ps1'),
+    const args=['-NoProfile','-File',path.join(source,'scripts/run-daily-data-operations-hidden.ps1'),
       '-DataRoot',f.options.dataRoot,'-OutputRoot',f.options.outputRoot,'-ManifestPath',f.options.manifestPath,
       '-EvidenceRoot',f.options.evidenceRoot,'-CalendarPath',calendarPath,'-Checkpoint',checkpoint,
       '-RunMode','CANDIDATE_SCHEDULER_TEST','-TriggerIdentity',`TWQuant-CRU52-A2B-Test-${crypto.randomUUID()}`,'-TradeDate',f.options.tradeDate];
@@ -274,7 +274,7 @@ test('B1 source bindings fail closed on registry drift or source/output collisio
 });
 test('Windows installer dry validation requires explicit schedules and exact candidate actions', { skip: process.platform !== 'win32' }, () => {
   const installer = path.join(source, 'scripts/install-daily-data-operations-automation.ps1');
-  const common = ['-NoProfile','-ExecutionPolicy','Bypass','-File',installer,'-CandidateTest','-TaskPrefix','TWQuant-CRU52-A2B-Test-unit',
+  const common = ['-NoProfile','-File',installer,'-CandidateTest','-TaskPrefix','TWQuant-CRU52-A2B-Test-unit',
     '-DataRoot',path.join(source,'data'),'-OutputRoot',path.join(source,'data/quality/daily-data-operations/unit'),
     '-ManifestPath',path.join(source,'data/inputs/index.json'),'-EvidenceRoot',path.join(source,'data/inputs'),
     '-CalendarPath',calendarPath,'-TradeDate','2026-09-09'];

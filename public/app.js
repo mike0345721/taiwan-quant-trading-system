@@ -4,7 +4,7 @@ const state = {
   guestReadOnly: false, guestExpiresAt: null, guestExpiryMono: null, csrfToken: '', snapshot: null, history: [], historyDays: 20,
   v2: null, v2Backtests: null, v2Days: 60, v2Delta: 1, v2Contract: '', prelive: null,
   replayCursor: 1, replayTotalBars: 0, replayDate: '',
-  decisionWorkspace: null, lockedDecisionSnapshot: null, journalIntent: 'NO_TRADE',
+  decisionWorkspace: null, lockedDecisionSnapshot: null, decisionCapturePair: null, decisionCaptureActionId: 0, dashboardRequestId: 0, journalIntent: 'NO_TRADE',
   gptQuestion: '現在市場發生什麼？',
   txChartTimeframe: '5m', txChartPayload: null, txChartApi: null, txChartSeries: null,
   txChartLevelLines: [], txChartMarkers: null, txChartIdentity: null, txChartBarCount: 0, txChartVolumeCount: 0,
@@ -159,6 +159,7 @@ function show(view) {
   if (view === 'dashboard-view') flowChannel.start();
   else {
     flowChannel.stop(); flowChannel.reset(); dataOperationsChannel.reset();
+    clearDecisionCapture();
     $('data-operations-content').textContent = '登入後重新讀取資料營運紀錄。';
     $('data-operations-read-status').textContent = '尚未讀取';
   }
@@ -4917,7 +4918,7 @@ function renderMarketChangeFeed(feed) {
   }
 }
 
-function renderTxDecisionChart(payload, { fit = false } = {}) {
+function renderTxDecisionChart(payload, { fit = false, replaceData = false } = {}) {
   state.txChartPayload = payload;
   renderDecisionLevelWatch(state.levelWatch);
   renderObservedFlow(flowChannel.view());
@@ -4945,7 +4946,7 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   const dataEligible = payloadEligible && data.candles.length > 0;
   if (payloadEligible && !dataEligible) visibleFailureReason = 'CHART_VALID_CANDLES_UNAVAILABLE';
   const identity = `${payload?.timeframe}|${payload?.tradeDate}|${payload?.sessionId}|${payload?.actualContract}`;
-  const mustReset = !dataEligible || state.txChartIdentity !== identity || data.candles.length < state.txChartBarCount;
+  const mustReset = replaceData || !dataEligible || state.txChartIdentity !== identity || data.candles.length < state.txChartBarCount;
   if (chart && state.txChartSeries) {
     try {
       if (mustReset) {
@@ -4978,9 +4979,11 @@ function renderTxDecisionChart(payload, { fit = false } = {}) {
   $('dw-chart-empty').classList.toggle('hidden', visibleRenderReady);
   dwText('dw-chart-empty-reason', dwHumanize(visibleFailureReason));
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
+  return { visibleRenderReady, reason: visibleRenderReady ? null : visibleFailureReason };
 }
 
 async function loadTxDecisionChart({ fit = false } = {}) {
+  if (state.decisionCaptureBusy) return;
   if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
   if (state.txChartLoading) {
     state.txChartPendingFit = state.txChartPendingFit || fit;
@@ -5112,11 +5115,10 @@ async function apiRequestCru46Proof(body) {
   } catch { /* health stays fail-closed; acceptance tooling reads the reason */ }
 }
 
-function renderDecisionWorkspace(workspace) {
-  workspace = workspace ? { ...workspace, observedFlow: flowChannel.view() } : null;
+function renderDecisionWorkspace(workspace, { captured = false } = {}) {
+  workspace = workspace ? { ...workspace, observedFlow: captured ? workspace.observedFlow : flowChannel.view() } : null;
   state.decisionWorkspace = workspace;
-  state.lockedDecisionSnapshot = null;
-  dwText('dw-snapshot-status', 'Snapshot 尚未鎖定');
+  renderDecisionCaptureStatus();
   const global = workspace?.globalStatus || {};
   const decision = workspace?.decisionSummary || {};
   const chart = workspace?.priceChartSlot || {};
@@ -5175,7 +5177,8 @@ function renderDecisionWorkspace(workspace) {
   const compactCapabilityValues = [decision.direction, decision.globalAlignment, decision.risk, decision.entryQuality, decision.strongestContraryEvidence?.availability];
   $('dw-focus-mode')?.classList.toggle('is-capability-limited', compactCapabilityValues.every((value) => !value || ['UNAVAILABLE', 'NOT_IMPLEMENTED'].includes(value)));
 
-  dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
+  // A rendered chart owns its visible status; payload readiness cannot replace a render failure.
+  if (!state.txChartPayload) dwText('dw-chart-status', dwHumanize(chart.status || 'NOT_IMPLEMENTED'));
   const reference = chart.price?.availability === 'AVAILABLE' ? fmt(chart.price.value) : null;
   terminalWrite('dw-reference-price', reference, { reason: chart.price?.reason || chart.reason || 'PRICE_REFERENCE_UNAVAILABLE' });
   for (const [id, field, fallback] of [
@@ -5390,13 +5393,15 @@ async function copyToClipboard(value) {
 }
 
 async function loadDashboard() {
+  if (state.decisionCaptureBusy) return;
+  const dashboardRequestId = ++state.dashboardRequestId;
   const flowTicket = flowChannel.ticket();
   const terminalRoot = $('decision-workspace');
   terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
   terminalRoot?.setAttribute('aria-busy', 'true');
   if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
   const payload = await api('/api/v1/dashboard');
-  if (!(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
+  if (dashboardRequestId !== state.dashboardRequestId || !(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
   state.homeDashboardError = null;
   const partial = payload.service?.degraded;
   let partialNotice = $('candidate-partial-data-notice');
@@ -5527,12 +5532,158 @@ document.querySelectorAll('[data-gpt-question]').forEach((button) => button.addE
 }));
 $('dw-health-toggle')?.addEventListener('click', () => $('dw-data-health-panel').classList.remove('hidden'));
 $('dw-health-close')?.addEventListener('click', () => $('dw-data-health-panel').classList.add('hidden'));
-$('dw-lock-snapshot').addEventListener('click', () => {
-  const snapshot = state.decisionWorkspace?.snapshot;
-  if (!snapshot) { dwText('dw-snapshot-status', 'Snapshot UNAVAILABLE'); return; }
-  state.lockedDecisionSnapshot = JSON.parse(JSON.stringify(snapshot));
-  dwText('dw-snapshot-status', `LOCKED ${snapshot.snapshotTime} · ${snapshot.snapshotHash}`);
+function decisionCaptureIdentity(chart) {
+  return ['tradeDate','actualContract','session','sessionId','continuityEpoch'].map(key => chart?.[key] ?? null);
+}
+function createDecisionCaptureController({ request, selection, ticket, currentSession, apply, clipboard,
+  schedule = setTimeout, cancel = clearTimeout, timeoutMs = 10_000, busy = () => {} }) {
+  let flight = null, copyFlight = null, locked = null, generation = 0;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const present = () => locked && currentSession(locked.ticket) ? locked : null;
+  function capture() {
+    if (flight) return flight.promise;
+    const session = ticket(), chosen = selection(), epoch = generation;
+    if (!currentSession(session)) return Promise.reject(Error('DECISION_CAPTURE_SESSION_CHANGED'));
+    if (chosen.timeframe !== '5m') return Promise.reject(Error('DECISION_CAPTURE_REQUIRES_5M'));
+    const controller = new AbortController(), slot = { controller, promise: null };
+    const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () =>
+      reject(Error(controller.signal.reason || 'DECISION_CAPTURE_CANCELLED')), { once: true }));
+    const timer = schedule(() => controller.abort('DECISION_CAPTURE_TIMEOUT'), timeoutMs);
+    slot.promise = Promise.race([Promise.resolve().then(() => request(chosen.timeframe, controller.signal)), aborted]).then(payload => {
+      const now = selection(), data = payload?.data, workspace = data?.workspace, chart = data?.chart, snapshot = workspace?.snapshot;
+      if (generation !== epoch || !currentSession(session)) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
+      if (chosen.timeframe !== now.timeframe || !same(chosen.identity, now.identity)) throw Error('DECISION_CAPTURE_VIEW_CHANGED');
+      if (data?.schemaVersion !== 'decision-capture-v1' || chart?.timeframe !== chosen.timeframe
+          || !snapshot || data.captureId !== snapshot.snapshotHash || !/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')
+          || data.capturedAt !== snapshot.snapshotTime || data.chartCutoff !== chart.asOf
+          || !Number.isFinite(Date.parse(chart.asOf)) || !Number.isFinite(Date.parse(snapshot.snapshotTime))
+          || Date.parse(chart.asOf) > Date.parse(snapshot.snapshotTime)
+          || !chart.actualContract || !chart.tradeDate || !chart.session
+          || snapshot.contract !== chart.actualContract || snapshot.tradeDate !== chart.tradeDate || snapshot.session !== chart.session
+          || !same(decisionCaptureIdentity(chart), chosen.identity)
+          || typeof workspace.chatGptCopy !== 'string'
+          || !workspace.chatGptCopy.includes(`Snapshot: ${snapshot.snapshotTime}\nHash: ${snapshot.snapshotHash}\n`)) throw Error('DECISION_CAPTURE_RESPONSE_MISMATCH');
+      if (Number.isFinite(Date.parse(now.asOf)) && Date.parse(now.asOf) > Date.parse(chart.asOf)) throw Error('DECISION_CAPTURE_SUPERSEDED_BY_LIVE_CHART');
+      const number = value => value == null || value === '' ? null : Number(value);
+      if (number(snapshot.price?.value) !== number(chart.lastPrice)) throw Error('DECISION_CAPTURE_PRICE_MISMATCH');
+      if (snapshot.marketObservation && (snapshot.marketObservation.snapshotId !== chart.marketObservation?.snapshotId
+          || snapshot.marketObservation.cutoff !== chart.asOf
+          || ['actualContract', 'tradeDate', 'session'].some(key => chart.marketObservation.identity?.[key] !== chart[key]))) throw Error('DECISION_CAPTURE_OBSERVATION_MISMATCH');
+      const frozenSnapshot = JSON.parse(JSON.stringify(snapshot));
+      const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+      const pair = Object.freeze({ snapshot: freeze(frozenSnapshot), copyText: workspace.chatGptCopy,
+        chartCutoff: chart.asOf, timeframe: chart.timeframe, ticket: session });
+      // The apply callback is synchronous: chart, summary and lock advance as one UI action.
+      apply(data, pair);
+      locked = pair;
+      return pair;
+    }).finally(() => { cancel(timer); if (flight === slot) { flight = null; busy(false); } });
+    flight = slot; busy(true); return slot.promise;
+  }
+  function copy() {
+    if (copyFlight) return copyFlight;
+    const operation = (async () => {
+      const pair = flight ? await flight.promise : present() || await capture();
+      if (!currentSession(pair.ticket)) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
+      await clipboard(pair.copyText);
+      return pair;
+    })();
+    copyFlight = operation;
+    operation.finally(() => { if (copyFlight === operation) copyFlight = null; }).catch(() => {});
+    return operation;
+  }
+  function reset() {
+    generation += 1; locked = null;
+    flight?.controller.abort('DECISION_CAPTURE_SESSION_CHANGED');
+    flight = null; copyFlight = null; busy(false);
+  }
+  function adoptObservation(snapshot, copyText, timeframe) {
+    const session = ticket();
+    if (!currentSession(session) || !snapshot?.marketObservation || !/^[a-f0-9]{64}$/.test(snapshot.snapshotHash || '')
+        || snapshot.marketObservation.cutoff !== (snapshot.chartCutoff ?? snapshot.snapshotTime)) throw Error('DECISION_CAPTURE_OBSERVATION_MISMATCH');
+    reset();
+    const cloned = JSON.parse(JSON.stringify(snapshot));
+    const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+    locked = Object.freeze({ snapshot: freeze(cloned), copyText, chartCutoff: snapshot.chartCutoff ?? snapshot.snapshotTime, timeframe, ticket: session });
+    return locked;
+  }
+  return Object.freeze({ capture, copy, reset, adoptObservation, locked: present,
+    context: () => flight ? flight.promise : Promise.resolve(present() || capture()) });
+}
+function renderDecisionCaptureStatus(pair = state.decisionCapturePair) {
+  if (!pair) { dwText('dw-snapshot-status', 'Snapshot 尚未鎖定；鎖定或複製時以 5 分 K 擷取最新快照。'); return; }
+  const snapshot = pair.snapshot;
+  dwText('dw-snapshot-status', `LOCKED ${snapshot.snapshotTime} · ${snapshot.snapshotHash} · 固定價格 ${fmt(snapshot.price?.value)} · VWAP ${fmt(snapshot.VWAP?.value, 2)} · 圖表截至 ${pair.chartCutoff} · 主圖仍持續即時更新；再次鎖定才更換此快照。`);
+}
+function applyDecisionCapture(data, pair) {
+  state.dashboardRequestId += 1;
+  state.txChartRequestId += 1;
+  state.txChartAbortController?.abort('CHART_CAPTURE_APPLIED');
+  state.marketPulse = data.workspace.marketPulse;
+  state.levelWatch = data.workspace.levelWatch;
+  state.txChartPayload = data.chart;
+  // Explicit capture replaces the complete selected snapshot, including intervening bars and historical corrections.
+  const rendered = renderTxDecisionChart(data.chart, { replaceData: true });
+  if (rendered?.visibleRenderReady !== true) throw Error(`DECISION_CAPTURE_CHART_RENDER_FAILED:${rendered?.reason || 'CHART_RENDER_UNVERIFIED'}`);
+  renderDecisionWorkspace(data.workspace, { captured: true });
+  globalThis.MarketObservationWorkspace?.capture(data.chart.marketObservation);
+  state.decisionCapturePair = pair;
+  state.lockedDecisionSnapshot = pair.snapshot;
+  renderDecisionCaptureStatus(pair);
+  $('decision-workspace')?.setAttribute('data-dashboard-load-state', 'READY');
+  $('decision-workspace')?.setAttribute('aria-busy', 'false');
+}
+const decisionCaptureController = createDecisionCaptureController({
+  request: (timeframe, signal) => api(`/api/v1/decision-capture?timeframe=${encodeURIComponent(timeframe)}`, { cache: 'no-store', signal }),
+  selection: () => ({ timeframe: state.txChartTimeframe, identity: decisionCaptureIdentity(state.txChartPayload), asOf: state.txChartPayload?.asOf }),
+  ticket: () => ({ csrf: state.csrfToken, flow: flowChannel.ticket() }),
+  currentSession: token => Boolean(token?.csrf && token.csrf === state.csrfToken && !state.guestReadOnly && flowChannel.isCurrentSession(token.flow)),
+  apply: applyDecisionCapture,
+  clipboard: value => copyToClipboard(value),
+  busy: value => {
+    state.decisionCaptureBusy = value;
+    if (value) {
+      state.dashboardRequestId += 1; state.txChartRequestId += 1;
+      state.txChartAbortController?.abort('CHART_CAPTURE_PENDING');
+    }
+  },
 });
+function clearDecisionCapture() {
+  decisionCaptureController.reset();
+  globalThis.MarketObservationWorkspace?.reset();
+  state.decisionCaptureActionId += 1;
+  state.decisionCapturePair = null; state.lockedDecisionSnapshot = null;
+  for (const id of ['dw-lock-snapshot','dw-copy-chatgpt']) {
+    const button = $(id); if (button) { button.disabled = false; button.removeAttribute('aria-busy'); }
+  }
+  renderDecisionCaptureStatus(null);
+}
+async function runDecisionCaptureAction(kind) {
+  const lock = $('dw-lock-snapshot'), copy = $('dw-copy-chatgpt');
+  if (lock.disabled || copy.disabled) return;
+  const actionId = ++state.decisionCaptureActionId;
+  const session = state.csrfToken;
+  lock.disabled = true; copy.disabled = true;
+  lock.setAttribute('aria-busy', 'true'); copy.setAttribute('aria-busy', 'true');
+  dwText('dw-journal-feedback', kind === 'copy' && decisionCaptureController.locked() ? '正在複製已鎖定快照…' : '正在擷取同一盤況快照…');
+  try {
+    const pair = await (kind === 'copy' ? decisionCaptureController.copy() : decisionCaptureController.capture());
+    if (session !== state.csrfToken) return;
+    dwText('dw-journal-feedback', `${kind === 'copy' ? '已複製已鎖定快照' : '已擷取並鎖定快照'} · ${pair.snapshot.snapshotTime} · ${pair.snapshot.snapshotHash.slice(0, 12)}… · 主圖繼續即時更新；NOT A TRADING SIGNAL`);
+  } catch (error) {
+    if (session === state.csrfToken) dwText('dw-journal-feedback', error.message === 'DECISION_CAPTURE_REQUIRES_5M'
+      ? '請先切換回 5 分 K，再鎖定或複製新快照；既有鎖定快照仍可複製。其他週期的圖表可照常使用。'
+      : `尚未${kind === 'copy' ? '複製' : '更換快照'} · ${error.message}；既有鎖定快照保持原樣，請確認後重試。`);
+  } finally {
+    if (actionId === state.decisionCaptureActionId) {
+      lock.disabled = false; copy.disabled = false;
+      lock.removeAttribute('aria-busy'); copy.removeAttribute('aria-busy');
+    }
+  }
+}
+
+$('dw-lock-snapshot').addEventListener('click', () => void runDecisionCaptureAction('lock'));
+$('dw-copy-chatgpt').addEventListener('click', () => void runDecisionCaptureAction('copy'));
 window.addEventListener('market-observation-journal', (event) => {
   const observation = event.detail?.snapshot;
   const selected = event.detail?.event;
@@ -5540,7 +5691,14 @@ window.addEventListener('market-observation-journal', (event) => {
   if (!snapshot || !selected || snapshot.marketObservation?.snapshotId !== observation.snapshotId) {
     dwText('dw-journal-feedback', '整合事件快照不可用，未鎖定或儲存。'); return;
   }
-  state.lockedDecisionSnapshot = JSON.parse(JSON.stringify(snapshot));
+  const copyText = observation.journalCopy;
+  if (typeof copyText !== 'string' || !copyText.includes(`Snapshot: ${snapshot.snapshotTime}\nHash: ${snapshot.snapshotHash}\n`)) {
+    dwText('dw-journal-feedback', '整合事件 Copy 與快照不一致，未鎖定。'); return;
+  }
+  let pair;
+  try { pair = decisionCaptureController.adoptObservation(snapshot, copyText, observation.timeframe); }
+  catch (error) { dwText('dw-journal-feedback', error.message); return; }
+  state.decisionCapturePair = pair; state.lockedDecisionSnapshot = pair.snapshot;
   state.journalIntent = 'NO_TRADE';
   document.querySelectorAll('[data-journal-intent]').forEach(button => button.classList.toggle('is-selected', button.dataset.journalIntent === 'NO_TRADE'));
   $('dw-journal-setup').value = `${selected.type} · ${selected.id}`;
@@ -5549,13 +5707,6 @@ window.addEventListener('market-observation-journal', (event) => {
   dwText('dw-snapshot-status', `LOCKED 整合事件 ${observation.cutoff} · ${snapshot.snapshotHash}`);
   dwText('dw-journal-feedback', '已鎖定畫面同一快照；請核對後按儲存，Outcome 沿用既有 Review。');
   $('dw-journal-form').scrollIntoView({ block: 'center', behavior: 'smooth' });
-});
-$('dw-copy-chatgpt').addEventListener('click', async () => {
-  const workspace = state.decisionWorkspace;
-  if (!workspace?.chatGptCopy) { dwText('dw-journal-feedback', 'Copy context UNAVAILABLE'); return; }
-  const observationCopy = window.MarketObservationWorkspace?.copyText() || '';
-  await copyToClipboard(workspace.chatGptCopy + (observationCopy ? `\n\n另附三模組觀測快照（各自 cutoff／身分明示）\n${observationCopy}` : ''));
-  dwText('dw-journal-feedback', 'ChatGPT discussion context copied · NOT A TRADING SIGNAL');
 });
 $('dw-copy-gpt-prompt').addEventListener('click', async () => {
   const button = $('dw-copy-gpt-prompt');
@@ -5570,14 +5721,17 @@ $('dw-copy-gpt-prompt').addEventListener('click', async () => {
   openLink?.classList.add('hidden');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
-  feedback('正在建立最新盤況，請暫時留在此頁…');
+  const session = state.csrfToken;
+  feedback('正在準備同一鎖定快照，請暫時留在此頁…');
   try {
-    const payload = await api(`/api/v1/ask-gpt-context?question=${encodeURIComponent(state.gptQuestion)}`, { cache: 'no-store', signal: controller.signal });
-    if (!payload?.data?.prompt) throw new Error('DISCUSSION_PROMPT_UNAVAILABLE');
+    const pair = await decisionCaptureController.context({ signal: controller.signal });
+    if (session !== state.csrfToken || pair !== decisionCaptureController.locked() || controller.signal.aborted) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
+    if (typeof pair.copyText !== 'string' || !pair.copyText || !pair.snapshot?.snapshotHash) throw Error('DISCUSSION_PROMPT_UNAVAILABLE');
+    const prompt = pair.copyText + `\n\nUSER QUESTION: ${String(state.gptQuestion || '').slice(0, 500)}`;
     // Clipboard write must finish while this document still owns focus.
-    await copyToClipboard(payload.data.prompt);
+    await copyToClipboard(prompt);
     openLink?.classList.remove('hidden');
-    feedback(`已複製最新盤況 · ${String(payload.data.snapshotHash || '').slice(0, 12)}… · 請到 ChatGPT 貼上；若未開啟，請點下方連結。`);
+    feedback(`已複製鎖定盤況 · ${pair.snapshot.snapshotHash.slice(0, 12)}… · 請到 ChatGPT 貼上；若未開啟，請點下方連結。`);
     // noopener may return null even when the tab opens: do not infer popup failure from it.
     try { window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer'); }
     catch { /* The visible, user-activated link remains available after successful copying. */ }
@@ -5593,7 +5747,7 @@ $('dw-copy-gpt-prompt').addEventListener('click', async () => {
 });
 $('dw-journal-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!state.lockedDecisionSnapshot) {
+  if (!state.lockedDecisionSnapshot || !decisionCaptureController.locked()) {
     dwText('dw-journal-feedback', '請先 Lock Snapshot；未鎖定資料不得寫入人工決策日誌。');
     return;
   }
@@ -5667,6 +5821,7 @@ $('login-form').addEventListener('submit', async (event) => {
     return;
   }
 
+  clearDecisionCapture();
   state.csrfToken = payload.csrfToken;
   $('password').value = '';
   show('dashboard-view');
@@ -5785,6 +5940,7 @@ $('refresh-button').addEventListener('click', async () => {
 });
 
 $('logout-button').addEventListener('click', async () => {
+  clearDecisionCapture();
   flowChannel.stop(); flowChannel.reset();
   dataOperationsChannel.reset();
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* ignore */ }

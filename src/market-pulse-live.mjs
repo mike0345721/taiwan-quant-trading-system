@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { listReplayDays } from './intraday-replay-catalog.mjs';
 
 const FIVE_MINUTES_MS = 5 * 60_000;
 const MIN_RVOL_SAMPLE_DAYS = 20;
@@ -59,9 +58,20 @@ function completedFiveMinuteBars(chart, asOf) {
 }
 
 function historicalRvolRows(archiveDir, chart, slot, currentBar) {
-  const catalog = listReplayDays(archiveDir)
-    .filter((item) => item.auditPassed && item.tradeDate < chart.tradeDate)
-    .slice(-MIN_RVOL_SAMPLE_DAYS);
+  // The replay browser builds OHLC summaries for every day/night pair. RVOL
+  // needs only the latest 20 audited dates and this session's selected slot.
+  // Choose those dates BEFORE checking slot eligibility, exactly as before.
+  const datesDescending = fs.readdirSync(archiveDir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && /^\d{4}-\d{2}-\d{2}-day\.json$/.test(entry.name))
+    .map(entry => entry.name.slice(0, 10)).filter(date => date < chart.tradeDate).sort().reverse();
+  const catalog = [];
+  for (const tradeDate of datesDescending) {
+    const audit = readJson(path.join(archiveDir, `${tradeDate}-audit.json`));
+    if (typeof audit?.state !== 'string' || !audit.state.startsWith('passed')) continue;
+    catalog.push({ tradeDate });
+    if (catalog.length === MIN_RVOL_SAMPLE_DAYS) break;
+  }
+  catalog.reverse();
   const session = String(chart.session || '').toLowerCase();
   const values = [];
   const dates = [];

@@ -7,6 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { Readable } from 'node:stream';
+import { observedFlowAtChart } from '../src/dashboard-observed-flow.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -45,7 +46,7 @@ function syntheticMarketInputs() {
   const bar = { ...identity, time: availableAt, open: 100,
     high: 102, low: 99, close: 101, volume: 7 };
   const chart = { schemaVersion: 'governed-tx-decision-chart-v2', syntheticFixture: true,
-    mode: 'LIVE', status: 'READY', qualityStatus: 'PASS', ...identity, timeframe: '5m', availableAt,
+    mode: 'LIVE', status: 'READY', qualityStatus: 'PASS', ...identity, timeframe: '5m', availableAt, asOf: availableAt,
     bars: [bar], vwap: [], levels: {}, lastPrice: bar.close };
   const flow = { schemaVersion: 'dashboard-observed-flow-v1', syntheticFixture: true,
     sourceState: 'LIVE', identity, source: { sourceMode: 'LIVE', availableAt, observedAt: availableAt,
@@ -216,7 +217,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
       selectDashboardProductSurface: () => ({ synthetic: true, deliveryAccepted: false }),
       validateCru44PreviewVersionTruth: never, validateIntegrationPreviewVersionTruth: never },
     'src/dashboard-live-breadth-source.mjs': { loadIx0001BreadthForWorkspace: off },
-    'src/dashboard-observed-flow.mjs': { loadDashboardObservedFlow: () => observed.flow ? structuredClone(observed.flow) : off() },
+    'src/dashboard-observed-flow.mjs': { observedFlowAtChart, loadDashboardObservedFlow: () => observed.flow ? structuredClone(observed.flow) : off() },
     'src/dashboard-research-evidence.mjs': { buildResearchEvidence: off, readLatestResearchQuote: off, readResearchResult: off },
     'src/dashboard-flow-refresh.mjs': { loadFlowRefresh: () => {
       if (observed.flowError) throw Error('SYNTHETIC_FLOW_SOURCE_FAILURE');
@@ -383,8 +384,9 @@ test('observation route authenticates before worker dispatch and retains exact r
   assert.equal(response.status, 200);
   assert.deepEqual(h.counters.chartSelections.slice(before), [{ observation: true, timeframe: '1m', mode: 'REPLAY',
     tradeDate: '2026-11-04', session: 'DAY', actualContract: 'TXFK6', asOf: cutoff }]);
-  const { journalSnapshot, ...returned } = response.json().data;
+  const { journalSnapshot, journalCopy, ...returned } = response.json().data;
   assert.deepEqual(returned, observation);
+  assert.ok(journalCopy.includes(`Hash: ${journalSnapshot.snapshotHash}`));
   assert.equal(journalSnapshot.marketObservation.snapshotId, observation.snapshotId);
   assert.deepEqual(journalSnapshot.marketObservation.summary, observation.summary);
   assert.match(journalSnapshot.snapshotHash, /^[a-f0-9]{64}$/);

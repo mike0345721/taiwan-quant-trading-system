@@ -95,7 +95,7 @@ test('Windows real starters and runner contend through the same lock protocol', 
   const launcher = path.resolve('scripts/start-cru34-live-projection-hidden.ps1');
   const children = [];
   const outputs = [];
-  const starterArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', launcher,
+  const starterArgs = ['-NoProfile', '-File', launcher,
     '-WorkingRoot', root, '-DataRoot', dataRoot, '-ProjectionRoot', projection];
   const waitFor = async predicate => {
     const deadline = Date.now() + 12000;
@@ -142,7 +142,7 @@ test('Windows launcher refuses unknown owner without deleting lock or starting a
   const lockPath = path.join(projection, 'worker.lock');
   for (const raw of ['', '{"pid":', 'null', '123', '{"pid":123}']) {
     fs.writeFileSync(lockPath, raw);
-    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+    const child = spawn('powershell.exe', ['-NoProfile', '-File',
       path.resolve('scripts/start-cru34-live-projection-hidden.ps1'), '-WorkingRoot', root,
       '-ProjectionRoot', projection], { windowsHide: true });
     let output = '';

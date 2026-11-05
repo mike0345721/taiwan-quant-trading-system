@@ -10,8 +10,10 @@ import {readMarketObservationProducer,clearMarketObservationProducerCache} from 
 import {marketObservationSnapshot} from '../src/market-observation-core.mjs';
 import {loadGovernedTradingCalendar} from '../src/market-state-forward-shadow-calendar.mjs';
 import {SAFETY,stableJson,digest} from '../src/cvd-observation-core.mjs';
+import {createTxChartService} from '../src/dashboard-tx-chart-service.mjs';
+import {Worker} from 'node:worker_threads';
 
-const [rootArg,batchArg='8000',restartArg='0',totalArg='1008000']=process.argv.slice(2);
+const [rootArg,batchArg='8000',restartArg='0',totalArg='1008000',pairedArg='']=process.argv.slice(2);
 if(!rootArg||!path.isAbsolute(rootArg))throw Error('ABSOLUTE_ISOLATED_OUTPUT_REQUIRED');
 const root=path.resolve(rootArg),batch=Number(batchArg),restartAt=Number(restartArg),total=Number(totalArg);
 if(!Number.isInteger(batch)||batch<4||batch>16000||batch%4||!Number.isInteger(total)||total%4)throw Error('LOAD_ARGUMENTS_INVALID');
@@ -20,7 +22,12 @@ const summaryPath=path.join(root,'summary.json');
 if(fs.existsSync(summaryPath)||fs.existsSync(path.join(root,'private')))throw Error('FRESH_OUTPUT_REQUIRED');
 const source='sha256:'+digest('CRU61 synthetic 14h 20 events/sec, 3 quotes / trade, no native sequence'),
   start=Date.parse('2026-11-04T07:00:00.000Z'),calendar=loadGovernedTradingCalendar(new URL('../config/taifex-official-calendar-2026.json',import.meta.url));
-const checkpointPath=path.join(root,'synthetic.checkpoint.json'),cacheRoot=path.join(root,'private');
+const paired=pairedArg==='paired',finalDate=new Date(start+(total-1)*50+8*3600000).toISOString().slice(0,10);
+const checkpointPath=path.join(root,paired?`${finalDate}.checkpoint.json`:'synthetic.checkpoint.json'),cacheRoot=path.join(root,'private');
+if(paired){fs.mkdirSync(path.join(root,'live-events'),{recursive:true});
+  // Both calendar files belong to this finite synthetic NIGHT input, even when
+  // a smoke sample ends before midnight and the second file has no rows.
+  for(const date of ['2026-11-04','2026-11-05'])fs.writeFileSync(path.join(root,'live-events',date+'.ndjson'),'',{flag:'wx'});}
 let hash='GENESIS',canonicalState=null,retained=[],count=0,restarted=false,last=null;
 const began=new Date().toISOString(),wall=performance.now(),requests=[],samples=[],snapshots=[],oracle={buy:0,sell:0,unknown:0,total:0,bins:{}};
 let maxRss=0,maxHeap=0,maxExternal=0,maxRequestMs=0;
@@ -42,11 +49,14 @@ while(count<total){
     const close=20000+Math.round(30*Math.sin(trade/1250)+10*Math.sin(trade/101)),tick_type=trade%3,volume=1+trade%4;
     const row=buildLiveEventRecord({kind:isTrade?'futures_tick':'futures_bidask',code:'TXFK6',receivedAt,...SAFETY,
       payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-05',session:'NIGHT',eventTime:receivedAt,
+        ...(paired?{code:'TXFK6',datetime:receivedAt,_product_family:'TX',_target_code:'TXFK6'}:{}),
         ...(isTrade?{close,volume,tick_type}:{bid_price:[close-1],ask_price:[close],bid_volume:[10],ask_volume:[10]})}},hash);
     hash=row.recordHash;rows.push(row);
     if(isTrade){oracle.total+=volume;oracle[tick_type===1?'buy':tick_type===2?'sell':'unknown']+=volume;oracle.bins[close]=(oracle.bins[close]??0)+volume;}
   }
   const canonical=materializeTxCanonicalObservations(rows,{sourceLedgerIdentity:source,ledgerOrdinalOffset:count,initialState:canonicalState});
+  if(paired){const dates=new Map();for(const row of rows){const date=new Date(Date.parse(row.receivedAt)+8*3600000).toISOString().slice(0,10);
+    dates.set(date,(dates.get(date)||'')+JSON.stringify(row)+'\n');}for(const [date,bytes] of dates)fs.appendFileSync(path.join(root,'live-events',date+'.ndjson'),bytes);}
   canonicalState=canonical.terminalState;count=end;
   retained=retained.concat(canonical.events.map(({eventTime,rawRecord,...event})=>event)).slice(-16000);
   const checkpoint=buildCru34LiveCheckpoint({sourceLedgerIdentity:source,lastVerifiedLedgerOrdinal:count,lastVerifiedRecordHash:hash,
@@ -88,6 +98,30 @@ for(const fraction of [0.25,0.5,0.75,1]){
 assert.equal(last.history.statement('SELECT COUNT(*) AS n FROM quotes').get().n,total*3/4);
 assert.equal(last.history.statement('SELECT COUNT(*) AS n FROM points').get().n,total/4);
 assert.equal(last.history.statement('SELECT COUNT(*) AS n FROM trades').get().n,total/4);
+if(paired){
+  clearMarketObservationProducerCache();
+  const selection={capture:true,mode:'LIVE',timeframe:'5m',tradeDate:'2026-11-05',session:'NIGHT',actualContract:'TXFK6',asOf:new Date(start+(total-1)*50).toISOString()};
+  let expected=null;
+  for(const phase of ['paired-cold','paired-restart']){
+    let exited;const service=createTxChartService({dataRoot:root,cacheRoot,producerRoot:root,calendar,cacheTtlMs:0,
+      workerFactory:(url,options)=>{const worker=new Worker(url,options);exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
+    try{let ready=false;
+      for(let poll=0;poll<2000;poll++){
+        const at=performance.now(),chart=await service.load(selection),elapsedMs=performance.now()-at;
+        requests.push({label:phase,poll,elapsedMs,reason:chart.reason,observationReasons:chart.marketObservation?.reasonCodes});
+        assert.ok(elapsedMs<8000&& !/TIMEOUT|WORKER_UNAVAILABLE/.test(chart.reason||''),`${phase}:${elapsedMs}:${chart.reason}`);
+        if(chart.sourceComplete&&chart.marketObservation?.snapshotId&&!chart.marketObservation.reasonCodes.includes('SOURCE_CATCHUP_PENDING')){
+          const observation=chart.marketObservation;assert.equal(observation.cutoff,chart.asOf);
+          assert.equal(observation.profile.totalVolume,oracle.total);assert.equal(observation.cvd.value,oracle.buy-oracle.sell);
+          if(expected)assert.equal(observation.snapshotId,expected);else expected=observation.snapshotId;
+          snapshots.push({kind:phase,cutoff:chart.asOf,hash:expected,chartLastPrice:chart.lastPrice,observationLastPrice:observation.price.last});ready=true;break;
+        }
+        assert.ok(chart.status!=='UNAVAILABLE'||chart.reason==='SOURCE_CATCHUP_PENDING',`${phase}:${chart.reason}`);
+      }
+      assert.ok(ready,`${phase}:did not finish`);
+    }finally{service.close();if(exited)await exited;}
+  }
+}
 save(true);fs.writeFileSync(path.join(root,'requests.json'),JSON.stringify(requests));
 }catch(error){save(false,error);fs.writeFileSync(path.join(root,'requests.json'),JSON.stringify(requests));process.exitCode=1;}
 finally{clearMarketObservationProducerCache();}

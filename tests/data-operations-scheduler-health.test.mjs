@@ -152,7 +152,7 @@ foreach($key in @('StartWhenAvailable','WakeToRun','MultipleInstances','Executio
   if(-not $rejected){throw 'INVALID_SETTING_ACCEPTED'}
   $task.Settings.$key=$saved
 }`);
-  const r=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',script],{encoding:'utf8'});
+  const r=spawnSync('powershell.exe',['-NoProfile','-File',script],{encoding:'utf8'});
   assert.equal(r.status,0,r.stderr);
 });
 test('failure preserves success receipt and older run cannot regress latest failure', t => {

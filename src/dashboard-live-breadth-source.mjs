@@ -20,25 +20,66 @@ function latestIx0001RecordFromText(text) {
   return null;
 }
 
+// Walk physical lines backwards. A normal index quote near EOF needs one block,
+// not a decode/split of the entire 64 MiB tail on every ledger append.
+function latestFromTail(descriptor, size, budget) {
+  const floor = Math.max(0, size - budget);
+  let cursor = size, bytesScanned = 0, fragments = [];
+  const candidate = part => {
+    const line = fragments.length ? Buffer.concat([part, ...fragments]) : part;
+    fragments = [];
+    return latestIx0001RecordFromText(line.toString('utf8'));
+  };
+  while (cursor > floor) {
+    const length = Math.min(64 * 1024, cursor - floor);
+    const block = Buffer.allocUnsafe(length);
+    const read = fs.readSync(descriptor, block, 0, length, cursor - length);
+    bytesScanned += read;
+    if (read !== length) return { record: null, bytesScanned, changed: true };
+    cursor -= length;
+    let end = length;
+    for (let index = block.lastIndexOf(10); index >= 0; index = block.lastIndexOf(10, index - 1)) {
+      const record = candidate(block.subarray(index + 1, end));
+      if (record) return { record, bytesScanned };
+      end = index;
+      if (index === 0) break;
+    }
+    if (end) fragments.unshift(block.subarray(0, end));
+  }
+  // Preserve the existing bounded-tail semantics, including a complete final
+  // JSON row without LF and a row exactly at the lower byte boundary.
+  return { record: candidate(Buffer.alloc(0)), bytesScanned };
+}
+
 export function readLatestIx0001Record(filePath, { maxTailBytes = DEFAULT_MAX_TAIL_BYTES } = {}) {
   const absolute = path.resolve(filePath);
-  if (!fs.existsSync(absolute)) return Object.freeze({ record: null, bytesScanned: 0, reason: 'LIVE_LEDGER_NOT_FOUND' });
+  if (!fs.existsSync(absolute)) {
+    latestRecordCache.delete(absolute);
+    return Object.freeze({ record: null, bytesScanned: 0, reason: 'LIVE_LEDGER_NOT_FOUND' });
+  }
   const stat = fs.statSync(absolute);
   const cached = latestRecordCache.get(absolute);
-  if (cached?.size === stat.size && cached?.mtimeMs === stat.mtimeMs) return cached.result;
-
-  const bytesScanned = Math.min(stat.size, Math.max(1, Number(maxTailBytes) || DEFAULT_MAX_TAIL_BYTES));
-  const start = stat.size - bytesScanned;
-  const buffer = Buffer.allocUnsafe(bytesScanned);
+  const parsedBudget = Number(maxTailBytes);
+  const budget = Number.isFinite(parsedBudget) && parsedBudget > 0 ? Math.max(1, Math.floor(parsedBudget)) : DEFAULT_MAX_TAIL_BYTES;
+  const sameFile = cached?.dev === stat.dev && cached?.ino === stat.ino && cached?.birthtimeMs === stat.birthtimeMs;
+  if (sameFile && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs && cached.budget === budget) return cached.result;
   const descriptor = fs.openSync(absolute, 'r');
-  try { fs.readSync(descriptor, buffer, 0, bytesScanned, start); } finally { fs.closeSync(descriptor); }
-  const record = latestIx0001RecordFromText(buffer.toString('utf8')) || cached?.result?.record || null;
+  let tail;
+  try { tail = latestFromTail(descriptor, stat.size, budget); } finally { fs.closeSync(descriptor); }
+  if (tail.changed) {
+    latestRecordCache.delete(absolute);
+    return Object.freeze({ record: null, bytesScanned: tail.bytesScanned, reason: 'LIVE_LEDGER_CHANGED_DURING_READ' });
+  }
+  // A cached earlier quote can survive append-only growth, never replacement,
+  // truncation or a request for a different read budget.
+  const previous = sameFile && stat.size > cached.size && cached.budget === budget ? cached.result.record : null;
+  const record = tail.record || previous || null;
   const result = Object.freeze({
     record,
-    bytesScanned,
+    bytesScanned: tail.bytesScanned,
     reason: record ? null : 'IX0001_NOT_FOUND_IN_BOUNDED_TAIL',
   });
-  latestRecordCache.set(absolute, { size: stat.size, mtimeMs: stat.mtimeMs, result });
+  latestRecordCache.set(absolute, { size: stat.size, mtimeMs: stat.mtimeMs, dev: stat.dev, ino: stat.ino, birthtimeMs: stat.birthtimeMs, budget, result });
   return result;
 }
 

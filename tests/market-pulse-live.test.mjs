@@ -59,6 +59,51 @@ test('completed 5m RVOL uses exactly 20 earlier audited same-session same-slot m
   assert.equal(result.baselineMethod, 'MEDIAN_SAME_SESSION_SAME_5M_SLOT_PRIOR_20_AUDITED_DAYS');
 });
 
+const rvolChart = (session = 'DAY') => ({
+  timeframe: '5m', qualityStatus: 'PASS', tradeDate: '2026-09-30', session,
+  availableAt: '2026-09-30T01:06:00.000Z',
+  bars: [{ qualityStatus: 'PASS', time: '2026-09-30T01:00:00.000Z', volume: 200, availableAt: '2026-09-30T01:04:59.000Z' }],
+});
+
+test('RVOL reads only 20 selected sessions and audits, not all archive day/night summaries', t => {
+  for (let index = 1; index <= 30; index++) writeDay(`2026-08-${String(index).padStart(2, '0')}`, index);
+  writeDay('2026-09-30', 9999);
+  writeDay('2026-10-01', 9999);
+  const original = fs.readFileSync, files = [];
+  t.mock.method(fs, 'readFileSync', (file, ...args) => { files.push(path.basename(String(file))); return original(file, ...args); });
+  const result = buildLiveRvol({ chart: rvolChart(), archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
+  assert.equal(result.state, 'READY');
+  assert.equal(result.baselineMedian, 20.5);
+  assert.equal(files.length, 40);
+  assert.ok(files.every(file => !file.includes('night') && file >= '2026-08-11' && file < '2026-09-30'));
+});
+
+test('RVOL skips bad audits but does not replace missing selected slots with older good dates', () => {
+  for (let index = 1; index <= 24; index++) writeDay(`2026-08-${String(index).padStart(2, '0')}`, index);
+  fs.writeFileSync(path.join(root, '2026-08-24-audit.json'), '{bad json');
+  fs.writeFileSync(path.join(root, '2026-08-23-audit.json'), JSON.stringify({ state: 'failed' }));
+  fs.writeFileSync(path.join(root, '2026-08-22-audit.json'), JSON.stringify({ state: 'passed_with_warnings' }));
+  writeDay('2026-08-21', 21, { slot: '01:05' });
+  const result = buildLiveRvol({ chart: rvolChart(), archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
+  assert.equal(result.state, 'BASELINE_NOT_READY');
+  assert.equal(result.sampleDays, 19);
+  assert.equal(result.ratio, null);
+});
+
+test('RVOL preserves night session selection and does not consume audit-only or directory dates', () => {
+  for (let index = 1; index <= 21; index++) {
+    const date = `2026-08-${String(index).padStart(2, '0')}`;
+    writeDay(date, 9999); writeDay(date, index, { session: 'night' });
+  }
+  fs.mkdirSync(path.join(root, '2026-09-29-day.json'));
+  fs.writeFileSync(path.join(root, '2026-09-29-audit.json'), JSON.stringify({ state: 'passed' }));
+  fs.writeFileSync(path.join(root, '2026-09-28-audit.json'), JSON.stringify({ state: 'passed' }));
+  const result = buildLiveRvol({ chart: rvolChart('NIGHT'), archiveDir: root, now: new Date('2026-09-30T01:06:00.000Z') });
+  assert.equal(result.state, 'READY');
+  assert.equal(result.sampleDays, 20);
+  assert.equal(result.baselineMedian, 11.5);
+});
+
 test('forming 5m bar is never compared to a completed historical 5m baseline', () => {
   for (let index = 1; index <= 20; index += 1) {
     writeDay(`2026-08-${String(index).padStart(2, '0')}`, 100);

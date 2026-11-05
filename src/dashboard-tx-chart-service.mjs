@@ -9,6 +9,7 @@ function normalize(input = {}) {
   const value = { timeframe, mode, tradeDate: input.tradeDate || null, session: input.session || null,
     actualContract: input.actualContract || null, asOf: input.asOf || null };
   if (input.observation === true) value.observation = true;
+  if (input.capture === true) value.capture = true;
   if (value.tradeDate && !/^\d{4}-\d{2}-\d{2}$/.test(value.tradeDate)) throw Error('CHART_SELECTION_INVALID');
   if (value.session && !['DAY','NIGHT'].includes(value.session)) throw Error('CHART_SELECTION_INVALID');
   if (value.actualContract && !/^TXF[A-L]\d$/.test(value.actualContract)) throw Error('CHART_SELECTION_INVALID');

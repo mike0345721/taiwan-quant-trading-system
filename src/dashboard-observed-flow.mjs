@@ -6,6 +6,20 @@ import { CRU44_MULTI_WINDOW_SCHEMA_VERSION } from './cru44-multi-window-observed
 
 export const DASHBOARD_OBSERVED_FLOW_SCHEMA_VERSION = 'dashboard-observed-flow-v1';
 
+export function observedFlowAtChart(flow, chart) {
+  if (!flow || flow.sourceState === 'UNAVAILABLE') return flow;
+  const identity = chart?.marketObservation?.identity || chart;
+  const cutoff = Date.parse(chart?.asOf), availableAt = Date.parse(flow.source?.availableAt);
+  const reason = !Number.isFinite(cutoff) || !Number.isFinite(availableAt) || availableAt > cutoff
+    ? 'FLOW_OUTSIDE_CAPTURE_CUTOFF'
+    : ['actualContract', 'tradeDate', 'session'].some(key => !identity?.[key] || flow.identity?.[key] !== identity[key])
+      || (identity?.continuityEpoch != null && flow.identity?.continuityEpoch !== identity.continuityEpoch)
+      ? 'FLOW_CAPTURE_IDENTITY_MISMATCH'
+      : chart?.marketObservation?.identity && (!identity.sourceLedgerIdentity || flow.lineage?.sourceLedgerIdentity !== identity.sourceLedgerIdentity)
+        ? 'FLOW_CAPTURE_SOURCE_MISMATCH' : null;
+  return reason ? freeze({ ...unavailable(reason), excludedSource: flow.source, excludedIdentity: flow.identity }) : flow;
+}
+
 function freeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
   for (const nested of Object.values(value)) freeze(nested);

@@ -367,7 +367,9 @@ export function validateDecisionSnapshot(snapshot) {
     const observation = snapshot.marketObservation;
     if (observation.formalWeight !== 0 || observation.researchOnly !== true || observation.executionAuthorized !== false
       || observation.orderRoutesEnabled !== false || !/^[a-f0-9]{64}$/.test(observation.snapshotId || '')
-      || observation.cutoff !== snapshot.snapshotTime || observation.identity?.actualContract !== snapshot.contract
+      || observation.cutoff !== (snapshot.chartCutoff ?? snapshot.snapshotTime)
+      || !Number.isFinite(Date.parse(observation.cutoff)) || Date.parse(observation.cutoff) > Date.parse(snapshot.snapshotTime)
+      || observation.identity?.actualContract !== snapshot.contract
       || observation.identity?.tradeDate !== snapshot.tradeDate || observation.identity?.session !== snapshot.session
       || !Array.isArray(observation.events) || observation.events.length > 100
       || observation.events.some(event => !Number.isFinite(Date.parse(event.confirmedAt)) || Date.parse(event.confirmedAt) > Date.parse(observation.cutoff)
@@ -420,6 +422,8 @@ export function copyForChatGpt(snapshot, question = null) {
     `IX0001 top negative contribution: ${contributionLine(snapshot.indexLeadership?.topNegative)}`,
     `IX0001 top industry contribution: ${contributionLine(snapshot.industryLeadership?.rows)}`,
     observedFlowCopyLine(snapshot.observedFlow),
+    ...(snapshot.marketObservation ? [`SMC / CVD / Volume Profile: snapshot=${snapshot.marketObservation.snapshotId}; cutoff=${snapshot.marketObservation.cutoff}; ${JSON.stringify(snapshot.marketObservation.summary)}`]
+      : snapshot.marketObservationStatus ? [`SMC / CVD / Volume Profile: ${snapshot.marketObservationStatus.state}; ${(snapshot.marketObservationStatus.reasonCodes || []).join(' / ')}`] : []),
     `Recent governed changes: ${snapshot.governedMarketChanges.map((item) => `${item.observedAt || 'time unavailable'}:${item.eventType || item.summary || 'UNAVAILABLE'}`).join(', ') || 'none'}`,
     `Current governed fact summary: ${snapshot.currentMarketFactSummary?.priceStructureFact || 'UNAVAILABLE'} ${snapshot.currentMarketFactSummary?.evidenceEligibilityFact || ''}`,
     `Missing or stale: ${snapshot.missingOrStaleInputs.map((item) => `${item.sourceId}:${item.reason || item.state}`).join(', ') || 'none'}`,
@@ -482,6 +486,10 @@ export function discussionSnapshot(snapshot) {
     schemaVersion: 'chatgpt-discussion-snapshot-v1',
     snapshotTime: snapshot.snapshotTime,
     snapshotHash: snapshot.snapshotHash,
+    ...(snapshot.chartCutoff ? { chartCutoff: snapshot.chartCutoff } : {}),
+    ...(snapshot.marketObservation ? { marketObservation: snapshot.marketObservation } : {}),
+    ...(snapshot.marketObservationStatus ? { marketObservationStatus: { state: snapshot.marketObservationStatus.state,
+      reasonCodes: snapshot.marketObservationStatus.reasonCodes } } : {}),
     tradeDate: snapshot.tradeDate,
     contract: snapshot.contract,
     session: snapshot.session,

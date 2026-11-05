@@ -186,23 +186,64 @@ test('background refresh cannot replace an in-flight form or create a duplicate 
   for (const name of ['executionStatus', 'thesisStatus', 'outcomeNote']) assert.equal(h.field(name).disabled, false);
 });
 
-test('original journal submit carries only the chosen subjective fields with the locked snapshot', async () => {
+function journalSubmitHarness() {
   const start = app.indexOf("$('dw-journal-form').addEventListener('submit'");
   const end = app.indexOf("document.querySelectorAll('#v2-delta-controls", start);
   assert.ok(start > 0 && end > start);
-  let handler; const calls = [], nodes = new Map();
+  let handler; const calls = [], nodes = new Map(), feedback = [];
   for (const [id, value] of Object.entries({ 'dw-journal-setup': 'setup', 'dw-journal-reason': 'reason',
     'dw-journal-invalidation': 'invalidation', 'dw-journal-confidence': 'HIGH', 'dw-journal-execution': 'UNKNOWN' })) nodes.set(id, { value });
   nodes.set('dw-journal-form', { addEventListener: (_, fn) => { handler = fn; } });
   nodes.set('dw-journal-submit', { disabled: false });
-  const locked = { snapshotHash: 'b'.repeat(64), price: { value: 0 } };
+  const locked = { snapshotHash: 'b'.repeat(64), snapshotTime: '2026-11-05T01:35:00.000Z',
+    contract: 'SYNTHETIC', tradeDate: '2026-11-05', session: 'DAY', price: { value: 0 } };
+  const state = { journalIntent: 'NO_TRADE', lockedDecisionSnapshot: null, csrfToken: 'session-one' };
+  const controllerSource = app.slice(app.indexOf('function decisionCaptureIdentity('), app.indexOf('function renderDecisionCaptureStatus('));
+  const createController = vm.runInNewContext(controllerSource + '\ncreateDecisionCaptureController', { AbortController, setTimeout, clearTimeout });
+  const decisionCaptureController = createController({
+    request: async () => ({ data: { schemaVersion: 'decision-capture-v1', captureId: locked.snapshotHash,
+      capturedAt: locked.snapshotTime, chartCutoff: locked.snapshotTime,
+      chart: { timeframe: '5m', asOf: locked.snapshotTime, actualContract: locked.contract,
+        tradeDate: locked.tradeDate, session: locked.session, lastPrice: 0 },
+      workspace: { snapshot: locked, chatGptCopy: `Snapshot: ${locked.snapshotTime}\nHash: ${locked.snapshotHash}\n` } } }),
+    selection: () => ({ timeframe: '5m', identity: [locked.tradeDate, locked.contract, locked.session, null, null], asOf: locked.snapshotTime }),
+    ticket: () => state.csrfToken, currentSession: ticket => Boolean(ticket && ticket === state.csrfToken),
+    apply: (_data, pair) => { state.lockedDecisionSnapshot = pair.snapshot; },
+    clipboard: async () => { throw Error('JOURNAL_MUST_NOT_COPY'); },
+  });
   vm.runInNewContext(app.slice(start, end), { $: id => nodes.get(id),
-    state: { journalIntent: 'NO_TRADE', lockedDecisionSnapshot: locked }, dwText() {}, loadDecisionJournal: async () => {},
+    state, decisionCaptureController, dwText: (_id, text) => feedback.push(text), loadDecisionJournal: async () => {},
     api: async (route, options) => { calls.push({ route, body: JSON.parse(options.body) }); return { data: { sequence: 1, recordHash: 'a'.repeat(64) } }; } });
-  await handler({ preventDefault() {} });
-  assert.equal(calls[0].body.confidence, 'HIGH');
-  assert.equal(calls[0].body.executionStatus, 'UNKNOWN');
-  assert.deepEqual(calls[0].body.snapshot, locked);
+  return { calls, nodes, feedback, locked, state, capture: () => decisionCaptureController.capture(), submit: () => handler({ preventDefault() {} }) };
+}
+
+test('original journal submit carries only the chosen subjective fields with the current-session locked snapshot', async () => {
+  const h = journalSubmitHarness();
+  await h.capture(); await h.submit();
+  assert.equal(h.calls.length, 1); assert.equal(h.calls[0].route, '/api/v1/decision-journal');
+  assert.equal(h.calls[0].body.confidence, 'HIGH');
+  assert.equal(h.calls[0].body.executionStatus, 'UNKNOWN');
+  assert.deepEqual(h.calls[0].body.snapshot, h.locked);
   const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   for (const id of ['dw-journal-confidence', 'dw-journal-execution']) assert.ok(html.includes(`id="${id}"`));
+});
+
+test('journal submit rejects an unlocked or merely retained snapshot without a current controller lock', async () => {
+  const h = journalSubmitHarness();
+  await h.submit();
+  h.state.lockedDecisionSnapshot = h.locked;
+  await h.submit();
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.feedback.length, 2);
+  for (const text of h.feedback) assert.match(text, /請先 Lock Snapshot/);
+  assert.equal(h.nodes.get('dw-journal-submit').disabled, false);
+});
+
+test('journal submit rejects a previous-login lock and resumes only after capture in the new session', async () => {
+  const h = journalSubmitHarness();
+  await h.capture(); h.state.csrfToken = 'session-two';
+  await h.submit();
+  assert.equal(h.calls.length, 0); assert.match(h.feedback.at(-1), /請先 Lock Snapshot/);
+  await h.capture(); await h.submit();
+  assert.equal(h.calls.length, 1); assert.deepEqual(h.calls[0].body.snapshot, h.locked);
 });

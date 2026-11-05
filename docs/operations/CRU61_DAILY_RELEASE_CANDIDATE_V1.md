@@ -70,3 +70,13 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 ## 實機交付 gate
 
 必須在同版本正常登入下，核對導覽全部既有功能、API／圖表／摘要／Copy 同 snapshot、適用時段至少三點來源→畫面前進、至少 60 分鐘有界觀察、日誌跨頁／重新登入／程序重啟持久化、桌機／手機尺寸、冷啟／重複啟動與恢復。故障注入限隔離環境。未重開機記 `REBOOT_NOT_RUN`；非交易時段或平台阻擋記 NOT RUN／BLOCKED，不能用 replay、fixture、測試項數或計畫取代固定入口。
+
+## 完整版本與 Copy 整合
+
+以本分支完整新版為基線納入 PR111 的擷取控制；不以 PR111 舊產品樹取代三模組與每日修補。鎖定與兩個手動 Copy 入口共用同一 snapshot hash。背景行情持續更新，擷取飛行期間暫緩新圖表請求；鎖定三模組保留自身 cutoff、來源時間與品質原因，按更新恢復觀測追蹤，重新登入清除舊鎖定。
+
+擷取在原 chart worker 的同一 8 秒預算內，以價格 chart 的合約、盤別、交易日與 asOf 推導三模組。Flow 另核對 cutoff、身分、epoch 與 producer ledger identity；不同來源不拼成同時點證據。擷取時間與資料截止時間分別保存；Producer 尚未追上時保留具體狀態，不能把時間選擇相同宣稱來源已完整。事件日誌與 Copy 保存同 snapshot；Copy 使用既有資料 allowlist，避免外帶本機路徑。
+
+廣度改為在原總位元組預算內反向逐段搜尋最新紀錄，RVOL 只讀原規則選出的最近 20 個已稽核日期；保留缺值、品質與日期選擇。Windows 測試沿系統原有效政策，不再由測試參數設定 ExecutionPolicy Bypass。
+
+`verify-market-observation-session-capacity.mjs <fresh-output> 4000 504000 1008000 paired` 在獨立合成來源完成 14 小時累積、歷史 cutoff 與中段接續後，再以原 worker 驗證價格／三模組配對的冷讀與重啟。這是合成容量證據，並非 LIVE、原始市場全盤或每日入口驗收；測試結果以最終 SHA 對應的 immutable 收據為準。

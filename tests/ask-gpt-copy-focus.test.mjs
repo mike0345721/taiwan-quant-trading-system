@@ -9,12 +9,12 @@ assert.ok(start>0&&end>start);
 const source=app.slice(start,end);
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject};};
 function setup({api,copy,open}={}){
- const events=[],status={},attributes={},classes=new Set(['hidden']);let handler,focused=true,timer;
+ const events=[],status={},attributes={},classes=new Set(['hidden']);let handler,focused=true,timer,pair;
  const button={disabled:false,setAttribute:(k,v)=>attributes[k]=v,removeAttribute:k=>delete attributes[k],addEventListener:(_,fn)=>handler=fn};
  const link={classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}};
  vm.runInNewContext(source,{$:id=>id==='dw-copy-gpt-prompt'?button:link,state:{gptQuestion:'test'},dwText:(id,t)=>status[id]=t,
   AbortController,encodeURIComponent,setTimeout:fn=>(timer=fn,1),clearTimeout:()=>{timer=null;},
-  api:async(...args)=>{events.push('api');return api?api(...args):{data:{prompt:'real bounded snapshot',snapshotHash:'a'.repeat(64)}};},
+  decisionCaptureController:{context:async options=>{events.push('api');const payload=api?await api('capture',options):{data:{prompt:'real bounded snapshot',snapshotHash:'a'.repeat(64)}};pair={copyText:payload?.data?.prompt,snapshot:{snapshotHash:payload?.data?.snapshotHash}};return pair;},locked:()=>pair},
   copyToClipboard:async text=>{events.push('copy');if(!focused)throw Error('Document is not focused');if(copy)await copy(text);events.push('copied');},
   window:{open:(...args)=>{events.push('open');focused=false;return open?open(...args):null;}}
  });

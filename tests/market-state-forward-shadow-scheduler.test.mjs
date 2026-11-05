@@ -10,7 +10,7 @@ const wrapper = path.join(root, 'scripts/run-market-state-forward-shadow-hidden.
 
 test('pre-launch scheduler definition exposes Owner-approved STATE and OUTCOME lifecycle and remains disabled', () => {
   const output = execFileSync('powershell.exe', [
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', installer,
+    '-NoProfile', '-File', installer,
   ], { cwd: root, encoding: 'utf8' });
   const definition = JSON.parse(output);
   assert.equal(definition.lifecycle, 'STATE -> OUTCOME -> DAILY_COMPLETE');
@@ -45,7 +45,7 @@ test('scheduler installation requires both explicit install and Owner approval i
 
 test('wrapper defaults to NOT_ACTIVE and cannot write evidence without a test input', () => {
   const output = execFileSync('powershell.exe', [
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper,
+    '-NoProfile', '-File', wrapper,
   ], { cwd: root, encoding: 'utf8' });
   const result = JSON.parse(output);
   assert.equal(result.status, 'NOT_ACTIVE');
@@ -56,7 +56,7 @@ test('wrapper defaults to NOT_ACTIVE and cannot write evidence without a test in
 
 test('official wrapper cannot start with a boolean or without governed artifacts', () => {
   assert.throws(() => execFileSync('powershell.exe', [
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper, '-Mode', 'FORWARD_SHADOW',
+    '-NoProfile', '-File', wrapper, '-Mode', 'FORWARD_SHADOW',
   ], { cwd: root, encoding: 'utf8', stdio: 'pipe' }), /Command failed/);
   const source = fs.readFileSync(wrapper, 'utf8');
   assert.match(source, /FORWARD_SHADOW_GOVERNANCE_ARTIFACTS_REQUIRED/);

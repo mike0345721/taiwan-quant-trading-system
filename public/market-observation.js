@@ -106,7 +106,7 @@ function mountObservation() {
   const node = (tag, text, className) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (className) e.className = className; return e; };
   const svgNode = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v)); if (text != null) e.textContent = text; return e; };
   let snapshot = null, selectedEventId = null, controller = null, requestId = 0, lastRequestAt = 0, cursorIndex = 0;
-  let catchupTimer = null, minimumRefreshMs = 4500;
+  let catchupTimer = null, minimumRefreshMs = 4500, captured = false;
   const selectedEvent = () => snapshot?.events.find(e => e.id === selectedEventId) || null;
   const timeframe = () => el('mo-timeframe').value;
   const visible = () => root.open && !document.hidden && root.getClientRects().length > 0;
@@ -219,6 +219,8 @@ function mountObservation() {
     selector.value = selectedEventId || ''; showEvent(); draw();
   }
   async function refresh(force = false) {
+    if (captured && !force) return;
+    if (force) captured = false;
     if (!force && (!visible() || controller || Date.now() - lastRequestAt < minimumRefreshMs)) return;
     clearTimeout(catchupTimer); catchupTimer = null; minimumRefreshMs = 4500;
     if (controller) controller.abort();
@@ -278,6 +280,26 @@ function mountObservation() {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (visible()) draw(); }).observe(el('mo-chart'));
   setInterval(() => refresh(), 5000);
   window.MarketObservationWorkspace = Object.freeze({ currentSnapshot: () => snapshot,
+    reset: () => {
+      clearTimeout(catchupTimer); catchupTimer = null;
+      controller?.abort(); controller = null; requestId += 1; captured = false;
+      snapshot = null; selectedEventId = null; root.setAttribute('aria-busy', 'false');
+      el('mo-status').textContent = '登入後重新讀取觀測快照。'; render(); handoff();
+    },
+    capture: value => {
+      clearTimeout(catchupTimer); catchupTimer = null;
+      controller?.abort(); controller = null; requestId += 1; captured = true;
+      root.setAttribute('aria-busy', 'false');
+      if (value?.snapshotId) {
+        snapshot = normalizeObservation(value, value.timeframe); el('mo-timeframe').value = value.timeframe;
+        selectedEventId = snapshot.events.at(-1)?.id || null;
+        el('mo-status').textContent = `LOCKED · 截至 ${stamp(snapshot.cutoff)} · ${list(snapshot.reasonCodes)} · 成交來源截至 ${stamp(snapshot.profile.observedEnd)} · 主行情繼續更新；按更新重新追蹤觀測。`;
+      } else {
+        snapshot = null; selectedEventId = null;
+        el('mo-status').textContent = `本次擷取觀測尚未就緒 · ${list(value?.reasonCodes)}；按更新接續推導。`;
+      }
+      render(); handoff();
+    },
     selectedEvent, copyText: () => observationCopyText(snapshot, selectedEvent()), refresh: () => refresh(true) });
   if (visible()) refresh();
 }

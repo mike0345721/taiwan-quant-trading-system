@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
@@ -172,7 +173,10 @@ test('Trader Terminal wires only governed descriptive values and preserves unava
   assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', 'LOADING'\)/);
   assert.match(app, /terminalRoot\?\.setAttribute\('data-dashboard-load-state', partial\?\.status === 'PARTIAL' \? 'PARTIAL' : 'READY'\)/);
   assert.match(app, /reportDashboardLoadError\(error, 'POST_LOGIN_DASHBOARD_LOAD'\)/);
-  assert.match(app, /Copy context UNAVAILABLE/);
+  const captureAction = app.slice(app.indexOf('async function runDecisionCaptureAction('), app.indexOf("$('dw-lock-snapshot').addEventListener('click', () => void"));
+  assert.match(captureAction, /error\.message/);
+  assert.match(captureAction, /DECISION_CAPTURE_REQUIRES_5M/);
+  assert.match(captureAction, /既有鎖定快照保持原樣/);
   assert.match(app, /INDEX_LEADERSHIP_API_UNAVAILABLE/);
   assert.match(app, /terminalWrite\('tt-health-main', health, \{ reason: 'DATA_HEALTH_UNAVAILABLE'/);
   assert.match(app, /terminalWrite\('tt-futures-tx', lastPrice == null \? null : fmt\(lastPrice\)/);
@@ -361,4 +365,26 @@ test('Leadership presentation preserves missing points instead of coercing them 
   assert.match(leadershipSource, /名稱未提供/);
   assert.doesNotMatch(leadershipSource, /label\.textContent = row\?\.code/);
   assert.doesNotMatch(leadershipSource, /(?:^|[^A-Za-z])Number\(row\?\.points\)/);
+});
+
+test('Copy capture failures expose the actual reason, preserve the old lock and re-enable controls without success text', async () => {
+  const app = read('public', 'app.js');
+  const start = app.indexOf('async function runDecisionCaptureAction(');
+  const end = app.indexOf("$('dw-lock-snapshot').addEventListener('click', () => void", start);
+  assert.ok(start > 0 && end > start);
+  for (const [reason, expected] of [['DECISION_CAPTURE_RESPONSE_MISMATCH', 'DECISION_CAPTURE_RESPONSE_MISMATCH'],
+    ['DECISION_CAPTURE_TIMEOUT', 'DECISION_CAPTURE_TIMEOUT'], ['DECISION_CAPTURE_REQUIRES_5M', '請先切換回 5 分 K']]) {
+    const feedback = [], oldLock = { snapshotHash: 'old-lock' };
+    const state = { csrfToken: 'fixture-session', decisionCaptureActionId: 0, lockedDecisionSnapshot: oldLock };
+    const buttons = Object.fromEntries(['dw-lock-snapshot', 'dw-copy-chatgpt'].map(id => [id,
+      { disabled: false, attributes: {}, setAttribute(key, value) { this.attributes[key] = value; }, removeAttribute(key) { delete this.attributes[key]; } }]));
+    const context = vm.createContext({ state, $: id => buttons[id], dwText: (_id, value) => feedback.push(value),
+      decisionCaptureController: { locked: () => null, copy: async () => { throw Error(reason); } } });
+    vm.runInContext(app.slice(start, end), context);
+    await context.runDecisionCaptureAction('copy');
+    assert.ok(feedback.at(-1).includes(expected));
+    assert.doesNotMatch(feedback.at(-1), /已複製已鎖定快照/);
+    assert.equal(state.lockedDecisionSnapshot, oldLock);
+    for (const button of Object.values(buttons)) { assert.equal(button.disabled, false); assert.equal(button.attributes['aria-busy'], undefined); }
+  }
 });

@@ -31,7 +31,7 @@ import { buildDataHealthContract } from './src/dashboard-data-health.mjs';
 import { readDataOperations } from './src/dashboard-data-operations.mjs';
 import { resolveOperationsReader } from './src/data-operations-binding.mjs';
 import { readDataOperationsReaderIdentity } from './src/dashboard-data-operations-reader-identity.mjs';
-import { buildDecisionWorkspace, copyForChatGpt } from './src/dashboard-decision-workspace.mjs';
+import { buildDecisionWorkspace, copyForChatGpt, validateDecisionSnapshot, decisionDigest } from './src/dashboard-decision-workspace.mjs';
 import { buildDecisionLevelWatch } from './src/decision-level-watch.mjs';
 import { readDashboardRuntimeTruth } from './src/dashboard-runtime-truth.mjs';
 import { appendDecisionJournal, readDecisionJournal, appendDecisionOutcome, readDecisionOutcomes } from './src/decision-journal.mjs';
@@ -53,7 +53,7 @@ import {
   validateIntegrationPreviewVersionTruth,
 } from './src/dashboard-integration-contract.mjs';
 import { loadIx0001BreadthForWorkspace } from './src/dashboard-live-breadth-source.mjs';
-import { loadDashboardObservedFlow } from './src/dashboard-observed-flow.mjs';
+import { loadDashboardObservedFlow, observedFlowAtChart } from './src/dashboard-observed-flow.mjs';
 import { buildResearchEvidence, readLatestResearchQuote, readResearchResult } from './src/dashboard-research-evidence.mjs';
 import { loadFlowRefresh } from './src/dashboard-flow-refresh.mjs';
 import { buildMarketPulseLive } from './src/market-pulse-live.mjs';
@@ -290,7 +290,9 @@ function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 }
 
-async function decisionWorkspacePayload(snapshot, service, marketInputs = null) {
+async function decisionWorkspacePayload(snapshot, service, marketInputs = null, { capture = false } = {}) {
+  // Read the projection before the chart's cutoff is chosen; do not mix in a later publication.
+  const projectedFlow = marketInputs ? marketInputs.flow : currentObservedFlow();
   const indexLeadership = service?.indexLeadership || null;
   const runtimeTruth = marketCandidate ? {governed:false,checkedAt:new Date().toISOString(),
     reason:'MARKET_CANDIDATE_NO_SCHEDULER_QUERY',executionAuthorized:false} : await readDashboardRuntimeTruth({
@@ -298,7 +300,7 @@ async function decisionWorkspacePayload(snapshot, service, marketInputs = null) 
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
   const chart = marketInputs ? marketInputs.chart
-    : await txChartService.load({ timeframe: '5m', mode: 'LIVE' });
+    : await txChartService.load({ timeframe: '5m', mode: 'LIVE', ...(capture ? { capture: true } : {}) });
   const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
     ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
     : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
@@ -320,22 +322,40 @@ async function decisionWorkspacePayload(snapshot, service, marketInputs = null) 
   });
   const feed = marketInputs && !chart ? {events:[]} : buildMarketChangeFeed(chart);
   const marketChangeFeed = Object.freeze({ ...feed, markers: chartMarkersFromEvents(feed.events, chart) });
-  const observedFlow = marketInputs ? marketInputs.flow : currentObservedFlow();
+  const observedFlow = capture ? observedFlowAtChart(projectedFlow, chart) : projectedFlow;
   const marketPulse = marketInputs && !chart ? buildMarketPulseLive({chart:null,
     bridgeLatest:{state:'UNAVAILABLE',reason:'MARKET_CANDIDATE_NO_LIVE_BRIDGE',data:null},archiveDir:null})
     : await currentMarketPulse(chart);
-  return { ...buildDecisionWorkspace({
+  let workspace = { ...buildDecisionWorkspace({
     snapshot, dataHealth, runtimeTruth, chart, marketChangeFeed, liveBreadth, runtimeVersion, indexLeadership,
     productSurface: productSurfaceContract,
     observedFlow,
     marketPulse,
   }), marketOperating: assessTaifexMarketSession(new Date(), operatingCalendar),
     ...(service?.degraded ? {degraded:service.degraded} : {}) };
+  if (capture) {
+    const observation = chart?.marketObservation;
+    const observedSnapshot = observationDecisionSnapshot(observation);
+    const { snapshotHash, ...body } = workspace.snapshot;
+    body.chartCutoff = chart?.asOf || null;
+    if (observedSnapshot) {
+      if (observation.cutoff !== chart.asOf || observation.identity.actualContract !== chart.actualContract
+          || observation.identity.tradeDate !== chart.tradeDate || observation.identity.session !== chart.session) throw Error('DECISION_CAPTURE_OBSERVATION_MISMATCH');
+      body.marketObservation = observedSnapshot.marketObservation;
+    }
+    body.marketObservationStatus = { state: observedSnapshot ? observation.status : 'UNAVAILABLE',
+      reasonCodes: observation?.reasonCodes || ['OBSERVATION_CAPTURE_NOT_READY'], sourceProgress: observation?.sourceProgress || null };
+    const capturedSnapshot = { ...body, snapshotHash: decisionDigest(body) };
+    workspace = { ...workspace, snapshot: capturedSnapshot, chatGptCopy: copyForChatGpt(capturedSnapshot) };
+  }
+  return capture ? { workspace, chart: chart?.marketObservation ? { ...chart,
+    marketObservation: { ...chart.marketObservation, journalSnapshot: workspace.snapshot.marketObservation ? workspace.snapshot : null,
+      journalCopy: workspace.snapshot.marketObservation ? workspace.chatGptCopy : null } } : chart } : workspace;
 }
 
-async function candidatePartialInputs(service) {
+async function candidatePartialInputs(service, options = {}) {
   let chart = null, flow = null;
-  try { chart = await txChartService.load({timeframe:'5m',mode:'LIVE'}); }
+  try { chart = await txChartService.load({timeframe:'5m',mode:'LIVE',...(options.capture ? {capture:true} : {})}); }
   catch { /* A source failure stays unavailable. */ }
   try { flow = currentObservedFlow(); } catch { /* No acquisition or fallback transport. */ }
   const degraded = assessCandidateMarketInputs({chart,flow});
@@ -347,7 +367,7 @@ async function candidatePartialInputs(service) {
   } : null;
 }
 
-async function currentDiscussionWorkspace() {
+async function currentDiscussionWorkspace(options = {}) {
   if (marketCandidate || !latestSnapshot || latestSnapshot.dataMode !== expectedDataMode) {
     try { await refreshSnapshot(); } catch { /* retain truthful unavailable state below */ }
   }
@@ -374,14 +394,29 @@ async function currentDiscussionWorkspace() {
     brokerConnected: shioaji.connected,
     brokerMarketData: shioaji,
     lastRefreshError,
-    prelive: preliveStatus(latestSnapshot, shioaji),
+    ...(options.capture ? {} : { prelive: preliveStatus(latestSnapshot, shioaji) }),
     runtimeVersion,
     productSurface: productSurfaceContract,
     indexLeadership,
   };
-  if (clientSnapshot) return decisionWorkspacePayload(clientSnapshot, servicePayload);
-  const inputs = await candidatePartialInputs(servicePayload);
-  return inputs ? decisionWorkspacePayload(undefined, servicePayload, inputs) : null;
+  if (clientSnapshot) return decisionWorkspacePayload(clientSnapshot, servicePayload, null, options);
+  const inputs = await candidatePartialInputs(servicePayload, options);
+  return inputs ? decisionWorkspacePayload(undefined, servicePayload, inputs, options) : null;
+}
+
+function decisionCaptureEnvelope(capture, timeframe) {
+  const workspace = capture?.workspace, chart = capture?.chart, snapshot = workspace?.snapshot;
+  if (!snapshot || !chart || timeframe !== '5m' || chart.timeframe !== timeframe) throw Error('DECISION_CAPTURE_UNAVAILABLE');
+  validateDecisionSnapshot(snapshot);
+  const cutoff = Date.parse(chart.asOf), captured = Date.parse(snapshot.snapshotTime);
+  if (!Number.isFinite(cutoff) || !Number.isFinite(captured) || cutoff > captured
+      || snapshot.contract !== chart.actualContract || snapshot.tradeDate !== chart.tradeDate || snapshot.session !== chart.session
+      || !snapshot.contract || !snapshot.tradeDate || !snapshot.session
+      || workspace.chatGptCopy !== copyForChatGpt(snapshot)
+      || (snapshot.price?.value ?? null) !== (chart.lastPrice ?? null)
+      || (snapshot.VWAP?.value ?? null) !== (chart.levels?.vwap?.availability === 'AVAILABLE' ? chart.levels.vwap.value : null)) throw Error('DECISION_CAPTURE_INCONSISTENT');
+  return { schemaVersion: 'decision-capture-v1', captureId: snapshot.snapshotHash,
+    capturedAt: snapshot.snapshotTime, chartCutoff: chart.asOf, workspace, chart };
 }
 
 async function loadMarketChangeFeed({ mode = 'LIVE', tradeDate = null, session = null, actualContract = null, asOf = null } = {}) {
@@ -639,9 +674,24 @@ const requestHandler = async (req, res) => {
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {
+        const timeframe = url.searchParams.get('timeframe') || '5m';
+        if (timeframe !== '5m') {
+          sendJson(res, 400, { ok: false, error: 'DECISION_CAPTURE_REQUIRES_5M' }, { 'Cache-Control': 'no-store' }); return;
+        }
+        try {
+          const capture = await currentDiscussionWorkspace({ capture: true });
+          sendJson(res, 200, { ok: true, data: decisionCaptureEnvelope(capture, timeframe) }, { 'Cache-Control': 'no-store' });
+        } catch {
+          sendJson(res, 503, { ok: false, error: 'DECISION_CAPTURE_UNAVAILABLE' }, { 'Cache-Control': 'no-store' });
+        }
+        return;
+      }
+
       if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {
         const question = String(url.searchParams.get('question') || '').trim().slice(0, 500) || null;
-        const workspace = await currentDiscussionWorkspace();
+        const captured = await currentDiscussionWorkspace({ capture: true });
+        const workspace = captured ? decisionCaptureEnvelope(captured, '5m').workspace : null;
         if (!workspace?.snapshot) {
           sendJson(res, 503, { ok: false, error: 'DISCUSSION_SNAPSHOT_UNAVAILABLE' }, { 'Cache-Control': 'no-store' });
           return;
@@ -777,7 +827,8 @@ const requestHandler = async (req, res) => {
           session: url.searchParams.get('session') || null,
           actualContract: url.searchParams.get('actualContract') || null,
           asOf: url.searchParams.get('asOf') || null });
-        sendJson(res, 200, { ok: true, data: { ...data, journalSnapshot: observationDecisionSnapshot(data) } });
+        const journalSnapshot = observationDecisionSnapshot(data);
+        sendJson(res, 200, { ok: true, data: { ...data, journalSnapshot, journalCopy: journalSnapshot ? copyForChatGpt(journalSnapshot) : null } });
         return;
       }
 
