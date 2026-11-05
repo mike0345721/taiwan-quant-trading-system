@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveGovernedTradingDay } from './market-state-forward-shadow-calendar.mjs';
-import { buildTxDecisionChart, classifyTxChartSession } from './dashboard-tx-chart.mjs';
+import { buildTxDecisionChart, buildOneMinuteBars, buildTxDecisionChartFromOrderedTicks, classifyTxChartSession } from './dashboard-tx-chart.mjs';
+import {readTxChartHistory,txChartHistoryPath,clearTxChartHistoryCache} from './dashboard-tx-chart-store.mjs';
 import { buildChartTrendStrength } from './trend-strength-adx.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
 import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
@@ -557,11 +558,30 @@ export function loadTxDecisionChart({
     return Object.freeze({ ...empty, trendStrength: buildChartTrendStrength(empty) });
   }
   const ledgerDates = relevantLedgerDates(calendar, selectedTradeDate, selectedSession, timeframe);
-  const sources = ledgerDates.map((date) => readTxLiveEventLedger(path.join(dataRoot, 'live-events', `${date}.ndjson`),
-    { cacheRoot, includeCaptureEvidence: true, budget: sourceBudget, withProgress: true }));
-  const records = sources.flatMap(source => source.records);
-  const lineage = normalizeTimestampLineageForChart(records, calendar);
-  const initial = buildTxDecisionChart(lineage.records, {
+  const files=ledgerDates.map(date=>path.join(dataRoot,'live-events',`${date}.ndjson`));
+  let history=null,sources;
+  const useHistory=()=>{
+    // Retain old files as evidence/migration inputs. Drop only their in-memory
+    // working set when switching to the durable streaming projection.
+    ledgerCache.clear();
+    return readTxChartHistory({dataRoot,cacheRoot,files,budget:sourceBudget,calendar,
+      decode:line=>{const rows=[];parseCandidateLine(line,rows);return rows[0]??null;},
+      normalize:record=>{const lineage=normalizeTimestampLineageForChart([record],calendar),normalized=lineage.records[0];
+        const tick=buildOneMinuteBars([normalized],{calendar}).ticks[0]??null;
+        return {record:normalized,key:tick,violation:lineage.violations[0]??null};}});
+  };
+  if(cacheRoot&&sourceBudget&&fs.existsSync(txChartHistoryPath(dataRoot,cacheRoot)))history=useHistory();
+  else{
+    sources=files.map(file=>readTxLiveEventLedger(file,{cacheRoot,includeCaptureEvidence:true,budget:sourceBudget,withProgress:true}));
+    if(cacheRoot&&sourceBudget&&sources.some(source=>source.progress.reasonCodes?.some(reason=>
+      ['TX_CHART_RECORD_BUDGET_EXCEEDED','TX_CHART_CACHE_BUDGET_EXCEEDED','TX_CHART_CACHE_WRITE_BUDGET_EXCEEDED'].includes(reason)))){
+      sources=null;history=useHistory();
+    }
+  }
+  if(history)sources=history.sources;
+  const records=history?history.raw:sources.flatMap(source=>source.records);
+  const lineage=history?{violations:history.violations}:normalizeTimestampLineageForChart(records,calendar);
+  const initial = (history?buildTxDecisionChartFromOrderedTicks:buildTxDecisionChart)(history?history.ordered:lineage.records, {
     calendar, timeframe, asOf: cutoff, tradeDate: selectedTradeDate,
     session: timeframe === '1D' ? null : selectedSession,
     actualContract, mode,
@@ -584,7 +604,9 @@ export function loadTxDecisionChart({
     ...result,
     ...(sourceBudget ? { sourceComplete: complete, sourceReadState: complete ? 'COMPLETE' : 'CATCHUP_PENDING',
       sourceProgress: sources.map(source => source.progress), sourceReadBytes: sourceBudget.sourceBytesRead,
-      cacheReadBytes: sourceBudget.cacheBytesRead, cacheWriteBytes: sourceBudget.cacheBytesWritten } : {}),
+      cacheReadBytes: history?null:sourceBudget.cacheBytesRead, cacheWriteBytes: sourceBudget.cacheBytesWritten,
+      ...(history?{historyReadMode:'PRIVATE_SQLITE_STREAM',historyPageCacheKiB:8192,
+        historyReadBytes:'NOT_MEASURED',cacheWriteMeasurement:'SERIALIZED_LOGICAL_ROWS_NOT_PHYSICAL_IO'}:{}) } : {}),
     ...(limited ? { ...restrictPartialSource(result), status: result.bars?.length ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE',
       reason: 'SOURCE_CATCHUP_PENDING', qualityStatus: 'QUALITY_INSUFFICIENT', qualityReasons,
       coverageState: 'PARTIAL', fullSessionVerified: false,
@@ -603,5 +625,6 @@ export function loadTxDecisionChart({
 
 export function clearTxChartLedgerCache() {
   ledgerCache.clear();
+  clearTxChartHistoryCache();
   timestampLineageCache = new WeakMap();
 }

@@ -261,6 +261,125 @@ function publicBar(bar) {
   return Object.freeze(result);
 }
 
+// Streaming summaries retain extrema and provenance, never representative/fake
+// ticks. The caller supplies the same stable tickOrder as the array builder so
+// floating-point additions have exactly the same order as the original path.
+function emptyTickSummary() {
+  return { count: 0, first: null, last: null, high: null, low: null, volume: 0,
+    availableAt: null, sequenceGapEventCount: 0, sequenceGapSize: 0, contracts: new Map(), opening: null };
+}
+
+function addTickSummary(summary, tick, includeOpening = true) {
+  summary.count += 1;
+  if (!summary.first || tickOrder(tick, summary.first) < 0) summary.first = tick;
+  if (!summary.last || tickOrder(tick, summary.last) >= 0) summary.last = tick;
+  summary.high = summary.high == null ? tick.price : Math.max(summary.high, tick.price);
+  summary.low = summary.low == null ? tick.price : Math.min(summary.low, tick.price);
+  summary.volume += tick.volume;
+  if (summary.availableAt == null || tick.availableAt > summary.availableAt) summary.availableAt = tick.availableAt;
+  summary.sequenceGapEventCount += tick.sequenceGap > 0 ? 1 : 0;
+  summary.sequenceGapSize += tick.sequenceGap;
+  const prior = summary.contracts.get(tick.actualContract);
+  if (!prior || tickOrder(tick, prior) < 0) summary.contracts.set(tick.actualContract, tick);
+  if (includeOpening && tick.session === 'DAY') {
+    const start = Date.parse(zoned(tick.tradeDate, '08:45:00'));
+    if (tick.exchangeMs >= start && tick.exchangeMs < start + 15 * MINUTE_MS) {
+      summary.opening ||= emptyTickSummary();
+      addTickSummary(summary.opening, tick, false);
+    }
+  }
+}
+
+function summaryContracts(summary) {
+  return [...summary.contracts.values()].sort(tickOrder).map((tick) => tick.actualContract);
+}
+
+function summaryLevel(name, value, summary, source, qualityStatus = 'PASS') {
+  if (value == null || !summary.count) return Object.freeze({ name, availability: 'UNAVAILABLE', value: null, reason: 'SOURCE_UNAVAILABLE' });
+  return Object.freeze({ name, availability: 'AVAILABLE', value, source,
+    tradeDate: summary.first.tradeDate, session: summary.first.session,
+    eventTime: summary.last.exchangeTimestamp, availableAt: summary.last.availableAt,
+    actualContract: summary.first.actualContract, qualityStatus });
+}
+
+function summaryOpeningRange(summary, asOfMs) {
+  if (!summary.count || summary.first.session !== 'DAY') {
+    return Object.freeze({ status: 'NOT_APPLICABLE', high: null, low: null, reason: 'NIGHT_OPENING_RANGE_NOT_FROZEN' });
+  }
+  const endMs = Date.parse(zoned(summary.first.tradeDate, '09:00:00'));
+  if (asOfMs < endMs) return Object.freeze({ status: 'FORMING', high: null, low: null, reason: 'OPENING_RANGE_NOT_COMPLETE' });
+  const opening = summary.opening;
+  if (!opening?.count) return Object.freeze({ status: 'UNAVAILABLE', high: null, low: null, reason: 'OPENING_RANGE_TICKS_UNAVAILABLE' });
+  const qualityStatus = opening.sequenceGapEventCount > 0 ? 'QUALITY_INSUFFICIENT' : 'PASS';
+  return Object.freeze({ status: qualityStatus === 'PASS' ? 'READY' : 'QUALITY_INSUFFICIENT',
+    high: opening.high, low: opening.low, source: 'FROZEN_T0_DAY_OPENING_RANGE_0845_0900',
+    tradeDate: summary.first.tradeDate, session: 'DAY', eventTime: opening.last.exchangeTimestamp,
+    availableAt: new Date(Math.max(endMs, Date.parse(opening.availableAt))).toISOString(),
+    actualContract: summary.first.actualContract, qualityStatus });
+}
+
+function summaryCoverage(summary, session, timeLineageViolationCount = 0) {
+  const contracts = summaryContracts(summary);
+  const qualityStatus = !summary.count ? 'UNAVAILABLE'
+    : contracts.length !== 1 || summary.sequenceGapEventCount > 0 || timeLineageViolationCount > 0
+      ? 'QUALITY_INSUFFICIENT' : 'PASS';
+  return Object.freeze({ session, eventCount: summary.count,
+    firstEventTime: summary.first?.exchangeTimestamp || null,
+    lastEventTime: summary.last?.exchangeTimestamp || null,
+    availableAt: summary.availableAt, actualContract: contracts.length === 1 ? contracts[0] : null,
+    availableContracts: Object.freeze(contracts), qualityStatus,
+    sequenceGapEventCount: summary.sequenceGapEventCount, sequenceGapSize: summary.sequenceGapSize,
+    timeLineageViolationCount });
+}
+
+function buildStreamingChartBase(ticks, { calendar, asOf, tradeDate, session, timeframe }) {
+  if (!calendar) throw new Error('TX_CHART_GOVERNED_CALENDAR_REQUIRED');
+  const asOfMs = asOf == null ? Infinity : timestampMs(asOf);
+  if (asOfMs == null) throw new Error('TX_CHART_AS_OF_INVALID');
+  const base = { all: emptyTickSummary(), day: emptyTickSummary(), night: emptyTickSummary(),
+    contracts: new Map(), sessions: new Map(), internalBars: [],
+    futureExcluded: 0, timeLineageViolationCount: 0, dayViolations: 0, nightViolations: 0,
+    futureDataViolations: 0 };
+  const bars = new Map();
+  let previous = null;
+  const inScope = (tick) => timeframe === '1D' ? tick.sessionTradeDate === tradeDate
+    : (!tradeDate || tick.tradeDate === tradeDate) && (!session || tick.session === session);
+  for (const tick of ticks || []) {
+    if (!tick) continue;
+    if (tick.invalidReason) {
+      if (inScope(tick)) {
+        base.timeLineageViolationCount += 1;
+        if (tick.session === 'DAY') base.dayViolations += 1;
+        if (tick.session === 'NIGHT') base.nightViolations += 1;
+      }
+      continue;
+    }
+    if (tick.availableMs > asOfMs || tick.exchangeMs > asOfMs) { base.futureExcluded += 1; continue; }
+    if (previous && tickOrder(previous, tick) > 0) throw new Error('TX_CHART_STREAM_ORDER_INVALID');
+    previous = tick;
+    const startMs = bucketStartMs(tick, 1);
+    const key = `${tick.sessionId}|${tick.actualContract}|${startMs}`;
+    const bar = bars.get(key);
+    if (bar) updateBar(bar, tick); else bars.set(key, createBar(tick, startMs));
+    if (!inScope(tick)) continue;
+    addTickSummary(base.all, tick);
+    addTickSummary(tick.session === 'DAY' ? base.day : base.night, tick);
+    let contract = base.contracts.get(tick.actualContract);
+    if (!contract) {
+      contract = { all: emptyTickSummary(), day: emptyTickSummary(), night: emptyTickSummary() };
+      base.contracts.set(tick.actualContract, contract);
+    }
+    addTickSummary(contract.all, tick);
+    addTickSummary(tick.session === 'DAY' ? contract.day : contract.night, tick);
+    const sessionKey = `${tick.sessionId}|${tick.actualContract}`;
+    let selected = base.sessions.get(sessionKey);
+    if (!selected) { selected = emptyTickSummary(); base.sessions.set(sessionKey, selected); }
+    addTickSummary(selected, tick);
+  }
+  base.internalBars = [...bars.values()].sort((left, right) => left.time.localeCompare(right.time));
+  return base;
+}
+
 export function buildOneMinuteBars(records, { calendar, asOf = null } = {}) {
   if (!calendar) throw new Error('TX_CHART_GOVERNED_CALENDAR_REQUIRED');
   const asOfMs = asOf == null ? Infinity : timestampMs(asOf);
@@ -718,6 +837,317 @@ export function buildTxDecisionChart(records, {
     source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK',
     actualContractSelection: 'SHIOAJI_TXFR1_RESOLVED_TARGET_LATEST_LEGAL_TICK',
     sourceEventCount: selectedTicks.length,
+    futureExcluded: base.futureExcluded,
+    timeLineageViolationCount: scopedTimeLineageViolationCount,
+    futureDataViolations: base.futureDataViolations,
+    barSemanticsOwnerDecisionRequired: false,
+    eventMarkerSlots: Object.freeze(['MARKET_STATE_CHANGE', 'OR_BREAK', 'VWAP_RECLAIM_LOSS', 'BREADTH_CONFLICT', 'ESTIMATED_CVD_DIVERGENCE', 'DATA_STALE', 'GLOBAL_ALIGNMENT_CHANGE']),
+    markers: Object.freeze([]),
+    formalWeight: 0,
+    researchOnly: true,
+    executionAuthorized: false,
+    orderRoutesEnabled: false,
+  });
+}
+
+function buildStreamingDailyTradeDateBar(base, {
+  tradeDate,
+  asOf,
+  actualContract = null,
+}) {
+  const asOfMs = timestampMs(asOf);
+  const nightTicksAll = base.night;
+  const dayTicksAll = base.day;
+  const nightViolationCount = base.nightViolations;
+  const dayViolationCount = base.dayViolations;
+  const nightCoverage = summaryCoverage(nightTicksAll, 'NIGHT', nightViolationCount);
+  const dayCoverage = summaryCoverage(dayTicksAll, 'DAY', dayViolationCount);
+  const nightContracts = nightCoverage.availableContracts;
+  const dayContracts = dayCoverage.availableContracts;
+  const allContracts = [...new Set([...nightContracts, ...dayContracts])];
+  const contractMismatch = nightContracts.length > 1 || dayContracts.length > 1
+    || (nightContracts.length === 1 && dayContracts.length === 1 && nightContracts[0] !== dayContracts[0]);
+  const selectedContract = actualContract
+    || (allContracts.length === 1 ? allContracts[0] : null)
+    || dayContracts[0]
+    || nightContracts[0]
+    || null;
+  const contractConsistencyState = contractMismatch ? 'MISMATCH'
+    : allContracts.length === 1 ? 'MATCH'
+      : allContracts.length === 0 ? 'UNAVAILABLE' : 'PARTIAL';
+  const selected = base.contracts.get(selectedContract);
+  const nightTicks = selected?.night || emptyTickSummary();
+  const dayTicks = selected?.day || emptyTickSummary();
+  const ordered = selected?.all || emptyTickSummary();
+  const hasNight = nightTicks.count > 0;
+  const hasDay = dayTicks.count > 0;
+  const coverageState = hasNight && hasDay ? 'COMPLETE' : ordered.count ? 'PARTIAL' : 'UNAVAILABLE';
+  const dayCloseMs = Date.parse(zoned(tradeDate, '13:45:00'));
+  const windowState = asOfMs < dayCloseMs ? 'FORMING' : 'CLOSED';
+  const sequenceGapEventCount = ordered.sequenceGapEventCount;
+  const sequenceGapSize = ordered.sequenceGapSize;
+  const timeLineageViolationCount = base.timeLineageViolationCount;
+  const reasons = qualityReasons({ coverageState, contractConsistencyState, sequenceGapEventCount, timeLineageViolationCount });
+  if (!hasNight && ordered.count) reasons.unshift('NIGHT_SESSION_MISSING');
+  if (!hasDay && ordered.count) reasons.unshift('DAY_SESSION_MISSING');
+  const qualityStatus = ordered.count && coverageState === 'COMPLETE' && contractConsistencyState === 'MATCH'
+    && sequenceGapEventCount === 0 && timeLineageViolationCount === 0 ? 'PASS'
+    : ordered.count ? 'QUALITY_INSUFFICIENT' : 'UNAVAILABLE';
+  const status = contractMismatch ? 'UNAVAILABLE'
+    : !ordered.count ? 'UNAVAILABLE'
+      : windowState === 'FORMING' ? 'FORMING'
+        : qualityStatus === 'PASS' ? 'READY' : 'QUALITY_INSUFFICIENT';
+  const bar = ordered.count && !contractMismatch ? Object.freeze({
+    time: new Date(zoned(tradeDate, '00:00:00')).toISOString(),
+    tradeDate,
+    sessionTradeDate: tradeDate,
+    session: 'NIGHT_PLUS_DAY',
+    sessionId: `${tradeDate}-TRADE_DATE`,
+    sessionStart: nightTicks.first?.sessionStart || dayTicks.first?.sessionStart || null,
+    sessionEnd: new Date(dayCloseMs).toISOString(),
+    actualContract: selectedContract,
+    contractMonth: ordered.first?.contractMonth || null,
+    open: ordered.first.price,
+    high: ordered.high,
+    low: ordered.low,
+    close: ordered.last.price,
+    volume: ordered.volume,
+    firstEventTime: ordered.first.exchangeTimestamp,
+    lastEventTime: ordered.last.exchangeTimestamp,
+    availableAt: ordered.availableAt,
+    qualityStatus,
+    qualityReasons: Object.freeze([...reasons]),
+    eventCount: ordered.count,
+    sequenceGapCount: sequenceGapSize,
+    windowState,
+    coverageState,
+  }) : null;
+  return Object.freeze({
+    status,
+    reason: contractMismatch ? 'ACTUAL_CONTRACT_MISMATCH'
+      : !ordered.count ? 'TX_TICK_SOURCE_UNAVAILABLE'
+        : reasons[0] || null,
+    bars: Object.freeze(bar ? [bar] : []),
+    ticks: Object.freeze(ordered),
+    nightTicks: Object.freeze(nightTicks),
+    dayTicks: Object.freeze(dayTicks),
+    selectedContract,
+    availableContracts: Object.freeze(allContracts),
+    contractConsistencyState,
+    coverageState,
+    windowState,
+    sessionCoverage: Object.freeze({ night: nightCoverage, day: dayCoverage }),
+    qualityStatus,
+    qualityReasons: Object.freeze(reasons),
+    sequenceGapEventCount,
+    sequenceGapSize,
+    timeLineageViolationCount,
+  });
+}
+
+
+/**
+ * One-pass chart reduction over real records in stable compareTxChartTicks order.
+ * The durable source must sort normalized legal ticks (including availability and
+ * fallback event-ID semantics) before yielding. This preserves the array API's
+ * floating-point addition order; out-of-order input fails explicitly. Duplicate,
+ * invalid and future rows retain the original normalizer/cutoff semantics.
+ * Resident data is O(minutes + sessions + contracts), independent of tick count.
+ * The iterable is consumed once and is never materialized into a tick array.
+ */
+export function buildTxDecisionChartStreaming(records, options = {}) {
+  const ticks = { *[Symbol.iterator]() {
+    for (const record of records || []) yield normalizeTick(record, options.calendar);
+  } };
+  return buildTxDecisionChartFromOrderedTicks(ticks, options);
+}
+
+/**
+ * Internal derived-cache entry point. Accepts complete normalized ticks produced
+ * by the original chart normalizer, after cache identity/integrity verification.
+ * This is not a raw endpoint-input API. Persist invalidReason records as well as
+ * legal ticks so scoped lineage counts survive cache reload. The caller must not
+ * prefilter future ticks: this shared reducer owns cutoff and futureExcluded.
+ */
+export function buildTxDecisionChartFromOrderedTicks(ticks, {
+  calendar,
+  timeframe = '5m',
+  asOf = new Date().toISOString(),
+  tradeDate = null,
+  session = null,
+  actualContract = null,
+  priorDay = null,
+  mode = 'LIVE',
+} = {}) {
+  const base = buildStreamingChartBase(ticks, { calendar, asOf, tradeDate, session, timeframe });
+  const asOfMs = timestampMs(asOf);
+  if (timeframe === '1D') {
+    const daily = buildStreamingDailyTradeDateBar(base, { tradeDate, asOf, actualContract });
+    const selectedTicks = daily.ticks;
+    const dayTicks = daily.dayTicks;
+    const nightTicks = daily.nightTicks;
+    const vwapSession = dayTicks.count ? 'DAY' : nightTicks.count ? 'NIGHT' : 'UNAVAILABLE';
+    const vwapTicks = vwapSession === 'DAY' ? dayTicks : vwapSession === 'NIGHT' ? nightTicks : emptyTickSummary();
+    const vwapBars = base.internalBars.filter((bar) => bar.sessionTradeDate === tradeDate
+      && bar.session === vwapSession
+      && bar.actualContract === daily.selectedContract);
+    const vwap1m = cumulativeSessionVwap(vwapBars);
+    const latestVwap = vwap1m.at(-1)?.value ?? null;
+    const dailyBar = daily.bars[0];
+    const vwap = latestVwap != null && dailyBar ? Object.freeze([Object.freeze({
+      time: dailyBar.time,
+      value: latestVwap,
+      availableAt: vwap1m.at(-1).availableAt,
+      vwapSession,
+    })]) : Object.freeze([]);
+    const or = dayTicks.count
+      ? summaryOpeningRange(dayTicks, asOfMs)
+      : Object.freeze({ status: 'NOT_APPLICABLE', high: null, low: null, reason: 'DAY_OPENING_RANGE_NOT_AVAILABLE' });
+    const sessionHigh = (ticks) => ticks.high;
+    const sessionLow = (ticks) => ticks.low;
+    const unavailablePrior = (name) => Object.freeze({ name, availability: 'UNAVAILABLE', value: null, reason: 'PRIOR_DAY_SOURCE_UNAVAILABLE' });
+    const levels = Object.freeze({
+      currentDayHigh: summaryLevel('CURRENT_DAY_HIGH', sessionHigh(dayTicks), dayTicks, 'ACTUAL_TX_TICK_STREAM'),
+      currentDayLow: summaryLevel('CURRENT_DAY_LOW', sessionLow(dayTicks), dayTicks, 'ACTUAL_TX_TICK_STREAM'),
+      nightHigh: summaryLevel('NIGHT_HIGH', sessionHigh(nightTicks), nightTicks, 'ACTUAL_TX_TICK_STREAM'),
+      nightLow: summaryLevel('NIGHT_LOW', sessionLow(nightTicks), nightTicks, 'ACTUAL_TX_TICK_STREAM'),
+      previousDayHigh: unavailablePrior('PREVIOUS_DAY_HIGH'),
+      previousDayLow: unavailablePrior('PREVIOUS_DAY_LOW'),
+      previousClose: unavailablePrior('PREVIOUS_CLOSE'),
+      openingRangeHigh: or.high == null ? Object.freeze({ name: 'OR_HIGH', availability: 'UNAVAILABLE', value: null, reason: or.reason }) : Object.freeze({ ...or, name: 'OR_HIGH', availability: 'AVAILABLE', value: or.high }),
+      openingRangeLow: or.low == null ? Object.freeze({ name: 'OR_LOW', availability: 'UNAVAILABLE', value: null, reason: or.reason }) : Object.freeze({ ...or, name: 'OR_LOW', availability: 'AVAILABLE', value: or.low }),
+      vwap: latestVwap == null ? Object.freeze({ name: 'VWAP', availability: 'UNAVAILABLE', value: null, reason: 'TX_TICK_VOLUME_UNAVAILABLE', vwapSession })
+        : Object.freeze({ ...summaryLevel('VWAP', latestVwap, vwapTicks, 'SESSION_EXACT_TX_TICK_VWAP'), vwapSession }),
+    });
+    return Object.freeze({
+      schemaVersion: 'governed-tx-decision-chart-v2',
+      barContract: CHART_BAR_CONTRACT,
+      status: daily.status,
+      reason: daily.reason,
+      mode,
+      timeframe,
+      tradeDate,
+      sessionTradeDate: tradeDate,
+      session: 'NIGHT_PLUS_DAY',
+      sessionId: tradeDate ? `${tradeDate}-TRADE_DATE` : null,
+      actualContract: daily.selectedContract,
+      contractMonth: selectedTicks.first?.contractMonth || null,
+      availableContracts: daily.availableContracts,
+      contractRollover: Object.freeze({
+        detected: daily.contractConsistencyState === 'MISMATCH',
+        policy: 'NIGHT_DAY_ACTUAL_CONTRACT_MUST_MATCH',
+        excludedContracts: Object.freeze(daily.contractConsistencyState === 'MISMATCH' ? [...daily.availableContracts] : []),
+      }),
+      contractConsistencyState: daily.contractConsistencyState,
+      windowState: daily.windowState,
+      coverageState: daily.coverageState,
+      sessionCoverage: daily.sessionCoverage,
+      asOf: asOfMs == null ? null : new Date(asOfMs).toISOString(),
+      bars: daily.bars,
+      vwap,
+      vwapSession,
+      openingRange: or,
+      levels,
+      lastPrice: selectedTicks.last?.price ?? null,
+      lastEventTime: selectedTicks.last?.exchangeTimestamp ?? null,
+      availableAt: selectedTicks.availableAt || null,
+      qualityStatus: daily.qualityStatus,
+      qualityReasons: daily.qualityReasons,
+      sequenceGapEventCount: daily.sequenceGapEventCount,
+      sequenceGapSize: daily.sequenceGapSize,
+      source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK',
+      actualContractSelection: 'SHIOAJI_TXFR1_RESOLVED_TARGET_LATEST_LEGAL_TICK',
+      sourceEventCount: selectedTicks.count,
+      futureExcluded: base.futureExcluded,
+      timeLineageViolationCount: daily.timeLineageViolationCount,
+      futureDataViolations: base.futureDataViolations,
+      barSemanticsOwnerDecisionRequired: false,
+      eventMarkerSlots: Object.freeze(['MARKET_STATE_CHANGE', 'OR_BREAK', 'VWAP_RECLAIM_LOSS', 'BREADTH_CONFLICT', 'ESTIMATED_CVD_DIVERGENCE', 'DATA_STALE', 'GLOBAL_ALIGNMENT_CHANGE']),
+      markers: Object.freeze([]),
+      formalWeight: 0,
+      researchOnly: true,
+      executionAuthorized: false,
+      orderRoutesEnabled: false,
+    });
+  }
+  const contractCandidates = summaryContracts(base.all);
+  const sessionContractViolation = contractCandidates.length > 1;
+  const selectedContract = actualContract || base.all.last?.actualContract || null;
+  const selected = base.contracts.get(selectedContract)?.all;
+  const sessionId = selected?.last?.sessionId || null;
+  const selectedTicks = base.sessions.get(sessionId + '|' + selectedContract) || emptyTickSummary();
+  const selectedOneMinute = base.internalBars.filter((bar) => bar.sessionId === sessionId && bar.actualContract === selectedContract);
+  const timeframeResult = aggregateChartBars(selectedOneMinute, timeframe);
+  const bars = timeframeResult.bars;
+  const vwap1m = cumulativeSessionVwap(selectedOneMinute);
+  const vwap = timeframeResult.status === 'READY' ? vwapForTimeframe(vwap1m, bars) : Object.freeze([]);
+  const or = summaryOpeningRange(selectedTicks, asOfMs);
+  const sessionHigh = selectedTicks.count ? selectedTicks.high : null;
+  const sessionLow = selectedTicks.count ? selectedTicks.low : null;
+  const latestVwap = vwap1m.at(-1)?.value ?? null;
+  const priorCompatible = priorDay && priorDay.actualContract === selectedContract;
+  const unavailablePrior = (name) => Object.freeze({ name, availability: 'UNAVAILABLE', value: null, reason: priorDay ? 'ACTUAL_CONTRACT_MISMATCH' : 'PRIOR_DAY_SOURCE_UNAVAILABLE' });
+  const levels = Object.freeze({
+    currentDayHigh: selectedTicks.first?.session === 'DAY' ? summaryLevel('CURRENT_DAY_HIGH', sessionHigh, selectedTicks, 'ACTUAL_TX_TICK_STREAM') : summaryLevel('CURRENT_DAY_HIGH', null, emptyTickSummary(), 'ACTUAL_TX_TICK_STREAM'),
+    currentDayLow: selectedTicks.first?.session === 'DAY' ? summaryLevel('CURRENT_DAY_LOW', sessionLow, selectedTicks, 'ACTUAL_TX_TICK_STREAM') : summaryLevel('CURRENT_DAY_LOW', null, emptyTickSummary(), 'ACTUAL_TX_TICK_STREAM'),
+    nightHigh: selectedTicks.first?.session === 'NIGHT' ? summaryLevel('NIGHT_HIGH', sessionHigh, selectedTicks, 'ACTUAL_TX_TICK_STREAM') : summaryLevel('NIGHT_HIGH', null, emptyTickSummary(), 'ACTUAL_TX_TICK_STREAM'),
+    nightLow: selectedTicks.first?.session === 'NIGHT' ? summaryLevel('NIGHT_LOW', sessionLow, selectedTicks, 'ACTUAL_TX_TICK_STREAM') : summaryLevel('NIGHT_LOW', null, emptyTickSummary(), 'ACTUAL_TX_TICK_STREAM'),
+    previousDayHigh: priorCompatible ? priorDay.high : unavailablePrior('PREVIOUS_DAY_HIGH'),
+    previousDayLow: priorCompatible ? priorDay.low : unavailablePrior('PREVIOUS_DAY_LOW'),
+    previousClose: priorCompatible ? priorDay.close : unavailablePrior('PREVIOUS_CLOSE'),
+    openingRangeHigh: or.high == null ? Object.freeze({ name: 'OR_HIGH', availability: 'UNAVAILABLE', value: null, reason: or.reason }) : Object.freeze({ ...or, name: 'OR_HIGH', availability: 'AVAILABLE', value: or.high }),
+    openingRangeLow: or.low == null ? Object.freeze({ name: 'OR_LOW', availability: 'UNAVAILABLE', value: null, reason: or.reason }) : Object.freeze({ ...or, name: 'OR_LOW', availability: 'AVAILABLE', value: or.low }),
+    vwap: latestVwap == null ? Object.freeze({ name: 'VWAP', availability: 'UNAVAILABLE', value: null, reason: 'TX_TICK_VOLUME_UNAVAILABLE', vwapSession: selectedTicks.first?.session || session || 'UNAVAILABLE' })
+      : Object.freeze({ ...summaryLevel('VWAP', latestVwap, selectedTicks, 'SESSION_EXACT_TX_TICK_VWAP'), vwapSession: selectedTicks.first?.session || session || 'UNAVAILABLE' }),
+  });
+  const scopedTimeLineageViolationCount = base.timeLineageViolationCount;
+  const sequenceGapEventCount = selectedTicks.sequenceGapEventCount;
+  const sequenceGapSize = selectedTicks.sequenceGapSize;
+  const intradayQualityReasons = [];
+  if (sessionContractViolation) intradayQualityReasons.push('SESSION_CONTRACT_CHANGE_DETECTED');
+  if (sequenceGapEventCount > 0) intradayQualityReasons.push('SEQUENCE_CONTINUITY_INSUFFICIENT');
+  if (scopedTimeLineageViolationCount > 0) intradayQualityReasons.push('TIMESTAMP_LINEAGE_INSUFFICIENT');
+  const qualityStatus = !selectedTicks.count ? 'UNAVAILABLE'
+    : sessionContractViolation || scopedTimeLineageViolationCount > 0 || sequenceGapEventCount > 0 ? 'QUALITY_INSUFFICIENT' : 'PASS';
+  return Object.freeze({
+    schemaVersion: 'governed-tx-decision-chart-v2',
+    barContract: CHART_BAR_CONTRACT,
+    status: timeframeResult.status === 'OWNER_DECISION_REQUIRED' ? 'OWNER_DECISION_REQUIRED'
+      : !selectedTicks.count ? 'UNAVAILABLE'
+        : sessionContractViolation ? 'QUALITY_INSUFFICIENT' : 'READY',
+    reason: timeframeResult.reason || (!selectedTicks.count ? 'TX_TICK_SOURCE_UNAVAILABLE'
+      : sessionContractViolation ? 'SESSION_CONTRACT_CHANGE_DETECTED' : null),
+    mode,
+    timeframe,
+    tradeDate: selectedTicks.first?.tradeDate || tradeDate,
+    sessionTradeDate: selectedTicks.first?.sessionTradeDate || tradeDate,
+    session: selectedTicks.first?.session || session,
+    sessionId,
+    actualContract: selectedContract,
+    contractMonth: selectedTicks.first?.contractMonth || null,
+    availableContracts: Object.freeze(contractCandidates),
+    contractRollover: Object.freeze({
+      detected: contractCandidates.length > 1,
+      policy: 'CONTRACTS_ISOLATED_NEVER_MIXED',
+      excludedContracts: Object.freeze(contractCandidates.filter((code) => code !== selectedContract)),
+    }),
+    asOf: asOfMs == null ? null : new Date(asOfMs).toISOString(),
+    bars,
+    vwap,
+    vwapSession: selectedTicks.first?.session || session || 'UNAVAILABLE',
+    openingRange: or,
+    levels,
+    lastPrice: selectedTicks.last?.price ?? null,
+    lastEventTime: selectedTicks.last?.exchangeTimestamp ?? null,
+    availableAt: selectedTicks.availableAt || null,
+    qualityStatus,
+    qualityReasons: Object.freeze(intradayQualityReasons),
+    sequenceGapEventCount,
+    sequenceGapSize,
+    contractConsistencyState: sessionContractViolation ? 'MISMATCH' : selectedTicks.count ? 'MATCH' : 'UNAVAILABLE',
+    source: 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK',
+    actualContractSelection: 'SHIOAJI_TXFR1_RESOLVED_TARGET_LATEST_LEGAL_TICK',
+    sourceEventCount: selectedTicks.count,
     futureExcluded: base.futureExcluded,
     timeLineageViolationCount: scopedTimeLineageViolationCount,
     futureDataViolations: base.futureDataViolations,

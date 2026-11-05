@@ -51,6 +51,7 @@ while(count<total){
     const receivedAt=new Date(start+n*50).toISOString(),trade=Math.floor(n/4),isTrade=n%4===3;
     const close=20000+Math.round(30*Math.sin(trade/1250)+10*Math.sin(trade/101)),tick_type=trade%3,volume=1+trade%4;
     const row=buildLiveEventRecord({kind:isTrade?'futures_tick':'futures_bidask',code:'TXFK6',receivedAt,...SAFETY,
+      ...(paired?{product:'TXFK6',exchangeTimestamp:receivedAt,eventId:String(n),duplicate:false,sequenceGap:0}:{}),
       payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-05',session:'NIGHT',eventTime:receivedAt,
         ...(paired?{code:'TXFK6',datetime:receivedAt,_product_family:'TX',_target_code:'TXFK6'}:{}),
         ...(isTrade?{close,volume,tick_type}:{bid_price:[close-1],ask_price:[close],bid_volume:[10],ask_volume:[10]})}},hash);
@@ -105,19 +106,30 @@ if(paired){
   clearMarketObservationProducerCache();
   const selection={capture:true,mode:'LIVE',timeframe:'5m',tradeDate:'2026-11-05',session:'NIGHT',actualContract:'TXFK6',asOf:new Date(start+(total-1)*50).toISOString()};
   let expected=null;
-  for(const phase of ['paired-cold','paired-restart']){
+  for(const phase of ['paired-cold','paired-restart','paired-normal']){
     let exited;const service=createTxChartService({dataRoot:root,cacheRoot,producerRoot:root,calendar,cacheTtlMs:0,
-      workerFactory:(url,options)=>{const worker=new Worker(url,options);exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
+      workerFactory:(url,options)=>{const worker=new Worker(url,options);
+        // Fixture clock only: exercise the no-asOf audit path at this finite
+        // synthetic source's endpoint, independent of the wall calendar date.
+        // The production service and its deadline/resource limits are unchanged.
+        if(phase==='paired-normal'){const post=worker.postMessage.bind(worker);
+          worker.postMessage=message=>post({...message,selection:{...message.selection,now:new Date(selection.asOf)}});}
+        exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
     try{let ready=false;
       for(let poll=0;poll<2000;poll++){
-        const at=performance.now(),chart=await service.load(selection),elapsedMs=performance.now()-at;
+        const request={...selection};if(phase==='paired-normal')delete request.asOf;
+        const at=performance.now(),chart=await service.load(request),elapsedMs=performance.now()-at;
         recordRequest(phase,elapsedMs,{poll,reason:chart.reason,observationReasons:chart.marketObservation?.reasonCodes});
         assert.ok(elapsedMs<8000&& !/TIMEOUT|WORKER_UNAVAILABLE/.test(chart.reason||''),`${phase}:${elapsedMs}:${chart.reason}`);
         if(chart.sourceComplete&&chart.marketObservation?.snapshotId&&!chart.marketObservation.reasonCodes.includes('SOURCE_CATCHUP_PENDING')){
           const observation=chart.marketObservation;assert.equal(observation.cutoff,chart.asOf);
           assert.equal(observation.profile.totalVolume,oracle.total);assert.equal(observation.cvd.value,oracle.buy-oracle.sell);
-          if(expected)assert.equal(observation.snapshotId,expected);else expected=observation.snapshotId;
-          snapshots.push({kind:phase,cutoff:chart.asOf,hash:expected,chartLastPrice:chart.lastPrice,observationLastPrice:observation.price.last});ready=true;break;
+          if(phase!=='paired-normal'){if(expected)assert.equal(observation.snapshotId,expected);else expected=observation.snapshotId;}
+          snapshots.push({kind:phase,cutoff:chart.asOf,hash:observation.snapshotId,chartLastPrice:chart.lastPrice,observationLastPrice:observation.price.last,
+            sourceTimeAudit:chart.structureEligibility?.audit??null,
+            syntheticClock:phase==='paired-normal'?selection.asOf:null});
+          if(phase==='paired-normal')assert.equal(chart.structureEligibility?.audit?.includedInputCount,total/4);
+          ready=true;break;
         }
         assert.ok(chart.status!=='UNAVAILABLE'||chart.reason==='SOURCE_CATCHUP_PENDING',`${phase}:${chart.reason}`);
       }

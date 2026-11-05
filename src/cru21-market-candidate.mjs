@@ -104,7 +104,7 @@ export function assertMarketCandidateFilesystemRoots(roots, io = fs) {
         }
         continue;
       }
-      inspect(path.join(dir, name), false);
+      inspect(path.join(dir, name), false,dir===roots.chartCacheRoot&&/^[a-f0-9]{64}-tx-history-v2\.sqlite-journal$/.test(name));
     }
   }
   return true;

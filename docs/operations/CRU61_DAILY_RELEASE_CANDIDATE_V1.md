@@ -79,4 +79,8 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 廣度改為在原總位元組預算內反向逐段搜尋最新紀錄，RVOL 只讀原規則選出的最近 20 個已稽核日期；保留缺值、品質與日期選擇。Windows 測試沿系統原有效政策，不再由測試參數設定 ExecutionPolicy Bypass。
 
-`verify-market-observation-session-capacity.mjs <fresh-output> 4000 504000 1008000 paired` 在獨立合成來源完成 14 小時累積、歷史 cutoff 與中段接續後，再以原 worker 驗證價格／三模組配對的冷讀與重啟。這是合成容量證據，並非 LIVE、原始市場全盤或每日入口驗收；測試結果以最終 SHA 對應的 immutable 收據為準。
+`verify-market-observation-session-capacity.mjs <fresh-output> 4000 504000 1008000 paired` 在獨立合成來源完成 14 小時累積、歷史 cutoff 與中段接續後，再以原 worker 驗證價格／三模組配對的冷讀、重啟及不傳 asOf 的一般更新路徑。一般路徑只在測試 worker 注入有限合成來源的終點時鐘，確認 source-time audit 確實涵蓋全部成交；不改產品時鐘、8 秒或記憶體限制。這是合成容量證據，並非 LIVE、原始市場全盤或每日入口驗收；測試結果以最終 SHA 對應的 immutable 收據為準。
+
+圖表超過 legacy 駐留 records/cache 預算時，在同一 chartCacheRoot 使用 `tx-chart-history-v2` 私有 SQLite。每次來源讀取仍受原 4 MiB／200,000 records 上限約束；跨午夜檔案的早段成交不被丟棄。真實 compact records 與正規化排序鍵分別保存、綁定來源世代及 calendar，transaction 同步提交 cursor，冷啟逐批驗證每列（含 NULL 欄位）的 hash 後才渲染。驗證與渲染分開請求並揭露暖機進度。來源替換建立新世代，保留舊資料；快取外部變動清除已驗證狀態。
+
+排序串流按原 event／available／eventId 順序計算；source-time／capture audit 單次遍歷原始順序，保留舊陣列實作為回歸 oracle。SQLite page cache 8 MiB、temp 磁碟、mmap 關閉及每 store 約 16 GiB 上限與其他私有歷史一致，最多四個開啟 chart store。`historyReadBytes=NOT_MEASURED` 明示未量測實體磁碟 I/O；寫入計數為 serialized logical rows，不能聲稱實體讀寫零或等於來源讀取預算。原 raw ledger、legacy cache 和歷史失敗收據均保留。

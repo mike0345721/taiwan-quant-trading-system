@@ -41,42 +41,45 @@ function failureReason(record, contract) {
   return null;
 }
 
-export function knownCaptureIntervals(records, { actualContract, cutoff, calendar = null } = {}) {
+// Append in physical ledger order. finish seals the evidence once and returns
+// the same frozen result on repeated calls; no raw records are retained.
+export function createKnownCaptureCollector({ actualContract, cutoff, calendar = null } = {}) {
   const at = time(cutoff);
-  if (!Number.isFinite(at) || typeof actualContract !== 'string') return Object.freeze([]);
+  const enabled = Number.isFinite(at) && typeof actualContract === 'string';
   const intervals = [];
-  let previousTick = null, pending = null;
-  for (const record of records || []) {
-    if (!record || record.duplicate === true) continue;
+  let previousTick = null, pending = null, finished = null;
+  const append = record => {
+    if (finished) throw new Error('CAPTURE_COLLECTOR_FINISHED');
+    if (!enabled || !record || record.duplicate === true) return;
     const receipt = time(record.receivedAt);
-    if (!Number.isFinite(receipt) || receipt > at) continue;
+    if (!Number.isFinite(receipt) || receipt > at) return;
     if (record.kind === 'futures_tick') {
       const payload = record.payload || {}, source = time(payload.datetime);
       if (payload.simtrade === true || payload._product_family !== 'TX'
         || payload.code !== actualContract || record.product !== actualContract
         || payload._target_code !== actualContract || !Number.isFinite(source)
-        || Math.max(source, receipt) > at || !(Number(payload.close) > 0) || !(Number(payload.volume) > 0)) continue;
+        || Math.max(source, receipt) > at || !(Number(payload.close) > 0) || !(Number(payload.volume) > 0)) return;
       // A physically later callback can carry an older trade. It must not
       // regress the source watermark or erase the pending interruption.
-      if (previousTick != null && source < previousTick) continue;
+      if (previousTick != null && source < previousTick) return;
       if (pending) {
         if ((pending.start != null && source <= pending.start)
-          || source <= pending.failureSourceWatermark) continue;
+          || source <= pending.failureSourceWatermark) return;
         const witnessSessionStart = governedSessionStart(source, calendar);
         if (calendar && (witnessSessionStart == null
-          || (pending.sessionFloor != null && witnessSessionStart < pending.sessionFloor))) continue;
+          || (pending.sessionFloor != null && witnessSessionStart < pending.sessionFloor))) return;
         intervals.push(Object.freeze({ startSourceAt: iso(pending.start), endSourceAt: iso(source),
           detectedAt: iso(pending.detected), restorationAvailableAt: iso(Math.max(source, receipt)),
           reasonCodes: Object.freeze([...pending.reasons]), witnesses: Object.freeze(pending.witnesses) }));
         pending = null;
       }
       previousTick = source;
-      continue;
+      return;
     }
     const reason = failureReason(record, actualContract);
-    if (!reason) continue;
+    if (!reason) return;
     const event = time(record.payload?.datetime);
-    if (!Number.isFinite(event) || Math.max(event, receipt) > at) continue;
+    if (!Number.isFinite(event) || Math.max(event, receipt) > at) return;
     // Bounds are source-time observations surrounding a recorded failure, not
     // a claimed physical outage duration or cross-clock error estimate.
     const sessionFloor = governedSessionStart(event, calendar);
@@ -89,11 +92,24 @@ export function knownCaptureIntervals(records, { actualContract, cutoff, calenda
     pending.reasons.add(reason);
     if (pending.witnesses.length < 8) pending.witnesses.push(Object.freeze({
       kind: record.kind, eventId: record.eventId ?? null, receivedAt: record.receivedAt, reason }));
-  }
-  if (pending) intervals.push(Object.freeze({ startSourceAt: iso(pending.start), endSourceAt: null,
-    detectedAt: iso(pending.detected), restorationAvailableAt: null,
-    reasonCodes: Object.freeze([...pending.reasons]), witnesses: Object.freeze(pending.witnesses) }));
-  return Object.freeze(intervals);
+  };
+  const finish = () => {
+    if (finished) return finished;
+    if (pending) intervals.push(Object.freeze({ startSourceAt: iso(pending.start), endSourceAt: null,
+      detectedAt: iso(pending.detected), restorationAvailableAt: null,
+      reasonCodes: Object.freeze([...pending.reasons]), witnesses: Object.freeze(pending.witnesses) }));
+    finished = Object.freeze(intervals);
+    return finished;
+  };
+  return Object.freeze({ append, finish });
+}
+
+export function knownCaptureIntervals(records, { actualContract, cutoff, calendar = null } = {}) {
+  // Preserve the original invalid-context short circuit without consuming input.
+  if (!Number.isFinite(time(cutoff)) || typeof actualContract !== 'string') return Object.freeze([]);
+  const collector = createKnownCaptureCollector({ actualContract, cutoff, calendar });
+  for (const record of records || []) collector.append(record);
+  return collector.finish();
 }
 
 export function captureIntervalOverlaps(intervals, start, end) {

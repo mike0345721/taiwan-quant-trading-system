@@ -1,0 +1,247 @@
+// Reproducible private chart history, never an official database or a collector.
+// New source reads retain the original byte/record budgets. History is streamed
+// from disk rather than counting every prior tick against the next ingest batch.
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {createRequire} from 'node:module';
+import {compareTxChartTicks} from './dashboard-tx-chart.mjs';
+
+const stores=new Map(),version='tx-chart-history-v2';
+const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
+const identity=s=>`${s.dev}:${s.ino}:${s.birthtimeMs}`;
+const stamp=file=>{const s=fs.statSync(file,{bigint:true});return `${s.dev}:${s.ino}:${s.size}:${s.mtimeNs}:${s.ctimeNs}`;};
+const fileName=root=>`${hash(path.resolve(root))}-tx-history-v2.sqlite`;
+export const txChartHistoryPath=(dataRoot,cacheRoot)=>path.join(cacheRoot,fileName(dataRoot));
+function ordinary(file,optional=false){
+  try{const s=fs.lstatSync(file);if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1)throw Error('TX_CHART_HISTORY_PATH_ALIAS');}
+  catch(e){if(optional&&e.code==='ENOENT')return;throw e;}
+}
+function openStore(dataRoot,cacheRoot){
+  const file=txChartHistoryPath(dataRoot,cacheRoot);
+  if(stores.has(file)){const store=stores.get(file);ordinary(file);
+    if(identity(fs.statSync(file))!==store.fileIdentity){store.db.close();stores.delete(file);return openStore(dataRoot,cacheRoot);}
+    const current=stamp(file),dataVersion=store.q('PRAGMA data_version').get().data_version;
+    if(current!==store.knownStamp||dataVersion!==store.dataVersion){store.verified.clear();store.pending.clear();store.sourceChecks.clear();store.knownStamp=current;store.dataVersion=dataVersion;}return store;}
+  fs.mkdirSync(cacheRoot,{recursive:true});
+  for(let current=path.resolve(cacheRoot);;){const s=fs.lstatSync(current);
+    if(!s.isDirectory()||s.isSymbolicLink())throw Error('TX_CHART_HISTORY_PATH_ALIAS');
+    const parent=path.dirname(current);if(parent===current)break;current=parent;}
+  ordinary(file,true);ordinary(file+'-journal',true);
+  const {DatabaseSync}=createRequire(import.meta.url)('node:sqlite');
+  const db=new DatabaseSync(file),statements=new Map();
+  const q=sql=>{if(!statements.has(sql))statements.set(sql,db.prepare(sql));return statements.get(sql);};
+  try{
+    db.exec(`PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA cache_size=-8192;
+      PRAGMA mmap_size=0; PRAGMA temp_store=FILE; PRAGMA max_page_count=4194304;
+      BEGIN; CREATE TABLE IF NOT EXISTS binding(version TEXT,root TEXT);
+      CREATE TABLE IF NOT EXISTS sources(id INTEGER PRIMARY KEY,path TEXT,identity TEXT,offset INTEGER,
+        observed INTEGER,mtime REAL,headSize INTEGER,headHash TEXT,tailSize INTEGER,tailHash TEXT,count INTEGER);
+      CREATE TABLE IF NOT EXISTS active(path TEXT PRIMARY KEY,id INTEGER);
+      CREATE TABLE IF NOT EXISTS events(source INTEGER,offset INTEGER,json TEXT,key TEXT,
+        event REAL,available REAL,violation TEXT,rawHash TEXT,keyHash TEXT,violationHash TEXT,PRIMARY KEY(source,offset));
+      CREATE INDEX IF NOT EXISTS event_order ON events(event,available,source,offset);
+      CREATE INDEX IF NOT EXISTS source_event_order ON events(source,event,available,offset); COMMIT;`);
+    const binding=q('SELECT * FROM binding').get();
+    if(binding&&(binding.version!==version||binding.root!==path.resolve(dataRoot)))throw Error('TX_CHART_HISTORY_BINDING_MISMATCH');
+    if(!binding)q('INSERT INTO binding VALUES(?,?)').run(version,path.resolve(dataRoot));
+    const store={file,db,q,verified:new Map(),pending:new Map(),sourceChecks:new Map(),knownStamp:stamp(file),fileIdentity:identity(fs.statSync(file)),
+      dataVersion:q('PRAGMA data_version').get().data_version};stores.set(file,store);
+    while(stores.size>4){const first=stores.keys().next().value;stores.get(first).db.close();stores.delete(first);}
+    return store;
+  }catch(e){try{db.close();}catch{}throw e;}
+}
+function readBytes(fd,size,offset,budget){
+  if(size>budget.remainingSourceBytes)return null;
+  const buffer=Buffer.allocUnsafe(size),n=fs.readSync(fd,buffer,0,size,offset);
+  budget.remainingSourceBytes-=n;budget.sourceBytesRead+=n;
+  if(n!==size)throw Error('TX_CHART_SOURCE_SHORT_READ');return buffer;
+}
+function source(store,file,budget,decode,normalize,normalizationIdentity){
+  const {db,q}=store;
+  if(!fs.existsSync(file))return {id:null,progress:{sourceDate:path.basename(file),state:'MISSING',complete:false,reasonCodes:['TX_CHART_SOURCE_MISSING']}};
+  ordinary(file);const stat=fs.statSync(file),fd=fs.openSync(file,'r'),reasons=[];
+  try{
+    let s=q('SELECT sources.* FROM sources JOIN active ON sources.id=active.id WHERE active.path=?').get(file);
+    const staged=s&&store.pending.get(s.id);
+    // A near-budget line needs its own read phase: checkpoint bytes must not
+    // permanently consume the space needed to re-read that entire line.
+    // Never join this fresh snapshot to carried bytes from an earlier read.
+    if(staged?.freshRead&&staged.offset===s.offset&&staged.identity===identity(stat)
+      &&s.identity===identity(stat)+':'+normalizationIdentity&&stat.size>=s.offset){
+      const bytes=readBytes(fd,Math.min(budget.maxSourceBytes,stat.size-s.offset,budget.remainingSourceBytes),s.offset,budget);
+      const end=bytes.lastIndexOf(10);
+      store.pending.set(s.id,{offset:s.offset,bytes:end>=0?bytes.subarray(0,end+1):Buffer.alloc(0),
+        identity:identity(stat),observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs,
+        freshRead:end<0,snapshot:end>=0});
+      return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
+        sourceOffset:s.offset,observedSize:stat.size,reasonCodes:[end>=0?'TX_CHART_SNAPSHOT_GUARD_PENDING':'TX_CHART_COMPLETE_LINE_PENDING']}};
+    }
+    let head=Buffer.alloc(0),tail=Buffer.alloc(0);
+    let reset=!s||s.identity!==identity(stat)+':'+normalizationIdentity||stat.size<s.offset;
+    if(s&&!reset&&s.offset){
+      const sourceStamp=`${identity(stat)}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${s.offset}`;
+      let check=store.sourceChecks.get(s.id);
+      if(check?.stamp!==sourceStamp)check={stamp:sourceStamp,head:Buffer.alloc(0),tail:Buffer.alloc(0)};
+      for(const [field,size,start] of [['head',s.headSize,0],['tail',s.tailSize,s.offset-s.tailSize]]){
+        const amount=Math.min(size-check[field].length,budget.remainingSourceBytes);
+        if(amount>0)check[field]=Buffer.concat([check[field],readBytes(fd,amount,start+check[field].length,budget)]);
+      }
+      store.sourceChecks.set(s.id,check);head=check.head;tail=check.tail;
+      if(head.length!==s.headSize||tail.length!==s.tailSize)return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_SOURCE_IDENTITY_VALIDATION_PENDING']}};
+      reset=hash(head)!==s.headHash||hash(tail)!==s.tailHash||(stat.size===s.observed&&stat.mtimeMs!==s.mtime);
+    }
+    if(reset){
+      if(s){store.verified.delete(s.id);store.pending.delete(s.id);store.sourceChecks.delete(s.id);}
+      assertUnchanged(store);
+      db.exec('BEGIN IMMEDIATE');
+      try{const inserted=q('INSERT INTO sources(path,identity,offset,observed,mtime,headSize,headHash,tailSize,tailHash,count) VALUES(?,?,0,?,?,0,?,0,?,0)').run(file,identity(stat)+':'+normalizationIdentity,stat.size,stat.mtimeMs,hash(''),hash(''));
+        q('INSERT OR REPLACE INTO active VALUES(?,?)').run(file,Number(inserted.lastInsertRowid));db.exec('COMMIT');
+      }catch(e){try{db.exec('ROLLBACK');}catch{}throw e;}
+      s=q('SELECT sources.* FROM sources JOIN active ON sources.id=active.id WHERE active.path=?').get(file);
+      if(s.offset)throw Error('TX_CHART_HISTORY_RESET_INVALID');
+      store.verified.set(s.id,{count:0,offset:-1});acceptOwnWrite(store);head=Buffer.alloc(0);tail=Buffer.alloc(0);
+    }
+    if(q('SELECT count(*) n FROM events WHERE source=?').get(s.id).n!==s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+    const pending=store.pending.get(s.id);
+    const carryValid=pending?.offset===s.offset&&pending.identity===identity(stat)
+      &&stat.size>=pending.observedSize&&stat.size>=s.offset+pending.bytes.length
+      &&(stat.size>pending.observedSize||(stat.mtimeMs===pending.mtime&&stat.ctimeMs===pending.ctime));
+    const snapshot=carryValid&&pending.snapshot?pending:null;
+    let carry=carryValid&&!snapshot?pending.bytes:Buffer.alloc(0);
+    if(!carryValid)store.pending.delete(s.id);
+    // A growing file can also have had its uncommitted suffix rewritten. Check
+    // the carried bytes themselves before joining them to a new suffix.
+    if(carry.length&&(stat.size!==pending.observedSize||stat.mtimeMs!==pending.mtime||stat.ctimeMs!==pending.ctime)){
+      const current=readBytes(fd,carry.length,s.offset,budget);
+      if(!current){store.pending.set(s.id,{...pending,freshRead:true});
+        return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
+          sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_PARTIAL_LINE_VALIDATION_PENDING']}};}
+      if(!current.equals(carry)){carry=Buffer.alloc(0);store.pending.delete(s.id);}
+      else store.pending.set(s.id,{...pending,observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs});
+      if(carry.length&&!budget.remainingSourceBytes&&stat.size>s.offset+carry.length){
+        store.pending.set(s.id,{...pending,freshRead:true});
+        return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
+          sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_PARTIAL_LINE_VALIDATION_PENDING']}};
+      }
+    }
+    const maxRead=Math.min(budget.maxSourceBytes-carry.length,stat.size-s.offset-carry.length,budget.remainingSourceBytes);
+    let snapshotCommitted=false;
+    if((snapshot||maxRead>0)&&budget.remainingRecords>0){
+      const next=snapshot?null:readBytes(fd,maxRead,s.offset+carry.length,budget),
+        bytes=snapshot?snapshot.bytes:carry.length?Buffer.concat([carry,next]):next,end=bytes.lastIndexOf(10);
+      if(end>=0){
+        let position=0,committed=0,added=0,written=0;
+        const priorVerified=store.verified.has(s.id)?{...store.verified.get(s.id)}:null;
+        assertUnchanged(store);db.exec('BEGIN IMMEDIATE');
+        try{
+          while(position<=end){
+            const newline=bytes.indexOf(10,position),line=bytes.subarray(position,newline).toString('utf8');
+            const record=decode(line);
+            if(record){
+              if(added>=budget.remainingRecords)break;
+              const json=JSON.stringify(record),n=normalize(record),key=n.key?JSON.stringify(n.key):null,
+                violation=n.violation?JSON.stringify(n.violation):null;
+              const values=[json,key,n.key?.exchangeMs??null,n.key?.availableMs??null,violation];
+              const size=Buffer.byteLength(JSON.stringify(values));if(written+size>budget.remainingCacheWriteBytes)break;
+              const offset=s.offset+position,prefix=`${s.id}:${offset}:`,rawHash=hash(prefix+json);
+              q('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?)').run(s.id,offset,...values,rawHash,
+                hash(prefix+JSON.stringify([key,values[2],values[3],rawHash])),hash(prefix+(violation??'')));
+              added++;written+=size;
+            }
+            committed=newline+1;position=committed;
+          }
+          if(committed){
+            const offset=s.offset+committed;
+            const headSize=Math.min(512,offset),tailSize=Math.min(512,offset);
+            const nextHead=s.offset>=512?head:Buffer.concat([head,bytes.subarray(0,committed)]).subarray(0,headSize);
+            const nextTail=Buffer.concat([tail,bytes.subarray(Math.max(0,committed-512),committed)]).subarray(-tailSize);
+            q('UPDATE sources SET offset=?,observed=?,mtime=?,headSize=?,headHash=?,tailSize=?,tailHash=?,count=count+? WHERE id=?')
+              .run(offset,snapshot?.observedSize??stat.size,snapshot?.mtime??stat.mtimeMs,headSize,hash(nextHead),tailSize,hash(nextTail),added,s.id);
+            const verified=store.verified.get(s.id);
+            if(verified?.count===s.count)store.verified.set(s.id,{count:s.count+added,offset:offset-1});
+            s={...s,offset,count:s.count+added};
+            snapshotCommitted=!!snapshot;
+          }
+          db.exec('COMMIT');acceptOwnWrite(store);store.pending.delete(s.id);store.sourceChecks.delete(s.id);
+          budget.remainingRecords-=added;budget.remainingCacheWriteBytes-=written;budget.cacheBytesWritten+=written;
+        }catch(e){try{db.exec('ROLLBACK');}catch{}if(priorVerified)store.verified.set(s.id,priorVerified);else store.verified.delete(s.id);throw e;}
+      }else{store.pending.set(s.id,{offset:s.offset,bytes,identity:identity(stat),observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs});reasons.push('TX_CHART_COMPLETE_LINE_PENDING');}
+    }
+    if(maxRead===0&&carry.length===budget.maxSourceBytes)reasons.push(stat.size>s.offset+carry.length?'TX_CHART_RECORD_BYTES_BUDGET_EXCEEDED':'TX_CHART_COMPLETE_LINE_PENDING');
+    // A snapshot is an observed read, not an assertion that the later file is
+    // unchanged. Recheck its committed checkpoints before publishing any chart.
+    if(snapshotCommitted)reasons.push('TX_CHART_SNAPSHOT_RECHECK_PENDING');
+    const complete=!snapshotCommitted&&s.offset===stat.size;
+    if(!complete&&!reasons.length)reasons.push(budget.remainingRecords===0?'TX_CHART_RECORD_BATCH_PENDING':'TX_CHART_SOURCE_CATCHUP_PENDING');
+    return {id:s.id,progress:{sourceDate:path.basename(file),state:complete?'COMPLETE':'CATCHUP_PENDING',complete,
+      sourceOffset:s.offset,observedSize:stat.size,reasonCodes:reasons}};
+  }finally{fs.closeSync(fd);}
+}
+function checked(row,kind){const prefix=`${row.source}:${row.offset}:`;
+  const content=kind==='raw'?row.json:kind==='key'?JSON.stringify([row.key,row.event,row.available,row.rawHash]):row.violation??'';
+  const expected=kind==='raw'?row.rawHash:kind==='key'?row.keyHash:row.violationHash;
+  if(hash(prefix+content)!==expected)throw Error('TX_CHART_HISTORY_ROW_HASH_MISMATCH');return row;}
+function assertUnchanged(store){if(stamp(store.file)!==store.knownStamp||store.q('PRAGMA data_version').get().data_version!==store.dataVersion)
+  throw Error('TX_CHART_HISTORY_CHANGED_DURING_READ');}
+function acceptOwnWrite(store){if(store.q('PRAGMA data_version').get().data_version!==store.dataVersion){store.verified.clear();throw Error('TX_CHART_HISTORY_CHANGED_DURING_WRITE');}store.knownStamp=stamp(store.file);}
+function verifySource(store,id,budget){
+  const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0};
+  if(v.count===s.count)return true;
+  for(const row of store.q('SELECT * FROM events WHERE source=? AND offset>? ORDER BY offset').iterate(id,v.offset)){
+    const bytes=Buffer.byteLength(row.json)+Buffer.byteLength(row.key??'')+Buffer.byteLength(row.violation??'');
+    if(!budget.remainingRecords||bytes>budget.remainingCacheBytes)break;
+    checked(row,'raw');checked(row,'key');checked(row,'violation');
+    budget.remainingRecords--;budget.remainingCacheBytes-=bytes;budget.cacheBytesRead+=bytes;
+    v.offset=row.offset;v.count++;
+  }
+  if(v.count>s.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+  store.verified.set(id,v);return v.count===s.count;
+}
+export function readTxChartHistory({dataRoot,cacheRoot,files,budget,decode,normalize,calendar}){
+  const normalizationIdentity=hash(JSON.stringify([version,calendar],(_key,value)=>value instanceof Map?[...value]:value instanceof Set?[...value]:value));
+  const store=openStore(dataRoot,cacheRoot),sources=files.map(file=>source(store,file,budget,decode,normalize,normalizationIdentity));
+  const ids=sources.map(s=>s.id).filter(id=>id!=null),where=ids.length?`source IN (${ids.map(()=>'?').join(',')})`:'0';
+  for(const map of [store.pending,store.sourceChecks,store.verified])for(const id of map.keys())if(!ids.includes(id))map.delete(id);
+  const validationBytesBefore=budget.cacheBytesRead;
+  let verified=true;
+  for(const source of sources)if(source.id!=null&&!verifySource(store,source.id,budget)){
+    verified=false;source.progress={...source.progress,complete:false,state:'CACHE_VALIDATION_PENDING',reasonCodes:[...source.progress.reasonCodes,'TX_CHART_CACHE_VALIDATION_PENDING']};}
+  for(const source of sources)if(source.id!=null){
+    const count=store.q('SELECT count FROM sources WHERE id=?').get(source.id).count;
+    source.progress={...source.progress,cacheVerifiedRecords:store.verified.get(source.id)?.count??0,cacheRecordCount:count};
+  }
+  // Verification and a full render are separate bounded units of work. A cold
+  // request never pays both complete history validation and the render budget.
+  if(budget.cacheBytesRead>validationBytesBefore){verified=false;
+    for(const source of sources)if(source.progress.complete)source.progress={...source.progress,complete:false,
+      state:'CACHE_VALIDATED_AWAITING_RENDER',reasonCodes:[...source.progress.reasonCodes,'TX_CHART_CACHE_VALIDATED_AWAITING_RENDER']};}
+  const unchanged=()=>assertUnchanged(store);
+  unchanged();
+  const raw={*[Symbol.iterator](){if(!verified)return;unchanged();for(const id of ids)for(const row of store.q('SELECT json FROM events WHERE source=? ORDER BY offset').iterate(id))yield JSON.parse(row.json);unchanged();}};
+  const ordered={*[Symbol.iterator](){
+    if(!verified)return;unchanged();
+    function* fromSource(id){let ties=[],at=null;
+      function* flush(){ties.sort(compareTxChartTicks);yield* ties;ties=[];}
+      const statement=store.db.prepare('SELECT key,event,available FROM events WHERE source=? AND key IS NOT NULL ORDER BY event,available,offset');
+      for(const row of statement.iterate(id)){const group=`${row.event}:${row.available}`;
+        if(at!==null&&at!==group)yield* flush();at=group;
+        if(ties.length>=budget.maxRecords)throw Error('TX_CHART_TIED_RECORD_BUDGET');ties.push(JSON.parse(row.key));
+      }yield* flush();
+    }
+    const iterators=ids.map(id=>fromSource(id));
+    try{const heads=iterators.map(iterator=>iterator.next());
+      for(;;){let chosen=-1;
+        for(let i=0;i<heads.length;i++)if(!heads[i].done&&(chosen<0||compareTxChartTicks(heads[i].value,heads[chosen].value)<0))chosen=i;
+        if(chosen<0)break;yield heads[chosen].value;heads[chosen]=iterators[chosen].next();
+      }
+    }finally{for(const iterator of iterators)iterator.return();}unchanged();
+  }};
+  const violations=[];
+  if(verified)for(const row of store.q(`SELECT violation FROM events WHERE ${where} AND violation IS NOT NULL ORDER BY source,offset`).iterate(...ids)){
+    if(violations.length>=budget.maxRecords)throw Error('TX_CHART_TIMESTAMP_EVIDENCE_BUDGET');violations.push(JSON.parse(row.violation));
+  }
+  unchanged();
+  return {raw,ordered,violations,sources,historyFile:store.file};
+}
+export function clearTxChartHistoryCache(){for(const store of stores.values())try{store.db.close();}catch{}stores.clear();}
