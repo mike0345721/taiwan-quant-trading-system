@@ -118,7 +118,12 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
       assertUnchanged(store);
       db.exec('BEGIN IMMEDIATE');
       try{const inserted=q('INSERT INTO sources(path,identity,offset,observed,mtime,headSize,headHash,tailSize,tailHash,count) VALUES(?,?,0,?,?,0,?,0,?,0)').run(file,identity(stat)+':'+normalizationIdentity,stat.size,stat.mtimeMs,hash(''),hash(''));
-        q('INSERT OR REPLACE INTO active VALUES(?,?)').run(file,Number(inserted.lastInsertRowid));db.exec('COMMIT');
+        const id=Number(inserted.lastInsertRowid);
+        // INTEGER PRIMARY KEY may reuse an id after external source deletion.
+        // Prove the new generation is empty before granting resident trust;
+        // a bounded index seek also detects orphan events left under that id.
+        if(q('SELECT 1 FROM events WHERE source=? LIMIT 1').get(id))throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+        q('INSERT OR REPLACE INTO active VALUES(?,?)').run(file,id);db.exec('COMMIT');
       }catch(e){try{db.exec('ROLLBACK');}catch{}throw e;}
       s=q('SELECT sources.* FROM sources JOIN active ON sources.id=active.id WHERE active.path=?').get(file);
       if(s.offset)throw Error('TX_CHART_HISTORY_RESET_INVALID');

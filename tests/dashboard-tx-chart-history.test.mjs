@@ -345,6 +345,26 @@ test('the shared cold verification deadline yields before the row cap and resume
   assert.deepEqual([...first.raw],[]);t.mock.restoreAll();finishColdHistory(f,first);
 });
 
+test('new generations reject orphan rows before trusting a reused source id',t=>{
+  const f=smallHistory(t);fs.writeFileSync(f.file,'');f.read();
+  const other=path.join(f.root,'second.ndjson');fs.writeFileSync(other,'');
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));let id;
+  try{
+    id=db.prepare('SELECT max(id)+1 n FROM sources').get().n;
+    const prefix=`${id}:0:`,json='{"orphan":true}',hash=value=>createHash('sha256').update(value).digest('hex'),rawHash=hash(prefix+json);
+    db.prepare('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,0,json,null,null,null,null,rawHash,
+      hash(prefix+JSON.stringify([null,null,null,rawHash])),hash(prefix));
+  }finally{db.close();}
+  assert.throws(()=>readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,files:[f.file,other],
+    budget:createTxChartReadBudget(),decode:JSON.parse,normalize:()=>({key:null,violation:null}),calendar:{}}),/TX_CHART_HISTORY_ROW_COUNT_MISMATCH/);
+  const check=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{
+    assert.equal(check.prepare('SELECT count(*) n FROM sources WHERE id=?').get(id).n,0,'failed generation transaction rolls back');
+    assert.equal(check.prepare('SELECT count(*) n FROM active WHERE path=?').get(other).n,0);
+    assert.equal(check.prepare('SELECT count(*) n FROM events WHERE source=?').get(id).n,1,'orphan evidence stays intact');
+  }finally{check.close();}
+});
+
 for(const corruption of ['deleted row','extra hashed row','count too high','count too low']){
   test(`bounded cold verification rejects ${corruption} before rendering`,t=>{
     const f=coldMultiSourceHistory(t);f.read();
