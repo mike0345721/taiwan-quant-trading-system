@@ -123,6 +123,9 @@ if(paired){
         assert.ok(elapsedMs<8000&& !/TIMEOUT|WORKER_UNAVAILABLE/.test(chart.reason||''),`${phase}:${elapsedMs}:${chart.reason}`);
         if(chart.sourceComplete&&chart.marketObservation?.snapshotId&&!chart.marketObservation.reasonCodes.includes('SOURCE_CATCHUP_PENDING')){
           const observation=chart.marketObservation;assert.equal(observation.cutoff,chart.asOf);
+          assert.equal(chart.sourceEventCount,total/4);
+          assert.equal(chart.lastPrice,observation.price.last);
+          assert.equal(chart.bars.reduce((sum,bar)=>sum+bar.volume,0),oracle.total);
           assert.equal(observation.profile.totalVolume,oracle.total);assert.equal(observation.cvd.value,oracle.buy-oracle.sell);
           if(phase!=='paired-normal'){if(expected)assert.equal(observation.snapshotId,expected);else expected=observation.snapshotId;}
           snapshots.push({kind:phase,cutoff:chart.asOf,hash:observation.snapshotId,chartLastPrice:chart.lastPrice,observationLastPrice:observation.price.last,

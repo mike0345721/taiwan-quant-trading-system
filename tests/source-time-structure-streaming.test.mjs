@@ -22,8 +22,11 @@ function sample(start = night) {
   return fixture(records, iso(start + 3 * 300000 + 41000), start === day ? 'DAY' : 'NIGHT');
 }
 function fixture(records, cutoff, session = 'NIGHT') {
-  const normalized = records.map(record => record.kind === 'futures_tick' && Date.parse(record.receivedAt) < Date.parse(record.payload.datetime)
-    ? { ...record, receivedAt: iso(Date.parse(record.payload.datetime)) } : record);
+  // Unzoned exchange timestamps are Taipei source time, as in the loader.
+  // Date.parse alone uses the host zone and moves this fixture eight hours on UTC CI.
+  const sourceMs = value => Date.parse(typeof value === 'string' && !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? value + '+08:00' : value);
+  const normalized = records.map(record => record.kind === 'futures_tick' && sourceMs(record.receivedAt) < sourceMs(record.payload.datetime)
+    ? { ...record, receivedAt: iso(sourceMs(record.payload.datetime)) } : record);
   const chart = buildTxDecisionChart(normalized, { calendar, timeframe: '5m', mode: 'LIVE', tradeDate: session === 'DAY' ? '2026-10-13' : '2026-10-14', session, asOf: cutoff });
   return { records, chart, cutoff };
 }
@@ -75,9 +78,11 @@ test('nine-digit order, ties and fallback IDs preserve positive and negative rec
       return row;
     });
     const result = compare(fixture(records, iso(night + 2000)));
+    assert.equal(result.structureEligibility.audit.includedInputCount, 2);
     assert.ok(result.structureEligibility.reasonCodes.includes('SOURCE_EVENT_TIME_REGRESSION'));
     records[1].exchangeTimestamp = records[1].payload.datetime = records[0].exchangeTimestamp;
-    compare(fixture(records, iso(night + 2000)));
+    const tied = compare(fixture(records, iso(night + 2000)));
+    assert.equal(tied.structureEligibility.reasonCodes.includes('SOURCE_EVENT_TIME_REGRESSION'), false);
   }
 });
 

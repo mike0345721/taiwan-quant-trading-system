@@ -574,7 +574,8 @@ export function loadTxDecisionChart({
   else{
     sources=files.map(file=>readTxLiveEventLedger(file,{cacheRoot,includeCaptureEvidence:true,budget:sourceBudget,withProgress:true}));
     if(cacheRoot&&sourceBudget&&sources.some(source=>source.progress.reasonCodes?.some(reason=>
-      ['TX_CHART_RECORD_BUDGET_EXCEEDED','TX_CHART_CACHE_BUDGET_EXCEEDED','TX_CHART_CACHE_WRITE_BUDGET_EXCEEDED'].includes(reason)))){
+      ['TX_CHART_RECORD_BUDGET_EXCEEDED','TX_CHART_CACHE_BUDGET_EXCEEDED','TX_CHART_CACHE_WRITE_BUDGET_EXCEEDED',
+        'TX_CHART_CACHE_REQUEST_BUDGET_EXCEEDED'].includes(reason)))){
       sources=null;history=useHistory();
     }
   }

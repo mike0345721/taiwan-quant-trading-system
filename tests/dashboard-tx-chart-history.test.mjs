@@ -105,14 +105,14 @@ test('an interrupted private transaction rolls back its cursor and trusted count
   const result=complete(f);assert.equal(result.sourceEventCount,141);assert.equal(result.bars.reduce((n,b)=>n+b.volume,0),141);
 });
 
-function smallHistory(t){
+function smallHistory(t,maxSourceBytes=1024){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-growing-line-'));
   const file=path.join(root,'source.ndjson'),cacheRoot=path.join(root,'cache');
   t.after(()=>{clearTxChartLedgerCache();fs.rmSync(root,{recursive:true,force:true});});
-  const read=()=>{const budget=createTxChartReadBudget({maxSourceBytes:1024});
+  const read=()=>{const budget=createTxChartReadBudget({maxSourceBytes});
     const result=readTxChartHistory({dataRoot:root,cacheRoot,files:[file],budget,
       decode:line=>line.trim()?JSON.parse(line):null,normalize:()=>({key:null,violation:null}),calendar:{}});
-    assert.ok(budget.sourceBytesRead<=1024);return result;};
+    assert.ok(budget.sourceBytesRead<=maxSourceBytes);return result;};
   return {root,file,cacheRoot,read};
 }
 test('a complete near-budget line advances while the source keeps growing between every poll',t=>{
@@ -142,11 +142,10 @@ test('an exact-budget complete line advances even when carry validation leaves n
 });
 
 for(const mode of ['same-size rewrite','truncate','replace inode','rewrite prefix while growing']){
-  test(`a staged complete line rejects ${mode} before it can publish`,t=>{
+  test(`a reserved fresh-line read rejects ${mode} before it can publish`,t=>{
     const {root,file,cacheRoot,read}=smallHistory(t);fs.writeFileSync(file,'{}\n');read();
     const old=JSON.stringify({padding:'x'.repeat(1006)});fs.appendFileSync(file,old);read();read();fs.appendFileSync(file,'\n');
     assert.ok(read().sources[0].progress.reasonCodes.includes('TX_CHART_PARTIAL_LINE_VALIDATION_PENDING'));
-    assert.ok(read().sources[0].progress.reasonCodes.includes('TX_CHART_SNAPSHOT_GUARD_PENDING'));
     const replacement=mode==='truncate'?{value:'replacement'}:{padding:'y'.repeat(1006)};
     const prefix=mode==='rewrite prefix while growing'?'[]\n':'{}\n';
     if(mode==='replace inode')fs.renameSync(file,file+'.old');
@@ -165,9 +164,30 @@ for(const mode of ['same-size rewrite','truncate','replace inode','rewrite prefi
 test('a freshly captured complete line requires a further source check after committing',t=>{
   const {file,read}=smallHistory(t);fs.writeFileSync(file,'{}\n');read();
   const partial=JSON.stringify({padding:'x'.repeat(1006)});fs.appendFileSync(file,partial);read();read();fs.appendFileSync(file,'\n');
-  read();read();const committed=read();
+  read();const committed=read();
   assert.equal(committed.sources[0].progress.cacheRecordCount,2);
   assert.equal(committed.sources[0].progress.complete,false);
   assert.ok(committed.sources[0].progress.reasonCodes.includes('TX_CHART_SNAPSHOT_RECHECK_PENDING'));
+  assert.equal(read().sources[0].progress.complete,true);
+});
+
+test('a fresh large-line read commits its rewritten middle in the same phase without staging stale complete bytes',t=>{
+  const {root,file,cacheRoot,read}=smallHistory(t,4096);fs.writeFileSync(file,'{}\n');read();
+  const base={prefix:'x'.repeat(1500),value:'old',suffix:''};
+  const old=JSON.stringify({...base,suffix:'y'.repeat(4092-Buffer.byteLength(JSON.stringify(base)))});
+  assert.equal(Buffer.byteLength(old),4092);
+  fs.appendFileSync(file,old);read();read();fs.appendFileSync(file,'\n');
+  assert.ok(read().sources[0].progress.reasonCodes.includes('TX_CHART_PARTIAL_LINE_VALIDATION_PENDING'));
+  const replacement=old.replace('"value":"old"','"value":"new"');
+  assert.equal(replacement.slice(0,512),old.slice(0,512));assert.equal(replacement.slice(-512),old.slice(-512));
+  fs.writeFileSync(file,'{}\n'+replacement+'\n{}\n');
+  const committed=read();
+  assert.equal(committed.sources[0].progress.cacheRecordCount,3,'fresh complete bytes must enter the transaction in this read phase');
+  assert.equal(committed.sources[0].progress.complete,false);
+  assert.ok(committed.sources[0].progress.reasonCodes.includes('TX_CHART_SNAPSHOT_RECHECK_PENDING'));
+  const db=new DatabaseSync(txChartHistoryPath(root,cacheRoot),{readOnly:true});
+  try{const rows=db.prepare('SELECT json FROM events WHERE source=? ORDER BY offset').all(committed.sources[0].id);
+    assert.equal(JSON.parse(rows[1].json).value,'new');
+  }finally{db.close();}
   assert.equal(read().sources[0].progress.complete,true);
 });

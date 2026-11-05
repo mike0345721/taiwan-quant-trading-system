@@ -66,20 +66,17 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
     const staged=s&&store.pending.get(s.id);
     // A near-budget line needs its own read phase: checkpoint bytes must not
     // permanently consume the space needed to re-read that entire line.
-    // Never join this fresh snapshot to carried bytes from an earlier read.
-    if(staged?.freshRead&&staged.offset===s.offset&&staged.identity===identity(stat)
-      &&s.identity===identity(stat)+':'+normalizationIdentity&&stat.size>=s.offset){
-      const bytes=readBytes(fd,Math.min(budget.maxSourceBytes,stat.size-s.offset,budget.remainingSourceBytes),s.offset,budget);
-      const end=bytes.lastIndexOf(10);
-      store.pending.set(s.id,{offset:s.offset,bytes:end>=0?bytes.subarray(0,end+1):Buffer.alloc(0),
-        identity:identity(stat),observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs,
-        freshRead:end<0,snapshot:end>=0});
-      return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
-        sourceOffset:s.offset,observedSize:stat.size,reasonCodes:[end>=0?'TX_CHART_SNAPSHOT_GUARD_PENDING':'TX_CHART_COMPLETE_LINE_PENDING']}};
-    }
-    let head=Buffer.alloc(0),tail=Buffer.alloc(0);
+    // Read and commit fresh bytes in the SAME phase; never publish a complete
+    // line retained across polls. The prior guard supplies committed-prefix
+    // checkpoints, and the new cursor must pass another guard before publishing.
+    const freshRead=staged?.freshRead&&staged.offset===s.offset&&staged.identity===identity(stat)
+      &&s.identity===identity(stat)+':'+normalizationIdentity&&stat.size>=staged.observedSize
+      &&(stat.size>staged.observedSize||(stat.mtimeMs===staged.mtime&&stat.ctimeMs===staged.ctime))
+      &&staged.head?.length===s.headSize&&staged.tail?.length===s.tailSize
+      &&hash(staged.head)===s.headHash&&hash(staged.tail)===s.tailHash;
+    let head=freshRead?staged.head:Buffer.alloc(0),tail=freshRead?staged.tail:Buffer.alloc(0);
     let reset=!s||s.identity!==identity(stat)+':'+normalizationIdentity||stat.size<s.offset;
-    if(s&&!reset&&s.offset){
+    if(s&&!reset&&s.offset&&!freshRead){
       const sourceStamp=`${identity(stat)}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${s.offset}`;
       let check=store.sourceChecks.get(s.id);
       if(check?.stamp!==sourceStamp)check={stamp:sourceStamp,head:Buffer.alloc(0),tail:Buffer.alloc(0)};
@@ -107,29 +104,28 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
     const carryValid=pending?.offset===s.offset&&pending.identity===identity(stat)
       &&stat.size>=pending.observedSize&&stat.size>=s.offset+pending.bytes.length
       &&(stat.size>pending.observedSize||(stat.mtimeMs===pending.mtime&&stat.ctimeMs===pending.ctime));
-    const snapshot=carryValid&&pending.snapshot?pending:null;
-    let carry=carryValid&&!snapshot?pending.bytes:Buffer.alloc(0);
+    let carry=carryValid&&!freshRead?pending.bytes:Buffer.alloc(0);
     if(!carryValid)store.pending.delete(s.id);
     // A growing file can also have had its uncommitted suffix rewritten. Check
     // the carried bytes themselves before joining them to a new suffix.
     if(carry.length&&(stat.size!==pending.observedSize||stat.mtimeMs!==pending.mtime||stat.ctimeMs!==pending.ctime)){
       const current=readBytes(fd,carry.length,s.offset,budget);
-      if(!current){store.pending.set(s.id,{...pending,freshRead:true});
+      if(!current){store.pending.set(s.id,{...pending,freshRead:true,head,tail});
         return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
           sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_PARTIAL_LINE_VALIDATION_PENDING']}};}
       if(!current.equals(carry)){carry=Buffer.alloc(0);store.pending.delete(s.id);}
       else store.pending.set(s.id,{...pending,observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs});
       if(carry.length&&!budget.remainingSourceBytes&&stat.size>s.offset+carry.length){
-        store.pending.set(s.id,{...pending,freshRead:true});
+        store.pending.set(s.id,{...pending,freshRead:true,head,tail});
         return {id:s.id,progress:{sourceDate:path.basename(file),state:'CATCHUP_PENDING',complete:false,
           sourceOffset:s.offset,observedSize:stat.size,reasonCodes:['TX_CHART_PARTIAL_LINE_VALIDATION_PENDING']}};
       }
     }
     const maxRead=Math.min(budget.maxSourceBytes-carry.length,stat.size-s.offset-carry.length,budget.remainingSourceBytes);
-    let snapshotCommitted=false;
-    if((snapshot||maxRead>0)&&budget.remainingRecords>0){
-      const next=snapshot?null:readBytes(fd,maxRead,s.offset+carry.length,budget),
-        bytes=snapshot?snapshot.bytes:carry.length?Buffer.concat([carry,next]):next,end=bytes.lastIndexOf(10);
+    let freshReadCommitted=false;
+    if(maxRead>0&&budget.remainingRecords>0){
+      const next=readBytes(fd,maxRead,s.offset+carry.length,budget),
+        bytes=carry.length?Buffer.concat([carry,next]):next,end=bytes.lastIndexOf(10);
       if(end>=0){
         let position=0,committed=0,added=0,written=0;
         const priorVerified=store.verified.has(s.id)?{...store.verified.get(s.id)}:null;
@@ -157,22 +153,23 @@ function source(store,file,budget,decode,normalize,normalizationIdentity){
             const nextHead=s.offset>=512?head:Buffer.concat([head,bytes.subarray(0,committed)]).subarray(0,headSize);
             const nextTail=Buffer.concat([tail,bytes.subarray(Math.max(0,committed-512),committed)]).subarray(-tailSize);
             q('UPDATE sources SET offset=?,observed=?,mtime=?,headSize=?,headHash=?,tailSize=?,tailHash=?,count=count+? WHERE id=?')
-              .run(offset,snapshot?.observedSize??stat.size,snapshot?.mtime??stat.mtimeMs,headSize,hash(nextHead),tailSize,hash(nextTail),added,s.id);
+              .run(offset,stat.size,stat.mtimeMs,headSize,hash(nextHead),tailSize,hash(nextTail),added,s.id);
             const verified=store.verified.get(s.id);
             if(verified?.count===s.count)store.verified.set(s.id,{count:s.count+added,offset:offset-1});
             s={...s,offset,count:s.count+added};
-            snapshotCommitted=!!snapshot;
+            freshReadCommitted=!!freshRead;
           }
           db.exec('COMMIT');acceptOwnWrite(store);store.pending.delete(s.id);store.sourceChecks.delete(s.id);
           budget.remainingRecords-=added;budget.remainingCacheWriteBytes-=written;budget.cacheBytesWritten+=written;
         }catch(e){try{db.exec('ROLLBACK');}catch{}if(priorVerified)store.verified.set(s.id,priorVerified);else store.verified.delete(s.id);throw e;}
-      }else{store.pending.set(s.id,{offset:s.offset,bytes,identity:identity(stat),observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs});reasons.push('TX_CHART_COMPLETE_LINE_PENDING');}
+      }else{store.pending.set(s.id,{offset:s.offset,bytes,identity:identity(stat),observedSize:stat.size,mtime:stat.mtimeMs,ctime:stat.ctimeMs,
+        ...(freshRead?{freshRead:true,head,tail}:{})});reasons.push('TX_CHART_COMPLETE_LINE_PENDING');}
     }
     if(maxRead===0&&carry.length===budget.maxSourceBytes)reasons.push(stat.size>s.offset+carry.length?'TX_CHART_RECORD_BYTES_BUDGET_EXCEEDED':'TX_CHART_COMPLETE_LINE_PENDING');
-    // A snapshot is an observed read, not an assertion that the later file is
-    // unchanged. Recheck its committed checkpoints before publishing any chart.
-    if(snapshotCommitted)reasons.push('TX_CHART_SNAPSHOT_RECHECK_PENDING');
-    const complete=!snapshotCommitted&&s.offset===stat.size;
+    // The fresh-read phase used prior prefix checkpoints. Recheck the resulting
+    // cursor before publishing any chart; fresh bytes were committed immediately.
+    if(freshReadCommitted)reasons.push('TX_CHART_SNAPSHOT_RECHECK_PENDING');
+    const complete=!freshReadCommitted&&s.offset===stat.size;
     if(!complete&&!reasons.length)reasons.push(budget.remainingRecords===0?'TX_CHART_RECORD_BATCH_PENDING':'TX_CHART_SOURCE_CATCHUP_PENDING');
     return {id:s.id,progress:{sourceDate:path.basename(file),state:complete?'COMPLETE':'CATCHUP_PENDING',complete,
       sourceOffset:s.offset,observedSize:stat.size,reasonCodes:reasons}};
