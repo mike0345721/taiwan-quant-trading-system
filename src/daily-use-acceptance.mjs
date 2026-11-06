@@ -146,13 +146,17 @@ export function buildDailyUseReceipt({ candidateSha, now = new Date(), tradeDate
   const overall = access && useful.length === features.length ? 'AVAILABLE' : access && useful.length > 2 ? 'PARTIAL' : 'UNAVAILABLE';
   const currentBatch = batch && time(batch.startedAt) && date(new Date(batch.startedAt)) === calendarDate
     && Date.parse(batch.startedAt) <= now.getTime();
-  const dailyBatch = { state: currentBatch && batch.state === 'failed' ? 'JOB_FAILED' : 'UNKNOWN',
-    executionResult: currentBatch ? ({ failed: 'FAILED', completed: 'SUCCEEDED', completed_with_warnings: 'PARTIAL', running: 'RUNNING' })[batch.state] || 'UNKNOWN' : 'UNKNOWN',
+  const validBatchTimeline = currentBatch && (batch.state === 'running' ? batch.completedAt == null
+    : ['failed', 'completed', 'completed_with_warnings'].includes(batch.state) && time(batch.completedAt)
+      && Date.parse(batch.completedAt) >= Date.parse(batch.startedAt) && Date.parse(batch.completedAt) <= now.getTime());
+  const dailyBatch = { state: validBatchTimeline && batch.state === 'failed' ? 'JOB_FAILED' : 'UNKNOWN',
+    executionResult: validBatchTimeline ? ({ failed: 'FAILED', completed: 'SUCCEEDED', completed_with_warnings: 'PARTIAL', running: 'RUNNING' })[batch.state] || 'UNKNOWN' : 'UNKNOWN',
     scope: 'BATCH_EXECUTION_ONLY_NOT_SOURCE_OR_UI_AVAILABILITY', evidenceKind: 'UNKNOWN',
     startedAt: time(batch?.startedAt) ? batch.startedAt : null, completedAt: time(batch?.completedAt) ? batch.completedAt : null,
     lastSuccessAt: null, writerSha: runtimes.writer.sha,
-    diagnostics: currentBatch ? batchDiagnostics(batch, auditReports, now) : null,
-    reasonCodes: currentBatch ? (batch.gateSummary?.reasons || []).filter(code).slice(0, 20) : ['NO_CURRENT_BATCH_EVIDENCE'],
+    diagnostics: validBatchTimeline ? batchDiagnostics(batch, auditReports, now) : null,
+    reasonCodes: !currentBatch ? ['NO_CURRENT_BATCH_EVIDENCE'] : !validBatchTimeline ? ['BATCH_TIMELINE_INVALID']
+      : (batch.gateSummary?.reasons || []).filter(code).slice(0, 20),
     stages: (Array.isArray(batch?.stages) ? batch.stages : []).slice(0, 64).map(s => ({
       key: /^[a-z0-9_]{1,80}$/.test(s.key || '') ? s.key : 'unknown', ok: typeof s.ok === 'boolean' ? s.ok : null,
       durationSeconds: Number.isFinite(s.durationSeconds) && s.durationSeconds >= 0 ? s.durationSeconds : null })) };
@@ -218,7 +222,8 @@ export function readDailyUseReceipt({ dataRoot, outputRoot, now = new Date() }) 
     const pointer = JSON.parse(readBoundedFile(path.join(dir, 'latest.json'), 1024));
     if (!hash(pointer.receiptHash)) fail('POINTER_INVALID');
     const receipt = validateDailyUseReceipt(JSON.parse(readBoundedFile(path.join(dir, `${pointer.receiptHash}.json`), 1024 * 1024)));
-    if (receipt.calendarDate !== date(now) || receipt.observedAt !== pointer.observedAt || Date.parse(receipt.observedAt) > now.getTime()) fail('POINTER_IDENTITY_INVALID');
+    if (receipt.receiptHash !== pointer.receiptHash || receipt.calendarDate !== date(now)
+      || receipt.observedAt !== pointer.observedAt || Date.parse(receipt.observedAt) > now.getTime()) fail('POINTER_IDENTITY_INVALID');
     return receipt;
   } catch { return { schemaVersion: 'daily-use-acceptance-unavailable-v1', reason: 'RECEIPT_UNVERIFIED' }; }
 }

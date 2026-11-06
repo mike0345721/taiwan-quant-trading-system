@@ -8,20 +8,53 @@ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const cards=app.slice(app.indexOf('function metric('),app.indexOf("\n$('app').addEventListener('click'"));
 const badges=app.slice(app.indexOf('function metricSourceKeys('),app.indexOf('\nfunction regimeLabel('));
 const css=fs.readFileSync(new URL('../public/styles.css',import.meta.url),'utf8');
-test('a failed historical audit still rereads qualified cards and keeps the batch failure visible', async () => {
-  const source = app.slice(app.indexOf('async function monitorDailyUpdate()'), app.indexOf("\n$('daily-update-button').addEventListener"));
-  let rereads = 0; const alerts = [], button = {};
-  const context = { setTimeout: fn => fn(), DAILY_STAGE_LABELS: {},
-    $: id => id === 'daily-update-button' ? button : { prepend: node => alerts.push(node) },
+function dailyMonitorHarness({ busy = false, reloadError = false, changeSession = false } = {}) {
+  const monitor = app.slice(app.indexOf('async function monitorDailyUpdate()'), app.indexOf("\n$('daily-update-button').addEventListener"));
+  const dashboard = app.slice(app.indexOf('async function loadDashboard()'), app.indexOf('\nfunction reportDashboardLoadError('));
+  const alerts = [], button = {}, locked = Object.freeze({ snapshotHash: 'locked-cutoff' });
+  let polls = 0, rereads = 0, ticks = 0, session = 1;
+  const context = { state: { decisionCaptureBusy: busy, dashboardRequestId: 0, guestReadOnly: true, locked },
+    setTimeout: fn => { if (++ticks === 2) context.state.decisionCaptureBusy = false; fn(); },
+    DAILY_STAGE_LABELS: {}, flowChannel: { ticket: () => session, isCurrentSession: t => t === session, merge() {} },
+    $: id => id === 'daily-update-button' ? button : id === 'alert-area' ? { prepend: node => alerts.unshift(node) } : null,
     document: { createElement: () => ({}) },
-    api: async () => ({ processRunning: false, data: { state: 'failed', fatalError: 'Critical stage failed: data_continuity_audit' } }),
-    loadDashboard: async () => { rereads++; } };
-  vm.runInNewContext(source, context);
-  await context.monitorDailyUpdate();
-  assert.equal(rereads, 1);
-  assert.equal(alerts[0].className, 'alert bad');
-  assert.match(alerts[0].textContent, /未完成/);
-  assert.match(alerts[0].textContent, /data_continuity_audit/);
+    api: async url => {
+      if (url === '/api/v2/daily-update') {
+        polls++; if (changeSession) session++;
+        return { processRunning: false, data: { state: 'failed', fatalError: 'Critical stage failed: data_continuity_audit' } };
+      }
+      assert.equal(url, '/api/v1/dashboard'); rereads++;
+      if (reloadError) throw Error('DASHBOARD_READ_FAILED');
+      return { data: {}, decisionWorkspace: {} };
+    },
+    // The real render starts by clearing this shared alert area.
+    render: () => { alerts.length = 0; }, renderDecisionWorkspace() {},
+    loadIndexLeadership: async () => {}, renderIndexLeadershipFailure() {},
+    loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {} };
+  vm.runInNewContext(`${dashboard}\n${monitor}`, context);
+  return { context, alerts, locked, counts: () => ({ polls, rereads }) };
+}
+test('daily monitor rereads after capture settles and keeps the batch failure after render', async () => {
+  const h = dailyMonitorHarness({ busy: true });
+  await h.context.monitorDailyUpdate();
+  assert.deepEqual(h.counts(), { polls: 2, rereads: 1 });
+  assert.equal(h.context.state.locked, h.locked);
+  assert.equal(h.alerts[0]?.className, 'alert bad');
+  assert.match(h.alerts[0]?.textContent || '', /未完成.*data_continuity_audit/);
+});
+test('daily monitor retains the batch failure after a successful render', async () => {
+  const h = dailyMonitorHarness(); await h.context.monitorDailyUpdate();
+  assert.equal(h.counts().rereads, 1);
+  assert.match(h.alerts[0]?.textContent || '', /data_continuity_audit/);
+});
+test('daily monitor distinguishes reload failure from starting the batch', async () => {
+  const h = dailyMonitorHarness({ reloadError: true }); await h.context.monitorDailyUpdate();
+  assert.match(h.alerts[0]?.textContent || '', /data_continuity_audit/);
+  assert.match(h.alerts[0]?.textContent || '', /重讀失敗.*DASHBOARD_READ_FAILED/);
+});
+test('daily monitor does not apply an earlier login session result', async () => {
+  const h = dailyMonitorHarness({ changeSession: true }); await h.context.monitorDailyUpdate();
+  assert.equal(h.counts().rereads, 0); assert.equal(h.alerts.length, 0);
 });
 const binary=process.platform==='linux'?(()=>{const b=guestBrowserPath();return b.skip?null:b.executable;})():
   ['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);

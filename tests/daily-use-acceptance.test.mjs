@@ -35,12 +35,38 @@ test('missing UI evidence stays unverified despite successful scheduler and batc
   assert.equal(r.tradeDate, '2026-11-06'); assert.equal(r.timezone, 'Asia/Taipei');
 });
 test('today failure and older success cannot claim today complete; errors are allowlisted', () => {
-  const r = buildDailyUseReceipt({ ...base(), batch: { state: 'failed', startedAt: '2026-11-06T00:30:01Z',
+  const r = buildDailyUseReceipt({ ...base(), batch: { state: 'failed', startedAt: '2026-11-06T00:30:01Z', completedAt: '2026-11-06T00:35:00Z',
     fatalError: 'secret account string', gateSummary: { reasons: ['QUALITY_DEBT'] },
     stages: [{ key: 'taifex', ok: true, error: 'secret-path' }] } });
   assert.equal(r.dailyBatch.state, 'JOB_FAILED'); assert.equal(r.dailyBatch.stages[0].ok, true);
   assert.equal(JSON.stringify(r).includes('secret'), false);
   assert.equal(buildDailyUseReceipt({ ...base(), batch: { state: 'completed', startedAt: '2026-11-05T13:15:00Z' } }).dailyBatch.state, 'UNKNOWN');
+});
+
+test('terminal batch evidence requires a completed timestamp inside its observed timeline', () => {
+  for (const state of ['completed', 'completed_with_warnings', 'failed']) {
+    for (const completedAt of [null, '2026-11-06T04:00:00Z', '2026-11-06T00:29:00Z']) {
+      const r = buildDailyUseReceipt({ ...base(), batch: { state, startedAt: '2026-11-06T00:30:00Z', completedAt } });
+      assert.equal(r.dailyBatch.executionResult, 'UNKNOWN', `${state}:${completedAt}`);
+      assert.equal(r.dailyBatch.state, 'UNKNOWN');
+      assert.equal(r.dailyBatch.diagnostics, null);
+      assert.ok(r.dailyBatch.reasonCodes.includes('BATCH_TIMELINE_INVALID'));
+    }
+  }
+  const running = buildDailyUseReceipt({ ...base(), batch: { state: 'running', startedAt: '2026-11-06T00:30:00Z', completedAt: null } });
+  assert.equal(running.dailyBatch.executionResult, 'RUNNING');
+  const impossible = buildDailyUseReceipt({ ...base(), batch: { state: 'running', startedAt: '2026-11-06T00:30:00Z', completedAt: '2026-11-06T00:35:00Z' } });
+  assert.equal(impossible.dailyBatch.executionResult, 'UNKNOWN');
+});
+
+test('reader rejects a different valid receipt stored under the pointer hash', t => {
+  const f = fixture(t), receipt = buildDailyUseReceipt(base());
+  const saved = writeDailyUseReceipt({ ...f, receipt });
+  const other = buildDailyUseReceipt({ ...base(), candidateSha: 'c'.repeat(40) });
+  assert.equal(other.observedAt, receipt.observedAt);
+  assert.notEqual(other.receiptHash, receipt.receiptHash);
+  fs.writeFileSync(saved.file, JSON.stringify(other));
+  assert.equal(readDailyUseReceipt(f).reason, 'RECEIPT_UNVERIFIED');
 });
 
 test('batch diagnostics separate historical debt from an unassessed requested date without promoting availability', () => {

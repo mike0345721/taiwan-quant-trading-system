@@ -5873,9 +5873,12 @@ const DAILY_STAGE_LABELS = Object.freeze({
 
 async function monitorDailyUpdate() {
   const button = $('daily-update-button');
+  const sessionTicket = flowChannel.ticket();
   for (let attempt = 0; attempt < 600; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
+    if (!flowChannel.isCurrentSession(sessionTicket)) return;
     const payload = await api('/api/v2/daily-update');
+    if (!flowChannel.isCurrentSession(sessionTicket)) return;
     const update = payload.data || {};
     const completedStages = Array.isArray(update.stages) ? update.stages.length : 0;
     const totalStages = Number(update.totalStages) || 33;
@@ -5883,6 +5886,12 @@ async function monitorDailyUpdate() {
     button.textContent = `更新中 ${Math.min(completedStages + 1, totalStages)}/${totalStages}：${stageLabel}`;
     const finished = !payload.processRunning && ['completed', 'completed_with_warnings', 'failed'].includes(update.state);
     if (!finished) continue;
+    // Capture owns the locked snapshot. Retry within this bounded monitor rather
+    // than treating loadDashboard's capture-busy no-op as a completed reread.
+    if (state.decisionCaptureBusy) {
+      button.textContent = '批次已結束，等待快照擷取後重讀資料';
+      continue;
+    }
     const box = document.createElement('div');
     box.className = update.state === 'completed' ? 'alert good' : update.state === 'completed_with_warnings' ? 'alert warning' : 'alert bad';
     box.textContent = update.state === 'completed'
@@ -5890,10 +5899,15 @@ async function monitorDailyUpdate() {
       : update.state === 'completed_with_warnings'
         ? `每日資料已完成，但有 ${update.failures?.length || 0} 個來源待補；面板會標示尚待公布或舊資料。`
         : `每日更新未完成：${update.fatalError || '請查看更新紀錄'}；仍會重讀各來源，請依資料卡的日期與品質狀態判斷可用性。`;
-    $('alert-area').prepend(box);
     // A later historical audit failure must not suppress qualified source updates.
     // The normal reader still enforces each source's date, cutoff and quality.
-    await loadDashboard();
+    try { await loadDashboard(); }
+    catch (error) {
+      box.className = 'alert bad';
+      box.textContent += ` 面板重讀失敗：${error.message}；目前畫面尚未確認更新。`;
+    }
+    // render() clears the shared alert area; retain the batch outcome afterwards.
+    if (flowChannel.isCurrentSession(sessionTicket)) $('alert-area').prepend(box);
     return;
   }
   throw new Error('DAILY_UPDATE_TIMEOUT');
