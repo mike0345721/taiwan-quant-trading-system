@@ -63,9 +63,11 @@ export class MarketObservationStore {
     this.indexes=indexes??{minutes:{hash:'0'.repeat(64),count:0},profiles:{hash:'0'.repeat(64),count:0}};
     this.indexVerification=null;
     this.knownStamp=fileStamp(this.file);
+    this.knownDataVersion=this.dataVersion();
     } catch(error) {try{this.db.close();}catch{}throw error;}
   }
   statement(sql){if(!this.statements.has(sql))this.statements.set(sql,this.db.prepare(sql));return this.statements.get(sql);}
+  dataVersion(){return this.statement('PRAGMA data_version').get().data_version;}
   getMeta(key){const row=this.statement('SELECT json,hash FROM meta WHERE key=?').get(key);
     if(!row)return null;if(digest(row.json)!==row.hash)throw Error('OBSERVATION_STORE_METADATA_HASH');return JSON.parse(row.json);}
   setMeta(key,value){const json=JSON.stringify(value);if(Buffer.byteLength(json)>16*1024*1024)throw Error('OBSERVATION_STORE_METADATA_BUDGET');
@@ -179,7 +181,13 @@ export class MarketObservationStore {
   clearPending(){const header=this.getMeta('pending-source');
     if(header)this.queueInputCleanup(header);
     this.deleteMeta('pending-source');this.deleteMeta('pending-derivation');}
-  transaction(fn){this.assertVerified();this.db.exec('BEGIN IMMEDIATE');const origin=this.origin;
+  transaction(fn){this.assertVerified();this.db.exec('BEGIN IMMEDIATE');
+    // The write lock closes the gap after verifyStep. Another connection's
+    // commit must not be absorbed into our own post-COMMIT file stamp, thereby
+    // reviving a resident input proof. Leave the old baseline for revalidation.
+    try{if(this.dataVersion()!==this.knownDataVersion)throw Error('OBSERVATION_STORE_CHANGED_BEFORE_TRANSACTION');}
+    catch(error){this.db.exec('ROLLBACK');throw error;}
+    const origin=this.origin;
     this.pendingIntegrity={};this.pendingIndexes=structuredClone(this.indexes);
     try{const value=fn(),next=[...this.receipts];
       for(const [table,items] of Object.entries(this.pendingIntegrity))for(const item of items)next.push({table,origin:item.origin,start:item.start,end:item.end,count:item.count,hash:item.hash.digest('hex')});
@@ -202,8 +210,8 @@ export class MarketObservationStore {
     if(!old)index.count++;return hash;}
   assertVerified(){if(!this.verified)throw Error('OBSERVATION_DERIVED_HISTORY_VERIFYING');}
   verifyStep(){
-    const stamp=fileStamp(this.file);
-    if(stamp!==this.knownStamp){this.ordinalCache?.clear();this.receipts=this.getMeta('integrity')??[];this.indexes=this.getMeta('indexes');this.verifyCursor=0;this.indexVerification=null;this.verified=false;this.knownStamp=stamp;}
+    const stamp=fileStamp(this.file),dataVersion=this.dataVersion();
+    if(stamp!==this.knownStamp||dataVersion!==this.knownDataVersion){this.ordinalCache?.clear();this.receipts=this.getMeta('integrity')??[];this.indexes=this.getMeta('indexes');this.verifyCursor=0;this.indexVerification=null;this.verified=false;this.knownStamp=stamp;this.knownDataVersion=dataVersion;}
     if(this.verified)return {complete:true,verifiedChunks:this.verifyCursor,totalChunks:this.receipts.length};
     const deadline=performance.now()+750;let verifiedRows=0;
     do{

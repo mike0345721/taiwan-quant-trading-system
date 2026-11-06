@@ -47,6 +47,10 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 最新快照的 ordinal 上界先以既有 physical ordinal 索引讀末列；只有同 origin／segment 的末列已在 cutoff 可得，才直接使用其 ordinal。歷史截止、未來或無效尾列仍走原 availability MAX 查詢，不假設時間順序等於實體順序。這避免冷啟後只為取得最新上界而掃描整盤 availability prefix；不改資料保存、時間口徑或完整性驗證。百萬事件副本的單一路徑驗證不能取代同版完整容量與 LIVE 驗收。
 
+已驗輸入在同程序連續完成各段持久化後，以 generation 綁定 resident source，避免第一個衍生請求立即重讀整份剛寫入的輸入。只有能證明所有 staging 提交連續屬於同一 resident generation 才授予 READY 重用；部分落盤後重啟或外部檔案變動會撤銷這項資格，仍須完整驗證 durable chunks。單次500筆與8秒門檻不變，這項重複工作修補不等於已證明所有階段的最壞耗時。
+
+取得 SQLite 寫入鎖後、執行交易內容前，再比較同一連線的 [data_version](https://sqlite.org/pragma.html#pragma_data_version)。若其他連線已提交變更，回滾並保留舊驗證基準，讓下一次請求重新驗證及撤銷 resident 信任，不能把該外部變更吸收成本次提交的新檔案時間戳。此 guard 不改資料庫內容或安全政策。
+
 ## 每日資料與畫面
 
 每張來源卡與來源表顯示 data date、source time（來源未提供則未知）、last successful fetch、last attempt、目前狀態與原因。六種狀態為 `NOT_DUE`、`SOURCE_NOT_PUBLISHED`、`JOB_NOT_RUN`、`JOB_FAILED`、`STALE`、`AVAILABLE`。Dashboard fetch 與 Windows scheduled batch 明確分列，不把其中一者成功當成另一者完成。

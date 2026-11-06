@@ -232,8 +232,8 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
       while(stores.size>2){const oldest=stores.keys().next().value;stores.get(oldest).close();stores.delete(oldest);}}
   };
   if(storeFile&&fs.existsSync(storeFile))openHistory();
-  if(history){const wasVerified=history.verified,previousStamp=history.knownStamp,verification=history.verifyStep();
-    if(previousStamp!==history.knownStamp){const input=pending.get(residentKey);if(input)delete input.readyGeneration;}
+  if(history){const wasVerified=history.verified,previousStamp=history.knownStamp,previousDataVersion=history.knownDataVersion,verification=history.verifyStep();
+    if(previousStamp!==history.knownStamp||previousDataVersion!==history.knownDataVersion){const input=pending.get(residentKey);if(input){delete input.readyGeneration;delete input.stagingGeneration;}}
     if(!wasVerified||!verification.complete)return {state:null,complete:false,reason:'DERIVED_HISTORY_VERIFYING',sourceProgress:verification};}
   while(history?.getMeta('pending-source-cleanup')){
     const cleanup=history.transaction(()=>history.cleanupSourceStep());
@@ -331,8 +331,15 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
       while(history.getMeta('pending-source-cleanup'))history.transaction(()=>history.cleanupSourceStep());
     }
     let persisted;
+    const stage=history.inputStage();
+    const trustedStaging=!stage||previousPending?.stagingGeneration===stage.generation;
     do{persisted=history.transaction(()=>history.stageSourceStep(source));}while(!staged&&!persisted.complete);
-    pending.set(residentKey,{source,resolverIdentity,cacheFile});
+    // Reuse requires every staging commit to belong to this uninterrupted
+    // resident generation. A partial restart or external store change loses
+    // that proof and must reload all durable chunks, even after READY commits.
+    pending.set(residentKey,{source,resolverIdentity,cacheFile,
+      ...(trustedStaging?{stagingGeneration:persisted.generation,
+        ...(persisted.complete?{readyGeneration:persisted.generation}:{})}:{})});
     if(staged)return {state:null,complete:false,reason:persisted.complete?'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION':'VERIFIED_SOURCE_PENDING_DERIVATION',sourceProgress:{...source.sourceProof,
       processedRecords:0,stage:persisted.complete?'SOURCE_PERSISTED_NOT_DERIVED':'SOURCE_PERSISTING',...persisted,
       historyOpenElapsedMs,persistenceElapsedMs:performance.now()-deriveStarted-historyOpenElapsedMs}};

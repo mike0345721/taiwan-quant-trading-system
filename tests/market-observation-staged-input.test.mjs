@@ -135,6 +135,85 @@ function producerFixture(t,initial){
 }
 function completeProducer(f){let result;for(let i=0;i<100;i++){result=f.read();if(result.complete&&result.state)return result;}assert.fail('producer did not complete');}
 
+test('committed READY input reuses its verified resident generation but restart reloads it',t=>{
+  const f=producerFixture(t,publication(records(3500)));let ready;
+  for(let i=0;i<20;i++){ready=f.read();if(ready.sourceProgress?.stage==='SOURCE_PERSISTED_NOT_DERIVED')break;}
+  assert.equal(ready.sourceProgress.stage,'SOURCE_PERSISTED_NOT_DERIVED');
+  const original=MarketObservationStore.prototype.pendingSource;let reads=0;
+  MarketObservationStore.prototype.pendingSource=function(...args){reads++;return original.apply(this,args);};
+  try{
+    const first=f.read();assert.equal(first.reason,'DERIVATION_CATCHUP_PENDING');
+    assert.equal(first.sourceProgress.processedRecords,500);
+    assert.equal(reads,0,'committed input must not be fully reloaded before the first derivation');
+    clearMarketObservationProducerCache();
+    const result=completeProducer(f);
+    assert.ok(reads>0,'a restart must independently reload and verify durable input');
+    assert.equal(result.history.getMeta('checkpoint').fragment.state.sourceOrdinal,3500);
+    assert.equal(result.history.getMeta('checkpoint').fragment.state.originOrdinal,1);
+  }finally{MarketObservationStore.prototype.pendingSource=original;}
+});
+
+test('external READY chunk deletion invalidates resident reuse before the first derivation',t=>{
+  const f=producerFixture(t,publication(records(1500)));let ready;
+  for(let i=0;i<20;i++){ready=f.read();if(ready.sourceProgress?.stage==='SOURCE_PERSISTED_NOT_DERIVED')break;}
+  assert.equal(ready.sourceProgress.stage,'SOURCE_PERSISTED_NOT_DERIVED');
+  const dir=path.join(f.options.cacheRoot,'market-observation');
+  const file=path.join(dir,fs.readdirSync(dir).find(name=>name.endsWith('.observation.sqlite')));
+  const external=new DatabaseSync(file);
+  try{
+    const header=JSON.parse(external.prepare("SELECT json FROM meta WHERE key='pending-source'").get().json);
+    external.prepare('DELETE FROM meta WHERE key=?').run(`pending-input-${header.generation}-0`);
+  }finally{external.close();}
+  let rejected=false;
+  for(let i=0;i<20;i++)try{
+    const result=f.read();assert.equal(result.state,null,'changed durable input cannot publish from resident data');
+  }catch(error){assert.match(error.message,/OBSERVATION_INPUT_CHUNK_INVALID/);rejected=true;break;}
+  assert.equal(rejected,true);
+});
+
+for(const restart of [false,true])test(`partial input damage cannot gain resident trust at READY${restart?' after restart':''}`,t=>{
+  const f=producerFixture(t,publication(records(3500)));f.read();
+  assert.equal(f.read().sourceProgress.stage,'SOURCE_PERSISTING');
+  const dir=path.join(f.options.cacheRoot,'market-observation');
+  const file=path.join(dir,fs.readdirSync(dir).find(name=>name.endsWith('.observation.sqlite')));
+  const external=new DatabaseSync(file);
+  try{
+    const header=JSON.parse(external.prepare("SELECT json FROM meta WHERE key='pending-input'").get().json);
+    external.prepare('DELETE FROM meta WHERE key=?').run(`pending-input-${header.generation}-0`);
+  }finally{external.close();}
+  if(restart)clearMarketObservationProducerCache();
+  let rejected=false;
+  for(let i=0;i<30;i++)try{
+    const result=f.read();assert.ok(result.state===null,'damaged partial input cannot publish from resident data');
+  }catch(error){assert.match(error.message,/OBSERVATION_INPUT_CHUNK_INVALID/);rejected=true;break;}
+  assert.equal(rejected,true);
+});
+
+test('external chunk edit between verification and BEGIN cannot acquire resident trust',t=>{
+  const f=producerFixture(t,publication(records(3500)));f.read();
+  assert.equal(f.read().sourceProgress.stage,'SOURCE_PERSISTING');
+  const original=MarketObservationStore.prototype.transaction;let injected=false;
+  MarketObservationStore.prototype.transaction=function(fn){
+    MarketObservationStore.prototype.transaction=original;injected=true;
+    const external=new DatabaseSync(this.file);
+    try{
+      const header=JSON.parse(external.prepare("SELECT json FROM meta WHERE key='pending-input'").get().json);
+      external.prepare('DELETE FROM meta WHERE key=?').run(`pending-input-${header.generation}-0`);
+    }finally{external.close();}
+    return original.call(this,fn);
+  };
+  try{
+    let rejected=false;
+    for(let i=0;i<30;i++)try{
+      const result=f.read();assert.ok(result.state===null,'a raced external edit cannot publish from resident input');
+    }catch(error){
+      if(error.message==='OBSERVATION_STORE_CHANGED_BEFORE_TRANSACTION')continue;
+      assert.match(error.message,/OBSERVATION_INPUT_CHUNK_INVALID/);rejected=true;break;
+    }
+    assert.equal(injected,true);assert.equal(rejected,true);
+  }finally{MarketObservationStore.prototype.transaction=original;}
+});
+
 test('restart reuses verified same-publication history without restaging it, then accepts new input',t=>{
   const rows=records(80),f=producerFixture(t,publication(rows.slice(0,60)));
   const first=completeProducer(f),cutoff=rows[59].receivedAt;
