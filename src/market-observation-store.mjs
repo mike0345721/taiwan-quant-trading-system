@@ -278,10 +278,17 @@ export class MarketObservationStore {
     const at=Date.parse(cutoff),key=stableJson([table,this.origin,segment.cvdSegment,at]);this.ordinalCache??=new Map();
     const cacheable=!this.pendingIntegrity;
     if(cacheable&&this.ordinalCache.has(key))return this.ordinalCache.get(key);
-    // Covering availability index establishes a physical upper bound even if
-    // receivedAt regresses. Never assume time order equals physical order.
+    // If the physical last row is already available, it is also the maximum
+    // eligible ordinal. This indexed endpoint lookup avoids scanning the entire
+    // availability prefix for the current snapshot, even after a cold restart.
+    // Future/invalid tails and historical cutoffs retain the exact prefix query;
+    // receivedAt order must never be assumed to equal physical order.
+    const ordinalIndex=table==='trades'?'trade_ordinal':'point_ordinal';
+    const last=this.statement(`SELECT ordinal,at FROM ${table} INDEXED BY ${ordinalIndex} WHERE origin=? AND segment=? ORDER BY ordinal DESC LIMIT 1`)
+      .get(this.origin,segment.cvdSegment);
     const index=table==='trades'?'trade_available':'point_time';
-    const ordinal=this.statement(`SELECT MAX(ordinal) AS ordinal FROM ${table} INDEXED BY ${index} WHERE origin=? AND segment=? AND at<=?`)
+    const ordinal=Number.isSafeInteger(last?.ordinal)&&Number.isSafeInteger(last?.at)&&last.at<=at?last.ordinal:
+      this.statement(`SELECT MAX(ordinal) AS ordinal FROM ${table} INDEXED BY ${index} WHERE origin=? AND segment=? AND at<=?`)
       .get(this.origin,segment.cvdSegment,at).ordinal??0;
     if(cacheable){this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);}
     return ordinal;

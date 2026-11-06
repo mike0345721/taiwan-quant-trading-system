@@ -45,6 +45,8 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 持久化 Producer 每次請求最多衍生 500 個 canonical events；這是單次工作預算，不是整盤容量、來源落盤或畫面筆數上限。未處理 suffix 留在已驗證的 pending source，cursor、CVD 起點與完整歷史保持，完整消費後才發布。原 2,000 筆步進在 644,000 事件容量測試超過 8 秒；縮小步進不等於已證明全天效能，仍須同版高水位接續與完整容量驗證，原 8 秒門檻不改。
 
+最新快照的 ordinal 上界先以既有 physical ordinal 索引讀末列；只有同 origin／segment 的末列已在 cutoff 可得，才直接使用其 ordinal。歷史截止、未來或無效尾列仍走原 availability MAX 查詢，不假設時間順序等於實體順序。這避免冷啟後只為取得最新上界而掃描整盤 availability prefix；不改資料保存、時間口徑或完整性驗證。百萬事件副本的單一路徑驗證不能取代同版完整容量與 LIVE 驗收。
+
 ## 每日資料與畫面
 
 每張來源卡與來源表顯示 data date、source time（來源未提供則未知）、last successful fetch、last attempt、目前狀態與原因。六種狀態為 `NOT_DUE`、`SOURCE_NOT_PUBLISHED`、`JOB_NOT_RUN`、`JOB_FAILED`、`STALE`、`AVAILABLE`。Dashboard fetch 與 Windows scheduled batch 明確分列，不把其中一者成功當成另一者完成。

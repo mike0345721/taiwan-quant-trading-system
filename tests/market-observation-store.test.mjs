@@ -92,6 +92,49 @@ test('cutoff ordinal memo observes transaction writes and cannot survive rollbac
   }finally{f.store.close();}
 });
 
+test('latest physical ordinal avoids a full availability scan and preserves backdated and future cutoffs',()=>{
+  const f=open();try{
+    const rows=fixture(3),stored=append(null,checkpoint(rows),f.store),segment=stored.state.segments[0];
+    const point=f.store.lastPoint(segment,rows.at(-1).receivedAt);
+    const trade=f.store.tradeEndpoints(segment,rows.at(-1).receivedAt).at(-1);
+    // Cold reopening removes the exact-cutoff memo. A latest snapshot must not
+    // need a scan of every older availability entry just to find its endpoint.
+    f.store.close();f.store=new MarketObservationStore(f.file,{source,resolverIdentity});verify(f.store);
+    const statement=f.store.statement.bind(f.store);let allowPrefix=false,prefixReads=0;
+    f.store.statement=sql=>{
+      if(sql.startsWith('SELECT MAX(ordinal) AS ordinal')){
+        prefixReads++;assert.ok(allowPrefix,'LATEST_ENDPOINT_REQUIRES_FULL_AVAILABILITY_SCAN');
+      }
+      return statement(sql);
+    };
+    for(const table of ['points','trades'])assert.equal(f.store.ordinalAt(table,segment,rows.at(-1).receivedAt),6);
+    assert.equal(prefixReads,0);
+    const at=minute=>new Date(base+minute*60000).toISOString();
+    f.store.transaction(()=>{
+      f.store.appendPoint({...point,ledgerOrdinal:7,availableAt:at(0)});
+      f.store.appendTrade(segment,{...trade,ledgerOrdinal:7,availableAt:at(0),eventTime:at(0)});
+      for(const table of ['points','trades'])assert.equal(f.store.ordinalAt(table,segment,at(1)),7);
+    });
+    f.store.transaction(()=>{
+      f.store.appendPoint({...point,ledgerOrdinal:8,availableAt:at(3)});
+      f.store.appendTrade(segment,{...trade,ledgerOrdinal:8,availableAt:at(3),eventTime:at(3)});
+    });
+    // The physical tail is now later than this historical cutoff. The answer
+    // remains ordinal 7, not the record with the closest earlier timestamp.
+    allowPrefix=true;
+    for(const table of ['points','trades']){
+      assert.equal(f.store.ordinalAt(table,segment,at(1)),7);
+      assert.equal(f.store.ordinalAt(table,segment,at(-1)),0);
+    }
+    assert.ok(prefixReads>0);
+    f.store.transaction(()=>f.store.appendPoint({...point,ledgerOrdinal:9,availableAt:null}));
+    assert.equal(f.store.ordinalAt('points',segment,at(4)),8);
+    f.store.close();f.store=new MarketObservationStore(f.file,{source,resolverIdentity});verify(f.store);
+    for(const table of ['points','trades'])assert.equal(f.store.ordinalAt(table,segment,at(1)),7);
+    assert.equal(f.store.ordinalAt('points',segment,at(4)),8);
+  }finally{f.store.close();}
+});
+
 test('indexed quote selection retains physically older eligible quote for a late tick and identity-return boundary',()=>{
   const rows=fixture(4,{step:1000}),canonical=materializeTxCanonicalObservations(rows,{sourceLedgerIdentity:source}).events,f=open();
   try{f.store.transaction(()=>{f.store.beginOrigin(source,1);for(const event of canonical)if(event.kind==='futures_bidask')f.store.appendQuote(event);});
