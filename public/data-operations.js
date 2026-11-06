@@ -43,6 +43,16 @@
       <details><summary>當日完成度與準時性（分開記錄）</summary><p>${escape(s.completion)} · ${escape(s.punctuality)}；候選與手動測試不計入正式五日觀察。</p></details>
       <small>排程狀態觀測：${time(s.observedAt)}；來源資料時間未被更新。政策 ${escape(s.policy?.policyId)}</small></section>`;
   }
+  function renderDailyUse(receipt) {
+    if (!receipt || receipt.schemaVersion !== 'daily-use-acceptance-v1') return '<section aria-label="每日使用驗收"><h3>每日使用驗收</h3><p>尚無今天可核對的使用驗收收據。資料排程成功不代表已完成登入、行情或日誌驗收。</p></section>';
+    const labels = { AVAILABLE: '可用', PARTIAL: '部分可用', UNAVAILABLE: '不可用（尚未證實可使用）' };
+    return `<section aria-label="每日使用驗收"><h3>每日使用驗收 · ${escape(receipt.calendarDate)}</h3>
+      <p>${escape(labels[receipt.overall] || '未知')} · 台北時間 ${escape(receipt.observedAtTaipei)}；此為當次觀測，非持續健康保證。</p>
+      <p>候選 ${escape(receipt.candidateSha)}；手動唯讀驗收，本功能未啟用自動排程。重開機：${escape(receipt.reboot)}</p>
+      <div class="table-wrap"><table><thead><tr><th>功能</th><th>工程結果</th><th>當日操作</th><th>當日資料狀態／原因</th></tr></thead>
+      <tbody>${receipt.features.map(r => `<tr><td>${escape(r.label)}</td><td>${escape(r.engineeringResult)}</td><td>${escape(r.operationResult)}</td><td>${escape(r.dataStatus)}<br>${r.reasonCodes.map(escape).join(' / ')}</td></tr>`).join('')}</tbody></table></div>
+      <details><summary>版本配對與證據</summary><pre>${escape(JSON.stringify({ runtimes: receipt.runtimes, dailyBatch: receipt.dailyBatch, evidence: receipt.evidence, receiptHash: receipt.receiptHash }, null, 2))}</pre></details></section>`;
+  }
   function render(view) {
     const v = view || {}, h = v.acceptanceJobHealth || {};
     const available = v.availability === 'AVAILABLE';
@@ -50,7 +60,7 @@
     const allGaps = v.gaps || [];
     const gaps = allGaps.slice(0, 6);
     const rows = v.rows || [];
-    return `${renderScheduler(v.schedulerHealth, v)}<div class="dop-summary">
+    return `${renderDailyUse(v.dailyUse)}${renderScheduler(v.schedulerHealth, v)}<div class="dop-summary">
       <div><h3>${v.schedulerHealth && v.tradeDate !== v.schedulerHealth.tradeDate ? '最近一次資料營運評估' : '今日資料營運'}</h3><strong>${pill(v.overallState || 'UNKNOWN')}</strong>
       <p>${available ? `交易日 ${escape(v.tradeDate)} · ${escape(checkpoints[v.checkpointType])} · ${v.finalized ? '已 FINAL（不等於 PASS）' : '尚未 FINAL'}` : '尚無有效驗收產物，無法判定資料是否完整'}</p>
       <p class="dop-muted">${available ? `此評估資料截止：${time(v.inputGeneratedAt)}` : '等待首次有效驗收'}；驗收成功只表示完成檢查與保存。</p></div>

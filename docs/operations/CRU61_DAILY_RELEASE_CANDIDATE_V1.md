@@ -71,6 +71,20 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 必須在同版本正常登入下，核對導覽全部既有功能、API／圖表／摘要／Copy 同 snapshot、適用時段至少三點來源→畫面前進、至少 60 分鐘有界觀察、日誌跨頁／重新登入／程序重啟持久化、桌機／手機尺寸、冷啟／重複啟動與恢復。故障注入限隔離環境。未重開機記 `REBOOT_NOT_RUN`；非交易時段或平台阻擋記 NOT RUN／BLOCKED，不能用 replay、fixture、測試項數或計畫取代固定入口。
 
+### 每日使用驗收收據（候選，尚未正式啟用）
+
+既有 `run-daily-data-operations-acceptance.mjs` 增加明確的 `--daily-use=true --candidate-sha=<clean HEAD>` 唯讀模式。預設 CRU-52 排程路徑與參數保持原行為；新模式不執行 A.1 大檔稽核、不讀 SQLite／原始 ledger、不控制服務、不啟動 collector，也不新增排程。
+
+讀取原固定 binding 與雜湊，沿既有 `readDataOperations` 的有界 receipt/index 讀取，再讀最多 256 KiB 的既有批次狀態。實際程序版本沒有新觀測則 UNKNOWN，絕不把此 CLI 的 Git HEAD 當成 Dashboard／Producer／writer／Bridge 正在執行的版本。交易日／盤別亦未自行推定；有證據時才傳 `--trade-date` 與 `--session`。批次開始日期用台北日曆日；交易日另外保存，晚間跨日不混用。
+
+候選收據固定寫入此乾淨候選工作樹的 `data/quality/daily-data-operations/daily-use-checks/daily-use/<台北日期>/<receiptHash>.json`，以 `wx` 保留歷次證據。每日最新指標須通過 hash 與日期核對，並保留 writer guard；不清理遺留 guard 或失敗暫存檔。候選 worktree 是工程證據位置，不是正式 runtime。正式 CRU-52 output root 的 Data Quality reader 已支援同樣收據格式，但本模式不向正式 root 寫入，正式整合與原排程變更仍未啟用／未授權。
+
+每功能分列工程結果、當日操作結果與當日資料狀態。未驗為 NOT RUN／UNKNOWN，無正常入口或登入證據時總判定是「不可用（尚未證實可使用）」而非宣稱全部服務故障。入口、登入及價格可用、研究模組不足時可列部分可用。UNKNOWN 是缺證據，與既有六種資料狀態分開。排程 SUCCEEDED 只表示驗收工作完成；批次 completed 只表示該批完成，兩者都不自動提升資料源或 UI 為 AVAILABLE。
+
+選用 `--observations=<absolute JSON>` 可納入人工操作的可追溯紀錄；檔案限候選 `data/quality/daily-use-evidence`。`daily-use-observations-v1` 必須綁定 candidateSha、台北日曆日、tradeDate、session、`evidencePolicy=OBSERVED_FACTS_NOT_RUNTIME_PROOF`。功能以固定 id 記錄操作結果、資料狀態、原因、時鐘及證據 SHA256；相鄰 evidence refs 限 16 個既有 JSON/TXT/PNG、逐檔 256 KiB、合計 1 MiB，超限拒絕。此模式只校驗證據連結、時間與身分，不獨立判讀附件內容；不得手造操作 PASS。合成／回放／手動工程只進工程欄，不算當日可用。正常使用 PASS 還須當天觀測的實際 Dashboard pin；兩條鏈路另需 Producer／writer pin。匯總不是 browser proof、runtimeReady、release gate 或正式放行，不寫那些旗標。
+
+Data Quality 在原頁面顯示當日收據；無當日可核對收據會明示缺證據，不能把昨日收據掛到今天。日期／雜湊不符或損毀時拒絕讀取。這些候選工程回歸不代替正常登入、三組 LIVE、60 分鐘、日誌跨程序持久化或正式入口驗收。
+
 ## 完整版本與 Copy 整合
 
 以本分支完整新版為基線納入 PR111 的擷取控制；不以 PR111 舊產品樹取代三模組與每日修補。鎖定與兩個手動 Copy 入口共用同一 snapshot hash。背景行情持續更新，擷取飛行期間暫緩新圖表請求；鎖定三模組保留自身 cutoff、來源時間與品質原因，按更新恢復觀測追蹤，重新登入清除舊鎖定。

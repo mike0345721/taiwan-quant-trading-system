@@ -180,7 +180,8 @@ export function validateAcceptanceLaunch(options) {
 export function parseAcceptanceArgs(argv) {
   const keys = { 'data-root': 'dataRoot', 'output-root': 'outputRoot', manifest: 'manifestPath',
     'evidence-root': 'evidenceRoot', calendar: 'calendarPath', checkpoint: 'checkpointType',
-    'trade-date': 'tradeDate', 'run-mode': 'runMode', 'trigger-identity': 'triggerIdentity', 'validate-only': 'validateOnly' };
+    'trade-date': 'tradeDate', 'run-mode': 'runMode', 'trigger-identity': 'triggerIdentity', 'validate-only': 'validateOnly',
+    'daily-use': 'dailyUse', 'candidate-sha': 'candidateSha', session: 'session', observations: 'observationsPath' };
   const options = {};
   for (const arg of argv) {
     const match = /^--([^=]+)=(.+)$/.exec(arg);
@@ -192,7 +193,10 @@ export function parseAcceptanceArgs(argv) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = parseAcceptanceArgs(process.argv.slice(2));
-    if (args.validateOnly) {
+    if (args.dailyUse) {
+      const { checkDailyUse } = await import('./check-daily-use-acceptance.mjs');
+      console.log(JSON.stringify(checkDailyUse(args)));
+    } else if (args.validateOnly) {
       if (args.validateOnly !== 'true') fail('ARGUMENT_INVALID');
       console.log(JSON.stringify(validateAcceptanceLaunch(args)));
     } else {
@@ -201,7 +205,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       overallState: result.assessment.overallState, reportHash: result.assessment.reportHash, jobHealth: result.jobHealth }));
     }
   } catch (err) {
-    console.error(/^OPERATIONS_[A-Z0-9_]+$/.test(err.message) ? err.message : 'OPERATIONS_JOB_FAILED');
+    console.error(/^(OPERATIONS|DAILY_USE)_[A-Z0-9_]+$/.test(err.message) ? err.message : 'OPERATIONS_JOB_FAILED');
     // Only guard contention is retryable by the bounded Windows launcher.
     process.exitCode = err.message === 'OPERATIONS_OUTPUT_BUSY_OR_ABANDONED_GUARD' ? 75 : 1;
   }

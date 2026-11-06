@@ -4,6 +4,7 @@ import { validateDailyDataOperations, operationsHash, SAFETY } from './daily-dat
 import { REASON_ZH } from './daily-collection-acceptance.mjs';
 import { assertOperationsOutputRoot, readBoundedFile, sha256 } from './daily-data-operations-files.mjs';
 import { readSchedulerHealth } from './data-operations-scheduler-health.mjs';
+import { readDailyUseReceipt } from './daily-use-acceptance.mjs';
 
 const explanations = { ...REASON_ZH,
   DUE_SEMANTICS_UNGOVERNED: '來源何時應到尚無治理證據，維持未知',
@@ -121,6 +122,7 @@ export function readDataOperations({ dataRoot, outputRoot, calendar, bindingIden
     }
   } catch { unavailableReason = 'ASSESSMENT_INVALID_OR_UNREADABLE'; }
   const view = projectDataOperations(report, health, history);
+  view.dailyUse = readDailyUseReceipt({ dataRoot, outputRoot, now });
   if (bindingIdentity) view.bindingIdentity = bindingIdentity;
   try { view.schedulerHealth = readSchedulerHealth({ dataRoot, outputRoot, calendar, now }); }
   catch { view.schedulerHealth = { schemaVersion: 'data-operations-scheduler-health-v1', observedAt: now.toISOString(),
