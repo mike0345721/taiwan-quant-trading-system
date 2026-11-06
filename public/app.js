@@ -5889,9 +5889,11 @@ async function monitorDailyUpdate() {
       ? '每日資料更新完成；日資料、5分鐘回放與研究稽核已同步，正式研究門檻未被重新調整。'
       : update.state === 'completed_with_warnings'
         ? `每日資料已完成，但有 ${update.failures?.length || 0} 個來源待補；面板會標示尚待公布或舊資料。`
-        : `每日更新未完成：${update.fatalError || '請查看更新紀錄'}`;
+        : `每日更新未完成：${update.fatalError || '請查看更新紀錄'}；仍會重讀各來源，請依資料卡的日期與品質狀態判斷可用性。`;
     $('alert-area').prepend(box);
-    if (update.state !== 'failed') await loadDashboard();
+    // A later historical audit failure must not suppress qualified source updates.
+    // The normal reader still enforces each source's date, cutoff and quality.
+    await loadDashboard();
     return;
   }
   throw new Error('DAILY_UPDATE_TIMEOUT');

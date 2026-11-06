@@ -43,12 +43,32 @@
       <details><summary>當日完成度與準時性（分開記錄）</summary><p>${escape(s.completion)} · ${escape(s.punctuality)}；候選與手動測試不計入正式五日觀察。</p></details>
       <small>排程狀態觀測：${time(s.observedAt)}；來源資料時間未被更新。政策 ${escape(s.policy?.policyId)}</small></section>`;
   }
+  function renderBatchDiagnostics(batch) {
+    const d = batch?.diagnostics;
+    if (!d) return '<p>每日批次的日期範圍尚未取得；不能只由批次結果判斷每張資料卡。</p>';
+    const q = d.quality || {}, c = d.continuity || {}, m = d.marketDaily || {};
+    const dates = values => Array.isArray(values) ? (values.length ? values.slice(0, 12).map(escape).join('、')
+      + (values.length > 12 ? `（另 ${values.length - 12} 日，見證據）` : '') : '無列出') : '未知';
+    return `<section aria-label="每日批次原因"><h4>每日批次原因 · ${escape(d.tradeDate || '目標日未知')}</h4>
+      <p>原批次：${escape(batch.executionResult)}；writer 版本：${escape(batch.writerSha)}。以下診斷不變更發布門檻，也不代表自然排程或畫面更新成功。</p>
+      <p>marketDaily ${escape(m.tradeDate || '未知')}：${escape(m.status)}；${m.reasonCode === 'DAY_SESSION_NOT_ENDED'
+        ? '此觀測時間日盤尚未結束，完整日報尚未到期；原缺列紀錄保留。'
+        : '官方發布時間未核實；缺列不能直接判成來源未發布。'}<br>
+      判定時間：${evidenceTime(m.observedAt)}；預期已完成日：${escape(m.expectedCompletedTradeDate || '未知')} · ${escape(m.completedDateRowStatus)}（僅檢查列存在，不代表品質合格）。</p>
+      <p>品質：${q.evidenceState === 'WITHIN_BATCH_WINDOW'
+        ? `報告最後資料日 ${escape(q.lastStoredDate || '未知')}；報告錯誤 ${escape(q.reportedErrorCount ?? '未知')} 筆；已列歷史錯誤 ${escape(q.listedHistoricalErrorCount)} 筆。${q.errorAttribution === 'COMPLETE' ? '已列錯誤數與完整錯誤總數相符。' : '錯誤歸屬不完整，不能由樣本宣稱當日無錯。'}<br>目標日：${q.requestedDateAssessment === 'NOT_ASSESSED' ? '尚無當日資料可評估' : q.requestedDateAssessment === 'ERRORS_REPORTED' ? '有錯誤紀錄' : '品質尚未證實'}；錯誤日期：${dates(q.errorDates)}`
+        : '未取得本批次時間範圍內的有效報告，範圍未知。'}</p>
+      <p>連續性：${c.evidenceState === 'WITHIN_BATCH_WINDOW'
+        ? `${escape(c.status)}；缺日 ${dates(c.missingDays)}；不完整 ${dates(c.incompleteDays)}；有界稽核未能判定 ${dates(c.unresolvedDays)}。${c.requestedDateAssessment === 'OUTSIDE_COMPLETED_DATE_SCOPE' ? '目標日不在本次已完成交易日稽核範圍內。' : '目標日結果需依完整證據判讀。'}`
+        : '未取得本批次時間範圍內的有效報告，範圍未知。'}</p></section>`;
+  }
   function renderDailyUse(receipt) {
     if (!receipt || receipt.schemaVersion !== 'daily-use-acceptance-v1') return '<section aria-label="每日使用驗收"><h3>每日使用驗收</h3><p>尚無今天可核對的使用驗收收據。資料排程成功不代表已完成登入、行情或日誌驗收。</p></section>';
     const labels = { AVAILABLE: '可用', PARTIAL: '部分可用', UNAVAILABLE: '不可用（尚未證實可使用）' };
     return `<section class="dop-details" aria-label="每日使用驗收"><h3>每日使用驗收 · ${escape(receipt.calendarDate)}</h3>
       <p>${escape(labels[receipt.overall] || '未知')} · 台北時間 ${escape(receipt.observedAtTaipei)}；此為當次觀測，非持續健康保證。</p>
       <p>候選 <code>${escape(receipt.candidateSha)}</code>；手動唯讀驗收，本功能未啟用自動排程。重開機：${escape(receipt.reboot)}</p>
+      ${renderBatchDiagnostics(receipt.dailyBatch)}
       <div class="table-wrap"><table><thead><tr><th>功能</th><th>工程結果</th><th>當日操作</th><th>當日資料狀態／原因</th></tr></thead>
       <tbody>${receipt.features.map(r => `<tr><td>${escape(r.label)}</td><td>${escape(r.engineeringResult)}</td><td>${escape(r.operationResult)}</td><td>${escape(r.dataStatus)}<br>${r.reasonCodes.map(escape).join(' / ')}</td></tr>`).join('')}</tbody></table></div>
       <details><summary>版本配對與證據</summary><pre>${escape(JSON.stringify({ runtimes: receipt.runtimes, dailyBatch: receipt.dailyBatch, evidence: receipt.evidence, receiptHash: receipt.receiptHash }, null, 2))}</pre></details></section>`;

@@ -42,6 +42,34 @@ test('today failure and older success cannot claim today complete; errors are al
   assert.equal(JSON.stringify(r).includes('secret'), false);
   assert.equal(buildDailyUseReceipt({ ...base(), batch: { state: 'completed', startedAt: '2026-11-05T13:15:00Z' } }).dailyBatch.state, 'UNKNOWN');
 });
+
+test('batch diagnostics separate historical debt from an unassessed requested date without promoting availability', () => {
+  const batch = { state: 'failed', startedAt: '2026-11-06T00:30:01Z', completedAt: '2026-11-06T00:35:41Z',
+    stages: [{ key: 'quality', ok: false }, { key: 'data_continuity_audit', ok: false }],
+    gateSummary: { marketDaily: { tradeDate: '2026-11-06', status: 'MISSING' }, reasons: ['QUALITY_DEBT'] } };
+  const quality = { generatedAt: '2026-11-06T00:34:34Z', last_date: '2026-11-05', issues: { error: 1 },
+    byRule: [{ severity: 'error', rule_code: 'INSTITUTIONAL_OI_ARITHMETIC_MISMATCH', count: 1 }],
+    institutionalFuturesOiConsistency: { mismatchDates: [{ trade_date: '2026-10-16', internal_mismatch: 1 }] },
+    sampleIssues: [{ message: 'secret text' }] };
+  const continuity = { generatedAt: '2026-11-06T00:35:40Z', liveEventLedger: {
+    status: 'AUDIT_INCOMPLETE', missingDays: ['2026-10-28'], incompleteDays: [], unresolvedDays: ['2026-09-02'],
+    auditTelemetry: { policy: 'COMPLETED_TRADING_DATES_ONLY_EARLY_EXIT_OR_FAIL_CLOSED_BOUND' } } };
+  const r = buildDailyUseReceipt({ ...base(), batch, auditReports: { quality, continuity } });
+  assert.equal(r.dailyBatch.diagnostics.quality.requestedDateAssessment, 'NOT_ASSESSED');
+  assert.equal(r.dailyBatch.diagnostics.quality.listedHistoricalErrorCount, 1);
+  assert.equal(r.dailyBatch.diagnostics.quality.errorAttribution, 'COMPLETE');
+  assert.equal(r.dailyBatch.diagnostics.continuity.requestedDateAssessment, 'OUTSIDE_COMPLETED_DATE_SCOPE');
+  assert.equal(r.dailyBatch.state, 'JOB_FAILED'); assert.equal(r.overall, 'UNAVAILABLE');
+  assert.ok(!JSON.stringify(r).includes('secret text'));
+  const context = {};
+  vm.runInNewContext(fs.readFileSync(new URL('../public/data-operations.js', import.meta.url), 'utf8'), context);
+  const html = context.DataOperations.render({ dailyUse: r });
+  for (const text of ['每日批次原因', '2026-11-05', '2026-10-28', '2026-09-02', '尚無當日資料可評估', '不在本次已完成交易日稽核範圍']) assert.ok(html.includes(text));
+  const stale = buildDailyUseReceipt({ ...base(), batch, auditReports: { quality: { ...quality, generatedAt: '2026-11-05T00:34:34Z' } } });
+  assert.equal(stale.dailyBatch.diagnostics.quality.evidenceState, 'UNVERIFIED');
+  const partial = buildDailyUseReceipt({ ...base(), batch, auditReports: { quality: { ...quality, issues: { error: 2 } } } });
+  assert.equal(partial.dailyBatch.diagnostics.quality.errorAttribution, 'PARTIAL');
+});
 test('historical/synthetic success is engineering only, never live UI', () => {
   for (const kind of ['SYNTHETIC', 'REPLAY', 'MANUAL']) {
     const r = buildDailyUseReceipt({ ...base(), observations: observed([{ ...row('price'), evidenceKind: kind }]) });

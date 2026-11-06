@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { readOperationsBinding, resolveOperationsReader, assertOperationsBindingLaunch } from '../src/data-operations-binding.mjs';
@@ -67,6 +68,52 @@ test('conflicting writer/API roots, stale active sources and changed calendar fa
   }
   original.calendarSha256 = '0'.repeat(64); fs.writeFileSync(args.targetPath, JSON.stringify(original));
   assert.throws(() => readOperationsBinding(args.targetPath), /CALENDAR_MISMATCH/);
+});
+test('morning DAY-final absence retains missing rows and proves only that the session has not ended', t => {
+  const { root } = fixture(t), databasePath = path.join(root, 'morning.sqlite');
+  const db = new DatabaseSync(databasePath);
+  db.exec("CREATE TABLE market_daily(trade_date TEXT); INSERT INTO market_daily VALUES ('2026-11-05')"); db.close();
+  const market = inspectDailyMarket({ tradeDate: '2026-11-06', databasePath, calendarPath,
+    observedAt: '2026-11-06T00:30:01.028Z' });
+  assert.equal(market.tradeDate, '2026-11-06'); assert.equal(market.status, 'MISSING');
+  assert.equal(market.dueState, 'NOT_DUE'); assert.equal(market.reasonCode, 'DAY_SESSION_NOT_ENDED');
+  assert.equal(market.expectedCompletedTradeDate, '2026-11-05');
+  assert.equal(market.officialPublishedAt, null);
+  const summary = buildDailyUpdateGateSummary({ stages: [{ key: 'taifex', ok: true }], marketDaily: market });
+  assert.equal(market.completedDateRow.status, 'PRESENT');
+  // Timing explains the absence; it must not silently loosen the release gate.
+  assert.equal(summary.requiredSource, 'BLOCKED'); assert.equal(summary.overall, 'FAILED');
+  assert.ok(summary.reasons.includes('MARKET_DAILY_MISSING'));
+  const failed = buildDailyUpdateGateSummary({ stages: [{ key: 'taifex', ok: true }, { key: 'quality', ok: false }],
+    failures: [{ key: 'data_continuity_audit', critical: true }], marketDaily: market });
+  assert.equal(failed.overall, 'FAILED'); assert.ok(failed.reasons.includes('QUALITY_DEBT'));
+  const after = inspectDailyMarket({ tradeDate: '2026-11-06', databasePath, calendarPath, observedAt: '2026-11-06T05:45:00Z' });
+  assert.equal(after.status, 'MISSING'); assert.equal(after.dueState, 'UNKNOWN');
+  assert.equal(buildDailyUpdateGateSummary({ stages: [{ key: 'taifex', ok: true }], marketDaily: after }).requiredSource, 'BLOCKED');
+  const unknownTime = inspectDailyMarket({ tradeDate: '2026-11-06', databasePath, calendarPath, observedAt: '2026-11-06 08:30' });
+  assert.equal(unknownTime.dueState, 'UNKNOWN'); assert.equal(unknownTime.expectedCompletedTradeDate, null);
+  const futureDay = inspectDailyMarket({ tradeDate: '2026-11-06', databasePath, calendarPath, observedAt: '2026-11-05T00:30:00Z' });
+  assert.equal(futureDay.dueState, 'UNKNOWN'); assert.equal(futureDay.expectedCompletedTradeDate, null);
+  assert.notEqual(buildDailyUpdateGateSummary({ stages: [{ key: 'taifex', ok: false }], marketDaily: market }).requiredSource, 'NOT_DUE');
+});
+
+test('daily batch target stays fixed across midnight while each row observation keeps its actual later time', () => {
+  const scriptUrl = new URL('../v2/scripts/run-v3-daily-update.mjs', import.meta.url).href;
+  const script = fs.readFileSync(fileURLToPath(scriptUrl), 'utf8').replace(/^import .*\r?\n/gm, '').replaceAll('import.meta.url', 'scriptUrl');
+  let clock = Date.parse('2026-11-06T15:59:50Z'); const files = new Map(), inspections = [];
+  class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return clock; } }
+  vm.runInNewContext(script, { scriptUrl, path, fileURLToPath, Date: Clock, Intl,
+    process: { argv: [], env: {}, pid: 123, execPath: 'synthetic-node' }, console: { log() {}, error() {} },
+    fs: { mkdirSync() {}, openSync() { return 42; }, closeSync() {}, appendFileSync() {},
+      writeFileSync(k, v) { files.set(k, v); }, renameSync(a, b) { files.set(b, files.get(a)); files.delete(a); }, unlinkSync(k) { files.delete(k); } },
+    spawnSync() { clock += 60_000; return { status: 0 }; }, buildDailyUpdateGateSummary,
+    inspectDailyMarket(args) { inspections.push(args); return { status: 'MISSING', tradeDate: args.tradeDate }; } });
+  assert.ok(inspections.length > 2);
+  assert.ok(inspections.every(x => x.tradeDate === '2026-11-06'));
+  assert.ok(Date.parse(inspections.at(-1).observedAt) > Date.parse('2026-11-06T16:00:00Z'));
+  const final = JSON.parse([...files.entries()].find(([k]) => String(k).endsWith('v3-daily-update-status.json'))[1]);
+  assert.equal(final.targetTradeDate, '2026-11-06');
+  assert.equal(final.gateSummary.overall, 'FAILED');
 });
 test('governed 9/25–9/28 closure requires no DB; open missing, uncovered and unavailable remain distinct', t => {
   const { root } = fixture(t), databasePath = path.join(root, 'market.sqlite');

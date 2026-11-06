@@ -1,12 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import { inspectEngineeringDocument } from './ui-browser-engineering-helper.mjs';
 import { guestBrowserPath } from './guest-browser-path.mjs';
 const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const cards=app.slice(app.indexOf('function metric('),app.indexOf("\n$('app').addEventListener('click'"));
 const badges=app.slice(app.indexOf('function metricSourceKeys('),app.indexOf('\nfunction regimeLabel('));
 const css=fs.readFileSync(new URL('../public/styles.css',import.meta.url),'utf8');
+test('a failed historical audit still rereads qualified cards and keeps the batch failure visible', async () => {
+  const source = app.slice(app.indexOf('async function monitorDailyUpdate()'), app.indexOf("\n$('daily-update-button').addEventListener"));
+  let rereads = 0; const alerts = [], button = {};
+  const context = { setTimeout: fn => fn(), DAILY_STAGE_LABELS: {},
+    $: id => id === 'daily-update-button' ? button : { prepend: node => alerts.push(node) },
+    document: { createElement: () => ({}) },
+    api: async () => ({ processRunning: false, data: { state: 'failed', fatalError: 'Critical stage failed: data_continuity_audit' } }),
+    loadDashboard: async () => { rereads++; } };
+  vm.runInNewContext(source, context);
+  await context.monitorDailyUpdate();
+  assert.equal(rereads, 1);
+  assert.equal(alerts[0].className, 'alert bad');
+  assert.match(alerts[0].textContent, /未完成/);
+  assert.match(alerts[0].textContent, /data_continuity_audit/);
+});
 const binary=process.platform==='linux'?(()=>{const b=guestBrowserPath();return b.skip?null:b.executable;})():
   ['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);
 for(const width of [390,1366])test(`each daily card retains its own mixed-source status at ${width}px`,{skip:!binary,timeout:40000},async()=>{

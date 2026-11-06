@@ -26,6 +26,14 @@ export function checkDailyUse(options) {
   const operations = readDataOperations({ ...binding, now });
   const evidence = [{ role: 'OPERATIONS_BINDING', sha256: sha256(bindingBytes) },
     { role: 'DAILY_BATCH', sha256: sha256(batchBytes) }, { role: 'OPERATIONS_VIEW', sha256: sha256(JSON.stringify(operations)) }];
+  const auditReports = {};
+  for (const [key, filename, role] of [['quality', 'latest-quality.json', 'QUALITY_REPORT'],
+    ['continuity', 'data-continuity-status.json', 'CONTINUITY_REPORT']]) {
+    try {
+      const bytes = readBoundedFile(path.join(path.dirname(binding.manifest.sourceBindings.dailyStatusPath), filename), 256 * 1024);
+      auditReports[key] = JSON.parse(bytes); evidence.push({ role, sha256: sha256(bytes) });
+    } catch { /* Missing, oversized or refused evidence stays UNVERIFIED. No alternate reader. */ }
+  }
   let observations = null;
   if (options.observationsPath) {
     const root = path.join(appRoot, 'data/quality/daily-use-evidence');
@@ -44,7 +52,7 @@ export function checkDailyUse(options) {
     }
   }
   const receipt = buildDailyUseReceipt({ candidateSha, now, tradeDate: options.tradeDate ?? null,
-    session: options.session ?? 'UNKNOWN', operations, batch, observations, evidence });
+    session: options.session ?? 'UNKNOWN', operations, batch, auditReports, observations, evidence });
   const dataRoot = path.join(appRoot, 'data');
   const outputRoot = path.join(dataRoot, 'quality/daily-data-operations/daily-use-checks');
   const saved = writeDailyUseReceipt({ dataRoot, outputRoot, receipt });

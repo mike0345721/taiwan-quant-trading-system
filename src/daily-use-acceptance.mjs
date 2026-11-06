@@ -26,9 +26,69 @@ const code = x => typeof x === 'string' && /^[A-Z][A-Z0-9_]{0,120}$/.test(x);
 const date = now => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 const fail = reason => { throw new Error('DAILY_USE_' + reason); };
 const roles = ['dashboard', 'producer', 'writer', 'bridge'];
+const validDate = x => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && Number.isFinite(Date.parse(`${x}T00:00:00Z`));
+
+// Scope the existing reports, never rerun an audit or turn diagnostics into a gate.
+function batchDiagnostics(batch, reports, now) {
+  const target = batch?.targetTradeDate || batch?.gateSummary?.marketDaily?.tradeDate;
+  const tradeDate = validDate(target) ? target : null;
+  const end = time(batch?.completedAt) ? Date.parse(batch.completedAt) : now.getTime();
+  const inWindow = (report, stage) => tradeDate && time(batch?.startedAt) && time(report?.generatedAt)
+    && Array.isArray(batch?.stages) && batch.stages.some(s => s.key === stage)
+    && Date.parse(report.generatedAt) >= Date.parse(batch.startedAt)
+    && Date.parse(report.generatedAt) <= Math.min(end, now.getTime());
+  const unknown = () => ({ evidenceState: 'UNVERIFIED', requestedDateAssessment: 'UNKNOWN' });
+  let quality = unknown(), continuity = unknown();
+  const q = reports?.quality, c = reports?.continuity;
+  if (inWindow(q, 'quality')) {
+    const rows = Array.isArray(q.institutionalFuturesOiConsistency?.mismatchDates)
+      ? q.institutionalFuturesOiConsistency.mismatchDates.slice(0, 2000) : [];
+    const count = r => Number(r.internal_mismatch === 1) + Number(r.cross_table_mismatch === 1);
+    const dated = rows.filter(r => validDate(r.trade_date));
+    const listed = dated.reduce((n, r) => n + count(r), 0);
+    const rules = Array.isArray(q.byRule) ? q.byRule.filter(r => r.severity === 'error') : [];
+    const knownRules = ['INSTITUTIONAL_OI_ARITHMETIC_MISMATCH', 'INSTITUTIONAL_OI_NET_MISMATCH'];
+    const complete = Number.isSafeInteger(q.issues?.error) && q.issues.error === listed
+      && rules.every(r => knownRules.includes(r.rule_code) && Number.isSafeInteger(r.count) && r.count >= 0)
+      && rules.reduce((n, r) => n + r.count, 0) === listed;
+    const requested = dated.filter(r => r.trade_date === tradeDate).reduce((n, r) => n + count(r), 0);
+    quality = { evidenceState: 'WITHIN_BATCH_WINDOW', generatedAt: q.generatedAt,
+      lastStoredDate: validDate(q.last_date) ? q.last_date : null,
+      reportedErrorCount: Number.isSafeInteger(q.issues?.error) && q.issues.error >= 0 ? q.issues.error : null,
+      errorAttribution: complete ? 'COMPLETE' : 'PARTIAL',
+      listedHistoricalErrorCount: dated.filter(r => r.trade_date < tradeDate).reduce((n, r) => n + count(r), 0),
+      listedRequestedDateErrorCount: requested,
+      errorDates: [...new Set(dated.filter(r => count(r)).map(r => r.trade_date))].sort(),
+      requestedDateAssessment: requested ? 'ERRORS_REPORTED' : validDate(q.last_date) && q.last_date < tradeDate
+        ? 'NOT_ASSESSED' : 'UNKNOWN' };
+  }
+  if (inWindow(c, 'data_continuity_audit')) {
+    const live = c.liveEventLedger;
+    const dates = key => Array.isArray(live?.[key]) ? live[key].filter(validDate).slice(0, 1000) : null;
+    const missingDays = dates('missingDays'), incompleteDays = dates('incompleteDays'), unresolvedDays = dates('unresolvedDays');
+    const completedOnly = live?.auditTelemetry?.policy === 'COMPLETED_TRADING_DATES_ONLY_EARLY_EXIT_OR_FAIL_CLOSED_BOUND';
+    const today = date(new Date(c.generatedAt));
+    const listed = [missingDays, incompleteDays, unresolvedDays].flat().filter(Boolean);
+    continuity = { evidenceState: 'WITHIN_BATCH_WINDOW', generatedAt: c.generatedAt,
+      status: ['PASS', 'FAIL', 'AUDIT_INCOMPLETE'].includes(live?.status) ? live.status : 'UNKNOWN',
+      missingDays, incompleteDays, unresolvedDays,
+      requestedDateAssessment: listed.includes(tradeDate) ? 'GAP_REPORTED'
+        : completedOnly && tradeDate >= today ? 'OUTSIDE_COMPLETED_DATE_SCOPE' : 'UNKNOWN' };
+  }
+  const m = batch?.gateSummary?.marketDaily;
+  return { scope: 'DIAGNOSTIC_ONLY_NO_GATE_OVERRIDE', tradeDate,
+    marketDaily: { tradeDate: validDate(m?.tradeDate) ? m.tradeDate : null,
+      status: ['VALID', 'MISSING', 'NOT_EXPECTED'].includes(m?.status) ? m.status : 'UNKNOWN',
+      observedAt: time(m?.observedAt) ? m.observedAt : null,
+      dueState: m?.dueState === 'NOT_DUE' && m.reasonCode === 'DAY_SESSION_NOT_ENDED' ? 'NOT_DUE' : 'UNKNOWN',
+      reasonCode: ['DAY_SESSION_NOT_ENDED', 'PUBLICATION_TIME_UNVERIFIED', 'MARKET_CLOSED'].includes(m?.reasonCode) ? m.reasonCode : 'TIMING_NOT_RECORDED',
+      expectedCompletedTradeDate: validDate(m?.expectedCompletedTradeDate) ? m.expectedCompletedTradeDate : null,
+      completedDateRowStatus: ['PRESENT', 'MISSING'].includes(m?.completedDateRow?.status) ? m.completedDateRow.status : 'UNKNOWN',
+      officialPublishedAt: null }, quality, continuity };
+}
 
 export function buildDailyUseReceipt({ candidateSha, now = new Date(), tradeDate = null, session = 'UNKNOWN',
-  operations = null, batch = null, observations = null, evidence = [] }) {
+  operations = null, batch = null, auditReports = null, observations = null, evidence = [] }) {
   if (!sha(candidateSha) || !Number.isFinite(now.getTime())) fail('IDENTITY_INVALID');
   if (tradeDate !== null) assertOperationsDate(tradeDate);
   if (!['DAY', 'NIGHT', 'UNKNOWN'].includes(session)) fail('SESSION_INVALID');
@@ -91,6 +151,7 @@ export function buildDailyUseReceipt({ candidateSha, now = new Date(), tradeDate
     scope: 'BATCH_EXECUTION_ONLY_NOT_SOURCE_OR_UI_AVAILABILITY', evidenceKind: 'UNKNOWN',
     startedAt: time(batch?.startedAt) ? batch.startedAt : null, completedAt: time(batch?.completedAt) ? batch.completedAt : null,
     lastSuccessAt: null, writerSha: runtimes.writer.sha,
+    diagnostics: currentBatch ? batchDiagnostics(batch, auditReports, now) : null,
     reasonCodes: currentBatch ? (batch.gateSummary?.reasons || []).filter(code).slice(0, 20) : ['NO_CURRENT_BATCH_EVIDENCE'],
     stages: (Array.isArray(batch?.stages) ? batch.stages : []).slice(0, 64).map(s => ({
       key: /^[a-z0-9_]{1,80}$/.test(s.key || '') ? s.key : 'unknown', ok: typeof s.ok === 'boolean' ? s.ok : null,

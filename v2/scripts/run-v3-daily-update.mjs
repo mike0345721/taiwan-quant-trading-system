@@ -15,12 +15,12 @@ const statusPath = path.join(reportsDir, 'v3-daily-update-status.json');
 const lockPath = path.join(dataDir, '.v3-daily-update.lock');
 const dryRun = process.argv.includes('--dry-run') || process.env.V3_DAILY_DRY_RUN === '1';
 
-function taipeiDate() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+function taipeiDate(value) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
 }
 
 function inspectMarketDaily() {
-  return inspectDailyMarket({ tradeDate: taipeiDate(), databasePath: path.join(dataDir, 'research-v2.sqlite'),
+  return inspectDailyMarket({ tradeDate: targetTradeDate, observedAt: new Date().toISOString(), databasePath: path.join(dataDir, 'research-v2.sqlite'),
     calendarPath: path.join(appRoot, 'config/taifex-official-calendar-2026.json') });
 }
 
@@ -107,9 +107,10 @@ try {
 }
 
 const startedAt = new Date().toISOString();
+const targetTradeDate = taipeiDate(startedAt);
 const logPath = path.join(logsDir, `v3-daily-update-${taipeiStamp()}.log`);
 const status = {
-  state: 'running', startedAt, completedAt: null, currentStage: null,
+  state: 'running', startedAt, targetTradeDate, completedAt: null, currentStage: null,
   totalStages: stages.length,
   formalResearchRerun: false,
   mockSnapshotsAccepted: false,
