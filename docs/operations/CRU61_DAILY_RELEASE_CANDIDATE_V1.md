@@ -43,6 +43,8 @@ LIVE 使用既有 chart worker；請求 8 秒、V8 old generation 256 MiB／youn
 
 容量驗證以官方 TX 夜盤 15:00 至次日 05:00 的 14 小時為最長盤別。來源三個固定範圍速率樣本只是估計，不是全天速率上界；以 20 events/s、3 quote:1 trade 的合成整盤驗證 1,008,000 events，另外用實際 retention 函式產生四小時 checkpoint，再交原 worker。保留每次 FAIL、CPU/耗時、RSS/heap、來源位置與結果雜湊，最終同版收據才決定容量 PASS。
 
+持久化 Producer 每次請求最多衍生 500 個 canonical events；這是單次工作預算，不是整盤容量、來源落盤或畫面筆數上限。未處理 suffix 留在已驗證的 pending source，cursor、CVD 起點與完整歷史保持，完整消費後才發布。原 2,000 筆步進在 644,000 事件容量測試超過 8 秒；縮小步進不等於已證明全天效能，仍須同版高水位接續與完整容量驗證，原 8 秒門檻不改。
+
 ## 每日資料與畫面
 
 每張來源卡與來源表顯示 data date、source time（來源未提供則未知）、last successful fetch、last attempt、目前狀態與原因。六種狀態為 `NOT_DUE`、`SOURCE_NOT_PUBLISHED`、`JOB_NOT_RUN`、`JOB_FAILED`、`STALE`、`AVAILABLE`。Dashboard fetch 與 Windows scheduled batch 明確分列，不把其中一者成功當成另一者完成。

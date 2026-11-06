@@ -9,6 +9,10 @@ import { stableJson,stableJsonDigest, digest, SAFETY } from './cvd-observation-c
 import { MarketObservationStore } from './market-observation-store.mjs';
 
 const MAX_SOURCE=96*1024*1024,MAX_CACHE=64*1024*1024,TAIL=20000,MAX_EVENT_BYTES=128*1024;
+// Durable derivation includes classification, history writes and atomic commit.
+// A 2,000-event step exceeded the existing 8s request gate at 644k events.
+// This is a per-request work budget; the pending cursor retains every suffix.
+const DERIVATION_EVENTS_PER_REQUEST=500;
 const resident=new Map();
 const pending=new Map();
 const stores=new Map();
@@ -336,7 +340,7 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
   const derive=()=>{
   const previous=stagedBody??cached;
   const fragment=updateCanonicalCvdFragment(previous?.fragment??null,source.checkpoint,{resolverIdentity,storage:history,
-    maxEvents:history?2000:20000,continuation:Boolean(stagedBody),
+    maxEvents:history?DERIVATION_EVENTS_PER_REQUEST:20000,continuation:Boolean(stagedBody),
     resolveSessionTradeDate:eventTime=>{try{const s=classifyTxChartSession(eventTime,calendar);return {session:s.session,tradeDate:s.sessionTradeDate};}catch{return null;}}});
   const state=appendMarketObservationCanonical(previous?.state??null,fragment,{history,resolveSessionTradeDate:eventTime=>{
     try{const s=classifyTxChartSession(eventTime,calendar);return {session:s.session,tradeDate:s.sessionTradeDate};}catch{return null;}

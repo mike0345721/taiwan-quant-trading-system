@@ -87,11 +87,24 @@ test('bounded derivation persists an unpublished cursor and resumes the same ver
   const f=fixture(producer(rows));
   let result=readMarketObservationProducer({...f,persistentHistory:true});
   assert.equal(result.reason,'DERIVATION_CATCHUP_PENDING');assert.equal(result.state,null);
-  assert.equal(result.sourceProgress.derivedThroughOrdinal,2000);
+  assert.equal(result.sourceProgress.derivedThroughOrdinal,500);
   assert.equal(result.history.getMeta('checkpoint'),null);
-  assert.equal(result.history.getMeta('pending-derivation').fragment.state.cvd.ordinal,2000);
+  assert.equal(result.history.getMeta('pending-derivation').fragment.state.cvd.ordinal,500);
   clearMarketObservationProducerCache();
-  for(let i=0;i<100;i++){result=readMarketObservationProducer({...f,persistentHistory:true});if(result.state)break;}
+  let consumed=500;
+  for(let i=0;i<100;i++){
+    result=readMarketObservationProducer({...f,persistentHistory:true});
+    const processed=result.sourceProgress?.processedRecords??0;
+    if(processed){
+      assert.ok(processed<=500,'one derivation request stays within its work budget');
+      consumed+=processed;
+      const checkpoint=result.history.getMeta('pending-derivation')??result.history.getMeta('checkpoint');
+      assert.equal(checkpoint.fragment.state.lastCanonicalOrdinal,consumed,'restart consumes each physical prefix once');
+      if(!result.state)assert.equal(result.history.getMeta('checkpoint'),null,'private prefix is not published');
+    }
+    if(result.state)break;
+  }
+  assert.equal(consumed,6000);
   assert.ok(result.state);assert.equal(result.history.getMeta('pending-derivation'),null);
   assert.equal(result.history.getMeta('checkpoint').fragment.state.sourceOrdinal,6000);
   assert.equal(result.history.statement('SELECT COUNT(*) AS n FROM points').get().n,6000);
