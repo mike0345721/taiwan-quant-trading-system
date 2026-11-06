@@ -46,9 +46,9 @@
   function renderDailyUse(receipt) {
     if (!receipt || receipt.schemaVersion !== 'daily-use-acceptance-v1') return '<section aria-label="每日使用驗收"><h3>每日使用驗收</h3><p>尚無今天可核對的使用驗收收據。資料排程成功不代表已完成登入、行情或日誌驗收。</p></section>';
     const labels = { AVAILABLE: '可用', PARTIAL: '部分可用', UNAVAILABLE: '不可用（尚未證實可使用）' };
-    return `<section aria-label="每日使用驗收"><h3>每日使用驗收 · ${escape(receipt.calendarDate)}</h3>
+    return `<section class="dop-details" aria-label="每日使用驗收"><h3>每日使用驗收 · ${escape(receipt.calendarDate)}</h3>
       <p>${escape(labels[receipt.overall] || '未知')} · 台北時間 ${escape(receipt.observedAtTaipei)}；此為當次觀測，非持續健康保證。</p>
-      <p>候選 ${escape(receipt.candidateSha)}；手動唯讀驗收，本功能未啟用自動排程。重開機：${escape(receipt.reboot)}</p>
+      <p>候選 <code>${escape(receipt.candidateSha)}</code>；手動唯讀驗收，本功能未啟用自動排程。重開機：${escape(receipt.reboot)}</p>
       <div class="table-wrap"><table><thead><tr><th>功能</th><th>工程結果</th><th>當日操作</th><th>當日資料狀態／原因</th></tr></thead>
       <tbody>${receipt.features.map(r => `<tr><td>${escape(r.label)}</td><td>${escape(r.engineeringResult)}</td><td>${escape(r.operationResult)}</td><td>${escape(r.dataStatus)}<br>${r.reasonCodes.map(escape).join(' / ')}</td></tr>`).join('')}</tbody></table></div>
       <details><summary>版本配對與證據</summary><pre>${escape(JSON.stringify({ runtimes: receipt.runtimes, dailyBatch: receipt.dailyBatch, evidence: receipt.evidence, receiptHash: receipt.receiptHash }, null, 2))}</pre></details></section>`;
