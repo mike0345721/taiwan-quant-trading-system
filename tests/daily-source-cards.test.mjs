@@ -8,11 +8,11 @@ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const cards=app.slice(app.indexOf('function metric('),app.indexOf("\n$('app').addEventListener('click'"));
 const badges=app.slice(app.indexOf('function metricSourceKeys('),app.indexOf('\nfunction regimeLabel('));
 const css=fs.readFileSync(new URL('../public/styles.css',import.meta.url),'utf8');
-function dailyMonitorHarness({ busy = false, reloadError = false, changeSession = false } = {}) {
+function dailyMonitorHarness({ busy = false, captureDuringRead = false, reloadError = false, changeSession = false } = {}) {
   const monitor = app.slice(app.indexOf('async function monitorDailyUpdate()'), app.indexOf("\n$('daily-update-button').addEventListener"));
   const dashboard = app.slice(app.indexOf('async function loadDashboard()'), app.indexOf('\nfunction reportDashboardLoadError('));
   const alerts = [], button = {}, locked = Object.freeze({ snapshotHash: 'locked-cutoff' });
-  let polls = 0, rereads = 0, ticks = 0, session = 1;
+  let polls = 0, rereads = 0, renders = 0, ticks = 0, session = 1;
   const context = { state: { decisionCaptureBusy: busy, dashboardRequestId: 0, guestReadOnly: true, locked },
     setTimeout: fn => { if (++ticks === 2) context.state.decisionCaptureBusy = false; fn(); },
     DAILY_STAGE_LABELS: {}, flowChannel: { ticket: () => session, isCurrentSession: t => t === session, merge() {} },
@@ -24,16 +24,27 @@ function dailyMonitorHarness({ busy = false, reloadError = false, changeSession 
         return { processRunning: false, data: { state: 'failed', fatalError: 'Critical stage failed: data_continuity_audit' } };
       }
       assert.equal(url, '/api/v1/dashboard'); rereads++;
+      if (captureDuringRead && rereads === 1) {
+        context.state.decisionCaptureBusy = true;
+        context.state.dashboardRequestId++;
+      }
       if (reloadError) throw Error('DASHBOARD_READ_FAILED');
       return { data: {}, decisionWorkspace: {} };
     },
     // The real render starts by clearing this shared alert area.
-    render: () => { alerts.length = 0; }, renderDecisionWorkspace() {},
+    render: () => { renders++; alerts.length = 0; }, renderDecisionWorkspace() {},
     loadIndexLeadership: async () => {}, renderIndexLeadershipFailure() {},
     loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {} };
   vm.runInNewContext(`${dashboard}\n${monitor}`, context);
-  return { context, alerts, locked, counts: () => ({ polls, rereads }) };
+  return { context, alerts, locked, counts: () => ({ polls, rereads }), renders: () => renders };
 }
+test('daily monitor retries a response superseded by capture after the request began', async () => {
+  const h = dailyMonitorHarness({ captureDuringRead: true });
+  await h.context.monitorDailyUpdate();
+  assert.deepEqual(h.counts(), { polls: 2, rereads: 2 });
+  assert.equal(h.renders(), 1); assert.equal(h.context.state.locked, h.locked);
+  assert.match(h.alerts[0]?.textContent || '', /data_continuity_audit/);
+});
 test('daily monitor rereads after capture settles and keeps the batch failure after render', async () => {
   const h = dailyMonitorHarness({ busy: true });
   await h.context.monitorDailyUpdate();

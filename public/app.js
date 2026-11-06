@@ -5393,7 +5393,7 @@ async function copyToClipboard(value) {
 }
 
 async function loadDashboard() {
-  if (state.decisionCaptureBusy) return;
+  if (state.decisionCaptureBusy) return false;
   const dashboardRequestId = ++state.dashboardRequestId;
   const flowTicket = flowChannel.ticket();
   const terminalRoot = $('decision-workspace');
@@ -5401,7 +5401,7 @@ async function loadDashboard() {
   terminalRoot?.setAttribute('aria-busy', 'true');
   if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
   const payload = await api('/api/v1/dashboard');
-  if (dashboardRequestId !== state.dashboardRequestId || !(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return;
+  if (dashboardRequestId !== state.dashboardRequestId || !(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return false;
   state.homeDashboardError = null;
   const partial = payload.service?.degraded;
   let partialNotice = $('candidate-partial-data-notice');
@@ -5428,6 +5428,7 @@ async function loadDashboard() {
   terminalRoot?.setAttribute('data-dashboard-load-state', partial?.status === 'PARTIAL' ? 'PARTIAL' : 'READY');
   terminalRoot?.setAttribute('aria-busy', 'false');
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
+  return true;
 }
 
 function reportDashboardLoadError(error, context = 'DASHBOARD_LOAD') {
@@ -5901,7 +5902,11 @@ async function monitorDailyUpdate() {
         : `每日更新未完成：${update.fatalError || '請查看更新紀錄'}；仍會重讀各來源，請依資料卡的日期與品質狀態判斷可用性。`;
     // A later historical audit failure must not suppress qualified source updates.
     // The normal reader still enforces each source's date, cutoff and quality.
-    try { await loadDashboard(); }
+    try {
+      // Capture or another refresh can supersede this response while its API is
+      // in flight. Only an applied reread completes this monitor's obligation.
+      if (await loadDashboard() === false) continue;
+    }
     catch (error) {
       box.className = 'alert bad';
       box.textContent += ` 面板重讀失敗：${error.message}；目前畫面尚未確認更新。`;
