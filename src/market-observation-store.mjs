@@ -301,7 +301,26 @@ export class MarketObservationStore {
     if(cacheable){this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);}
     return ordinal;
   }
-  lastPoint(segment,cutoff){return this.pointFor(this.ordinalAt('points',segment,cutoff));}
+  pointKnowledgeOrdinalAt(segment,cutoff){
+    this.assertVerified();const at=Date.parse(cutoff),key=stableJson(['point-knowledge',this.origin,segment.cvdSegment,at]);
+    this.ordinalCache??=new Map();const cacheable=!this.pendingIntegrity;
+    if(cacheable&&this.ordinalCache.has(key))return this.ordinalCache.get(key);
+    // A cumulative point after the first physically later-than-cutoff trade
+    // cannot become historical evidence merely because its own clock regressed.
+    const future=this.statement('SELECT MIN(ordinal) AS ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>?')
+      .get(this.origin,segment.cvdSegment,at).ordinal;
+    const bound=Math.min(this.ordinalAt('points',segment,cutoff),future==null?Number.MAX_SAFE_INTEGER:future-1);
+    const ordinal=this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? AND ordinal<=? AND at<=? ORDER BY ordinal DESC LIMIT 1')
+      .get(this.origin,segment.cvdSegment,bound,at)?.ordinal??0;
+    if(cacheable){this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);}
+    return ordinal;
+  }
+  lastPoint(segment,cutoff){return this.pointFor(this.pointKnowledgeOrdinalAt(segment,cutoff));}
+  reasonCodesAt(segment,cutoff){
+    this.assertVerified();const at=Date.parse(cutoff),bound=this.pointKnowledgeOrdinalAt(segment,cutoff);
+    return this.statement('SELECT DISTINCT code FROM reasons WHERE origin=? AND segment=? AND ordinal<=? AND at<=? ORDER BY ordinal')
+      .all(this.origin,segment.cvdSegment,bound,at).map(row=>row.code);
+  }
   structureSnapshot(segment,bars,timeframe,cutoff,maxBars){
     this.assertVerified();
     const cacheKey=`structure:${this.origin}:${segment.cvdSegment}:${timeframe}`;
@@ -329,10 +348,20 @@ export class MarketObservationStore {
     const last=parse(this.statement('SELECT json FROM trades INDEXED BY trade_ordinal WHERE origin=? AND segment=? AND ordinal<=? AND at<=? AND event_ms<=? ORDER BY ordinal DESC LIMIT 1').get(...args));
     return first?[first,...(last.ledgerOrdinal===first.ledgerOrdinal?[]:[last])]:[];}
   minuteSeries(segment,cutoff){const at=Date.parse(cutoff),minute=Math.floor(at/60000);
-    this.assertVerified();
-    const rows=this.statement('SELECT * FROM minutes WHERE origin=? AND segment=? AND minute<? ORDER BY first_ordinal DESC LIMIT 2000').all(this.origin,segment.cvdSegment,minute).map(row=>this.checked(row));
-    const last=this.statement('SELECT json,ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=? ORDER BY ordinal DESC LIMIT 1').get(this.origin,segment.cvdSegment,minute*60000,at);
-    if(last){const first=this.statement('SELECT MIN(ordinal) AS ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=?').get(this.origin,segment.cvdSegment,minute*60000,at);
+    this.assertVerified();const bound=this.pointKnowledgeOrdinalAt(segment,cutoff);
+    const rows=this.statement('SELECT * FROM minutes WHERE origin=? AND segment=? AND minute<? AND first_ordinal<=? ORDER BY first_ordinal DESC LIMIT 2000')
+      .all(this.origin,segment.cvdSegment,minute,bound).map(row=>this.checked(row)).map(row=>{
+        if(row.ordinal<=bound)return row;
+        // A later backdated point may have replaced this minute's index entry.
+        // Recover the last point from the lawful physical prefix, not its totals.
+        const prior=this.statement('SELECT json,ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<? AND ordinal<=? ORDER BY ordinal DESC LIMIT 1')
+          .get(this.origin,segment.cvdSegment,row.minute*60000,(row.minute+1)*60000,bound);
+        return prior?{...prior,first_ordinal:row.first_ordinal}:null;
+      }).filter(Boolean);
+    const last=this.statement('SELECT json,ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=? AND ordinal<=? ORDER BY ordinal DESC LIMIT 1')
+      .get(this.origin,segment.cvdSegment,minute*60000,at,bound);
+    if(last){const first=this.statement('SELECT MIN(ordinal) AS ordinal FROM points INDEXED BY point_time WHERE origin=? AND segment=? AND at>=? AND at<=? AND ordinal<=?')
+      .get(this.origin,segment.cvdSegment,minute*60000,at,bound);
       rows.push({...last,first_ordinal:first.ordinal});}
     return rows.sort((a,b)=>a.first_ordinal-b.first_ordinal).slice(-2000).map(parse);}
   profileAt(segment,cutoff){const at=Date.parse(cutoff);

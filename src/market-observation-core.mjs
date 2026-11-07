@@ -126,7 +126,7 @@ function accumulateObservationEvents(state,events,points,resolveSessionTradeDate
       const prior=segment.reasons.find(item=>item.reason===reason);
       if(prior){if(ms(event.availableAt)!==null&&(ms(prior.availableAt)===null||ms(event.availableAt)<ms(prior.availableAt)))prior.availableAt=event.availableAt;return;}
     }
-    segment.reasons.push({reason,availableAt:event.availableAt});
+    segment.reasons.push({reason,availableAt:event.availableAt,ledgerOrdinal:event.ledgerOrdinal});
   };
   const quarantinedEpochs=new Set((state.lineageTimeline?.quarantinedEpochs??[]).map(item=>item.epoch));
   for(const event of events) {
@@ -237,7 +237,10 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
   const segment=[...state.segments].reverse().find(s=>ms(s.startAvailableAt)<=ms(cutoff)&&(!tradeDate||s.identity.tradeDate===tradeDate)&&(!session||s.identity.session===session)&&(!actualContract||s.identity.actualContract===actualContract));
   if(!segment) return unavailableObservation('NO_LAWFUL_TRADE',{timeframe,mode,cutoff});
   const trades=history?history.tradeEndpoints(segment,cutoff):segment.trades.filter(t=>ms(t.availableAt)<=ms(cutoff)&&ms(t.eventTime)<=ms(cutoff));
-  const series=history?history.minuteSeries(segment,cutoff):semantic.series.filter(p=>p.segment===segment.cvdSegment&&ms(p.availableAt)!==null&&ms(p.availableAt)<=ms(cutoff));
+  const physicalSeries=history?null:semantic.series.filter(p=>p.segment===segment.cvdSegment);
+  const futurePoint=physicalSeries?.find(p=>ms(p.availableAt)!==null&&ms(p.availableAt)>ms(cutoff));
+  const knowledgeBound=futurePoint?futurePoint.ledgerOrdinal-1:Number.MAX_SAFE_INTEGER;
+  const series=history?history.minuteSeries(segment,cutoff):physicalSeries.filter(p=>p.ledgerOrdinal<=knowledgeBound&&ms(p.availableAt)!==null&&ms(p.availableAt)<=ms(cutoff));
   const profileAt=at=>volumeProfileSnapshot(segment.profile??createVolumeProfileState({identity:segment.identity}),
     {cutoff:at,history:history?time=>history.profileAt(segment,time):null});
   const windowAt=(start,end,at)=>history?history.windowEvidence(segment,start,end,at):windowEvidence(deltas,trades,start,end,at);
@@ -245,7 +248,9 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
   for(const p of series){deltas.set(p.ledgerOrdinal,{buy:p.buyProxyVolume-(priorPoint?.buyProxyVolume??0),sell:p.sellProxyVolume-(priorPoint?.sellProxyVolume??0),
     unknown:p.unknownVolume-(priorPoint?.unknownVolume??0),total:p.totalExecutedVolume-(priorPoint?.totalExecutedVolume??0),valid:p.value!==null});priorPoint=p;}
   const last=history?history.lastPoint(segment,cutoff):series.at(-1),price=trades.at(-1)?.payload.close??null;
-  const reasons=[...new Set(segment.reasons.filter(r=>ms(r.availableAt)!==null&&ms(r.availableAt)<=ms(cutoff)).map(r=>r.reason)),'CAPTURE_COMPLETENESS_UNPROVEN'];
+  const reasonCodes=history?history.reasonCodesAt(segment,cutoff)
+    :segment.reasons.filter(r=>(r.ledgerOrdinal==null||r.ledgerOrdinal<=knowledgeBound)&&ms(r.availableAt)!==null&&ms(r.availableAt)<=ms(cutoff)).map(r=>r.reason);
+  const reasons=[...new Set(reasonCodes),'CAPTURE_COMPLETENESS_UNPROVEN'];
   if(!sourceComplete) reasons.push('SOURCE_CATCHUP_PENDING');
   if(mode==='LIVE'&&(!last||ms(now)-ms(last.availableAt)>30000)) reasons.push('STALE');
   if(last?.classifiedCoverage!==1) reasons.push('CLASSIFIED_COVERAGE_INCOMPLETE');
