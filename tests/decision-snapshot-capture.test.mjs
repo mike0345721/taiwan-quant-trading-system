@@ -203,16 +203,25 @@ test('server capture returns the identical chart object consumed by real snapsho
 });
 test('capture route stays behind normal session boundary, uses no-store and rejects non-5m frame without altering auth or journal',()=>{
   const guard=server.indexOf("if (pathname.startsWith('/api/v1/'))"),session=server.indexOf('const session = requireSession(req, res);',guard),route=server.indexOf("pathname === '/api/v1/decision-capture'");assert.ok(session>guard&&route>session);
-  const block=server.slice(route,server.indexOf("pathname === '/api/v1/ask-gpt-context'",route));assert.match(block,/timeframe !== '5m'/);assert.match(block,/'Cache-Control': 'no-store'/);assert.match(block,/currentDiscussionWorkspace\(\{ capture: true \}\)/);
+  const block=server.slice(route,server.indexOf("pathname === '/api/v1/ask-gpt-context'",route));assert.match(block,/timeframe !== '5m'/);assert.match(block,/'Cache-Control': 'no-store'/);assert.match(block,/currentDiscussionWorkspace\(\{ capture: true, minimumCutoff \}\)/);
   assert.doesNotMatch(block,/Set-Cookie|sessions\.create|refreshSnapshot\(/);
 });
-test('real route branch rejects all non-5m requests before building; 5m takes one capture path',async()=>{
+test('real route branch rejects non-5m and invalid cutoff before building; 5m forwards the exact capture options',async()=>{
   const start=server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {");
   const body=server.slice(start,server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {",start));
-  for(const frame of ['1m','15m','30m','1h','4h','1D','bad','5m']){
-    let reads=0,sent=null;const context={req:{method:'GET'},pathname:'/api/v1/decision-capture',url:new URL('http://fixture/api/v1/decision-capture?timeframe='+frame),res:{},sendJson:(_res,status,payload,headers)=>{sent={status,payload,headers};},currentDiscussionWorkspace:async options=>{reads++;assert.equal(options.capture,true);return 'capture';},decisionCaptureEnvelope:value=>value};
+  const cutoff='2026-11-05T01:35:00.000Z';
+  const cases=[...['1m','15m','30m','1h','4h','1D','bad','5m'].map(frame=>({frame,minimumCutoff:null})),
+    ...[cutoff,'','garbage','2026-11-05','2026-02-30T00:00:00.000Z','2099-02-30T00:00:00.000Z',
+      '2026-11-05T01:35:00Z','2026-11-05T01:35:00.000+00:00'].map(minimumCutoff=>({frame:'5m',minimumCutoff}))];
+  for(const {frame,minimumCutoff} of cases){
+    const error=frame!=='5m'?'DECISION_CAPTURE_REQUIRES_5M':minimumCutoff!==null&&minimumCutoff!==cutoff?'DECISION_CAPTURE_CUTOFF_INVALID':null;
+    const url=new URL('http://fixture/api/v1/decision-capture?timeframe='+frame);
+    if(minimumCutoff!==null)url.searchParams.set('minimumCutoff',minimumCutoff);
+    const reads=[];let envelopes=0,sent=null;
+    const context={req:{method:'GET'},pathname:'/api/v1/decision-capture',url,res:{},sendJson:(_res,status,payload,headers)=>{sent={status,payload,headers};},currentDiscussionWorkspace:async options=>{reads.push({...options});return 'capture';},decisionCaptureEnvelope:(value,timeframe)=>{envelopes++;assert.equal(timeframe,'5m');return value;}};
     vm.createContext(context);vm.runInContext('async function route(){'+body+'}',context);await context.route();
-    assert.equal(reads,frame==='5m'?1:0);assert.equal(sent.status,frame==='5m'?200:400);assert.equal(sent.headers['Cache-Control'],'no-store');
-    if(frame!=='5m')assert.equal(sent.payload.error,'DECISION_CAPTURE_REQUIRES_5M');
+    assert.deepEqual(reads,error?[]:[{capture:true,minimumCutoff}]);assert.equal(envelopes,error?0:1);
+    assert.equal(sent.status,error?400:200);assert.equal(sent.headers['Cache-Control'],'no-store');assert.equal(sent.payload.ok,!error);
+    if(error)assert.equal(sent.payload.error,error);else assert.equal(sent.payload.data,'capture');
   }
 });
