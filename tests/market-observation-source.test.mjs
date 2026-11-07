@@ -8,6 +8,10 @@ import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-
 import { digest, SAFETY } from '../src/cvd-observation-core.mjs';
 import { marketObservationSnapshot } from '../src/market-observation-core.mjs';
 import { readMarketObservationBatch, loadMarketObservation, clearMarketObservationCache } from '../src/market-observation-source.mjs';
+import {readMarketObservationProducer} from '../src/market-observation-producer.mjs';
+import {materializeTxCanonicalObservations} from '../src/tx-intraday-pressure-path-efficiency.mjs';
+import {buildCru34LiveCheckpoint,cru34LiveCanonicalJson} from '../src/cru34-live-checkpoint.mjs';
+import {classifyTxChartSession} from '../src/dashboard-tx-chart.mjs';
 
 const calendar = loadGovernedTradingCalendar(new URL('../config/taifex-official-calendar-2026.json', import.meta.url));
 function rows(count = 12, start = '2026-11-04T01:00:00Z') {
@@ -36,6 +40,42 @@ function consume(options, limit = 100) {
   assert.fail(`bounded fixture did not finish: ${result?.reason}`);
 }
 test.afterEach(() => clearMarketObservationCache());
+
+test('internal frozen-prefix query keeps late arrivals and newer epochs out while preserving the Producer future fence',()=>{
+  const f=fixture(),producerRoot=path.join(f.root,'producer');fs.mkdirSync(producerRoot);
+  const checkpointPath=path.join(producerRoot,'2026-11-04.checkpoint.json'),identity='sha256:'+'e'.repeat(64);
+  const values=[...f.values],iso=n=>new Date(Date.parse(f.values[0].receivedAt)+n*60000).toISOString();
+  const publish=()=>{const canonical=materializeTxCanonicalObservations(values,{sourceLedgerIdentity:identity,
+    resolveSessionTradeDate:time=>{const value=classifyTxChartSession(time,calendar);return {tradeDate:value.sessionTradeDate,session:value.session};}});
+    fs.writeFileSync(checkpointPath,cru34LiveCanonicalJson(buildCru34LiveCheckpoint({sourceLedgerIdentity:identity,
+      lastVerifiedLedgerOrdinal:values.length,lastVerifiedRecordHash:values.at(-1).recordHash,lastVerifiedAvailableAt:values.at(-1).receivedAt,
+      lastVerifiedStartByteOffset:values.length*100,lastVerifiedEndByteOffset:values.length*100+99,canonicalState:canonical.terminalState,
+      rollingCanonicalEvents:canonical.events.map(({eventTime,rawRecord,...event})=>event)}))+'\n');};
+  publish();let initial;
+  for(let i=0;i<30;i++){initial=readMarketObservationProducer({checkpointPath,cacheRoot:f.cacheRoot,calendar,asOf:iso(15),persistentHistory:true});if(initial.state&&initial.complete)break;}
+  assert.ok(initial.state&&initial.complete);
+  const options={...f,producerRoot,timeframe:'5m',mode:'LIVE',asOf:iso(3),now:new Date(iso(15)),
+    actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY'};
+  const expected=marketObservationSnapshot(initial.state,{history:initial.history,timeframe:'5m',mode:'LIVE',cutoff:iso(3),now:iso(15),
+    actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY'});
+  assert.ok(expected.snapshotId,'the fixture must contain a lawful selected prefix');
+  assert.ok(loadMarketObservation(options).reasonCodes.includes('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST'));
+  assert.equal(loadMarketObservation({...options,readPublishedPrefix:true}).snapshotId,expected.snapshotId);
+  const append=(kind,at,payload)=>values.push(buildLiveEventRecord({kind,code:'TXFK6',receivedAt:at,...SAFETY,payload},values.at(-1).recordHash));
+  append('futures_tick',iso(12),{productFamily:'TX',actualContract:'TXFK6',eventTime:iso(2),close:29999,volume:9,tick_type:1});
+  append('quote_type_resubscribe',iso(13),{product:'TX'});
+  append('futures_tick',iso(14),{productFamily:'TX',actualContract:'TXFK6',eventTime:iso(14),close:29998,volume:7,tick_type:2});
+  publish();
+  const query=extra=>{let result;for(let i=0;i<100;i++){result=loadMarketObservation({...options,readPublishedPrefix:true,...extra});
+    if(result.snapshotId&&!result.reasonCodes.includes('SOURCE_CATCHUP_PENDING'))return result;}assert.fail(JSON.stringify(result.reasonCodes));};
+  const after=query();assert.equal(after.snapshotId,expected.snapshotId);
+  assert.equal(after.sourceProgress.queryPrefixComplete,true);
+  clearMarketObservationCache();assert.equal(query().snapshotId,expected.snapshotId,'restart retains the same published historical prefix');
+  assert.ok(loadMarketObservation({...options,readPublishedPrefix:true,now:new Date(iso(4))}).reasonCodes.includes('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST'));
+  assert.ok(loadMarketObservation({...options,readPublishedPrefix:true,now:new Date(iso(2))}).reasonCodes.includes('OBSERVATION_PUBLISHED_PREFIX_CONTEXT_INVALID'));
+  const quiet=query({asOf:iso(16),now:new Date(iso(17))});
+  assert.ok(quiet.snapshotId&&!quiet.reasonCodes.includes('SOURCE_CATCHUP_PENDING'),'no new trade does not imply publication backlog');
+});
 
 test('real governed calendar resolver, full/chunk append and restart yield identical observation state', () => {
   const f = fixture(); const original = fs.readFileSync(f.sourcePath);

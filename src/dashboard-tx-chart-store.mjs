@@ -217,6 +217,68 @@ function checked(row,kind){const prefix=`${row.source}:${row.offset}:`;
 function assertUnchanged(store){if(stamp(store.file)!==store.knownStamp||store.q('PRAGMA data_version').get().data_version!==store.dataVersion)
   throw Error('TX_CHART_HISTORY_CHANGED_DURING_READ');}
 function acceptOwnWrite(store){if(store.q('PRAGMA data_version').get().data_version!==store.dataVersion){store.verified.clear();throw Error('TX_CHART_HISTORY_CHANGED_DURING_WRITE');}store.knownStamp=stamp(store.file);}
+function rawReadLease(store,ids){
+  // Freeze the already verified baseline, never grant trust to a newly read
+  // stamp/version between validation and acquiring the lease.
+  const expectedStamp=store.knownStamp,expectedVersion=store.dataVersion;
+  const assertStore=()=>{
+    if(stores.get(store.file)!==store||stamp(store.file)!==expectedStamp
+      ||store.q('PRAGMA data_version').get().data_version!==expectedVersion)throw Error('TX_CHART_HISTORY_READ_LEASE_INVALID');
+  };
+  assertStore();
+  const entries=ids.map(id=>store.q('SELECT * FROM sources WHERE id=?').get(id)),checks=new Map();
+  assertStore();
+  let sourceIndex=0,offset=-1,sourceCount=0,processedRecords=0;
+  const totalRecords=entries.reduce((sum,entry)=>sum+entry.count,0);
+  const checkSources=budget=>{
+    assertStore();
+    for(const entry of entries){ordinary(entry.path);const current=fs.statSync(entry.path);
+      if(!entry.identity.startsWith(identity(current)+':')||current.size<entry.offset
+        ||(current.size===entry.observed&&current.mtimeMs!==entry.mtime))
+        throw Error('TX_CHART_HISTORY_READ_LEASE_INVALID');
+      const currentStamp=`${identity(current)}:${current.size}:${current.mtimeMs}:${current.ctimeMs}`;
+      let check=checks.get(entry.id);
+      if(check?.stamp!==currentStamp)check={stamp:currentStamp,head:Buffer.alloc(0),tail:Buffer.alloc(0)};
+      if(!check.complete){
+        const fd=fs.openSync(entry.path,'r');
+        try{
+          if(!entry.identity.startsWith(identity(fs.fstatSync(fd))+':'))throw Error('TX_CHART_HISTORY_READ_LEASE_INVALID');
+          for(const [field,size,start] of [['head',entry.headSize,0],['tail',entry.tailSize,entry.offset-entry.tailSize]]){
+            const amount=Math.min(size-check[field].length,budget.remainingSourceBytes);
+            if(amount>0)check[field]=Buffer.concat([check[field],readBytes(fd,amount,start+check[field].length,budget)]);
+          }
+        }finally{fs.closeSync(fd);}
+        checks.set(entry.id,check);
+        if(check.head.length!==entry.headSize||check.tail.length!==entry.tailSize)return false;
+        if(hash(check.head)!==entry.headHash||hash(check.tail)!==entry.tailHash)throw Error('TX_CHART_HISTORY_READ_LEASE_INVALID');
+        check.complete=true;
+      }
+    }
+    assertStore();return true;
+  };
+  return {get processedRecords(){return processedRecords;},totalRecords,
+    step(append,budget){
+      if(!checkSources(budget))return false;
+      const until=performance.now()+750;let remainingRows=Math.min(20000,budget.remainingRecords);
+      while(sourceIndex<entries.length&&remainingRows>0&&performance.now()<until){
+        const entry=entries[sourceIndex];
+        const rows=store.q('SELECT offset,json FROM events WHERE source=? AND offset>? AND offset<? ORDER BY offset')
+          .iterate(entry.id,offset,entry.offset);
+        try{while(remainingRows>0&&performance.now()<until){
+          const next=rows.next();
+          if(next.done){
+            if(sourceCount!==entry.count)throw Error('TX_CHART_HISTORY_ROW_COUNT_MISMATCH');
+            sourceIndex++;offset=-1;sourceCount=0;break;
+          }
+          const row=next.value,bytes=Buffer.byteLength(row.json);
+          if(bytes>budget.remainingCacheBytes){assertStore();return false;}
+          append(JSON.parse(row.json));offset=row.offset;sourceCount++;processedRecords++;
+          remainingRows--;budget.remainingRecords--;budget.remainingCacheBytes-=bytes;budget.cacheBytesRead+=bytes;
+        }}finally{rows.return();}
+      }
+      return checkSources(budget)&&sourceIndex===entries.length;
+    }};
+}
 function verifySource(store,id,budget,slice){
   const s=store.q('SELECT * FROM sources WHERE id=?').get(id),v=store.verified.get(id)??{offset:-1,count:0,complete:false};
   if(v.complete&&v.count===s.count)return true;
@@ -297,6 +359,7 @@ export function readTxChartHistory({dataRoot,cacheRoot,files,budget,decode,norma
     if(violations.length>=budget.maxRecords)throw Error('TX_CHART_TIMESTAMP_EVIDENCE_BUDGET');violations.push(JSON.parse(row.violation));
   }
   unchanged();
-  return {raw,ordered,violations,sources,historyFile:store.file};
+  return {raw,ordered,violations,sources,historyFile:store.file,
+    createRawReadLease(){if(!verified)throw Error('TX_CHART_HISTORY_NOT_VERIFIED');unchanged();return rawReadLease(store,ids);}};
 }
 export function clearTxChartHistoryCache(){for(const store of stores.values())try{store.db.close();}catch{}stores.clear();}

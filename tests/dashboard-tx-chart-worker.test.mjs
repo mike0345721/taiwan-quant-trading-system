@@ -7,9 +7,55 @@ import crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-calendar.mjs';
 import { createTxChartService } from '../src/dashboard-tx-chart-service.mjs';
+import { Worker } from 'node:worker_threads';
+import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
+import {materializeTxCanonicalObservations} from '../src/tx-intraday-pressure-path-efficiency.mjs';
+import {buildCru34LiveCheckpoint,cru34LiveCanonicalJson} from '../src/cru34-live-checkpoint.mjs';
 
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const calendar=loadGovernedTradingCalendar(new URL('../config/taifex-official-calendar-2026.json',import.meta.url));
+for(const boundary of ['after-cutoff','same-cutoff'])test(`frozen chart with advancing ledger and Producer: ${boundary}`,{timeout:20000},async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'chart-audit-moving-'));fs.mkdirSync(path.join(root,'live-events'));
+  const rows=[],base=Date.parse('2026-11-04T01:00:00Z'),identity='sha256:'+'c'.repeat(64);
+  const safety={researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
+  const ledger=path.join(root,'live-events','2026-11-04.ndjson'),checkpoint=path.join(root,'2026-11-04.checkpoint.json');
+  const append=()=>{const at=new Date(base+rows.length*1000).toISOString();
+    const row=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',product:'TXFK6',receivedAt:at,exchangeTimestamp:at,
+      eventId:String(rows.length),duplicate:false,sequenceGap:0,...safety,
+      payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:at,
+        code:'TXFK6',datetime:at,_product_family:'TX',_target_code:'TXFK6',close:20000+rows.length,volume:2,tick_type:1}},rows.at(-1)?.recordHash??'GENESIS');
+    rows.push(row);fs.appendFileSync(ledger,JSON.stringify(row)+'\n');};
+  for(let n=0;n<80;n++)append();
+  let fixtureNow,exited,service,frozenCutoff=null,paired=null,sawDeferredObservation=false,refusedMismatch=false;
+  try{
+    service=createTxChartService({dataRoot:root,cacheRoot:path.join(root,'cache'),producerRoot:root,calendar,sourceLimits:{maxRecords:20},cacheTtlMs:0,
+      workerFactory:(url,options)=>{const worker=new Worker(url,options),post=worker.postMessage.bind(worker);
+        worker.postMessage=message=>post({...message,selection:{...message.selection,now:fixtureNow}});
+        exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
+    for(let poll=0;poll<100;poll++){
+      append();fixtureNow=new Date(base+(rows.length-(boundary==='after-cutoff'?1:0))*1000);
+      const canonical=materializeTxCanonicalObservations(rows,{sourceLedgerIdentity:identity});
+      const value=buildCru34LiveCheckpoint({sourceLedgerIdentity:identity,lastVerifiedLedgerOrdinal:rows.length,
+        lastVerifiedRecordHash:rows.at(-1).recordHash,lastVerifiedStartByteOffset:rows.length*100,lastVerifiedEndByteOffset:rows.length*100+99,
+        canonicalState:canonical.terminalState,lastVerifiedAvailableAt:rows.at(-1).receivedAt,
+        rollingCanonicalEvents:canonical.events.map(({eventTime,rawRecord,...event})=>event)});
+      fs.writeFileSync(checkpoint,cru34LiveCanonicalJson(value)+'\n');
+      const chart=await service.load({capture:true,mode:'LIVE',timeframe:'5m',tradeDate:'2026-11-04',session:'DAY',actualContract:'TXFK6'});
+      if(chart.sourceAuditProgress){frozenCutoff??=chart.asOf;assert.equal(chart.asOf,frozenCutoff,'the pending capture must retain its cutoff');}
+      if(chart.sourceAuditProgress?.state==='COMPLETE'&&!chart.marketObservation?.snapshotId)sawDeferredObservation=true;
+      if(chart.marketObservation?.reasonCodes.includes('CHART_OBSERVATION_PREFIX_MISMATCH')){refusedMismatch=true;break;}
+      if(chart.sourceComplete&&chart.marketObservation?.snapshotId&&!chart.marketObservation.reasonCodes.includes('SOURCE_CATCHUP_PENDING')){paired=chart;break;}
+    }
+    assert.ok(frozenCutoff);assert.ok(sawDeferredObservation,'published observation must warm independently');
+    if(boundary==='same-cutoff'){assert.ok(refusedMismatch,'later publication with equal timestamp must not silently expand the pinned chart prefix');return;}
+    assert.ok(paired,'continuously advancing Producer must eventually pair the frozen prefix');
+    assert.equal(paired.marketObservation.cutoff,frozenCutoff);
+    assert.equal(paired.marketObservation.price.last,paired.lastPrice);
+    assert.equal(paired.marketObservation.profile.tradeCount,paired.sourceEventCount);
+    assert.equal(paired.marketObservation.profile.totalVolume,paired.bars.reduce((sum,bar)=>sum+bar.volume,0));
+    assert.ok(Date.parse(rows.at(-1).receivedAt)>Date.parse(frozenCutoff));
+  }finally{service?.close();if(exited)await exited;fs.rmSync(root,{recursive:true,force:true});}
+});
 function record(time,id,price) {
   const timestamp=new Date(time).toISOString();
   return {kind:'futures_tick',product:'TXFH6',receivedAt:timestamp,exchangeTimestamp:timestamp,eventId:'synthetic-'+id,

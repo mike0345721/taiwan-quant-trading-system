@@ -5550,7 +5550,44 @@ function createDecisionCaptureController({ request, selection, ticket, currentSe
     const aborted = new Promise((_, reject) => controller.signal.addEventListener('abort', () =>
       reject(Error(controller.signal.reason || 'DECISION_CAPTURE_CANCELLED')), { once: true }));
     const timer = schedule(() => controller.abort('DECISION_CAPTURE_TIMEOUT'), timeoutMs);
-    slot.promise = Promise.race([Promise.resolve().then(() => request(chosen.timeframe, controller.signal)), aborted]).then(payload => {
+    const pendingReasons = new Set(['SOURCE_CATCHUP_PENDING', 'DERIVED_HISTORY_VERIFYING', 'VERIFIED_SOURCE_PENDING_DERIVATION',
+      'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'LEGACY_CACHE_MIGRATION_PENDING']);
+    let pendingCutoff = null;
+    const assertCurrent = () => {
+      if (controller.signal.aborted) throw Error(controller.signal.reason || 'DECISION_CAPTURE_CANCELLED');
+      if (generation !== epoch || !currentSession(session)) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
+      const view = selection();
+      if (chosen.timeframe !== view.timeframe || !same(chosen.identity, view.identity)) throw Error('DECISION_CAPTURE_VIEW_CHANGED');
+      return view;
+    };
+    const pause = () => new Promise((resolve, reject) => {
+      let delay;
+      const onAbort = () => { cancel(delay); controller.signal.removeEventListener('abort', onAbort);
+        reject(Error(controller.signal.reason || 'DECISION_CAPTURE_CANCELLED')); };
+      if (controller.signal.aborted) { onAbort(); return; }
+      controller.signal.addEventListener('abort', onAbort, { once: true });
+      delay = schedule(() => { controller.signal.removeEventListener('abort', onAbort); resolve(); }, 250);
+    });
+    const requestReady = async () => {
+      for (;;) {
+        assertCurrent();
+        const payload = await Promise.race([request(chosen.timeframe, controller.signal), aborted]);
+        const view = assertCurrent(), data = payload?.data;
+        if (data?.schemaVersion !== 'decision-capture-pending-v1') {
+          if (pendingCutoff !== null && data?.chartCutoff !== pendingCutoff) throw Error('DECISION_CAPTURE_PENDING_CUTOFF_MISMATCH');
+          return payload;
+        }
+        if (data.state !== 'PENDING' || data.timeframe !== chosen.timeframe || !same(data.identity, chosen.identity)
+            || !Number.isFinite(Date.parse(data.chartCutoff)) || data.retryAfterMs !== 250
+            || !Array.isArray(data.reasonCodes) || !data.reasonCodes.length || !data.reasonCodes.every(reason => pendingReasons.has(reason))
+            || (pendingCutoff !== null && data.chartCutoff !== pendingCutoff)) throw Error('DECISION_CAPTURE_PENDING_RESPONSE_MISMATCH');
+        if (Number.isFinite(Date.parse(view.asOf)) && Date.parse(view.asOf) > Date.parse(data.chartCutoff)) throw Error('DECISION_CAPTURE_SUPERSEDED_BY_LIVE_CHART');
+        pendingCutoff = data.chartCutoff;
+        // Only explicit bounded warmup is retried; the original total deadline stays armed.
+        await pause();
+      }
+    };
+    slot.promise = Promise.race([Promise.resolve().then(requestReady), aborted]).then(payload => {
       const now = selection(), data = payload?.data, workspace = data?.workspace, chart = data?.chart, snapshot = workspace?.snapshot;
       if (generation !== epoch || !currentSession(session)) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
       if (chosen.timeframe !== now.timeframe || !same(chosen.identity, now.identity)) throw Error('DECISION_CAPTURE_VIEW_CHANGED');
@@ -5564,6 +5601,9 @@ function createDecisionCaptureController({ request, selection, ticket, currentSe
           || !same(decisionCaptureIdentity(chart), chosen.identity)
           || typeof workspace.chatGptCopy !== 'string'
           || !workspace.chatGptCopy.includes(`Snapshot: ${snapshot.snapshotTime}\nHash: ${snapshot.snapshotHash}\n`)) throw Error('DECISION_CAPTURE_RESPONSE_MISMATCH');
+      if (chart.sourceAuditProgress?.state === 'PENDING' || chart.sourceReadState === 'CATCHUP_PENDING'
+          || [...(chart.qualityReasons || []), ...(chart.marketObservation?.reasonCodes || [])].some(reason => pendingReasons.has(reason))) throw Error('DECISION_CAPTURE_NOT_READY');
+      if (chart.marketObservation?.reasonCodes?.includes('CHART_OBSERVATION_PREFIX_MISMATCH')) throw Error('DECISION_CAPTURE_OBSERVATION_MISMATCH');
       if (Number.isFinite(Date.parse(now.asOf)) && Date.parse(now.asOf) > Date.parse(chart.asOf)) throw Error('DECISION_CAPTURE_SUPERSEDED_BY_LIVE_CHART');
       const number = value => value == null || value === '' ? null : Number(value);
       if (number(snapshot.price?.value) !== number(chart.lastPrice)) throw Error('DECISION_CAPTURE_PRICE_MISMATCH');

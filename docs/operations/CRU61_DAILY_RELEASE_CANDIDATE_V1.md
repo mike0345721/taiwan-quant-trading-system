@@ -120,3 +120,16 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 重啟時，已驗證的私有歷史可重用已發布狀態。條件包括重新讀驗目前來源、檔案身分及來源 proof 一致、fragment 的合約來源／游標／截止時間／origin 相符，且沒有正在接續的輸入或推導。來源改變後仍走原分批持久化與接續流程。
 
 完成推導後的輸入清理另以可重啟的進度分批執行，不在發布請求一次刪除整個輸入。合法舊 cache 單列可能超過新清理預算；本次清理保留該列與 `DEFERRED_RETAINED` 收據、繼續進度，明示仍占磁碟空間。正式 staged 路徑採 generation key，不再使用這些舊 key；既有非 staged API 仍可能重用舊輸入 key，因此此收據不是 immutable 原始資料封存。非 staged API 保留相容行為，不宣稱同樣的每請求輸入寫入上限。
+
+
+## 分段圖表稽核與一次擷取操作（2026-11-07 候選增量）
+
+本增量承接 9a24ce8 後已存在的分段來源稽核修補；9a24ce8 的完整容量最後在 paired-normal 8011.871ms 超過原 8 秒，因此保留 FAIL，不引用舊 RUNNING 或其他版本 PASS。
+
+正常圖表與擷取共用相同的資料選取 key；capture/hold 只是消費者狀態，不是資料身分。擷取暫留同一已驗來源 prefix，首次加入時開始最多 10 秒保留，不因輪詢延長。正常查詢不重置其進度；完成觀測後依原 worker release，放棄擷取則期限後恢復正常行情前進。
+
+`/api/v1/decision-capture` 對已辨識的來源／觀測暖機回傳 HTTP 202、no-store、`decision-capture-pending-v1`、身分與固定 cutoff，以及 250ms 續查提示；不回傳 workspace、journal snapshot 或可複製內容。真實身分／prefix 不一致仍失敗，不降為合格 PARTIAL。資料確實不足而不是暖機的狀態，維持既有部分觀察契約，不做無限重試。
+
+前端一次 Lock/Copy 操作只對明確 PENDING 續查，保留原 10 秒總期限（不是每次重設）。身分、cutoff、登入或選擇變更、取消與逾時均停止；未完成不得鎖定或寫剪貼簿，失敗保留原已驗快照。舊式成功回應若仍含暖機狀態，前端也拒絕。服務仍保留單一 worker/有界佇列與原 8 秒限制；PENDING 不作完成結果的 TTL 快取命中，避免續查只反覆取回舊進度。
+
+新增測試包含實際 handler/controller 與原生 worker 的單次操作鏈（隔離合成來源、非 LIVE、非正常瀏覽器登入）。工程測試不取代新版整盤容量、獨立審查、實機登入、60 分鐘 LIVE、日誌重啟或固定入口驗收；三項 Windows symlink fixture EPERM 仍保留。正式服務、排程、TLS／信任及安全政策未由此變更。

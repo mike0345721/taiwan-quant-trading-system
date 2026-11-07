@@ -62,3 +62,15 @@ test('idle and close terminate only the owned worker; invalid selection never st
   const pending=h.service.load({timeframe:'1m'});h.service.close();assert.equal((await pending).reason,'CHART_SERVICE_CLOSED');
   assert.equal((await h.service.load()).reason,'CHART_SERVICE_CLOSED');h.workers.at(-1).finishTermination();
 });
+
+test('explicit unfinished chart or observation is not replayed from completed-result TTL cache',async()=>{
+  for(const pending of [{sourceAuditProgress:{state:'PENDING'}},{sourceReadState:'CATCHUP_PENDING'},
+    {marketObservation:{reasonCodes:['DERIVATION_CATCHUP_PENDING']}},{reasonCodes:['DERIVED_HISTORY_VERIFYING']}]){
+    const h=harness();try{
+      const first=h.service.load({capture:true});const worker=h.workers[0];worker.answer({...pending,status:'QUALITY_INSUFFICIENT',bars:[]});await first;
+      const next=h.service.load({capture:true});assert.equal(worker.posts.length,2,'pending continuation must reach the worker even within cache TTL');
+      worker.answer({status:'READY',bars:[{close:100}]});await next;
+      await h.service.load({capture:true});assert.equal(worker.posts.length,2,'completed result still uses normal bounded TTL');
+    }finally{h.service.close();h.workers.at(-1)?.finishTermination?.();}
+  }
+});

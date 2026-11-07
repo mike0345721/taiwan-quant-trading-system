@@ -75,23 +75,32 @@ export function readMarketObservationBatch({sourcePath,cacheRoot=null,calendar,a
   }finally{fs.closeSync(fd);}
 }
 
-export function loadMarketObservation({dataRoot,cacheRoot,producerRoot=null,calendar,timeframe='1m',mode='LIVE',asOf=null,tradeDate=null,session=null,actualContract=null,now=new Date()}={}){
+export function loadMarketObservation({dataRoot,cacheRoot,producerRoot=null,calendar,timeframe='1m',mode='LIVE',asOf=null,tradeDate=null,session=null,actualContract=null,now=new Date(),readPublishedPrefix=false}={}){
   const cutoff=asOf||now.toISOString(),selection={timeframe,mode,cutoff};
   try{
+    // Internal frozen-chart query: ingestion is still fenced by actual read
+    // time; the historical snapshot keeps its separate immutable cutoff.
+    if(readPublishedPrefix&&(mode!=='LIVE'||!producerRoot||!asOf||Date.parse(cutoff)>now.getTime()))
+      return unavailableObservation('OBSERVATION_PUBLISHED_PREFIX_CONTEXT_INVALID',selection);
+    const readCutoff=readPublishedPrefix?now.toISOString():cutoff;
     const defaults=resolveDefaultChartSelection(calendar,new Date(cutoff));
     const selectedDate=tradeDate||defaults.tradeDate,selectedSession=session||defaults.session;
     // A calendar-file boundary is a disclosed independent fragment, never a guessed join.
     const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(cutoff));
     const result=mode==='LIVE'
-      ? producerRoot?readMarketObservationProducer({checkpointPath:path.join(producerRoot,`${date}.checkpoint.json`),cacheRoot,calendar,asOf:cutoff,staged:true,persistentHistory:true})
+      ? producerRoot?readMarketObservationProducer({checkpointPath:path.join(producerRoot,`${date}.checkpoint.json`),cacheRoot,calendar,asOf:readCutoff,staged:true,persistentHistory:true})
         : {state:null,complete:false,reason:'GOVERNED_PRODUCER_ROOT_REQUIRED'}
       : readMarketObservationBatch({sourcePath:path.join(dataRoot,'live-events',`${date}.ndjson`),cacheRoot,calendar,asOf:cutoff});
     if(!result.state)return {...unavailableObservation(result.reason,selection),sourceProgress:result.sourceProgress??null};
-    const snapshot=marketObservationSnapshot(result.state,{...selection,history:result.history??null,now:now.toISOString(),sourceComplete:result.complete,
+    const prefixComplete=result.complete||(readPublishedPrefix&&result.history?.verified
+      &&result.reason==='PRODUCER_VERIFIED_FRAGMENT_BEHIND_PUBLICATION'
+      &&Date.parse(result.sourceProgress?.publishedThroughAvailableAt)>=Date.parse(cutoff));
+    const snapshot=marketObservationSnapshot(result.state,{...selection,history:result.history??null,now:now.toISOString(),sourceComplete:prefixComplete,
       tradeDate:selectedDate,session:selectedSession,actualContract});
     if(snapshot.identity&&(snapshot.identity.tradeDate!==selectedDate||snapshot.identity.session!==selectedSession||(actualContract&&snapshot.identity.actualContract!==actualContract)))
       return unavailableObservation('SELECTED_IDENTITY_NOT_AVAILABLE_IN_PREFIX',selection);
-    return {...snapshot,servedAt:now.toISOString(),sourceProgress:{...result.sourceProgress,state:result.reason,readBytes:result.sourceProgress?.readBytes??result.readBytes,processedRecords:result.sourceProgress?.processedRecords??result.processedRecords??0},
+    return {...snapshot,servedAt:now.toISOString(),sourceProgress:{...result.sourceProgress,state:result.reason,readBytes:result.sourceProgress?.readBytes??result.readBytes,processedRecords:result.sourceProgress?.processedRecords??result.processedRecords??0,
+      ...(readPublishedPrefix?{queryCutoff:cutoff,readCutoff,queryPrefixComplete:prefixComplete,latestPublicationComplete:result.complete}:{})},
       sourceBoundary:'CALENDAR_FILE_FRAGMENT; CROSS_FILE_CONTINUITY_NOT_PROVEN'};
   }catch(error){return unavailableObservation(/^OBSERVATION_|^CVD_/.test(error.message)?error.message:'OBSERVATION_SOURCE_UNAVAILABLE',selection);}
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attachSourceTimeStructureEligibility } from "../src/source-time-structure.mjs";
+import { attachSourceTimeStructureEligibility, createSourceTimeStructureAudit } from "../src/source-time-structure.mjs";
 import { buildTxDecisionChart } from "../src/dashboard-tx-chart.mjs";
 import { loadGovernedTradingCalendar } from "../src/market-state-forward-shadow-calendar.mjs";
 // Frozen 9f4288 source oracle: deliberately retained unchanged, no git required in CI.
@@ -38,6 +38,10 @@ function compare(value, options = {}) {
   const iterable = { *[Symbol.iterator]() { assert.equal(++passes, 1); for (const row of value.records) yield structuredClone(row); } };
   const actual = attachSourceTimeStructureEligibility(value.chart, iterable, args);
   assert.deepEqual(actual, expected);
+  // Exercise the same frozen oracle across every physical-record boundary.
+  const resumed=createSourceTimeStructureAudit(value.chart,args);
+  if(!resumed.done)for(const record of value.records)resumed.append(structuredClone(record));
+  assert.deepEqual(resumed.done?resumed.value:resumed.finish(),expected);
   assert.equal(JSON.stringify(value), before);
   assert.ok(passes <= 1, 'raw audit and capture share one pass');
   assert.ok(Object.isFrozen(actual.structureEligibility));

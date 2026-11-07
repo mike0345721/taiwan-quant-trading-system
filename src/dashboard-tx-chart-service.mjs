@@ -3,6 +3,13 @@ import { CHART_BAR_CONTRACT } from './dashboard-tx-chart.mjs';
 import { createTxChartReadBudget } from './dashboard-tx-chart-source.mjs';
 
 const frames = new Set(CHART_BAR_CONTRACT.supportedTimeframes);
+const continuationReasons = new Set(['SOURCE_CATCHUP_PENDING', 'DERIVED_HISTORY_VERIFYING', 'VERIFIED_SOURCE_PENDING_DERIVATION',
+  'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'LEGACY_CACHE_MIGRATION_PENDING']);
+function continuationPending(chart) {
+  return chart?.sourceAuditProgress?.state === 'PENDING' || chart?.sourceReadState === 'CATCHUP_PENDING'
+    || [...(chart?.reasonCodes || []), ...(chart?.qualityReasons || []), ...(chart?.marketObservation?.reasonCodes || [])]
+      .some(reason => continuationReasons.has(reason));
+}
 function normalize(input = {}) {
   const timeframe = input.timeframe || '5m', mode = input.mode || 'LIVE';
   if (!frames.has(timeframe) || !['LIVE','REPLAY'].includes(mode)) throw Error('CHART_SELECTION_INVALID');
@@ -100,7 +107,8 @@ export function createTxChartService({ dataRoot, cacheRoot = null, calendar, sou
       const key=JSON.stringify(selection), existing=pending.get(key);
       if(existing) return existing.promise;
       const previous=cached.get(key);
-      if(previous && clock()-previous.receivedAt >= 0 && clock()-previous.receivedAt < cacheTtlMs) return Promise.resolve(previous.chart);
+      // A continuation must advance the worker; replaying cached PENDING can consume the whole UI deadline.
+      if(previous && !continuationPending(previous.chart) && clock()-previous.receivedAt >= 0 && clock()-previous.receivedAt < cacheTtlMs) return Promise.resolve(previous.chart);
       if(active && (maxQueue===0 || queued)) return Promise.resolve(unavailable(selection,'CHART_REQUEST_BUSY'));
       let resolve;
       const promise=new Promise(done=>{resolve=done;});

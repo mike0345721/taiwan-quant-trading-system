@@ -26,6 +26,120 @@ function run(f,extra={}){const {limits={},...selection}=extra,budget=createTxCha
   assert.ok(budget.sourceBytesRead<=budget.maxSourceBytes);assert.ok(budget.remainingRecords>=0);return chart;}
 function complete(f,extra={}){for(let i=0;i<12;i++){const result=run(f,extra);if(result.sourceComplete)return result;}assert.fail('finite source did not finish within bounded retries');}
 function content(chart){const {sourceComplete,sourceReadState,sourceProgress,sourceReadBytes,cacheReadBytes,cacheWriteBytes,historyReadMode,historyPageCacheKiB,historyReadBytes,cacheWriteMeasurement,...rest}=chart;return rest;}
+test('staged current chart yields before raw time audit and resumes the frozen cutoff',t=>{
+  const f=fixture(t);complete(f);
+  const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  const first=run(f,selection);
+  assert.equal(first.sourceAuditProgress?.state,'PENDING');
+  assert.equal(first.sourceComplete,false);
+  assert.equal(first.reason,'SOURCE_CATCHUP_PENDING');
+  assert.equal(first.sourceAuditProgress.processedRecords,0);
+  assert.equal(first.lastPrice,20140,'qualified price is still visible');
+  const second=run(f,{...selection,now:new Date(now.getTime()+500)});
+  assert.equal(second.sourceAuditProgress.processedRecords,100);
+  assert.equal(second.sourceAuditProgress.state,'PENDING');
+  const result=complete(f,{...selection,now:new Date(now.getTime()+1000)});
+  assert.equal(result.asOf,options.asOf,'resume must not silently advance the cutoff');
+  const oracle=loadTxDecisionChart({...options,asOf:null,now,dataRoot:f.root,sourceBudget:createTxChartReadBudget()});
+  const {sourceAuditProgress,...actual}=content(result);
+  assert.deepEqual(actual,content(oracle));
+  assert.equal(sourceAuditProgress.processedRecords,140);
+});
+test('an append during audit stays outside the frozen source prefix until the next chart',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  run(f,selection);const at=new Date(now.getTime()+2000).toISOString();
+  const record={...f.records.at(-1),eventId:'after-audit-cutoff',receivedAt:at,exchangeTimestamp:at,
+    payload:{...f.records.at(-1).payload,datetime:at,close:20201}};
+  fs.appendFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify(record)+'\n');
+  const frozen=complete(f,{...selection,now:new Date(now.getTime()+3000)});
+  assert.equal(frozen.sourceEventCount,140);assert.equal(frozen.lastPrice,20140);assert.equal(frozen.asOf,options.asOf);
+  const next=complete(f,{...selection,now:new Date(now.getTime()+3000)});
+  assert.equal(next.sourceEventCount,141);assert.equal(next.lastPrice,20201);
+  assert.equal(next.sourceAuditProgress.processedRecords,141);
+  const oracle=loadTxDecisionChart({...options,asOf:null,now:new Date(now.getTime()+3000),dataRoot:f.root,sourceBudget:createTxChartReadBudget()});
+  assert.deepEqual(next.structureEligibility,oracle.structureEligibility,'missing raw identity evidence stays unknown');
+});
+for(const change of ['cache-edit','source-truncate'])test(`staged audit rejects ${change} and cannot publish its old proof`,t=>{
+  const f=fixture(t);complete(f);const selection={asOf:null,now:new Date(options.asOf),staged:true};
+  run(f,selection);run(f,selection);
+  if(change==='cache-edit'){
+    const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+    db.exec('UPDATE events SET key=NULL WHERE rowid=(SELECT min(rowid) FROM events)');db.close();
+  }else fs.writeFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify(f.records[80])+'\n');
+  assert.throws(()=>run(f,selection),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  if(change==='cache-edit')assert.throws(()=>complete(f,selection),/TX_CHART_HISTORY_ROW_HASH_MISMATCH/);
+  else assert.equal(complete(f,selection).sourceEventCount,81);
+});
+test('a read lease cannot absorb another request own write or survive a store restart',t=>{
+  const f=fixture(t);complete(f);
+  const history=()=>readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,calendar,
+    files:['2026-11-04','2026-11-05'].map(date=>path.join(f.root,'live-events',date+'.ndjson')),
+    budget:createTxChartReadBudget(),decode:JSON.parse,normalize:()=>assert.fail('no new source rows expected')});
+  const lease=history().createRawReadLease();
+  assert.equal(lease.step(()=>{},createTxChartReadBudget({maxRecords:10})),false);
+  fs.appendFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify({...f.records.at(-1),eventId:'own-write'})+'\n');
+  complete(f);
+  assert.throws(()=>lease.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  const beforeRestart=history().createRawReadLease();clearTxChartLedgerCache();
+  assert.throws(()=>beforeRestart.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+test('changing timeframe or explicit cutoff cancels rather than finishes an old audit',t=>{
+  const f=fixture(t);complete(f);const selection={asOf:null,now:new Date(options.asOf),staged:true};
+  run(f,selection);
+  const historical=run(f,{...selection,asOf:'2026-11-04T07:00:39.000Z'});
+  assert.equal(historical.sourceEventCount,40);assert.equal(historical.sourceAuditProgress,undefined);
+  assert.equal(run(f,selection).sourceAuditProgress.processedRecords,0);
+  const minute=run(f,{...selection,timeframe:'1m'});assert.equal(minute.timeframe,'1m');
+  assert.equal(minute.sourceAuditProgress,undefined);
+  assert.equal(run(f,selection).sourceAuditProgress.processedRecords,0);
+});
+test('audit lease rejects rewritten prefix plus growth rather than treating every growth as append',t=>{
+  const f=fixture(t);complete(f);const selection={asOf:null,now:new Date(options.asOf),staged:true};
+  run(f,selection);
+  const file=path.join(f.root,'live-events','2026-11-04.ndjson');
+  fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('"kind":"futures_tick"','"kind":"futures_tock"')+JSON.stringify(f.records[0])+'\n');
+  assert.throws(()=>run(f,selection),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+test('audit lease creation cannot absorb a source rewrite after history verification',t=>{
+  const f=fixture(t);complete(f);
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,calendar,
+    files:['2026-11-04','2026-11-05'].map(date=>path.join(f.root,'live-events',date+'.ndjson')),
+    budget:createTxChartReadBudget(),decode:JSON.parse,normalize:()=>assert.fail('already materialized')});
+  const file=path.join(f.root,'live-events','2026-11-04.ndjson');
+  fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('"kind":"futures_tick"','"kind":"futures_tock"'));
+  assert.throws(()=>history.createRawReadLease().step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+test('audit lease cannot acquire a new trust baseline after an intervening cache commit',t=>{
+  const f=fixture(t);complete(f);
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,calendar,
+    files:['2026-11-04','2026-11-05'].map(date=>path.join(f.root,'live-events',date+'.ndjson')),
+    budget:createTxChartReadBudget(),decode:JSON.parse,normalize:()=>assert.fail('already materialized')});
+  const cache=txChartHistoryPath(f.root,f.cacheRoot),statSync=fs.statSync;let reads=0;
+  fs.statSync=function(file,...args){
+    if(String(file)===cache&&++reads===2){const db=new DatabaseSync(cache);
+      db.exec("UPDATE events SET json='{}' WHERE rowid=(SELECT min(rowid) FROM events)");db.close();}
+    return statSync.call(this,file,...args);
+  };
+  try{assert.throws(()=>history.createRawReadLease().step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);}
+  finally{fs.statSync=statSync;}
+  assert.ok(reads>=2,'the external commit injection really executed');
+});
+test('finishing a delayed audit preserves cutoff but rechecks current freshness',t=>{
+  const f=fixture(t);
+  for(const date of ['2026-11-04','2026-11-05']){
+    const file=path.join(f.root,'live-events',date+'.ndjson');
+    const rows=fs.readFileSync(file,'utf8').trim().split('\n').map(JSON.parse).map((row,index)=>({...row,
+      product:'TXFK6',exchangeTimestamp:row.payload.datetime,eventId:`${date}-${index}`,duplicate:false}));
+    fs.writeFileSync(file,rows.map(JSON.stringify).join('\n')+'\n');
+  }
+  complete(f);const now=new Date(options.asOf);
+  const oracle=run(f,{asOf:null,now});assert.equal(oracle.structureEligibility.state,'ELIGIBLE');
+  run(f,{asOf:null,now,staged:true});
+  const old=complete(f,{asOf:null,now:new Date(now.getTime()+121000),staged:true});
+  assert.equal(old.asOf,options.asOf);
+  assert.ok(old.structureEligibility.reasonCodes.includes('SOURCE_EVENT_OR_RECEIPT_STALE'));
+  assert.equal(old.structureEligibility.state,'BLOCKED');
+});
 test('cross-calendar source over the resident record budget finishes without losing early ticks, then restarts and reads historical cutoff',t=>{
   const f=fixture(t),full=complete(f);assert.equal(TX_CHART_SOURCE_LIMITS.maxRecords,200000);
   assert.equal(full.sourceEventCount,140);assert.equal(full.lastPrice,20140);assert.equal(full.historyReadMode,'PRIVATE_SQLITE_STREAM');
@@ -388,3 +502,25 @@ for(const corruption of ['deleted row','extra hashed row','negative offset','NUL
     assert.equal(rejected,true);
   });
 }
+
+test('normal polling and capture resume the same frozen audit rather than resetting each other',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  assert.equal(run(f,selection).sourceAuditProgress.processedRecords,0);
+  const capture=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+250)});
+  assert.equal(capture.sourceAuditProgress.processedRecords,100,'capture mode is not source identity');
+  const normal=run(f,{...selection,now:new Date(now.getTime()+500)});
+  assert.equal(normal.sourceAuditProgress.state,'COMPLETE');assert.equal(normal.asOf,options.asOf);
+  const held=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+750)});
+  assert.equal(held.sourceAuditProgress.state,'COMPLETE');assert.equal(held.asOf,options.asOf,'normal poll must not discard an active capture prefix');
+});
+test('abandoned capture hold expires without renewal and ordinary live polling advances again',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true,holdCompletedAudit:true};
+  run(f,selection);complete(f,selection);
+  const at=new Date(now.getTime()+2000).toISOString(),record={...f.records.at(-1),eventId:'after-abandoned-capture',receivedAt:at,exchangeTimestamp:at,
+    payload:{...f.records.at(-1).payload,datetime:at,close:20201}};
+  fs.appendFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify(record)+'\n');
+  assert.equal(run(f,{...selection,now:new Date(now.getTime()+9000)}).asOf,options.asOf);
+  const released=complete(f,{...selection,holdCompletedAudit:false,now:new Date(now.getTime()+10001)});
+  assert.equal(released.sourceEventCount,141);assert.equal(released.lastPrice,20201);
+  assert.equal(released.asOf,new Date(now.getTime()+10001).toISOString());
+});

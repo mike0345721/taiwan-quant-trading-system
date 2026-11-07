@@ -6,11 +6,12 @@ import { buildTxDecisionChart, buildOneMinuteBars, buildTxDecisionChartFromOrder
 import {readTxChartHistory,txChartHistoryPath,clearTxChartHistoryCache} from './dashboard-tx-chart-store.mjs';
 import { buildChartTrendStrength } from './trend-strength-adx.mjs';
 import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-quality.mjs';
-import { attachSourceTimeStructureEligibility } from './source-time-structure.mjs';
+import { attachSourceTimeStructureEligibility, createSourceTimeStructureAudit } from './source-time-structure.mjs';
 import { CAPTURE_EVENT_KINDS, compactCaptureEvidence } from './chart-capture-coverage.mjs';
 import { readBoundedFile } from './daily-data-operations-files.mjs';
 
 const ledgerCache = new Map();
+let stagedAudit = null;
 let timestampLineageCache = new WeakMap();
 const TAIPEI_OFFSET = '+08:00';
 const PERSISTENT_CACHE_CHECKPOINT_BYTES = 64 * 1024 * 1024;
@@ -547,12 +548,33 @@ export function loadTxDecisionChart({
   now = new Date(),
   cacheRoot = null,
   sourceBudget = null,
+  staged = false,
+  holdCompletedAudit = false,
 } = {}) {
   if (!dataRoot || !calendar) throw new Error('TX_CHART_SOURCE_CONFIG_REQUIRED');
   const defaults = resolveDefaultChartSelection(calendar, now);
   const selectedTradeDate = tradeDate || defaults.tradeDate;
   const selectedSession = timeframe === '1D' ? 'NIGHT_PLUS_DAY' : (session || defaults.session);
   const cutoff = asOf || now.toISOString();
+  const auditKey=JSON.stringify([path.resolve(dataRoot),cacheRoot,calendar,timeframe,mode,selectedTradeDate,selectedSession,actualContract,asOf],
+    (_key,value)=>value instanceof Map?[...value]:value instanceof Set?[...value]:value);
+  // Capture is a temporary consumer of the same source prefix, not a different data selection.
+  // The lease is never renewed by polling, so abandoned captures cannot freeze LIVE forever.
+  if(stagedAudit?.captureStartedAt!=null&&(now.getTime()<stagedAudit.captureStartedAt
+      ||now.getTime()-stagedAudit.captureStartedAt>=10000))stagedAudit=null;
+  if(staged&&sourceBudget&&stagedAudit?.key===auditKey){
+    const job=stagedAudit;
+    if(holdCompletedAudit&&job.captureStartedAt==null)job.captureStartedAt=now.getTime();
+    try{
+      const complete=job.lease.step(job.audit.append,sourceBudget);
+      const progress={state:complete?'COMPLETE':'PENDING',processedRecords:job.lease.processedRecords,
+        totalRecords:job.lease.totalRecords,cutoff:job.cutoff,evaluatedAt:now.toISOString()};
+      if(complete&&job.captureStartedAt==null)stagedAudit=null;
+      return finishTxDecisionChart(complete?job.audit.finish({now:now.toISOString()}):job.base,
+        {...job.context,sourceBudget,auditPending:!complete,auditProgress:progress});
+    }catch(error){stagedAudit=null;throw error;}
+  }
+  stagedAudit=null;
   if (!selectedTradeDate) {
     const empty = buildTxDecisionChart([], { calendar, timeframe, asOf: cutoff, tradeDate: null, session: selectedSession, mode });
     return Object.freeze({ ...empty, trendStrength: buildChartTrendStrength(empty) });
@@ -596,13 +618,28 @@ export function loadTxDecisionChart({
   const priorDay = governedInitial.actualContract && governedInitial.contractMonth
     ? readPriorDayLevel(path.join(dataRoot, 'intraday', 'archive'), calendar, selectedTradeDate, governedInitial.actualContract, governedInitial.contractMonth, sourceBudget)
     : null;
-  const result = attachSourceTimeStructureEligibility(attachPriorDayLevels(governedInitial, priorDay, cutoff), records,
+  const base=attachPriorDayLevels(governedInitial,priorDay,cutoff);
+  if(staged&&sourceBudget&&history&&sources.every(source=>source.progress.complete)
+    &&mode==='LIVE'&&timeframe==='5m'&&asOf==null){
+    const lease=history.createRawReadLease(),audit=createSourceTimeStructureAudit(base,{calendar,cutoff});
+    stagedAudit={key:auditKey,cutoff,lease,audit,base,captureStartedAt:holdCompletedAudit?now.getTime():null,context:{sources,history,ledgerDates}};
+    // Never combine full ordered-chart work and a full physical-order audit in
+    // one worker request. The next request advances this exact frozen snapshot.
+    return finishTxDecisionChart(base,{sources,history,ledgerDates,sourceBudget,auditPending:true,
+      auditProgress:{state:'PENDING',processedRecords:0,totalRecords:lease.totalRecords,cutoff}});
+  }
+  const result = attachSourceTimeStructureEligibility(base, records,
     { calendar, cutoff, explicitAsOf: asOf != null });
-  const complete = sources.every(source => source.progress.complete);
+  return finishTxDecisionChart(result,{sources,sourceBudget,history,ledgerDates});
+}
+
+function finishTxDecisionChart(result,{sources,sourceBudget,history,ledgerDates,auditPending=false,auditProgress=null}){
+  const complete = !auditPending&&sources.every(source => source.progress.complete);
   const limited = sourceBudget && !complete;
   const qualityReasons = [...new Set([...(result.qualityReasons || []), ...(limited ? ['SOURCE_CATCHUP_PENDING'] : [])])];
   const chart = Object.freeze({
     ...result,
+    ...(auditProgress?{sourceAuditProgress:Object.freeze(auditProgress)}:{}),
     ...(sourceBudget ? { sourceComplete: complete, sourceReadState: complete ? 'COMPLETE' : 'CATCHUP_PENDING',
       sourceProgress: sources.map(source => source.progress), sourceReadBytes: sourceBudget.sourceBytesRead,
       cacheReadBytes: history?null:sourceBudget.cacheBytesRead, cacheWriteBytes: sourceBudget.cacheBytesWritten,
@@ -624,7 +661,9 @@ export function loadTxDecisionChart({
   return Object.freeze({ ...chart, trendStrength: buildChartTrendStrength(chart) });
 }
 
+export function releaseTxChartAudit(){stagedAudit=null;}
 export function clearTxChartLedgerCache() {
+  stagedAudit=null;
   ledgerCache.clear();
   clearTxChartHistoryCache();
   timestampLineageCache = new WeakMap();

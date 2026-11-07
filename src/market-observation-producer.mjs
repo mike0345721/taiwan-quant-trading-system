@@ -374,6 +374,7 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
     reason:newerPublicationPending?'PRODUCER_VERIFIED_FRAGMENT_BEHIND_PUBLICATION':'PRODUCER_FRAGMENT_CAUGHT_UP',sourceProgress:{...source.sourceProof,
     readBytes:fromPending?0:source.sourceProof.readBytes,verifiedReadBytes:source.sourceProof.readBytes,
     processedRecords:fragment.canonicalEvents.length,resetReason:fragment.resetReason,cached:false,newerPublicationPending,
+    publishedThroughAvailableAt:source.checkpoint.lastVerifiedAvailableAt,publishedThroughOrdinal:source.checkpoint.lastVerifiedLedgerOrdinal,
     stage:fromPending?'DERIVED_FROM_VERIFIED_SOURCE':'VERIFIED_AND_DERIVED',derivationElapsedMs:performance.now()-deriveStarted}};
 }
 export function clearMarketObservationProducerCache(){resident.clear();pending.clear();migrations.clear();for(const store of stores.values())store.close();stores.clear();}

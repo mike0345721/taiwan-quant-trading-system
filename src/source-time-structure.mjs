@@ -67,15 +67,15 @@ function eligibility(reasons, availableAt = null, extra = {}) {
  * Records are pre-normalization, physical-order TX inputs, consumed once. This is
  * neither a replay certificate nor permission for Tick/Quote chronology use.
  */
-export function attachSourceTimeStructureEligibility(chart, records, { calendar, cutoff, explicitAsOf = false } = {}) {
-  if (!chart) return chart;
+export function createSourceTimeStructureAudit(chart, { calendar, cutoff, explicitAsOf = false } = {}) {
+  if (!chart) return { done: true, value: chart };
   const reasons = new Set();
   const at = timestamp(cutoff)?.ms;
   if (chart.mode !== 'LIVE' || explicitAsOf) reasons.add('LIVE_CURRENT_ONLY');
   if (chart.timeframe !== '5m') reasons.add('FIVE_MINUTE_STRUCTURE_ONLY');
   // Outside this new capability's scope retain legacy per-value behavior,
   // including conservative replay rendering. A top-level refusal is additive.
-  if (reasons.size) return Object.freeze({ ...chart, structureEligibility: eligibility(reasons, chart.availableAt ?? null) });
+  if (reasons.size) return { done: true, value: Object.freeze({ ...chart, structureEligibility: eligibility(reasons, chart.availableAt ?? null) }) };
   if (chart.source !== 'SHIOAJI_ACTUAL_TX_EXECUTED_TICK') reasons.add('SOURCE_UNSUPPORTED');
   if (chart.executionAuthorized !== false || chart.orderRoutesEnabled !== false || chart.formalWeight !== 0 || chart.researchOnly !== true) reasons.add('CHART_SAFETY_BOUNDARY_INVALID');
   if (!calendar || !Number.isFinite(at)) reasons.add('SOURCE_CONTEXT_MISSING');
@@ -122,32 +122,32 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
   let duplicateExcludedCount = 0, futureExcludedCount = 0, scopedRecordCount = 0;
   let previousSourceOrder = null;
   const capture = createKnownCaptureCollector({ actualContract: chart.actualContract, cutoff, calendar });
-  for (const record of records || []) {
+  const append = record => {
     // Capture evidence has its own guards. Feed every physical record before
     // the narrower source-time eligibility filters can exclude it.
     capture.append(record);
-    if (record?.kind !== 'futures_tick') continue;
-    if (record.duplicate === true || record.payload?.simtrade === true) { duplicateExcludedCount++; continue; }
+    if (record?.kind !== 'futures_tick') return;
+    if (record.duplicate === true || record.payload?.simtrade === true) { duplicateExcludedCount++; return; }
     const payload = record.payload || {};
     const event = timestamp(payload.datetime);
     const envelope = record.exchangeTimestamp === payload.datetime ? event : timestamp(record.exchangeTimestamp);
     const received = record.receivedAt === payload.datetime ? event
       : record.receivedAt === record.exchangeTimestamp ? envelope : timestamp(record.receivedAt);
-    if (!event || !envelope || !received) { reasons.add('RAW_TIMESTAMP_MISSING_OR_INVALID'); continue; }
-    if (event.order !== envelope.order) { reasons.add('SOURCE_TIMESTAMP_CONFLICT'); continue; }
+    if (!event || !envelope || !received) { reasons.add('RAW_TIMESTAMP_MISSING_OR_INVALID'); return; }
+    if (event.order !== envelope.order) { reasons.add('SOURCE_TIMESTAMP_CONFLICT'); return; }
     let context;
     try { context = sourceSession(record, calendar, event.ms); }
-    catch { reasons.add('SOURCE_SESSION_UNRESOLVED'); continue; }
-    if (context.sessionTradeDate !== chart.tradeDate || context.session !== chart.session || context.sessionId !== chart.sessionId) continue;
+    catch { reasons.add('SOURCE_SESSION_UNRESOLVED'); return; }
+    if (context.sessionTradeDate !== chart.tradeDate || context.session !== chart.session || context.sessionId !== chart.sessionId) return;
     scopedRecordCount++;
     const effectiveMs = Math.max(event.ms, received.ms);
-    if (Number.isFinite(at) && effectiveMs > at) { futureExcludedCount++; continue; }
+    if (Number.isFinite(at) && effectiveMs > at) { futureExcludedCount++; return; }
     if (payload._product_family !== 'TX' || !/^TXF[A-L]\d$/.test(chart.actualContract || '')
       || [record.product, payload.code, payload._target_code].some(code => code !== chart.actualContract)) {
-      reasons.add('RAW_IDENTITY_MISMATCH'); continue;
+      reasons.add('RAW_IDENTITY_MISMATCH'); return;
     }
     if (record.executionAuthorized !== false || record.orderRoutesEnabled !== false) reasons.add('RAW_SAFETY_BOUNDARY_INVALID');
-    if (!finitePositive(payload.close) || !finitePositive(payload.volume)) { reasons.add('RAW_PRICE_OR_VOLUME_INVALID'); continue; }
+    if (!finitePositive(payload.close) || !finitePositive(payload.volume)) { reasons.add('RAW_PRICE_OR_VOLUME_INVALID'); return; }
     if (record.sequenceGap !== 0) reasons.add('RAW_SEQUENCE_GAP_OR_UNKNOWN');
     if (previousSourceOrder != null && event.order < previousSourceOrder) reasons.add('SOURCE_EVENT_TIME_REGRESSION');
     previousSourceOrder = event.order;
@@ -158,15 +158,18 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
       exchangeTimestamp: payload.datetime, availableAt: received.ms < event.ms ? iso(event.ms) : record.receivedAt,
       price: Number(payload.close), volume: Number(payload.volume) });
     accumulate({ eventMs: event.ms, receivedMs: received.ms, effectiveMs, price: Number(payload.close), chartOrderKey });
-  }
+  };
+  const finish = ({ now = cutoff } = {}) => {
+  const freshnessAt=timestamp(now)?.ms;
+  if(!Number.isFinite(freshnessAt)||freshnessAt<at)reasons.add('SOURCE_CONTEXT_MISSING');
   if (!inputCount || inputCount !== chart.sourceEventCount) reasons.add('SOURCE_INPUT_COUNT_MISMATCH');
   if (!last || !Number.isFinite(at) || last.eventMs > at || last.receivedMs > at
-    || at - last.eventMs > FRESH_MS || at - last.receivedMs > FRESH_MS) reasons.add('SOURCE_EVENT_OR_RECEIPT_STALE');
+    || !Number.isFinite(freshnessAt) || freshnessAt - last.eventMs > FRESH_MS || freshnessAt - last.receivedMs > FRESH_MS) reasons.add('SOURCE_EVENT_OR_RECEIPT_STALE');
   // Chart ordering has a deterministic event-ID tie-break; it does not claim
   // that equal source times establish physical ordering. Compare to its exact
   // selected tick rather than accepting any price within the tied timestamp.
   if (!selected || !Number.isFinite(at) || selected.eventMs > at || selected.receivedMs > at
-    || at - selected.eventMs > FRESH_MS || at - selected.receivedMs > FRESH_MS) reasons.add('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE');
+    || !Number.isFinite(freshnessAt) || freshnessAt - selected.eventMs > FRESH_MS || freshnessAt - selected.receivedMs > FRESH_MS) reasons.add('SELECTED_SOURCE_EVENT_OR_RECEIPT_STALE');
   if (!selected || timestamp(chart.lastEventTime)?.ms !== selected.eventMs || Number(chart.lastPrice) !== selected.price) reasons.add('LATEST_SOURCE_MISMATCH');
   const captureIntervals = capture.finish();
   const sessionStart = timestamp(chart.bars?.[0]?.sessionStart)?.ms
@@ -234,4 +237,13 @@ export function attachSourceTimeStructureEligibility(chart, records, { calendar,
     openingRange = Object.freeze({ ...restrictKnownCaptureLoss(openingRange, proof.reasonCodes.includes('KNOWN_CAPTURE_INTERRUPTION')), structureEligibility: proof });
   }
   return Object.freeze({ ...chart, structureEligibility: top, bars, levels: Object.freeze(levels), openingRange });
+  };
+  return { append, finish };
+}
+
+export function attachSourceTimeStructureEligibility(chart, records, options = {}) {
+  const audit = createSourceTimeStructureAudit(chart, options);
+  if (audit.done) return audit.value;
+  for (const record of records || []) audit.append(record);
+  return audit.finish();
 }

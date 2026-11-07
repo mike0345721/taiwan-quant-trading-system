@@ -406,7 +406,21 @@ async function currentDiscussionWorkspace(options = {}) {
 
 function decisionCaptureEnvelope(capture, timeframe) {
   const workspace = capture?.workspace, chart = capture?.chart, snapshot = workspace?.snapshot;
-  if (!snapshot || !chart || timeframe !== '5m' || chart.timeframe !== timeframe) throw Error('DECISION_CAPTURE_UNAVAILABLE');
+  if (!chart || timeframe !== '5m' || chart.timeframe !== timeframe) throw Error('DECISION_CAPTURE_UNAVAILABLE');
+  const pendingReasons = new Set(['SOURCE_CATCHUP_PENDING', 'DERIVED_HISTORY_VERIFYING', 'VERIFIED_SOURCE_PENDING_DERIVATION',
+    'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'LEGACY_CACHE_MIGRATION_PENDING']);
+  const reasons = [...(chart.qualityReasons || []), ...(chart.marketObservation?.reasonCodes || [])];
+  if (reasons.includes('CHART_OBSERVATION_PREFIX_MISMATCH')) throw Error('DECISION_CAPTURE_OBSERVATION_MISMATCH');
+  const pending = reasons.filter(reason => pendingReasons.has(reason));
+  if (chart.sourceAuditProgress?.state === 'PENDING' || chart.sourceReadState === 'CATCHUP_PENDING') pending.push('SOURCE_CATCHUP_PENDING');
+  if (pending.length) {
+    if (!chart.actualContract || !chart.tradeDate || !chart.session || !Number.isFinite(Date.parse(chart.asOf))) throw Error('DECISION_CAPTURE_UNAVAILABLE');
+    // An unfinished audit is a continuation, never a journal/copyable snapshot.
+    return { schemaVersion: 'decision-capture-pending-v1', state: 'PENDING', timeframe,
+      chartCutoff: chart.asOf, identity: ['tradeDate','actualContract','session','sessionId','continuityEpoch'].map(key => chart[key] ?? null),
+      reasonCodes: [...new Set(pending)], retryAfterMs: 250 };
+  }
+  if (!snapshot) throw Error('DECISION_CAPTURE_UNAVAILABLE');
   validateDecisionSnapshot(snapshot);
   const cutoff = Date.parse(chart.asOf), captured = Date.parse(snapshot.snapshotTime);
   if (!Number.isFinite(cutoff) || !Number.isFinite(captured) || cutoff > captured
@@ -681,7 +695,8 @@ const requestHandler = async (req, res) => {
         }
         try {
           const capture = await currentDiscussionWorkspace({ capture: true });
-          sendJson(res, 200, { ok: true, data: decisionCaptureEnvelope(capture, timeframe) }, { 'Cache-Control': 'no-store' });
+          const data = decisionCaptureEnvelope(capture, timeframe);
+          sendJson(res, data.state === 'PENDING' ? 202 : 200, { ok: true, data }, { 'Cache-Control': 'no-store' });
         } catch {
           sendJson(res, 503, { ok: false, error: 'DECISION_CAPTURE_UNAVAILABLE' }, { 'Cache-Control': 'no-store' });
         }
