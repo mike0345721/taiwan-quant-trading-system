@@ -16,8 +16,10 @@ const LINEAGE_REASON='CONTINUITY_OR_LINEAGE_AWAITING_VALID_SEGMENT';
 const LINEAGE_HISTORY_LIMIT=2000;
 
 function lineageTimeline(state,mode) {
-  if(state.lineageTimeline){state.lineageTimeline.quarantinedEpochs??=[];return state.lineageTimeline;}
-  const timeline={mode,intervals:[],open:null,highWaterMs:null,epoch:null,activeIdentity:null,lastWitnessMs:null,quarantinedEpochs:[]};
+  if(state.lineageTimeline){const timeline=state.lineageTimeline;timeline.quarantinedEpochs??=[];
+    if(!timeline.knowledgeFences){timeline.knowledgeFences=[];timeline.legacyKnowledgeFenceUnknown=true;}
+    return timeline;}
+  const timeline={mode,intervals:[],open:null,highWaterMs:null,epoch:null,activeIdentity:null,lastWitnessMs:null,quarantinedEpochs:[],knowledgeFences:[]};
   const oldSemantic=state.fragmentSemantic??(state.cvd?cvdSemanticResult(state.cvd).semantic:null);
   if(oldSemantic?.cutoffLedgerOrdinal>0){
     // Older private caches did not retain physical invalid episodes. Keep their
@@ -32,6 +34,16 @@ function lineageTimeline(state,mode) {
   delete state.knowledgeHighWaterMs;delete state.lineageInvalidNotBefore;
   state.lineageTimeline=timeline;return timeline;
 }
+function observePhysicalKnowledge(timeline,at,ordinal){
+  const witness=timeline.lastWitnessMs;
+  if(!Number.isSafeInteger(ordinal)||ordinal<1||witness===null||(at!==null&&at>=witness))return;
+  // Quote-only witnesses matter too. Record only regression episodes, not every
+  // quote, so this bound remains part of the existing finite lineage history.
+  const fences=timeline.knowledgeFences,last=fences.at(-1);
+  if(last?.knownNotBeforeMs===witness){last.startOrdinal=Math.min(last.startOrdinal,ordinal);return;}
+  if(fences.length>=LINEAGE_HISTORY_LIMIT)throw Error('OBSERVATION_LINEAGE_HISTORY_BUDGET');
+  fences.push({startOrdinal:ordinal,knownNotBeforeMs:witness});
+}
 function beginInvalid(timeline,startMs,reason=LINEAGE_REASON,startInclusive=true){
   if(!timeline.open)timeline.open={startMs,endMs:null,startInclusive,reason};
 }
@@ -44,6 +56,7 @@ function recoverLineage(timeline,at){
 }
 function observeCanonicalLineage(timeline,event,{inferMissingBreak=false}={}){
   const at=ms(event.availableAt),epoch=event.continuityEpoch;
+  observePhysicalKnowledge(timeline,at,event.ledgerOrdinal);
   if(timeline.epoch!==null&&epoch!==timeline.epoch){
     if(at!==null&&timeline.lastWitnessMs!==null&&at<timeline.lastWitnessMs){
       if(timeline.quarantinedEpochs.length>=LINEAGE_HISTORY_LIMIT)throw Error('OBSERVATION_LINEAGE_HISTORY_BUDGET');
@@ -85,6 +98,7 @@ export function appendMarketObservationRecords(previous, records, options) {
   let physicalState=before.canonicalState;
   for(let i=0;i<records.length;i++){
     const record=records[i],at=ms(record.receivedAt);
+    observePhysicalKnowledge(timeline,at,before.ordinal+i+1);
     const next=materializeTxCanonicalObservations([record],{...options,ledgerOrdinalOffset:before.ordinal+i,initialState:physicalState});
     if(physicalState&&next.terminalState.epoch!==physicalState.epoch)timeline.highWaterMs=null;
     const invalidClock=at===null||(timeline.highWaterMs!==null&&at<timeline.highWaterMs);
@@ -239,18 +253,24 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
   const trades=history?history.tradeEndpoints(segment,cutoff):segment.trades.filter(t=>ms(t.availableAt)<=ms(cutoff)&&ms(t.eventTime)<=ms(cutoff));
   const physicalSeries=history?null:semantic.series.filter(p=>p.segment===segment.cvdSegment);
   const futurePoint=physicalSeries?.find(p=>ms(p.availableAt)!==null&&ms(p.availableAt)>ms(cutoff));
-  const knowledgeBound=futurePoint?futurePoint.ledgerOrdinal-1:Number.MAX_SAFE_INTEGER;
-  const series=history?history.minuteSeries(segment,cutoff):physicalSeries.filter(p=>p.ledgerOrdinal<=knowledgeBound&&ms(p.availableAt)!==null&&ms(p.availableAt)<=ms(cutoff));
+  const timeline=state.lineageTimeline;
+  const fence=timeline?.knowledgeFences?.find(item=>item.knownNotBeforeMs>ms(cutoff));
+  const legacyFenceUnknown=Boolean(timeline&&(!Array.isArray(timeline.knowledgeFences)||timeline.legacyKnowledgeFenceUnknown)
+    &&[...(timeline.intervals??[]),...(timeline.open?[timeline.open]:[])].some(interval=>interval.startMs!==null&&interval.startMs>ms(cutoff)));
+  const knowledgeBound=Math.min(futurePoint?futurePoint.ledgerOrdinal-1:Number.MAX_SAFE_INTEGER,
+    legacyFenceUnknown?0:fence?fence.startOrdinal-1:Number.MAX_SAFE_INTEGER);
+  const series=history?history.minuteSeries(segment,cutoff,knowledgeBound):physicalSeries.filter(p=>p.ledgerOrdinal<=knowledgeBound&&ms(p.availableAt)!==null&&ms(p.availableAt)<=ms(cutoff));
   const profileAt=at=>volumeProfileSnapshot(segment.profile??createVolumeProfileState({identity:segment.identity}),
     {cutoff:at,history:history?time=>history.profileAt(segment,time):null});
   const windowAt=(start,end,at)=>history?history.windowEvidence(segment,start,end,at):windowEvidence(deltas,trades,start,end,at);
   const deltas=new Map();let priorPoint=null;
   for(const p of series){deltas.set(p.ledgerOrdinal,{buy:p.buyProxyVolume-(priorPoint?.buyProxyVolume??0),sell:p.sellProxyVolume-(priorPoint?.sellProxyVolume??0),
     unknown:p.unknownVolume-(priorPoint?.unknownVolume??0),total:p.totalExecutedVolume-(priorPoint?.totalExecutedVolume??0),valid:p.value!==null});priorPoint=p;}
-  const last=history?history.lastPoint(segment,cutoff):series.at(-1),price=trades.at(-1)?.payload.close??null;
-  const reasonCodes=history?history.reasonCodesAt(segment,cutoff)
+  const last=history?history.lastPoint(segment,cutoff,knowledgeBound):series.at(-1),price=trades.at(-1)?.payload.close??null;
+  const reasonCodes=history?history.reasonCodesAt(segment,cutoff,knowledgeBound)
     :segment.reasons.filter(r=>(r.ledgerOrdinal==null||r.ledgerOrdinal<=knowledgeBound)&&ms(r.availableAt)!==null&&ms(r.availableAt)<=ms(cutoff)).map(r=>r.reason);
   const reasons=[...new Set(reasonCodes),'CAPTURE_COMPLETENESS_UNPROVEN'];
+  if(legacyFenceUnknown)reasons.push('LEGACY_KNOWLEDGE_PREFIX_UNPROVEN');
   if(!sourceComplete) reasons.push('SOURCE_CATCHUP_PENDING');
   if(mode==='LIVE'&&(!last||ms(now)-ms(last.availableAt)>30000)) reasons.push('STALE');
   if(last?.classifiedCoverage!==1) reasons.push('CLASSIFIED_COVERAGE_INCOMPLETE');
@@ -305,7 +325,9 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
       quality:reasons,sourceTimes:{anchorTime:e.anchorTime,confirmedAt:e.availableAt,nominalCloseTime:e.confirmedTime,cutoff,sourceLedgerIdentity:segment.identity.sourceLedgerIdentity},
       hypothesisOnly:true,...SAFETY};
   });
-  const invalidCurrent=terminalUnknown||(semantic.availableAt!==null&&ms(semantic.availableAt)<=ms(cutoff)&&semantic.value===null);
+  const semanticWithinKnowledge=knowledgeBound===Number.MAX_SAFE_INTEGER
+    ||(Number.isSafeInteger(semantic.cutoffLedgerOrdinal)&&semantic.cutoffLedgerOrdinal<=knowledgeBound);
+  const invalidCurrent=terminalUnknown||(semanticWithinKnowledge&&semantic.availableAt!==null&&ms(semantic.availableAt)<=ms(cutoff)&&semantic.value===null);
   const displayPoints=new Map();
   for(const point of series)displayPoints.set(Math.floor(ms(point.availableAt)/60000),point);
     const cvd={state:terminalUnknown?'UNAVAILABLE':reasons.includes('STALE')?'STALE':'OBSERVATION_CANDIDATE',value:invalidCurrent?null:last?.value??null,

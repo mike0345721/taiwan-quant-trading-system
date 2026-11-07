@@ -183,3 +183,20 @@ test('backdated reconnect epoch is quarantined from all modules until a fresh pr
  assert.equal(marketObservationSnapshot(cold,{cutoff:lineageTime(12)}).cvd.value,null);
  assert.equal(marketObservationSnapshot(cold,{cutoff:lineageTime(15)}).cvd.value,4);
 });
+
+test('raw memory lineage fences quote-only future witnesses and exposes legacy uncertainty instead of future points',()=>{
+  const first=observationFixture([100])[0],cutoff='2026-11-04T01:03:00.000Z';
+  const quote=buildLiveEventRecord({kind:'futures_bidask',code:'TXFK6',receivedAt:'2026-11-04T01:10:00.000Z',...SAFETY,
+    payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:'2026-11-04T01:10:00.000Z',
+      bid_price:[99],ask_price:[101],bid_volume:[1],ask_volume:[1]}},first.recordHash);
+  const backdated=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:'2026-11-04T01:02:00.000Z',...SAFETY,
+    payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:'2026-11-04T01:02:00.000Z',close:999,volume:99,tick_type:1}},quote.recordHash);
+  const before=marketObservationSnapshot(runObservation([first]),{cutoff}),full=runObservation([first,quote,backdated]);
+  assert.deepEqual(marketObservationSnapshot(full,{cutoff}),before);
+  assert.deepEqual(marketObservationSnapshot(runObservation([first,quote,backdated],1),{cutoff}),before);
+  assert.deepEqual(marketObservationSnapshot(JSON.parse(JSON.stringify(full)),{cutoff}),before);
+  const legacy=structuredClone(full);delete legacy.lineageTimeline.knowledgeFences;
+  const uncertain=marketObservationSnapshot(legacy,{cutoff});
+  assert.deepEqual(uncertain.cvd.series,[]);assert.equal(uncertain.cvd.value,null);
+  assert.ok(uncertain.reasonCodes.includes('LEGACY_KNOWLEDGE_PREFIX_UNPROVEN'));assert.equal(uncertain.profile.totalVolume,2);
+});

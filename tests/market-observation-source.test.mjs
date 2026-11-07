@@ -191,3 +191,24 @@ for(const regressedMinute of [2,3])test(`historical published prefix cannot expo
     clearMarketObservationCache();const restored=query();assert.deepEqual(restored.cvd.series,before.cvd.series);assert.equal(restored.snapshotId,before.snapshotId);
   }finally{clearMarketObservationCache();fs.rmSync(f.root,{recursive:true,force:true});}
 });
+
+test('quote-only future witness cannot backdate later invalid CVD points into a frozen historical prefix',()=>{
+  const f=fixture(),producerRoot=path.join(f.root,'producer');fs.mkdirSync(producerRoot);
+  const values=[f.values[0]],sourceLedgerIdentity='sha256:'+'a'.repeat(64),base=Date.parse(values[0].receivedAt),iso=n=>new Date(base+n*60000).toISOString();
+  const publish=()=>{const canonical=materializeTxCanonicalObservations(values,{sourceLedgerIdentity,
+    resolveSessionTradeDate:time=>{const s=classifyTxChartSession(time,calendar);return {tradeDate:s.sessionTradeDate,session:s.session};}});
+    const checkpoint=buildCru34LiveCheckpoint({sourceLedgerIdentity,lastVerifiedLedgerOrdinal:values.length,lastVerifiedRecordHash:values.at(-1).recordHash,
+      lastVerifiedAvailableAt:values.at(-1).receivedAt,lastVerifiedStartByteOffset:values.length*100,lastVerifiedEndByteOffset:values.length*100+99,
+      canonicalState:canonical.terminalState,rollingCanonicalEvents:canonical.events.map(({eventTime,rawRecord,...e})=>e)});
+    fs.writeFileSync(path.join(producerRoot,'2026-11-04.checkpoint.json'),cru34LiveCanonicalJson(checkpoint)+'\n');};
+  const options={...f,producerRoot,timeframe:'5m',mode:'LIVE',asOf:iso(3),now:new Date(iso(20)),actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',readPublishedPrefix:true};
+  const query=()=>{let r;for(let n=0;n<100;n++){r=loadMarketObservation(options);if(r.snapshotId&&!r.reasonCodes.includes('SOURCE_CATCHUP_PENDING'))return r;}assert.fail(JSON.stringify(r.reasonCodes));};
+  try{publish();const before=query();
+    values.push(buildLiveEventRecord({kind:'futures_bidask',code:'TXFK6',receivedAt:iso(10),...SAFETY,
+      payload:{productFamily:'TX',actualContract:'TXFK6',eventTime:iso(10),bid_price:[19999],ask_price:[20001],bid_volume:[1],ask_volume:[1]}},values.at(-1).recordHash));
+    values.push(buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:iso(2),...SAFETY,
+      payload:{productFamily:'TX',actualContract:'TXFK6',eventTime:iso(2),close:29999,volume:99,tick_type:1}},values.at(-1).recordHash));publish();
+    const after=query();assert.deepEqual(after.cvd.series,before.cvd.series);assert.equal(after.snapshotId,before.snapshotId);
+    clearMarketObservationCache();const restored=query();assert.equal(restored.snapshotId,before.snapshotId);
+  }finally{clearMarketObservationCache();fs.rmSync(f.root,{recursive:true,force:true});}
+});

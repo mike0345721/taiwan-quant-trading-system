@@ -145,3 +145,5 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 歷史CVD不能只以點本身的availableAt篩選：較晚實體紀錄的時間若倒退，仍可能攜帶截止點之後的累積量。候選查詢以同segment第一筆availableAt晚於cutoff的成交序位作上界，限制last point、分鐘序列及有序位的品質原因；被後來倒退點覆寫的分鐘索引，必須從既有points表取回合法前綴的最後點。記憶體與SQLite查詢遵守相同邊界，原累積器、原始紀錄和持久化點不改寫。
 
 針對已發布歷史prefix追加倒退到cutoff之前／相同時刻的無效點，需驗證series及snapshot hash與追加前一致，且重啟後相同。這不是正式LIVE或所有來源時間邊界已驗的聲明；同版獨立審查與高水位成本仍分列。
+
+知識前綴亦涵蓋「只有報價在cutoff之後，後續成交時間倒退」：既有lineage timeline只追加有界的倒退episode，記錄開始實體序位及先前quote/tick最高已知時間。此上界傳入CVD序列、最後點與品質原因查詢；不得把更晚semantic的不可用狀態倒寫早先快照。缺少該metadata的舊私有cache，在無法證明較早歷史前綴時明示LEGACY_KNOWLEDGE_PREFIX_UNPROVEN，不輸出可疑CVD序列；原資料保留、不自動回填或宣稱重驗完成。
