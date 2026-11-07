@@ -45,7 +45,14 @@ function observePhysicalKnowledge(timeline,at,ordinal){
   fences.push({startOrdinal:ordinal,knownNotBeforeMs:witness});
 }
 function beginInvalid(timeline,startMs,reason=LINEAGE_REASON,startInclusive=true){
-  if(!timeline.open)timeline.open={startMs,endMs:null,startInclusive,reason};
+  if(timeline.open)return;
+  // A later physical invalidation cannot retroactively start before an already
+  // witnessed quote/tick. Keep earlier snapshots intact; later queries remain
+  // invalid until the existing explicit recovery rule is satisfied.
+  if(timeline.lastWitnessMs!==null&&(startMs===null||startMs<timeline.lastWitnessMs)){
+    startMs=timeline.lastWitnessMs;startInclusive=false;
+  }
+  timeline.open={startMs,endMs:null,startInclusive,reason};
 }
 function recoverLineage(timeline,at){
   if(!timeline.open||at===null)return;

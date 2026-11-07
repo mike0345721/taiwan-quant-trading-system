@@ -155,3 +155,9 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 目的為避免原圖表已在暖機時，觀測私有歷史完全閒置，直到使用者按Copy才開始冷恢復。單次10秒Copy期限不變；實際大型副本與同版完整容量需另行核對，不能用小型測試代替。
 
 歷史segment選取也先套用物理知識前綴，不能只依startAvailableAt：每個新segment保存建立ordinal；既有私有cache缺此欄時，以已驗points索引／記憶體series取得最早實體序位，沒有證據不猜。future quote換約後倒退tick切回原合約，不能使較晚segment撤下早先合法CVD、價格與profile。原資料、累積器與歷史收據不改寫。
+
+### 報價時間倒退時的 lineage 失效區間
+
+較晚實體紀錄若是時間倒退的換約報價，新的失效區間不得開始在先前已觀測的 quote/tick 時間之前；以原 timeline 的 lastWitnessMs 為下界，必要時排除該邊界。這只防止後來無效資料改寫早先快照；邊界之後仍顯示 lineage 不可用，直到原有明確恢復規則成立。記憶體、分批累積及持久化重啟均須保持早先 snapshotId／CVD 序列不變。
+
+captured-worker 的 VM 測試必須提供原 worker 使用的 performance 依賴，並斷言真的 dispatch 到觀測處理而非捕捉錯誤後靜默通過。既有 CI425 失敗紀錄保留，新增斷言不取代實際 worker、大資料量與實機驗收。

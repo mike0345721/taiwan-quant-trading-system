@@ -217,3 +217,19 @@ test('future contract-return segment cannot replace the original physical histor
     assert.deepEqual(marketObservationSnapshot(legacy,options),before,'old private metadata uses retained physical point order, not its backdated start time');
   }
 });
+
+test('backdated contract quote alone cannot invalidate the earlier lawful snapshot',()=>{
+  const first=observationFixture([100])[0],cutoff='2026-11-04T01:03:00.000Z';
+  const quote=(contract,at,previousHash)=>buildLiveEventRecord({kind:'futures_bidask',code:contract,receivedAt:at,...SAFETY,
+    payload:{productFamily:'TX',actualContract:contract,tradeDate:'2026-11-04',session:'DAY',eventTime:at,
+      bid_price:[99],ask_price:[101],bid_volume:[1],ask_volume:[1]}},previousHash);
+  const ahead=quote('TXFK6','2026-11-04T01:10:00.000Z',first.recordHash);
+  const regressed=quote('TXFL6','2026-11-04T01:02:00.000Z',ahead.recordHash);
+  const options={cutoff,actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY'},before=marketObservationSnapshot(runObservation([first]),options);
+  for(const chunk of [1,2000]){
+    const state=runObservation([first,ahead,regressed],chunk);
+    assert.deepEqual(marketObservationSnapshot(state,options),before);
+    assert.deepEqual(marketObservationSnapshot(JSON.parse(JSON.stringify(state)),options),before);
+    assert.equal(marketObservationSnapshot(state,{...options,cutoff:'2026-11-04T01:11:00.000Z'}).cvd.value,null,'current invalid lineage remains unavailable');
+  }
+});

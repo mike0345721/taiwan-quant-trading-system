@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import { performance } from 'node:perf_hooks';
 import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
 import { SAFETY } from '../src/cvd-observation-core.mjs';
 import { createMarketObservationState, appendMarketObservationRecords, marketObservationSnapshot } from '../src/market-observation-core.mjs';
@@ -67,12 +68,15 @@ test('paired worker dispatch carries the exact chart cutoff and identity into al
   const { chart, observation } = fixture(); let handler, response, selected;
   const worker = read('src/dashboard-tx-chart-worker.mjs');
   vm.runInNewContext(worker.slice(worker.indexOf('parentPort.on(')), {
+    performance,
     parentPort: { on: (_name, callback) => { handler = callback; }, postMessage: payload => { response = payload; } },
     workerData: { dataRoot: 'fixture', cacheRoot: 'private', producerRoot: 'producer', calendar: {} },
     createTxChartReadBudget: () => ({}), loadTxDecisionChart: () => chart,
     loadMarketObservation: options => { selected = options; return observation; },
   });
   handler({ id: 7, selection: { capture: true, timeframe: '5m', mode: 'LIVE' } });
+  assert.equal(response?.error, undefined, 'captured worker must execute with its real timing dependency');
+  assert.ok(selected, 'the actual worker must dispatch observation rather than only return an error');
   for (const key of ['actualContract', 'tradeDate', 'session', 'timeframe', 'mode']) assert.equal(selected[key], chart[key]);
   assert.equal(selected.asOf, chart.asOf); assert.equal(response.id, 7);
   assert.equal(response.chart.marketObservation.snapshotId, observation.snapshotId);
