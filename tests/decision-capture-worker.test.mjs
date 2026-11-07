@@ -22,7 +22,7 @@ const envelopeSource=server.slice(server.indexOf('function decisionCaptureEnvelo
 const routeStart=server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {");
 const routeSource=server.slice(routeStart,server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {",routeStart));
 
-test('one real controller action advances native worker via actual capture handler to an identical snapshot within its original deadline', {timeout:20000},async t=>{
+for(const warmupBeforeCopy of [false,true])test(`one real controller action advances native worker via actual capture handler within its original deadline; warmup=${warmupBeforeCopy}`, {timeout:20000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'capture-worker-pending-'));fs.mkdirSync(path.join(root,'live-events'));
   const base=Date.parse('2026-11-04T01:00:00Z'),fixtureNow=new Date(base+80000),rows=[],sourceLedgerIdentity='sha256:'+'c'.repeat(64);
   const safety={researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
@@ -45,6 +45,13 @@ test('one real controller action advances native worker via actual capture handl
         worker.postMessage=message=>post({...message,selection:{...message.selection,now:fixtureNow}});
         exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
     let displayed=await service.load({timeframe:'5m',mode:'LIVE'});assert.ok(displayed.actualContract,'ordinary chart supplies the current selection');
+    if(warmupBeforeCopy){
+      let prepared=displayed.observationPreparation?.attempted===true;
+      for(let n=0;n<32&&!displayed.sourceComplete;n++){
+        displayed=await service.load({timeframe:'5m',mode:'LIVE'});prepared||=displayed.observationPreparation?.attempted===true;
+      }
+      assert.equal(displayed.sourceComplete,true);assert.equal(prepared,true,'ordinary bounded warmup must prepare observation before the user clicks');
+    }
     const context={Date,marketCandidate:false,observationDecisionSnapshot,observedFlowAtChart:flow=>flow,forwardShadowBaseRoot:'synthetic',process:{env:{}},
       readDashboardRuntimeTruth:async()=>null,txChartService:service,loadIx0001BreadthForWorkspace:()=>null,txChartDataRoot:root,
       buildDataHealthContract:()=>({overall:'QUALITY_INSUFFICIENT',items:[],staleCount:0,unavailableCount:0}),readLocalJson:()=>null,futuresAuditPath:'synthetic',
@@ -65,7 +72,7 @@ test('one real controller action advances native worker via actual capture handl
       ticket:()=> 'synthetic-session',currentSession:value=>value==='synthetic-session',
       apply:(data,pair)=>{applied.push({data,pair});displayed=data.chart;},clipboard:async value=>copies.push(value)});
     const started=performance.now(),pair=await controller.copy(),elapsedMs=performance.now()-started;
-    assert.ok(statuses.includes(202),'the real staged worker must exercise HTTP202');assert.equal(statuses.at(-1),200);
+    if(!warmupBeforeCopy)assert.ok(statuses.includes(202),'the real staged worker must exercise HTTP202');assert.equal(statuses.at(-1),200);
     assert.equal(applied.length,1);assert.deepEqual(copies,[pair.copyText]);assert.ok(elapsedMs<10000);
     const chart=applied[0].data.chart,observation=chart.marketObservation;
     assert.equal(chart.sourceAuditProgress.state,'COMPLETE');assert.equal(chart.sourceComplete,true);assert.ok(observation.snapshotId);

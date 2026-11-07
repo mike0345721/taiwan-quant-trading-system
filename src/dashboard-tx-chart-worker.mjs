@@ -9,9 +9,28 @@ const observationPending=new Set(['SOURCE_CATCHUP_PENDING','DERIVED_HISTORY_VERI
 // the app's explicit read roots/calendar and one bounded chart selection.
 parentPort.on('message', ({ id, selection }) => {
   try {
+    const requestStarted = performance.now();
     const loader = selection.observation === true ? loadMarketObservation : loadTxDecisionChart;
     let chart = loader({ dataRoot: workerData.dataRoot, cacheRoot: workerData.cacheRoot,
       calendar: workerData.calendar, producerRoot: workerData.producerRoot, ...selection, staged:true, holdCompletedAudit:selection.capture===true, sourceBudget: createTxChartReadBudget(workerData.sourceLimits) });
+    if (!selection.capture && !selection.observation && workerData.producerRoot
+        && chart.mode === 'LIVE' && chart.timeframe === '5m' && chart.sourceReadState === 'CATCHUP_PENDING'
+        && !chart.sourceAuditProgress && chart.actualContract && chart.tradeDate && chart.session && chart.asOf
+        && performance.now() - requestStarted < 1000) {
+      // Use spare time in an already-requested bounded chart warmup, never a new
+      // worker/collector or health read. Do not defer all observation recovery
+      // until the user's single 10-second Copy action starts.
+      try {
+        const prepared = loadMarketObservation({ dataRoot: workerData.dataRoot, cacheRoot: workerData.cacheRoot,
+          calendar: workerData.calendar, producerRoot: workerData.producerRoot, timeframe: chart.timeframe,
+          mode: chart.mode, actualContract: chart.actualContract, tradeDate: chart.tradeDate, session: chart.session,
+          asOf: chart.asOf, now: selection.now || new Date(), readPublishedPrefix: true });
+        chart = { ...chart, observationPreparation: { attempted: true, status: prepared.status,
+          reasonCodes: prepared.reasonCodes, sourceProgress: prepared.sourceProgress || null } };
+      } catch {
+        chart = { ...chart, observationPreparation: { attempted: true, status: 'UNAVAILABLE', reasonCodes: ['OBSERVATION_PREPARATION_UNAVAILABLE'] } };
+      }
+    }
     if (selection.capture && chart.actualContract && chart.tradeDate && chart.session && chart.asOf) {
       let marketObservation = chart.sourceAuditProgress?.state==='PENDING'
         ? unavailableObservation('SOURCE_CATCHUP_PENDING',{timeframe:chart.timeframe,mode:chart.mode,cutoff:chart.asOf})

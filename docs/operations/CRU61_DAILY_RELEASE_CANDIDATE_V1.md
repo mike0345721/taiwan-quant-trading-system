@@ -147,3 +147,9 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 針對已發布歷史prefix追加倒退到cutoff之前／相同時刻的無效點，需驗證series及snapshot hash與追加前一致，且重啟後相同。這不是正式LIVE或所有來源時間邊界已驗的聲明；同版獨立審查與高水位成本仍分列。
 
 知識前綴亦涵蓋「只有報價在cutoff之後，後續成交時間倒退」：既有lineage timeline只追加有界的倒退episode，記錄開始實體序位及先前quote/tick最高已知時間。此上界傳入CVD序列、最後點與品質原因查詢；不得把更晚semantic的不可用狀態倒寫早先快照。缺少該metadata的舊私有cache，在無法證明較早歷史前綴時明示LEGACY_KNOWLEDGE_PREFIX_UNPROVEN，不輸出可疑CVD序列；原資料保留、不自動回填或宣稱重驗完成。
+
+### 日常圖表暖機時分段準備觀測資料
+
+既有單一worker在普通LIVE/5m圖表仍SOURCE_CATCHUP_PENDING、尚未進入圖表audit且本請求圖表部分耗時低於1秒時，沿原已配置Producer路徑執行一次有界觀測準備。這不是額外背景程序、collector或health IO；不另開佇列，不改原8秒總worker期限，且準備失敗不把圖表改成合格或吞掉原因。完成結果仍須capture同cutoff/identity驗證；準備metadata不等於三模組READY或LIVE證據。
+
+目的為避免原圖表已在暖機時，觀測私有歷史完全閒置，直到使用者按Copy才開始冷恢復。單次10秒Copy期限不變；實際大型副本與同版完整容量需另行核對，不能用小型測試代替。
