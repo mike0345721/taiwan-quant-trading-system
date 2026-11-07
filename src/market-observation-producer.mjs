@@ -151,22 +151,32 @@ function migrateLegacyCache(history,legacy){
   if(cursor.hash!==legacy.verifiedCacheBytesHash)fail('OBSERVATION_LEGACY_MIGRATION_SOURCE_CHANGED');
   history.beginOrigin(cvd.sourceLedgerIdentity,fragment.originOrdinal);cursor.origin=history.origin;
   let processed=0;
-  while(cursor.phase<3&&processed<2000){
-    const rows=cursor.phase===0?cvd.quotes:cursor.phase===1?cvd.series:legacy.state.segments[cursor.segment]?.trades??[];
+  while(cursor.phase<4&&processed<2000){
+    const segment=legacy.state.segments[cursor.segment];
+    const rows=cursor.phase===0?cvd.quotes:cursor.phase===1?cvd.series:
+      (cursor.phase===2?segment?.trades:segment?.reasons)??[];
     while(cursor.index<rows.length&&processed<2000){
       const row=rows[cursor.index++];
       if(cursor.phase===0)history.appendQuote(row);else if(cursor.phase===1)history.appendPoint(row);
-      else history.appendTrade(legacy.state.segments[cursor.segment],row);
+      else if(cursor.phase===2)history.appendTrade(segment,row);
+      // Older fragments have no physical ordinal for some reasons. Keep that
+      // evidence in compact state; never fabricate an ordinal to index it.
+      else if(Number.isSafeInteger(row.ledgerOrdinal)&&row.ledgerOrdinal>0)history.appendReason(segment,row,row.reason);
       processed++;
     }
-    if(cursor.index===rows.length){cursor.index=0;if(cursor.phase===2&&cursor.segment+1<legacy.state.segments.length)cursor.segment++;else cursor.phase++;}
+    if(cursor.index===rows.length){cursor.index=0;
+      if(cursor.phase>=2&&cursor.segment+1<legacy.state.segments.length)cursor.segment++;
+      else{cursor.phase++;cursor.segment=0;}}
   }
-  if(cursor.phase<3){history.setMeta('legacy-migration',cursor);return null;}
+  if(cursor.phase<4){history.setMeta('legacy-migration',cursor);return null;}
   // Copy only compact state at final publication, not all retained arrays twice.
   const {segments,...stateRest}=legacy.state,{quotes,series,...cvdRest}=cvd;
   const body={...legacy,state:{...structuredClone(stateRest),segments:segments.map(segment=>{
     const {trades,profile,...rest}=segment;
-    return {...structuredClone(rest),trades:[],profile:profile?{...structuredClone(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='trades'))),trades:[]}:null};
+    return {...structuredClone(rest),
+      legacyReasons:structuredClone(segment.reasons.filter(row=>!Number.isSafeInteger(row.ledgerOrdinal)||row.ledgerOrdinal<=0)),
+      legacyReasonOrdinalCeiling:history.segmentLastOrdinal(segment),
+      trades:[],profile:profile?{...structuredClone(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='trades'))),trades:[]}:null};
   })},fragment:{state:{...fragment,cvd:{...structuredClone(cvdRest),quotes:[],series:structuredClone(series.slice(-1))}}}};
   for(let index=0;index<body.state.segments.length;index++){
     const segment=body.state.segments[index],profile=segment.profile,oldProfile=segments[index].profile;
@@ -215,6 +225,17 @@ function canReplacePartialInput(history,header,source,cached){
   if(original.length!==header.totalEvents)return false;
   const {checkpointHash,...body}=old;
   return stableJsonDigest({...body,rollingCanonicalEvents:original})===checkpointHash;
+}
+
+function preserveLegacyReasonEvidence(body,history,published=null){
+  if(!body)return;
+  for(const segment of body.state.segments){
+    if(Array.isArray(segment.legacyReasons))continue;
+    const prior=published?.state.segments.find(s=>s.key===segment.key&&s.cvdSegment===segment.cvdSegment);
+    segment.legacyReasons=structuredClone(prior?.legacyReasons??segment.reasons??[]);
+    segment.legacyReasonOrdinalCeiling=prior?.legacyReasonOrdinalCeiling
+      ??history.segmentLastOrdinal(segment,body.fragment.state.lastCanonicalOrdinal);
+  }
 }
 
 export function readMarketObservationProducer({checkpointPath,cacheRoot=null,calendar,asOf,staged=false,persistentHistory=false}={}){
@@ -297,6 +318,13 @@ export function readMarketObservationProducer({checkpointPath,cacheRoot=null,cal
     migrations.delete(cacheFile);
   }
   if(cached&&(cached.sourcePath!==file||cached.resolverIdentity!==resolverIdentity))fail('OBSERVATION_PRODUCER_CACHE_BINDING');
+  // Old SQLite checkpoints may predate reason migration. Freeze their retained
+  // metadata before appending a new source: a later tick must not move a legacy
+  // reason's time or the boundary needed to interpret its unknown ordinal.
+  if(history){
+    preserveLegacyReasonEvidence(cached,history);
+    preserveLegacyReasonEvidence(stagedBody,history,cached);
+  }
   if(asOf&&(!Number.isFinite(Date.parse(asOf))||Date.parse(source.checkpoint.lastVerifiedAvailableAt)>Date.parse(asOf)))fail('OBSERVATION_PRODUCER_CUTOFF_AFTER_REQUEST');
   // The same already-published input needs no second durable copy after a
   // restart. Both the history and the current physical publication have been

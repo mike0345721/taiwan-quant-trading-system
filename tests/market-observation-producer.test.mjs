@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import {MarketObservationStore} from '../src/market-observation-store.mjs';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {materializeTxCanonicalObservations} from '../src/tx-intraday-pressure-path-efficiency.mjs';
 import {buildCru34LiveCheckpoint,cru34LiveCanonicalJson,cru34LiveHash,validateCru34LiveCheckpoint} from '../src/cru34-live-checkpoint.mjs';
@@ -24,6 +26,38 @@ function producer(rows=records()){
     lastVerifiedAvailableAt:rows.at(-1).receivedAt,rollingCanonicalEvents:canonical.events.map(event=>{const {eventTime,rawRecord,...rest}=event;return rest;})});
 }
 const wire=p=>Buffer.from(cru34LiveCanonicalJson(p)+'\n');
+const lateReason='LATE_TRADE_CLOSED_BAR_NOT_REWRITTEN',unknownReason='LEGACY_QUALITY_REASON_PREFIX_UNPROVEN';
+function lateRecords(count=1,{trailingQuote=false}={}){
+  let hash='GENESIS';
+  const times=[[0,0],[2,2],...Array.from({length:count},(_,i)=>[3+i/60,1])];
+  if(trailingQuote)times.push([4+count/60,4+count/60]);
+  return times.map(([received,event],i)=>{
+    const kind=trailingQuote&&i===times.length-1?'futures_bidask':'futures_tick';
+    const row=buildLiveEventRecord({kind,code:'TXFK6',receivedAt:iso(received),...SAFETY,
+      payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',
+        eventTime:iso(event),close:100,volume:2,tick_type:1,bid_price:[99],ask_price:[100]}},hash);
+    hash=row.recordHash;return row;
+  });
+}
+function legacyFixture(rows,mutate=null){
+  const f=fixture(producer(rows)),legacy=readMarketObservationProducer(f);
+  const directory=path.join(f.cacheRoot,'market-observation');
+  const legacyPath=path.join(directory,fs.readdirSync(directory).find(n=>n.endsWith('.producer-fragment')));
+  if(mutate){
+    const bytes=fs.readFileSync(legacyPath),body=JSON.parse(bytes.subarray(65));mutate(body);
+    const json=JSON.stringify(body);fs.writeFileSync(legacyPath,`${digest(json)}\n${json}`);
+  }
+  clearMarketObservationProducerCache();
+  return {...f,legacy,legacyPath,storeFile:legacyPath+'.observation.sqlite',originalCache:fs.readFileSync(legacyPath)};
+}
+function migratedFixture(f){
+  let result;
+  for(let n=0;n<100;n++){
+    result=readMarketObservationProducer({...f,persistentHistory:true});
+    if(result.complete&&result.state)return result;
+  }
+  assert.fail('migration or restart did not complete within its bounded requests');
+}
 function fixture(p=producer()){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cru61-producer-')),checkpointPath=path.join(root,'source.checkpoint.json'),cacheRoot=path.join(root,'private');
   fs.writeFileSync(checkpointPath,wire(p));return {root,checkpointPath,cacheRoot,calendar};
@@ -138,6 +172,163 @@ test('persistent production adapter stages without writes and migrates legacy or
   clearMarketObservationProducerCache();let restarted;
   for(let i=0;i<30;i++){restarted=readMarketObservationProducer({...f,persistentHistory:true,asOf:iso(20)});if(restarted.state)break;}
   assert.ok(restarted.state);assert.deepEqual(marketObservationSnapshot(restarted.state,{cutoff:iso(14),history:restarted.history}),expected);
+});
+
+test('legacy migration retains late-trade quality reasons at their original cutoff',()=>{
+  const f=legacyFixture(lateRecords()),sourceBytes=fs.readFileSync(f.checkpointPath);
+  assert.ok(marketObservationSnapshot(f.legacy.state,{cutoff:iso(3)}).reasonCodes.includes(lateReason));
+  for(let restart=0;restart<2;restart++){
+    const migrated=migratedFixture(f);
+    for(const cutoff of [iso(0),iso(2),iso(3)])
+      assert.deepEqual(marketObservationSnapshot(migrated.state,{cutoff,history:migrated.history}),marketObservationSnapshot(f.legacy.state,{cutoff}));
+    assert.deepEqual(migrated.history.statement('SELECT ordinal,code FROM reasons').all().map(r=>({...r})),[{ordinal:3,code:lateReason}]);
+    for(let n=0;n<3;n++)assert.ok(readMarketObservationProducer({...f,persistentHistory:true}).complete);
+    assert.equal(migrated.history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,1);
+    clearMarketObservationProducerCache();
+  }
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+  assert.deepEqual(fs.readFileSync(f.checkpointPath),sourceBytes);
+});
+
+test('legacy reasons without ordinals retain explicit uncertainty and cannot cross a physical prefix',()=>{
+  const f=legacyFixture(lateRecords(1,{trailingQuote:true}),body=>{
+    for(const segment of body.state.segments)for(const reason of segment.reasons)delete reason.ledgerOrdinal;
+  });
+  for(let restart=0;restart<2;restart++){
+    const migrated=migratedFixture(f),segment=migrated.state.segments[0],history=migrated.history;
+    assert.deepEqual(history.reasonCodesAt(segment,iso(2)),[],'reason is not available yet');
+    assert.deepEqual(history.reasonCodesAt(segment,iso(4),2),[unknownReason],'unknown ordinal cannot be invented inside a historical prefix');
+    assert.deepEqual(history.reasonCodesAt(segment,iso(4)),[unknownReason,lateReason],'trailing quote is not a reason-bearing point');
+    assert.equal(history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,0,'missing ordinal is never indexed as zero');
+    assert.ok(marketObservationSnapshot(migrated.state,{cutoff:iso(4),history}).reasonCodes.includes(unknownReason));
+    clearMarketObservationProducerCache();
+  }
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+});
+
+test('legacy reason phase visits every contract segment without merging their warnings',()=>{
+  let hash='GENESIS';const rows=[];
+  for(const [contract,offset] of [['TXFK6',0],['TXFL6',10]])for(const raw of lateRecords()){
+    const {recordHash,previousHash,...body}=raw;
+    const row=buildLiveEventRecord({...body,code:contract,receivedAt:new Date(Date.parse(raw.receivedAt)+offset*60000).toISOString(),
+      payload:{...raw.payload,actualContract:contract,eventTime:new Date(Date.parse(raw.payload.eventTime)+offset*60000).toISOString()}},hash);
+    rows.push(row);hash=row.recordHash;
+  }
+  const f=legacyFixture(rows),migrated=migratedFixture(f);
+  assert.equal(migrated.history.statement('SELECT COUNT(DISTINCT segment) AS n FROM reasons').get().n,2);
+  for(const [actualContract,minute] of [['TXFK6',2],['TXFK6',3],['TXFL6',12],['TXFL6',13]]){
+    const options={actualContract,cutoff:iso(minute)};
+    assert.deepEqual(marketObservationSnapshot(migrated.state,{...options,history:migrated.history}),marketObservationSnapshot(f.legacy.state,options));
+  }
+});
+
+test('bounded reason migration resumes after restart and publishes only after every reason is durable',()=>{
+  const rows=lateRecords(1600),f=legacyFixture(rows);
+  let cursor;
+  for(let n=0;n<20;n++){
+    const result=readMarketObservationProducer({...f,persistentHistory:true});
+    if(result.sourceProgress?.phase===3){cursor=result.sourceProgress;break;}
+  }
+  assert.equal(cursor?.phase,3);assert.ok(cursor.index>0&&cursor.index<1600);
+  const db=new DatabaseSync(f.storeFile,{readOnly:true});
+  try{
+    assert.equal(db.prepare("SELECT 1 FROM meta WHERE key='checkpoint'").get(),undefined);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reasons').get().n,cursor.index);
+  }finally{db.close();}
+  clearMarketObservationProducerCache();
+  const migrated=migratedFixture(f),cutoff=rows.at(-1).receivedAt;
+  assert.equal(migrated.history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,1600);
+  assert.equal(migrated.history.getMeta('legacy-migration'),null);
+  assert.deepEqual(marketObservationSnapshot(migrated.state,{cutoff,history:migrated.history}),marketObservationSnapshot(f.legacy.state,{cutoff}));
+  clearMarketObservationProducerCache();
+  assert.equal(migratedFixture(f).history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,1600);
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+});
+
+test('failed reason migration rolls back its rows and cursor before retry',()=>{
+  const f=legacyFixture(lateRecords(3)),append=MarketObservationStore.prototype.appendReason;
+  let calls=0;
+  MarketObservationStore.prototype.appendReason=function(...args){
+    append.apply(this,args);if(++calls===2)throw Error('INJECTED_REASON_MIGRATION_FAILURE');
+  };
+  try{assert.throws(()=>migratedFixture(f),/INJECTED_REASON_MIGRATION_FAILURE/);}
+  finally{MarketObservationStore.prototype.appendReason=append;}
+  const db=new DatabaseSync(f.storeFile,{readOnly:true});
+  try{
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reasons').get().n,0);
+    assert.equal(db.prepare("SELECT 1 FROM meta WHERE key='checkpoint'").get(),undefined);
+  }finally{db.close();}
+  clearMarketObservationProducerCache();
+  const migrated=migratedFixture(f);
+  assert.equal(migrated.history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,3);
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+});
+
+test('checkpoints already migrated without reason rows recover retained evidence before later appends',()=>{
+  for(const missingOrdinal of [false,true]){
+    const rows=lateRecords(2),f=legacyFixture(rows.slice(0,3),body=>{
+      if(missingOrdinal)for(const segment of body.state.segments)for(const reason of segment.reasons)delete reason.ledgerOrdinal;
+    });
+    // Recreate the previous release's valid SQLite shape: retained metadata,
+    // no reason rows/receipts, and no new legacy-evidence fields.
+    const append=MarketObservationStore.prototype.appendReason,checkpoint=MarketObservationStore.prototype.checkpoint;
+    MarketObservationStore.prototype.appendReason=function(){};
+    MarketObservationStore.prototype.checkpoint=function(body){
+      const old=structuredClone(body);
+      for(const segment of old.state.segments){delete segment.legacyReasons;delete segment.legacyReasonOrdinalCeiling;}
+      checkpoint.call(this,old);
+    };
+    try{assert.equal(migratedFixture(f).history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,0);}
+    finally{MarketObservationStore.prototype.appendReason=append;MarketObservationStore.prototype.checkpoint=checkpoint;}
+    clearMarketObservationProducerCache();
+    const recovered=migratedFixture(f),options={cutoff:iso(3),history:recovered.history};
+    const before=marketObservationSnapshot(recovered.state,options);
+    assert.ok(before.reasonCodes.includes(lateReason));
+    assert.equal(before.reasonCodes.includes(unknownReason),missingOrdinal);
+    fs.writeFileSync(f.checkpointPath,wire(producer(rows)));
+    const advanced=migratedFixture(f);
+    assert.deepEqual(marketObservationSnapshot(advanced.state,{...options,history:advanced.history}),before);
+    clearMarketObservationProducerCache();
+    const restarted=migratedFixture(f);
+    assert.deepEqual(marketObservationSnapshot(restarted.state,{...options,history:restarted.history}),before);
+    assert.equal(restarted.history.statement('SELECT COUNT(*) AS n FROM reasons').get().n,1);
+    assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+  }
+});
+
+test('older pending derivation inherits the published legacy reason prefix during upgrade',()=>{
+  const rows=lateRecords(602),f=legacyFixture(rows.slice(0,3),body=>{
+    for(const segment of body.state.segments)for(const reason of segment.reasons)delete reason.ledgerOrdinal;
+  });
+  const append=MarketObservationStore.prototype.appendReason,setMeta=MarketObservationStore.prototype.setMeta;
+  MarketObservationStore.prototype.appendReason=function(){};
+  MarketObservationStore.prototype.setMeta=function(key,body){
+    if(key==='checkpoint'||key==='pending-derivation'){
+      body=structuredClone(body);
+      for(const segment of body.state.segments){delete segment.legacyReasons;delete segment.legacyReasonOrdinalCeiling;}
+    }
+    return setMeta.call(this,key,body);
+  };
+  let before;
+  try{
+    const old=migratedFixture(f);
+    before=marketObservationSnapshot(old.state,{cutoff:iso(3),history:old.history});
+    assert.ok(before.reasonCodes.includes(lateReason));assert.ok(before.reasonCodes.includes(unknownReason));
+    MarketObservationStore.prototype.appendReason=append;
+    fs.writeFileSync(f.checkpointPath,wire(producer(rows)));
+    const pending=readMarketObservationProducer({...f,persistentHistory:true});
+    assert.equal(pending.reason,'DERIVATION_CATCHUP_PENDING');
+    assert.equal(pending.history.getMeta('checkpoint').fragment.state.lastCanonicalOrdinal,3);
+    assert.equal(pending.history.getMeta('pending-derivation').fragment.state.lastCanonicalOrdinal,503);
+    assert.equal(pending.history.getMeta('pending-derivation').state.segments[0].legacyReasons,undefined);
+  }finally{MarketObservationStore.prototype.appendReason=append;MarketObservationStore.prototype.setMeta=setMeta;}
+  for(let restart=0;restart<2;restart++){
+    clearMarketObservationProducerCache();
+    const resumed=migratedFixture(f);
+    assert.equal(resumed.state.segments[0].legacyReasonOrdinalCeiling,3);
+    assert.deepEqual(marketObservationSnapshot(resumed.state,{cutoff:iso(3),history:resumed.history}),before);
+  }
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
 });
 
 test('wire verification retains only tail and keeps original and reduced hashes distinct',()=>{
