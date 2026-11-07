@@ -94,3 +94,37 @@ test('ordinary source unavailability is not polled as catchup and completed part
   const h=harness(()=>p);await h.controller.copy();assert.equal(h.reads.length,1);assert.equal(h.copies.length,1);
   const failed=harness(()=>{throw Error('HTTP 503');});await assert.rejects(failed.controller.copy(),/503/);assert.equal(failed.reads.length,1);
 });
+
+test('capture response distinguishes input warmup from an actual frozen audit prefix',()=>{
+  const p=ready().data;p.chart.sourceReadState='CATCHUP_PENDING';
+  const capture={chart:p.chart,workspace:p.workspace};
+  assert.equal(envelope(capture,'5m').cutoffState,'WARMING_INPUT');
+  for(const state of ['PENDING','COMPLETE']){
+    p.chart.sourceAuditProgress={state};
+    assert.equal(envelope(capture,'5m').cutoffState,'FROZEN');
+  }
+});
+test('advancing input warmup transitions to a single frozen cutoff and copies once',async()=>{
+  const responses=[warming({cutoffState:'WARMING_INPUT',chartCutoff:'2026-11-05T01:34:59.500Z'}),
+    warming({cutoffState:'WARMING_INPUT',chartCutoff:'2026-11-05T01:34:59.800Z'}),warming({cutoffState:'FROZEN'}),ready()];
+  const h=harness(n=>responses[n-1]);const pair=await h.controller.copy();
+  assert.equal(h.reads.length,4);assert.equal(h.applied.length,1);assert.deepEqual(h.copies,[pair.copyText]);
+  assert.equal(pair.chartCutoff,cutoff);assert.equal(h.delays.filter(ms=>ms===10000).length,1);
+});
+test('only explicit warmup may advance; unknown phases, backward time and thawing fail closed',async()=>{
+  const scenarios=[
+    [warming({cutoffState:'UNRECOGNIZED'})],
+    [warming({cutoffState:'WARMING_INPUT'}),warming({cutoffState:'WARMING_INPUT',chartCutoff:'2026-11-05T01:34:59.900Z'})],
+    [warming({cutoffState:'FROZEN'}),warming({cutoffState:'WARMING_INPUT'})],
+    [warming({cutoffState:'WARMING_INPUT',chartCutoff:'2026-11-05T01:35:00.100Z'}),ready()],
+    [warming({cutoffState:'FROZEN'}),warming({cutoffState:'FROZEN',chartCutoff:'2026-11-05T01:35:00.100Z'})]
+  ];
+  for(const responses of scenarios){const h=harness(n=>responses[Math.min(n-1,responses.length-1)]);
+    await assert.rejects(h.controller.copy(),/MISMATCH/);assert.equal(h.applied.length,0);assert.equal(h.copies.length,0);}
+});
+test('input warmup without a separate audit still uses a coherent final response and original deadline',async()=>{
+  const h=harness(n=>n===1?warming({cutoffState:'WARMING_INPUT',chartCutoff:'2026-11-05T01:34:59.500Z'}):ready());
+  await h.controller.copy();assert.equal(h.copies.length,1);assert.equal(h.reads.length,2);
+  const stalled=harness(()=>warming({cutoffState:'WARMING_INPUT'}),{timeoutMs:30});
+  await assert.rejects(stalled.controller.copy(),/TIMEOUT/);assert.equal(stalled.copies.length,0);assert.equal(stalled.applied.length,0);
+});

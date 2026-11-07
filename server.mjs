@@ -417,6 +417,9 @@ function decisionCaptureEnvelope(capture, timeframe) {
     if (!chart.actualContract || !chart.tradeDate || !chart.session || !Number.isFinite(Date.parse(chart.asOf))) throw Error('DECISION_CAPTURE_UNAVAILABLE');
     // An unfinished audit is a continuation, never a journal/copyable snapshot.
     return { schemaVersion: 'decision-capture-pending-v1', state: 'PENDING', timeframe,
+      // Before an audit lease exists there is no frozen source prefix yet.
+      // Only that explicit input-warmup phase may advance its candidate cutoff.
+      cutoffState: ['PENDING','COMPLETE'].includes(chart.sourceAuditProgress?.state) ? 'FROZEN' : 'WARMING_INPUT',
       chartCutoff: chart.asOf, identity: ['tradeDate','actualContract','session','sessionId','continuityEpoch'].map(key => chart[key] ?? null),
       reasonCodes: [...new Set(pending)], retryAfterMs: 250 };
   }

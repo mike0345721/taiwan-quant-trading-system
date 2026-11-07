@@ -22,9 +22,10 @@ const envelopeSource=server.slice(server.indexOf('function decisionCaptureEnvelo
 const routeStart=server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {");
 const routeSource=server.slice(routeStart,server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {",routeStart));
 
-for(const warmupBeforeCopy of [false,true])test(`one real controller action advances native worker via actual capture handler within its original deadline; warmup=${warmupBeforeCopy}`, {timeout:20000},async t=>{
+for(const movingClock of [false,true])for(const warmupBeforeCopy of [false,true])test(`one real controller action advances native worker via actual capture handler within its original deadline; warmup=${warmupBeforeCopy}; movingClock=${movingClock}`, {timeout:20000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'capture-worker-pending-'));fs.mkdirSync(path.join(root,'live-events'));
-  const base=Date.parse('2026-11-04T01:00:00Z'),fixtureNow=new Date(base+80000),rows=[],sourceLedgerIdentity='sha256:'+'c'.repeat(64);
+  const base=Date.parse('2026-11-04T01:00:00Z'),fixtureNow=new Date(base+80000),clockStart=performance.now(),rows=[],sourceLedgerIdentity='sha256:'+'c'.repeat(64);
+  const clock=()=>new Date(fixtureNow.getTime()+(movingClock?performance.now()-clockStart:0));
   const safety={researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false};
   let service,exited;
   try{
@@ -42,7 +43,7 @@ for(const warmupBeforeCopy of [false,true])test(`one real controller action adva
     fs.writeFileSync(path.join(root,'2026-11-04.checkpoint.json'),cru34LiveCanonicalJson(checkpoint)+'\n');
     service=createTxChartService({dataRoot:root,cacheRoot:path.join(root,'cache'),producerRoot:root,calendar,sourceLimits:{maxRecords:20},
       workerFactory:(url,options)=>{const worker=new Worker(url,options),post=worker.postMessage.bind(worker);
-        worker.postMessage=message=>post({...message,selection:{...message.selection,now:fixtureNow}});
+        worker.postMessage=message=>post({...message,selection:{...message.selection,now:clock()}});
         exited=new Promise(resolve=>worker.once('exit',resolve));return worker;}});
     let displayed=await service.load({timeframe:'5m',mode:'LIVE'});assert.ok(displayed.actualContract,'ordinary chart supplies the current selection');
     if(warmupBeforeCopy){
@@ -57,7 +58,7 @@ for(const warmupBeforeCopy of [false,true])test(`one real controller action adva
       buildDataHealthContract:()=>({overall:'QUALITY_INSUFFICIENT',items:[],staleCount:0,unavailableCount:0}),readLocalJson:()=>null,futuresAuditPath:'synthetic',
       ...marketChange,currentObservedFlow:()=>null,currentMarketPulse:async()=>null,runtimeVersion:{},productSurfaceContract:{},
       assessTaifexMarketSession:()=>({state:'SYNTHETIC'}),operatingCalendar:{},...workspaceLibrary,
-      buildDecisionWorkspace:options=>workspaceLibrary.buildDecisionWorkspace({...options,now:new Date(fixtureNow.getTime()+1000)}),
+      buildDecisionWorkspace:options=>workspaceLibrary.buildDecisionWorkspace({...options,now:new Date(clock().getTime()+1000)}),
       req:{method:'GET'},pathname:'/api/v1/decision-capture',url:new URL('http://fixture/api/v1/decision-capture?timeframe=5m'),res:{}};
     vm.createContext(context);vm.runInContext(builderSource+'\n'+envelopeSource+'\nasync function route(){'+routeSource+'}',context);
     context.currentDiscussionWorkspace=options=>context.decisionWorkspacePayload({dataMode:'live'},null,null,options);

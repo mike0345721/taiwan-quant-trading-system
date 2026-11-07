@@ -5552,7 +5552,7 @@ function createDecisionCaptureController({ request, selection, ticket, currentSe
     const timer = schedule(() => controller.abort('DECISION_CAPTURE_TIMEOUT'), timeoutMs);
     const pendingReasons = new Set(['SOURCE_CATCHUP_PENDING', 'DERIVED_HISTORY_VERIFYING', 'VERIFIED_SOURCE_PENDING_DERIVATION',
       'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'LEGACY_CACHE_MIGRATION_PENDING']);
-    let pendingCutoff = null;
+    let pendingCutoff = null, latestPendingCutoff = null;
     const assertCurrent = () => {
       if (controller.signal.aborted) throw Error(controller.signal.reason || 'DECISION_CAPTURE_CANCELLED');
       if (generation !== epoch || !currentSession(session)) throw Error('DECISION_CAPTURE_SESSION_CHANGED');
@@ -5575,14 +5575,22 @@ function createDecisionCaptureController({ request, selection, ticket, currentSe
         const view = assertCurrent(), data = payload?.data;
         if (data?.schemaVersion !== 'decision-capture-pending-v1') {
           if (pendingCutoff !== null && data?.chartCutoff !== pendingCutoff) throw Error('DECISION_CAPTURE_PENDING_CUTOFF_MISMATCH');
+          if (latestPendingCutoff !== null && (!Number.isFinite(Date.parse(data?.chartCutoff))
+              || Date.parse(data.chartCutoff) < Date.parse(latestPendingCutoff))) throw Error('DECISION_CAPTURE_PENDING_CUTOFF_MISMATCH');
           return payload;
         }
+        const cutoffState = data.cutoffState ?? 'FROZEN';
         if (data.state !== 'PENDING' || data.timeframe !== chosen.timeframe || !same(data.identity, chosen.identity)
+            || !['FROZEN','WARMING_INPUT'].includes(cutoffState)
             || !Number.isFinite(Date.parse(data.chartCutoff)) || data.retryAfterMs !== 250
             || !Array.isArray(data.reasonCodes) || !data.reasonCodes.length || !data.reasonCodes.every(reason => pendingReasons.has(reason))
-            || (pendingCutoff !== null && data.chartCutoff !== pendingCutoff)) throw Error('DECISION_CAPTURE_PENDING_RESPONSE_MISMATCH');
+            || (pendingCutoff !== null && (cutoffState !== 'FROZEN' || data.chartCutoff !== pendingCutoff))
+            || (latestPendingCutoff !== null && Date.parse(data.chartCutoff) < Date.parse(latestPendingCutoff))) throw Error('DECISION_CAPTURE_PENDING_RESPONSE_MISMATCH');
         if (Number.isFinite(Date.parse(view.asOf)) && Date.parse(view.asOf) > Date.parse(data.chartCutoff)) throw Error('DECISION_CAPTURE_SUPERSEDED_BY_LIVE_CHART');
-        pendingCutoff = data.chartCutoff;
+        latestPendingCutoff = data.chartCutoff;
+        // Input warmup has no frozen source lease or copyable snapshot yet.
+        // Once the audit pins a prefix, its cutoff must never advance again.
+        if (cutoffState === 'FROZEN') pendingCutoff = data.chartCutoff;
         // Only explicit bounded warmup is retried; the original total deadline stays armed.
         await pause();
       }

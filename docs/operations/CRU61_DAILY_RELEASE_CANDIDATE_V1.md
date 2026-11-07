@@ -161,3 +161,9 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 較晚實體紀錄若是時間倒退的換約報價，新的失效區間不得開始在先前已觀測的 quote/tick 時間之前；以原 timeline 的 lastWitnessMs 為下界，必要時排除該邊界。這只防止後來無效資料改寫早先快照；邊界之後仍顯示 lineage 不可用，直到原有明確恢復規則成立。記憶體、分批累積及持久化重啟均須保持早先 snapshotId／CVD 序列不變。
 
 captured-worker 的 VM 測試必須提供原 worker 使用的 performance 依賴，並斷言真的 dispatch 到觀測處理而非捕捉錯誤後靜默通過。既有 CI425 失敗紀錄保留，新增斷言不取代實際 worker、大資料量與實機驗收。
+
+### 真實前進時鐘下的 Copy 暖機接續
+
+尚未建立來源 audit lease 的輸入暖機，其候選 cutoff 會隨正常時鐘前進；不能把它冒稱已凍結快照，再由前端誤判為中途換資料。PENDING 明示 `cutoffState=WARMING_INPUT`，僅允許同一身分、已知暖機原因、單調不倒退的候選截至時間；不提供 workspace、可複製內容或日誌快照。來源 audit 開始後改為 `FROZEN`，從此每次續查與最終結果必須保留同一 cutoff，禁止重新解凍、倒退或漂移。舊回應未帶此欄仍按 FROZEN 嚴格處理。
+
+原單次操作10秒、每250ms續查、登入／選擇變更取消、已鎖內容保留與最終價格／身分／三模組同快照檢查不變。新增正常前進時鐘的真controller／handler／native worker隔離測試，涵蓋暖機完成前與完成後按Copy；舊固定時鐘測試仍保留。這是候選程式修復，不是正式瀏覽器登入、LIVE或部署證據。
