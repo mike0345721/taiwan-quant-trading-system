@@ -153,7 +153,7 @@ function accumulateObservationEvents(state,events,points,resolveSessionTradeDate
     if(!point) continue;
     let segment=state.segments.at(-1);
     if(!segment || segment.key!==key(event) || segment.cvdSegment!==point.segment) {
-      segment={key:key(event),identity:identityOf(event),cvdSegment:point.segment,startAvailableAt:event.availableAt,trades:[],bars:[],pending:null,
+      segment={key:key(event),identity:identityOf(event),cvdSegment:point.segment,startAvailableAt:event.availableAt,startOrdinal:event.ledgerOrdinal,trades:[],bars:[],pending:null,
         reasons:[],profile:null}; state.segments.push(segment);
     }
     // Existing CRU34/Shioaji wire uses decimal price strings and local exchange time.
@@ -248,13 +248,24 @@ export function describeObservationScenario({direction,test,after,location,heldR
 export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cutoff,now=cutoff,sourceComplete=true,tradeDate=null,session=null,actualContract=null,history=null}={}) {
   const semantic=state.fragmentSemantic??cvdSemanticResult(state.cvd).semantic;
   if(ms(cutoff)==null) return unavailableObservation('CUTOFF_REQUIRED',{timeframe,mode});
-  const segment=[...state.segments].reverse().find(s=>ms(s.startAvailableAt)<=ms(cutoff)&&(!tradeDate||s.identity.tradeDate===tradeDate)&&(!session||s.identity.session===session)&&(!actualContract||s.identity.actualContract===actualContract));
+  const timeline=state.lineageTimeline;
+  const fence=timeline?.knowledgeFences?.find(item=>item.knownNotBeforeMs>ms(cutoff));
+  const segmentKnowledgeBound=fence?fence.startOrdinal-1:Number.MAX_SAFE_INTEGER;
+  const segment=[...state.segments].reverse().find(s=>{
+    if(ms(s.startAvailableAt)>ms(cutoff)||ms(s.startAvailableAt)===null
+      ||(tradeDate&&s.identity.tradeDate!==tradeDate)||(session&&s.identity.session!==session)
+      ||(actualContract&&s.identity.actualContract!==actualContract))return false;
+    if(segmentKnowledgeBound===Number.MAX_SAFE_INTEGER)return true;
+    // Segment choice itself must be historical. A later identity-return cannot
+    // displace an older lawful segment using a regressed startAvailableAt.
+    const ordinal=Number.isSafeInteger(s.startOrdinal)?s.startOrdinal
+      :history?history.segmentFirstOrdinal(s):semantic.series.find(p=>p.segment===s.cvdSegment)?.ledgerOrdinal;
+    return Number.isSafeInteger(ordinal)&&ordinal>0&&ordinal<=segmentKnowledgeBound;
+  });
   if(!segment) return unavailableObservation('NO_LAWFUL_TRADE',{timeframe,mode,cutoff});
   const trades=history?history.tradeEndpoints(segment,cutoff):segment.trades.filter(t=>ms(t.availableAt)<=ms(cutoff)&&ms(t.eventTime)<=ms(cutoff));
   const physicalSeries=history?null:semantic.series.filter(p=>p.segment===segment.cvdSegment);
   const futurePoint=physicalSeries?.find(p=>ms(p.availableAt)!==null&&ms(p.availableAt)>ms(cutoff));
-  const timeline=state.lineageTimeline;
-  const fence=timeline?.knowledgeFences?.find(item=>item.knownNotBeforeMs>ms(cutoff));
   const legacyFenceUnknown=Boolean(timeline&&(!Array.isArray(timeline.knowledgeFences)||timeline.legacyKnowledgeFenceUnknown)
     &&[...(timeline.intervals??[]),...(timeline.open?[timeline.open]:[])].some(interval=>interval.startMs!==null&&interval.startMs>ms(cutoff)));
   const knowledgeBound=Math.min(futurePoint?futurePoint.ledgerOrdinal-1:Number.MAX_SAFE_INTEGER,

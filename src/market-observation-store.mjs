@@ -301,6 +301,10 @@ export class MarketObservationStore {
     if(cacheable){this.ordinalCache.set(key,ordinal);while(this.ordinalCache.size>256)this.ordinalCache.delete(this.ordinalCache.keys().next().value);}
     return ordinal;
   }
+  segmentFirstOrdinal(segment){
+    this.assertVerified();return this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? ORDER BY ordinal LIMIT 1')
+      .get(this.origin,segment.cvdSegment)?.ordinal??null;
+  }
   pointKnowledgeOrdinalAt(segment,cutoff,physicalBound=Number.MAX_SAFE_INTEGER){
     this.assertVerified();if(!Number.isSafeInteger(physicalBound)||physicalBound<0)throw Error('OBSERVATION_KNOWLEDGE_BOUND_INVALID');
     const at=Date.parse(cutoff),key=stableJson(['point-knowledge',this.origin,segment.cvdSegment,at,physicalBound]);

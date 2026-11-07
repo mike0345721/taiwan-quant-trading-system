@@ -153,3 +153,5 @@ Producer 的 staged reader 將已驗證輸入分批持久化：每次至多兩�
 既有單一worker在普通LIVE/5m圖表仍SOURCE_CATCHUP_PENDING、尚未進入圖表audit且本請求圖表部分耗時低於1秒時，沿原已配置Producer路徑執行一次有界觀測準備。這不是額外背景程序、collector或health IO；不另開佇列，不改原8秒總worker期限，且準備失敗不把圖表改成合格或吞掉原因。完成結果仍須capture同cutoff/identity驗證；準備metadata不等於三模組READY或LIVE證據。
 
 目的為避免原圖表已在暖機時，觀測私有歷史完全閒置，直到使用者按Copy才開始冷恢復。單次10秒Copy期限不變；實際大型副本與同版完整容量需另行核對，不能用小型測試代替。
+
+歷史segment選取也先套用物理知識前綴，不能只依startAvailableAt：每個新segment保存建立ordinal；既有私有cache缺此欄時，以已驗points索引／記憶體series取得最早實體序位，沒有證據不猜。future quote換約後倒退tick切回原合約，不能使較晚segment撤下早先合法CVD、價格與profile。原資料、累積器與歷史收據不改寫。

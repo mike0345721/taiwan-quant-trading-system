@@ -200,3 +200,20 @@ test('raw memory lineage fences quote-only future witnesses and exposes legacy u
   assert.deepEqual(uncertain.cvd.series,[]);assert.equal(uncertain.cvd.value,null);
   assert.ok(uncertain.reasonCodes.includes('LEGACY_KNOWLEDGE_PREFIX_UNPROVEN'));assert.equal(uncertain.profile.totalVolume,2);
 });
+
+test('future contract-return segment cannot replace the original physical historical segment',()=>{
+  const first=observationFixture([100])[0],cutoff='2026-11-04T01:03:00.000Z';
+  const quote=buildLiveEventRecord({kind:'futures_bidask',code:'TXFL6',receivedAt:'2026-11-04T01:10:00.000Z',...SAFETY,
+    payload:{productFamily:'TX',actualContract:'TXFL6',tradeDate:'2026-11-04',session:'DAY',eventTime:'2026-11-04T01:10:00.000Z',
+      bid_price:[99],ask_price:[101],bid_volume:[1],ask_volume:[1]}},first.recordHash);
+  const backdated=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:'2026-11-04T01:02:00.000Z',...SAFETY,
+    payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:'2026-11-04T01:02:00.000Z',close:999,volume:99,tick_type:1}},quote.recordHash);
+  const options={cutoff,actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY'},before=marketObservationSnapshot(runObservation([first]),options);
+  for(const chunk of [1,2000]){
+    const state=runObservation([first,quote,backdated],chunk);
+    assert.deepEqual(marketObservationSnapshot(state,options),before);
+    assert.deepEqual(marketObservationSnapshot(JSON.parse(JSON.stringify(state)),options),before);
+    const legacy=structuredClone(state);for(const segment of legacy.segments)delete segment.startOrdinal;
+    assert.deepEqual(marketObservationSnapshot(legacy,options),before,'old private metadata uses retained physical point order, not its backdated start time');
+  }
+});
