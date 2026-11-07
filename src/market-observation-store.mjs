@@ -305,6 +305,10 @@ export class MarketObservationStore {
     this.assertVerified();return this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? ORDER BY ordinal LIMIT 1')
       .get(this.origin,segment.cvdSegment)?.ordinal??null;
   }
+  segmentLastOrdinal(segment,ceiling=Number.MAX_SAFE_INTEGER,origin=this.origin){
+    this.assertVerified();return this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? AND ordinal<=? ORDER BY ordinal DESC LIMIT 1')
+      .get(origin,segment.cvdSegment,ceiling)?.ordinal??null;
+  }
   pointKnowledgeOrdinalAt(segment,cutoff,physicalBound=Number.MAX_SAFE_INTEGER){
     this.assertVerified();if(!Number.isSafeInteger(physicalBound)||physicalBound<0)throw Error('OBSERVATION_KNOWLEDGE_BOUND_INVALID');
     const at=Date.parse(cutoff),key=stableJson(['point-knowledge',this.origin,segment.cvdSegment,at,physicalBound]);
@@ -323,8 +327,33 @@ export class MarketObservationStore {
   lastPoint(segment,cutoff,physicalBound){return this.pointFor(this.pointKnowledgeOrdinalAt(segment,cutoff,physicalBound));}
   reasonCodesAt(segment,cutoff,physicalBound){
     this.assertVerified();const at=Date.parse(cutoff),bound=this.pointKnowledgeOrdinalAt(segment,cutoff,physicalBound);
-    return this.statement('SELECT DISTINCT code FROM reasons WHERE origin=? AND segment=? AND ordinal<=? AND at<=? ORDER BY ordinal')
-      .all(this.origin,segment.cvdSegment,bound,at).map(row=>row.code);
+    const rows=this.statement('SELECT code,MIN(ordinal) AS ordinal FROM reasons WHERE origin=? AND segment=? AND ordinal<=? AND at<=? GROUP BY code ORDER BY ordinal')
+      .all(this.origin,segment.cvdSegment,bound,at);
+    // Fragments migrated by older versions retained their reason evidence only
+    // in compact metadata. Read that evidence too, without reindexing or
+    // changing the original fragment or existing integrity receipts.
+    for(const reason of segment.legacyReasons??segment.reasons??[]){
+      const ordinal=reason.ledgerOrdinal,knownOrdinal=Number.isSafeInteger(ordinal)&&ordinal>0;
+      if(knownOrdinal&&this.statement('SELECT 1 FROM reasons WHERE origin=? AND ordinal=? AND segment=? AND code=?')
+        .get(this.origin,ordinal,segment.cvdSegment,reason.reason))continue;
+      const availableAt=Date.parse(reason.availableAt);
+      if(Number.isFinite(availableAt)&&availableAt>at)continue;
+      if(knownOrdinal){
+        if(ordinal>bound)continue;
+        const point=this.pointFor(ordinal);
+        if(point?.segment===segment.cvdSegment&&Date.parse(point.availableAt)===availableAt){
+          rows.push({code:reason.reason,ordinal});continue;
+        }
+      }
+      // A missing ordinal cannot locate this warning inside a historical
+      // prefix. Surface uncertainty, and only expose its specific code once
+      // the whole retained legacy prefix is within the physical knowledge bound.
+      rows.push({code:'LEGACY_QUALITY_REASON_PREFIX_UNPROVEN',ordinal:Number.MAX_SAFE_INTEGER});
+      const ceiling=segment.legacyReasonOrdinalCeiling;
+      if(Number.isSafeInteger(ceiling)&&ceiling>0&&ceiling<=bound&&Number.isFinite(availableAt))
+        rows.push({code:reason.reason,ordinal:Number.MAX_SAFE_INTEGER});
+    }
+    return [...new Set(rows.sort((a,b)=>a.ordinal-b.ordinal).map(row=>row.code))];
   }
   structureSnapshot(segment,bars,timeframe,cutoff,maxBars){
     this.assertVerified();
