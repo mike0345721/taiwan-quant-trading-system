@@ -305,9 +305,9 @@ export class MarketObservationStore {
     this.assertVerified();return this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? ORDER BY ordinal LIMIT 1')
       .get(this.origin,segment.cvdSegment)?.ordinal??null;
   }
-  segmentLastOrdinal(segment,ceiling=Number.MAX_SAFE_INTEGER){
+  segmentLastOrdinal(segment,ceiling=Number.MAX_SAFE_INTEGER,origin=this.origin){
     this.assertVerified();return this.statement('SELECT ordinal FROM points INDEXED BY point_ordinal WHERE origin=? AND segment=? AND ordinal<=? ORDER BY ordinal DESC LIMIT 1')
-      .get(this.origin,segment.cvdSegment,ceiling)?.ordinal??null;
+      .get(origin,segment.cvdSegment,ceiling)?.ordinal??null;
   }
   pointKnowledgeOrdinalAt(segment,cutoff,physicalBound=Number.MAX_SAFE_INTEGER){
     this.assertVerified();if(!Number.isSafeInteger(physicalBound)||physicalBound<0)throw Error('OBSERVATION_KNOWLEDGE_BOUND_INVALID');

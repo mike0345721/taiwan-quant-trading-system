@@ -229,12 +229,18 @@ function canReplacePartialInput(history,header,source,cached){
 
 function preserveLegacyReasonEvidence(body,history,published=null){
   if(!body)return;
+  const fragment=body.fragment.state,priorFragment=published?.fragment.state;
+  const sameOrigin=priorFragment&&priorFragment.originOrdinal===fragment.originOrdinal
+    &&priorFragment.cvd.sourceLedgerIdentity===fragment.cvd.sourceLedgerIdentity;
+  // Pending derivation may already have switched the store's active origin.
+  // Query this checkpoint's own origin, and never carry evidence across resets.
+  const origin=digest(stableJson({source:fragment.cvd.sourceLedgerIdentity,ordinal:fragment.originOrdinal}));
   for(const segment of body.state.segments){
     if(Array.isArray(segment.legacyReasons))continue;
-    const prior=published?.state.segments.find(s=>s.key===segment.key&&s.cvdSegment===segment.cvdSegment);
+    const prior=sameOrigin?published.state.segments.find(s=>s.key===segment.key&&s.cvdSegment===segment.cvdSegment):null;
     segment.legacyReasons=structuredClone(prior?.legacyReasons??segment.reasons??[]);
     segment.legacyReasonOrdinalCeiling=prior?.legacyReasonOrdinalCeiling
-      ??history.segmentLastOrdinal(segment,body.fragment.state.lastCanonicalOrdinal);
+      ??history.segmentLastOrdinal(segment,fragment.lastCanonicalOrdinal,origin);
   }
 }
 

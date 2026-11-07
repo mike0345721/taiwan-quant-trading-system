@@ -36,8 +36,11 @@ the cloud environment, not by accessing a running market-data service.
 - On upgrade, retained evidence and its prefix ceiling are frozen before new
   events are appended. The ceiling is capped by the published checkpoint's
   ordinal, even if private pending derivation already contains more points.
-  Matching pending segments inherit this evidence, so resuming an older release
-  cannot move or erase earlier warnings.
+  Matching pending segments inherit this evidence only within the same source
+  and cumulative origin. Ceiling queries use each checkpoint's own origin,
+  including when a private derivation has already switched the active origin.
+  Resuming an older release cannot move earlier warnings or carry them across
+  a rolling-overlap reset.
 
 ## Verification
 
@@ -55,6 +58,8 @@ Permanent native-SQLite integration regressions in
    without ordinals, followed by new events and restart.
 7. An older pending derivation (published ordinal 3 / private ordinal 503)
    completed after upgrade, preserving the historical snapshot.
+8. A rolling-overlap reset to origin 4, interrupted during derivation and resumed
+   from disk, without carrying warnings from the previous origin.
 
 Relevant regression command:
 

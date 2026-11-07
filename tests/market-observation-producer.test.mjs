@@ -331,6 +331,39 @@ test('older pending derivation inherits the published legacy reason prefix durin
   assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
 });
 
+test('rolling overlap reset cannot inherit quality reasons from the previous cumulative origin',()=>{
+  const rows=lateRecords();let hash=rows.at(-1).recordHash;
+  for(let i=0;i<601;i++){
+    const row=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:iso(4+i/60),...SAFETY,
+      payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',
+        eventTime:iso(4+i/60),close:100,volume:2,tick_type:1}},hash);
+    rows.push(row);hash=row.recordHash;
+  }
+  const f=legacyFixture(rows.slice(0,3),body=>{
+    for(const segment of body.state.segments)for(const reason of segment.reasons)delete reason.ledgerOrdinal;
+  });
+  migratedFixture(f);clearMarketObservationProducerCache();
+  const full=producer(rows),truncated=buildCru34LiveCheckpoint({...full,
+    rollingCanonicalEvents:full.rollingCanonicalEvents.filter(event=>event.ledgerOrdinal>3)});
+  fs.writeFileSync(f.checkpointPath,wire(truncated));
+  const pending=readMarketObservationProducer({...f,persistentHistory:true});
+  // A cold verification may require more than one request before derivation.
+  let result=pending;
+  for(let n=0;n<30&&result.reason!=='DERIVATION_CATCHUP_PENDING';n++)result=readMarketObservationProducer({...f,persistentHistory:true});
+  assert.equal(result.reason,'DERIVATION_CATCHUP_PENDING');
+  clearMarketObservationProducerCache();
+  for(let restart=0;restart<2;restart++){
+    const migrated=migratedFixture(f),cutoff=rows.at(-1).receivedAt;
+    assert.equal(migrated.history.getMeta('checkpoint').fragment.state.originOrdinal,4);
+    assert.equal(migrated.history.getMeta('checkpoint').fragment.state.originReason,'ROLLING_OVERLAP_UNAVAILABLE');
+    const snapshot=marketObservationSnapshot(migrated.state,{cutoff,history:migrated.history});
+    assert.ok(!snapshot.reasonCodes.includes(lateReason));assert.ok(!snapshot.reasonCodes.includes(unknownReason));
+    assert.equal(snapshot.profile.tradeCount,601);
+    clearMarketObservationProducerCache();
+  }
+  assert.deepEqual(fs.readFileSync(f.legacyPath),f.originalCache);
+});
+
 test('wire verification retains only tail and keeps original and reduced hashes distinct',()=>{
   const p=producer(),bytes=wire(p),result=parseCanonicalProducerTail(bytes,{tailLimit:3});
   assert.equal(result.sourceProof.originalCheckpointHash,p.checkpointHash);assert.equal(result.sourceProof.originalPhysicalSha256,digest(bytes));
