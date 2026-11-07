@@ -33,6 +33,60 @@ function harness() {
   return { state, node, timers, calls, renders, context };
 }
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+const auditChart = (extra={}) => ({...current,timeframe:'5m',asOf:current.availableAt,
+  sourceReadState:'CATCHUP_PENDING',sourceAuditProgress:{state:'PENDING',cutoff:current.availableAt},...extra});
+async function pendingAudit(h){
+  h.state.txChartTimeframe='5m';const result=h.context.loadTxDecisionChart().catch(error=>error);
+  h.calls[0].resolve({data:auditChart()});await flush();return {result};
+}
+function retryAudit(h){const entry=[...h.timers].find(([,timer])=>timer.ms===250);assert.ok(entry);h.timers.delete(entry[0]);entry[1].fn();}
+
+test('audit continuation has one deadline, coalesces ordinary polls and aborts without further retries',async()=>{
+  const h=harness(),{result}=await pendingAudit(h);
+  assert.equal([...h.timers.values()].filter(timer=>timer.ms===10000).length,1);
+  await h.context.loadTxDecisionChart();assert.equal(h.calls.length,1);
+  retryAudit(h);await flush();assert.equal(h.calls.length,2);
+  h.calls[1].resolve({data:auditChart()});await flush();
+  [...h.timers.values()].find(timer=>timer.ms===10000).fn();
+  assert.equal((await result).message,'CHART_REQUEST_TIMEOUT');
+  assert.equal(h.timers.size,0);assert.equal(h.calls.length,2);assert.equal(h.state.txChartLoading,false);
+});
+
+test('ordinary audit recovers after the 10-second deadline and late old response cannot overwrite the next flight',async()=>{
+  const h=harness(),{result}=await pendingAudit(h);
+  retryAudit(h);await flush();const late=h.calls[1];
+  [...h.timers.values()].find(timer=>timer.ms===10000).fn();
+  assert.equal((await result).message,'CHART_REQUEST_TIMEOUT');
+  assert.equal(h.state.txChartLoading,false);assert.equal(h.timers.size,0);
+  const next=h.context.loadTxDecisionChart();await flush();assert.equal(h.calls.length,3);
+  const newer=auditChart({asOf:'2026-11-04T01:06:10Z',sourceAuditProgress:{state:'COMPLETE',cutoff:'2026-11-04T01:06:10Z'},sourceReadState:'COMPLETE'});
+  late.resolve({data:auditChart()});await flush();
+  assert.equal(h.state.txChartLoading,true,'old finalization cannot clear the new flight');
+  h.calls[2].resolve({data:newer});await next;
+  assert.equal(h.state.txChartPayload,newer);assert.equal(h.state.txChartLoading,false);assert.equal(h.timers.size,0);
+  const third=h.context.loadTxDecisionChart();await flush();assert.equal(h.calls.length,4);
+  h.calls[3].resolve({data:newer});await third;assert.equal(h.state.txChartLoading,false);
+});
+
+test('audit continuation rejects cutoff, identity and vanished audit before rendering a replacement',async()=>{
+  for(const replacement of [auditChart({asOf:'2026-11-04T01:06:01Z'}),auditChart({actualContract:'OTHER'}),
+    auditChart({sourceAuditProgress:undefined,sourceReadState:'CATCHUP_PENDING'})]){
+    const h=harness(),{result}=await pendingAudit(h);retryAudit(h);await flush();
+    h.calls[1].resolve({data:replacement});assert.equal((await result).message,'CHART_AUDIT_RESPONSE_MISMATCH');
+    assert.equal(h.renders.length,1);assert.equal(h.timers.size,0);
+  }
+});
+
+test('audit retry stops on session or capture changes and input warmup does not create a retry loop',async()=>{
+  for(const change of [h=>{h.state.csrfToken='new-session';},h=>{h.state.decisionCaptureBusy=true;}]){
+    const h=harness(),{result}=await pendingAudit(h);change(h);retryAudit(h);await result;
+    assert.equal(h.calls.length,1);assert.equal(h.timers.size,0);
+  }
+  const h=harness();h.state.txChartTimeframe='5m';const result=h.context.loadTxDecisionChart();
+  h.calls[0].resolve({data:auditChart({sourceAuditProgress:undefined})});await result;
+  assert.equal(h.calls.length,1);assert.equal(h.timers.size,0);
+});
+
 function guestHarness() {
   const h = harness(); let expired = 0; const requests = [], shown = [];
   Object.assign(h.state, { guestReadOnly: true, guestExpiresAt: new Date(Date.now() + 60000).toISOString(), guestExpiryMono: 60000, csrfToken: '' });

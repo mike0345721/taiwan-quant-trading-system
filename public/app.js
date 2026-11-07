@@ -4994,6 +4994,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }
   const requestId = ++state.txChartRequestId;
   const timeframe = state.txChartTimeframe;
+  const sessionToken = state.csrfToken;
   state.txChartLoading = true;
   state.txChartRequestTimeframe = timeframe;
   const controller = new AbortController();
@@ -5009,14 +5010,31 @@ async function loadTxDecisionChart({ fit = false } = {}) {
   }, { once: true }));
   const timer = setTimeout(() => controller.abort('CHART_REQUEST_TIMEOUT'), 10_000);
   const params = new URLSearchParams({ timeframe, mode: 'LIVE' });
+  let retryTimer = null, auditIdentity = null;
   try {
-    const payload = await Promise.race([api(`/api/v1/tx-chart?${params}`, { signal: controller.signal, cache: 'no-store' }), cancelled]);
-    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
-    if (payload.data?.timeframe !== timeframe) throw new Error('CHART_RESPONSE_TIMEFRAME_MISMATCH');
-    state.homeChartError = null;
-    renderTxDecisionChart(payload.data, { fit });
+    // Only an explicit frozen audit is continued, within this operation's one
+    // deadline. Ordinary input warmup still belongs to the existing 5s poll.
+    while (!controller.signal.aborted) {
+      if (sessionToken !== state.csrfToken || state.decisionCaptureBusy
+          || requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+      const payload = await Promise.race([api(`/api/v1/tx-chart?${params}`, { signal: controller.signal, cache: 'no-store' }), cancelled]);
+      if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe || sessionToken !== state.csrfToken) return;
+      const chart = payload.data;
+      if (chart?.timeframe !== timeframe) throw new Error('CHART_RESPONSE_TIMEFRAME_MISMATCH');
+      const identity = JSON.stringify([chart.tradeDate, chart.actualContract, chart.session, chart.sessionId, chart.continuityEpoch, chart.asOf]);
+      if (auditIdentity !== null && (identity !== auditIdentity || !['PENDING','COMPLETE'].includes(chart.sourceAuditProgress?.state)))
+        throw new Error('CHART_AUDIT_RESPONSE_MISMATCH');
+      if (chart.sourceAuditProgress && (!Number.isFinite(Date.parse(chart.asOf)) || chart.sourceAuditProgress.cutoff !== chart.asOf))
+        throw new Error('CHART_AUDIT_RESPONSE_MISMATCH');
+      state.homeChartError = null;
+      renderTxDecisionChart(chart, { fit });
+      if (chart.sourceAuditProgress?.state !== 'PENDING') break;
+      auditIdentity = identity;
+      await Promise.race([new Promise(resolve => { retryTimer = setTimeout(resolve, 250); }), cancelled]);
+      clearTimeout(retryTimer); retryTimer = null;
+    }
   } catch (error) {
-    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe) return;
+    if (requestId !== state.txChartRequestId || timeframe !== state.txChartTimeframe || sessionToken !== state.csrfToken) return;
     if (controller.signal.reason === 'CHART_REQUEST_SUPERSEDED') return;
     state.homeChartError = error?.message || 'CHART_REFRESH_FAILED';
     if (state.txChartPayload) renderTxChartFreshness(state.txChartPayload);
@@ -5024,6 +5042,7 @@ async function loadTxDecisionChart({ fit = false } = {}) {
     throw error;
   } finally {
     clearTimeout(timer);
+    clearTimeout(retryTimer);
     state.txChartLoading = false;
     state.txChartAbortController = null;
     state.txChartRequestTimeframe = null;
@@ -5571,7 +5590,8 @@ function createDecisionCaptureController({ request, selection, ticket, currentSe
     const requestReady = async () => {
       for (;;) {
         assertCurrent();
-        const payload = await Promise.race([request(chosen.timeframe, controller.signal), aborted]);
+        const minimumCutoff = Number.isFinite(Date.parse(chosen.asOf)) ? new Date(chosen.asOf).toISOString() : null;
+        const payload = await Promise.race([request(chosen.timeframe, controller.signal, minimumCutoff), aborted]);
         const view = assertCurrent(), data = payload?.data;
         if (data?.schemaVersion !== 'decision-capture-pending-v1') {
           if (pendingCutoff !== null && data?.chartCutoff !== pendingCutoff) throw Error('DECISION_CAPTURE_PENDING_CUTOFF_MISMATCH');
@@ -5683,7 +5703,7 @@ function applyDecisionCapture(data, pair) {
   $('decision-workspace')?.setAttribute('aria-busy', 'false');
 }
 const decisionCaptureController = createDecisionCaptureController({
-  request: (timeframe, signal) => api(`/api/v1/decision-capture?timeframe=${encodeURIComponent(timeframe)}`, { cache: 'no-store', signal }),
+  request: (timeframe, signal, minimumCutoff) => api(`/api/v1/decision-capture?timeframe=${encodeURIComponent(timeframe)}${minimumCutoff ? `&minimumCutoff=${encodeURIComponent(minimumCutoff)}` : ''}`, { cache: 'no-store', signal }),
   selection: () => ({ timeframe: state.txChartTimeframe, identity: decisionCaptureIdentity(state.txChartPayload), asOf: state.txChartPayload?.asOf }),
   ticket: () => ({ csrf: state.csrfToken, flow: flowChannel.ticket() }),
   currentSession: token => Boolean(token?.csrf && token.csrf === state.csrfToken && !state.guestReadOnly && flowChannel.isCurrentSession(token.flow)),

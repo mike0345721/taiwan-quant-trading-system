@@ -53,6 +53,21 @@ test('real authenticated route uses HTTP202/no-store for pending without returni
   vm.createContext(context);vm.runInContext('async function route(){'+body+'}',context);await context.route();
   assert.equal(sent.status,202);assert.equal(sent.headers['Cache-Control'],'no-store');assert.equal(sent.payload.data.state,'PENDING');
 });
+
+test('capture handler validates the explicit cutoff floor before calling the existing workspace',async()=>{
+  const start=server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/decision-capture') {");
+  const body=server.slice(start,server.indexOf("      if (req.method === 'GET' && pathname === '/api/v1/ask-gpt-context') {",start));
+  for(const minimumCutoff of ['', 'garbage','2026-02-30T00:00:00.000Z','2026-11-05',cutoff]){
+    let sent,calls=0;
+    const context={req:{method:'GET'},pathname:'/api/v1/decision-capture',
+      url:new URL('http://fixture/api/v1/decision-capture?minimumCutoff='+encodeURIComponent(minimumCutoff)),res:{},
+      currentDiscussionWorkspace:async options=>{calls++;assert.equal(options.minimumCutoff,cutoff);return {};},
+      decisionCaptureEnvelope:()=>warming().data,sendJson:(_r,status,payload)=>{sent={status,payload};}};
+    vm.createContext(context);vm.runInContext('async function route(){'+body+'}',context);await context.route();
+    assert.equal(sent.status,minimumCutoff===cutoff?202:400);assert.equal(calls,minimumCutoff===cutoff?1:0);
+    if(!calls)assert.equal(sent.payload.error,'DECISION_CAPTURE_CUTOFF_INVALID');
+  }
+});
 test('one Copy action polls only explicit pending and locks/copies exactly once after ready',async()=>{
   const h=harness(n=>n<3?warming():ready());const pair=await h.controller.copy();
   assert.equal(h.reads.length,3);assert.equal(h.applied.length,1);assert.deepEqual(h.copies,[pair.copyText]);
@@ -69,6 +84,27 @@ test('continuous pending hits the same bounded deadline, preserves old lock and 
   let pending=false;const h=harness(()=>pending?warming():ready(),{timeoutMs:30});const old=await h.controller.capture();pending=true;
   await assert.rejects(h.controller.capture(),/DECISION_CAPTURE_TIMEOUT/);const count=h.reads.length;
   await new Promise(resolve=>setTimeout(resolve,10));assert.equal(h.reads.length,count);assert.equal(h.controller.locked(),old);assert.equal(h.applied.length,1);
+});
+
+test('Copy recovers after the 10-second deadline and ignores a late old reply during the next flight',async()=>{
+  const timers=new Map(),requests=[],busy=[];let id=0;
+  const h=harness(()=>new Promise(resolve=>requests.push(resolve)),{
+    schedule:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},cancel:key=>timers.delete(key),busy:value=>busy.push(value)});
+  const first=h.controller.copy();const failed=assert.rejects(first,/DECISION_CAPTURE_TIMEOUT/);
+  await new Promise(resolve=>setImmediate(resolve));requests[0](warming());
+  await new Promise(resolve=>setImmediate(resolve));
+  const retry=[...timers].find(([,timer])=>timer.ms===250);timers.delete(retry[0]);retry[1].fn();
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(requests.length,2);
+  [...timers.values()].find(timer=>timer.ms===10000).fn();await failed;
+  assert.equal(busy.at(-1),false);assert.equal(timers.size,0);
+  const next=h.controller.copy();await new Promise(resolve=>setImmediate(resolve));assert.equal(requests.length,3);
+  requests[1](ready('a'));await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.applied.length,0);assert.equal(busy.at(-1),true);
+  requests[2](ready('b'));const pair=await next;
+  assert.equal(pair.snapshot.snapshotHash,'b'.repeat(64));assert.equal(h.applied.length,1);assert.equal(h.copies.length,1);
+  assert.equal(busy.at(-1),false);assert.equal(timers.size,0);
+  const third=h.controller.capture();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(requests.length,4);requests[3](ready('c'));await third;assert.equal(busy.at(-1),false);
 });
 test('pending cancellation on logout never starts another request or locks an obsolete snapshot',async()=>{
   let release;const wait=new Promise(resolve=>{release=resolve;});const h=harness(async n=>n===1?warming():wait);

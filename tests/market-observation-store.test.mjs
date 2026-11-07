@@ -35,6 +35,22 @@ function append(previous,producer,store=null){const run=()=>{
 };return store?store.transaction(run):run();}
 function snap(current,cutoff,store=null,timeframe='1m'){return marketObservationSnapshot(current.state,{cutoff,history:store,timeframe});}
 
+for(const kind of ['futures_bidask','futures_tick'])test(`SQLite regression ${kind} preserves exact witness snapshot across restart`,()=>{
+  const rows=fixture(2,{step:600000}),cutoff=rows.at(-1).receivedAt,at=new Date(base+120000).toISOString();
+  const regressed=buildLiveEventRecord({kind,code:'TXFK6',receivedAt:at,...SAFETY,
+    payload:{productFamily:'TX',actualContract:'TXFK6',tradeDate:'2026-11-04',session:'DAY',eventTime:at,
+      close:999,volume:99,tick_type:1,bid_price:[998],ask_price:[999]}},rows.at(-1).recordHash);
+  const f=open();try{
+    let current=append(null,checkpoint(rows),f.store);const before=snap(current,cutoff,f.store);
+    current=append(current,checkpoint([...rows,regressed]),f.store);
+    assert.deepEqual(snap(current,cutoff,f.store),before);
+    assert.equal(snap(current,new Date(base+660000).toISOString(),f.store).cvd.value,null);
+    f.store.close();f.store=new MarketObservationStore(f.file,{source,resolverIdentity});verify(f.store);
+    current=f.store.getMeta('checkpoint');assert.deepEqual(snap(current,cutoff,f.store),before);
+    assert.equal(snap(current,new Date(base+660000).toISOString(),f.store).cvd.value,null);
+  }finally{f.store.close();}
+});
+
 test('repeated initialization failures close the SQLite handle and preserve the original reason',()=>{
   const f=open();f.store.db.exec("UPDATE meta SET hash='corrupted' WHERE key='binding'");f.store.close();
   const close=DatabaseSync.prototype.close,exec=DatabaseSync.prototype.exec;let closed=0;

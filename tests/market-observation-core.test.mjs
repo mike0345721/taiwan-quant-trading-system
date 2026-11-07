@@ -17,6 +17,24 @@ export function observationFixture(prices=[100,102,105,103,101,104,107,106,103,9
 const source='sha256:'+'a'.repeat(64),resolverIdentity='fixture-v1';
 export function runObservation(records,chunk=2000){let state=createMarketObservationState(source,resolverIdentity);
   for(let i=0;i<records.length;i+=chunk)state=appendMarketObservationRecords(state,records.slice(i,i+chunk),{sourceLedgerIdentity:source,resolverIdentity,ledgerOrdinalOffset:i});return state;}
+for(const suffixKind of ['futures_bidask','futures_tick'])test(`regressed ${suffixKind} preserves the exact previous witness in raw and canonical memory`,()=>{
+  const rows=lineageRows([[0],[10],[2,suffixKind]]),cutoff=lineageTime(10);
+  const rawBefore=marketObservationSnapshot(runObservation(rows.slice(0,2)),{cutoff});
+  for(const chunk of [1,2000]){
+    const full=runObservation(rows,chunk);
+    for(const state of [full,JSON.parse(JSON.stringify(full))]){
+      assert.deepEqual(marketObservationSnapshot(state,{cutoff}),rawBefore);
+      assert.equal(marketObservationSnapshot(state,{cutoff:lineageTime(11)}).cvd.value,null);
+    }
+  }
+  const before=canonicalPrefix(rows.slice(0,2)),expected=marketObservationSnapshot(before.state,{cutoff});
+  for(const state of [canonicalPrefix(rows,before).state,canonicalPrefix(rows).state]){
+    assert.deepEqual(marketObservationSnapshot(state,{cutoff}),expected);
+    assert.deepEqual(marketObservationSnapshot(JSON.parse(JSON.stringify(state)),{cutoff}),expected);
+    assert.equal(marketObservationSnapshot(state,{cutoff:lineageTime(11)}).cvd.value,null);
+  }
+});
+
 test('integration reuses CVD full/chunk/JSON restart, preserves volume and timeframe origin',()=>{
   const rows=observationFixture(),full=runObservation(rows),chunk=runObservation(rows,3);
   assert.deepEqual(chunk,full);
@@ -71,7 +89,9 @@ test('event test window includes triggering bar opening trade, excludes next-bar
 });
 test('terminal physical-lineage regression cannot re-expose earlier CVD as current',()=>{
  const rows=observationFixture(),last=buildLiveEventRecord({kind:'stock_tick',code:'2330',receivedAt:rows[0].receivedAt,...SAFETY,payload:{}},rows.at(-1).recordHash);
- const data=marketObservationSnapshot(runObservation([...rows,last]),{cutoff:rows.at(-1).receivedAt});
+ const full=runObservation([...rows,last]),witness=rows.at(-1).receivedAt;
+ assert.deepEqual(marketObservationSnapshot(full,{cutoff:witness}),marketObservationSnapshot(runObservation(rows),{cutoff:witness}));
+ const data=marketObservationSnapshot(full,{cutoff:new Date(Date.parse(witness)+1).toISOString()});
  assert.equal(data.cvd.value,null);assert.equal(data.cvd.state,'UNAVAILABLE');assert.ok(data.reasonCodes.includes('CONTINUITY_OR_LINEAGE_AWAITING_VALID_SEGMENT'));
  const cutoff=rows[4].receivedAt;
  assert.deepEqual(marketObservationSnapshot(runObservation([...rows,last]),{cutoff}),marketObservationSnapshot(runObservation(rows.slice(0,5)),{cutoff}));
@@ -117,7 +137,8 @@ test('recovered raw lineage keeps closed invalid intervals and isolates a second
  assert.equal(at(2).cvd.value,null);assert.equal(at(2).cvd.state,'UNAVAILABLE');
  assert.deepEqual(at(2),marketObservationSnapshot(runObservation(records.slice(0,4)),{cutoff:lineageTime(2)}));
  assert.equal(at(4).cvd.value,4);assert.deepEqual(at(4),marketObservationSnapshot(prefix,{cutoff:lineageTime(4)}));
- assert.equal(at(10).cvd.value,null);assert.equal(full.lineageTimeline.intervals.length,1);
+ assert.deepEqual(at(10),marketObservationSnapshot(runObservation(records.slice(0,7)),{cutoff:lineageTime(10)}));
+ assert.equal(at(10+1/60000).cvd.value,null);assert.equal(full.lineageTimeline.intervals.length,1);
  assert.equal(full.lineageTimeline.open.startMs,Date.parse(lineageTime(10)));
 });
 

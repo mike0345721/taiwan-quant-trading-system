@@ -74,3 +74,17 @@ test('explicit unfinished chart or observation is not replayed from completed-re
     }finally{h.service.close();h.workers.at(-1)?.finishTermination?.();}
   }
 });
+
+test('capture cutoff floor is validated, forwarded and separates cached capture selections',async()=>{
+  const h=harness();try{
+    for(const minimumCutoff of ['', 'bad','2026-02-30T00:00:00.000Z',42])
+      assert.equal((await h.service.load({capture:true,minimumCutoff})).reason,'CHART_SELECTION_INVALID');
+    const minimumCutoff='2026-11-04T01:00:00.000Z';
+    assert.equal((await h.service.load({minimumCutoff})).reason,'CHART_SELECTION_INVALID');
+    assert.equal(h.workers.length,0);
+    const first=h.service.load({capture:true,minimumCutoff});
+    assert.equal(h.workers[0].posts[0].selection.minimumCutoff,minimumCutoff);h.workers[0].answer();await first;
+    const next=h.service.load({capture:true,minimumCutoff:'2026-11-04T01:00:01.000Z'});
+    assert.equal(h.workers[0].posts.length,2);h.workers[0].answer();await next;
+  }finally{h.service.close();h.workers.at(-1)?.finishTermination?.();}
+});

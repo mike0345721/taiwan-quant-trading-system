@@ -5,17 +5,21 @@ import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
+import vm from 'node:vm';
+import {EventEmitter} from 'node:events';
+import {createTxChartService} from '../src/dashboard-tx-chart-service.mjs';
 import {buildLiveEventRecord} from '../src/live-event-ledger.mjs';
 import {loadGovernedTradingCalendar} from '../src/market-state-forward-shadow-calendar.mjs';
-import {loadTxDecisionChart,clearTxChartLedgerCache,createTxChartReadBudget,TX_CHART_SOURCE_LIMITS} from '../src/dashboard-tx-chart-source.mjs';
+import {loadTxDecisionChart,clearTxChartLedgerCache,releaseTxChartAudit,createTxChartReadBudget,TX_CHART_SOURCE_LIMITS} from '../src/dashboard-tx-chart-source.mjs';
 import {readTxChartHistory,txChartHistoryPath} from '../src/dashboard-tx-chart-store.mjs';
 const calendar=loadGovernedTradingCalendar(new URL('../config/taifex-official-calendar-2026.json',import.meta.url));
-function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-history-'));fs.mkdirSync(path.join(root,'live-events'));
+function fixture(t,{qualified=false}={}){const root=fs.mkdtempSync(path.join(os.tmpdir(),'tx-chart-history-'));fs.mkdirSync(path.join(root,'live-events'));
   const cacheRoot=path.join(root,'cache');t.after(()=>{clearTxChartLedgerCache();fs.rmSync(root,{recursive:true,force:true});});
   const records=[];let previous='GENESIS';
   for(const [date,count,start] of [['2026-11-04',80,'2026-11-04T07:00:00Z'],['2026-11-05',60,'2026-11-04T16:00:00Z']]){
     const rows=[];for(let i=0;i<count;i++){const at=new Date(Date.parse(start)+i*1000).toISOString();
       const row=buildLiveEventRecord({kind:'futures_tick',code:'TXFK6',receivedAt:at,sequenceGap:0,researchOnly:true,formalWeight:0,executionAuthorized:false,orderRoutesEnabled:false,
+        ...(qualified?{product:'TXFK6',exchangeTimestamp:at,eventId:String(records.length),duplicate:false}:{}),
         payload:{code:'TXFK6',datetime:at,_product_family:'TX',_target_code:'TXFK6',close:20001+records.length,volume:1,tick_type:1}},previous);
       previous=row.recordHash;rows.push(row);records.push(row);}
     fs.writeFileSync(path.join(root,'live-events',date+'.ndjson'),rows.map(JSON.stringify).join('\n')+'\n');}
@@ -25,7 +29,73 @@ function run(f,extra={}){const {limits={},...selection}=extra,budget=createTxCha
   const chart=loadTxDecisionChart({...options,dataRoot:f.root,cacheRoot:f.cacheRoot,sourceBudget:budget,...selection});
   assert.ok(budget.sourceBytesRead<=budget.maxSourceBytes);assert.ok(budget.remainingRecords>=0);return chart;}
 function complete(f,extra={}){for(let i=0;i<12;i++){const result=run(f,extra);if(result.sourceComplete)return result;}assert.fail('finite source did not finish within bounded retries');}
+function sourceProofChunkCount(f){
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{return db.prepare('SELECT count(*) n FROM source_chunks JOIN active ON source_chunks.source=active.id').get().n;}
+  finally{db.close();}
+}
 function content(chart){const {sourceComplete,sourceReadState,sourceProgress,sourceReadBytes,cacheReadBytes,cacheWriteBytes,historyReadMode,historyPageCacheKiB,historyReadBytes,cacheWriteMeasurement,...rest}=chart;return rest;}
+test('ordinary controller and service continue a finite audit before five-second polling ages its cutoff',async t=>{
+  const f=fixture(t,{qualified:true});complete(f);let elapsed=0,requests=0;
+  class SourceWorker extends EventEmitter {
+    postMessage({id}){queueMicrotask(()=>{requests++;this.emit('message',{id,chart:run(f,{
+      asOf:null,now:new Date(Date.parse(options.asOf)+elapsed),staged:true,limits:{maxRecords:5}})});});}
+    terminate(){this.emit('exit',0);return Promise.resolve(0);}
+  }
+  const service=createTxChartService({dataRoot:f.root,calendar,workerFactory:()=>new SourceWorker(),clock:()=>elapsed});
+  t.after(()=>service.close());
+  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('async function loadTxDecisionChart('),end=app.indexOf('\n}',start)+2;
+  const timers=new Map();let timerId=0;
+  const state={txChartTimeframe:'5m',txChartRequestId:0,csrfToken:'synthetic'};
+  const context=vm.createContext({state,AbortController,URLSearchParams,
+    api:async()=>({data:await service.load({timeframe:'5m',mode:'LIVE'})}),
+    renderTxDecisionChart:chart=>{state.txChartPayload=chart;},renderTxChartFreshness(){},dwText(){},$:()=>null,
+    setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id)});
+  vm.runInContext(app.slice(start,end),context);
+  let settled=false,error;const pending=context.loadTxDecisionChart().then(()=>{settled=true;},e=>{settled=true;error=e;});
+  for(let turns=0;turns<80&&!settled;turns++){
+    await new Promise(resolve=>setImmediate(resolve));
+    const retry=[...timers].find(([,timer])=>timer.ms===250);
+    if(retry){timers.delete(retry[0]);elapsed+=250;retry[1].fn();}
+  }
+  if(!settled){for(const timer of timers.values())if(timer.ms===10000)timer.fn();}
+  await pending;if(error)throw error;
+  assert.equal(state.txChartPayload.sourceAuditProgress.state,'COMPLETE');
+  assert.equal(state.txChartPayload.asOf,options.asOf);
+  assert.equal(state.txChartPayload.sourceEventCount,140);
+  assert.ok(requests>25&&requests<40);assert.ok(elapsed<10000);
+  assert.ok((requests-1)*5000>120000,'the original one-step/5s schedule crosses freshness');
+  assert.equal(state.txChartPayload.structureEligibility.state,'ELIGIBLE');
+  t.diagnostic(JSON.stringify({realController:true,realService:true,realSource:true,syntheticWorkerTransport:true,requests,elapsed,events:140}));
+});
+
+test('completed audit survives ordinary poll consumers and immediate capture uses the original cutoff',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  const visible=complete(f,selection);
+  // Ordinary chart, Market Pulse and level-watch share this same source selection.
+  for(let i=0;i<3;i++)run(f,{...selection,now:new Date(now.getTime()+5000+i),limits:{maxRecords:5}});
+  const captured=run(f,{...selection,now:new Date(now.getTime()+6000),holdCompletedAudit:true,limits:{maxRecords:5}});
+  assert.equal(captured.sourceAuditProgress.state,'COMPLETE');assert.equal(captured.asOf,visible.asOf);
+  assert.equal(captured.sourceEventCount,visible.sourceEventCount);
+  releaseTxChartAudit();
+  const resumed=run(f,{...selection,now:new Date(now.getTime()+6500),limits:{maxRecords:5}});
+  assert.equal(resumed.sourceAuditProgress.processedRecords+sourceProofChunkCount(f),15,'releasing capture preserves audit progress; proof rows share its record budget');
+  assert.equal(resumed.asOf,new Date(now.getTime()+5000).toISOString());
+});
+
+for(const change of ['cache-edit','source-truncate','clock-rollback','expired'])test(`completed lease after ordinary poll still rejects ${change}`,t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  complete(f,selection);run(f,{...selection,now:new Date(now.getTime()+5000)});
+  if(change==='cache-edit'){
+    const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+    db.exec('UPDATE events SET key=NULL WHERE rowid=(SELECT min(rowid) FROM events)');db.close();
+  }else if(change==='source-truncate')fs.writeFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify(f.records[80])+'\n');
+  const capture={...selection,holdCompletedAudit:true,limits:{maxRecords:5},
+    now:new Date(now.getTime()+(change==='clock-rollback'?-1:change==='expired'?10001:6000))};
+  if(['cache-edit','source-truncate'].includes(change))assert.throws(()=>run(f,capture),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  else{const result=run(f,capture);assert.equal(result.sourceAuditProgress.state,'PENDING');assert.notEqual(result.asOf,options.asOf);}
+});
 test('staged current chart yields before raw time audit and resumes the frozen cutoff',t=>{
   const f=fixture(t);complete(f);
   const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
@@ -36,7 +106,7 @@ test('staged current chart yields before raw time audit and resumes the frozen c
   assert.equal(first.sourceAuditProgress.processedRecords,0);
   assert.equal(first.lastPrice,20140,'qualified price is still visible');
   const second=run(f,{...selection,now:new Date(now.getTime()+500)});
-  assert.equal(second.sourceAuditProgress.processedRecords,100);
+  assert.equal(second.sourceAuditProgress.processedRecords+sourceProofChunkCount(f),100);
   assert.equal(second.sourceAuditProgress.state,'PENDING');
   const result=complete(f,{...selection,now:new Date(now.getTime()+1000)});
   assert.equal(result.asOf,options.asOf,'resume must not silently advance the cutoff');
@@ -82,6 +152,47 @@ test('a read lease cannot absorb another request own write or survive a store re
   assert.throws(()=>lease.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
   const beforeRestart=history().createRawReadLease();clearTxChartLedgerCache();
   assert.throws(()=>beforeRestart.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+
+for(const change of ['own-append','own-append-bounded','external-then-own-append','rewrite-after-own-append','interior-before-own-append','restart'])
+test(`completed lease retirement proof: ${change}`,t=>{
+  const f=fixture(t);complete(f);
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,calendar,
+    files:['2026-11-04','2026-11-05'].map(date=>path.join(f.root,'live-events',date+'.ndjson')),
+    budget:createTxChartReadBudget(),decode:JSON.parse,normalize:()=>assert.fail('already materialized')});
+  const lease=history.createRawReadLease();assert.equal(lease.step(()=>{},createTxChartReadBudget()),true);
+  assert.equal(lease.supersededByOwnWrite(createTxChartReadBudget()),'UNCHANGED');
+  if(change==='external-then-own-append'){
+    const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+    db.exec('CREATE TABLE external_marker(value INTEGER)');db.close();complete(f);
+  }
+  const file=path.join(f.root,'live-events','2026-11-05.ndjson');
+  if(change==='interior-before-own-append'){
+    const before=fs.readFileSync(file),at=before.indexOf(Buffer.from('"close":20110'));
+    assert.ok(at>512&&at+13<before.length-512);
+    const after=Buffer.from(before);after.write('"close":29110',at,'utf8');
+    assert.equal(after.length,before.length);assert.deepEqual(after.subarray(0,512),before.subarray(0,512));
+    assert.deepEqual(after.subarray(-512),before.subarray(-512));assert.notDeepEqual(after,before);
+    fs.writeFileSync(file,after);
+  }
+  fs.appendFileSync(file,JSON.stringify({...f.records.at(-1),eventId:'legal-append'})+'\n');complete(f);
+  if(change==='rewrite-after-own-append')fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('"kind":"futures_tick"','"kind":"futures_tock"'));
+  if(change==='restart'){clearTxChartLedgerCache();complete(f);}
+  if(change==='own-append'){
+    assert.equal(lease.supersededByOwnWrite(createTxChartReadBudget({maxSourceBytes:1})),'PENDING','incomplete prefix proof cannot retire');
+    assert.equal(lease.supersededByOwnWrite(createTxChartReadBudget()),'SUPERSEDED');
+  }else if(change==='own-append-bounded'){
+    let retired=false,steps=0;
+    const prefixBytes=f.records.reduce((n,row)=>n+Buffer.byteLength(JSON.stringify(row)+'\n'),0);
+    while(!retired&&steps<=Math.ceil(prefixBytes/128)+2){
+      const budget=createTxChartReadBudget({maxSourceBytes:128});steps++;
+      retired=lease.supersededByOwnWrite(budget)==='SUPERSEDED';assert.ok(budget.sourceBytesRead<=128);
+    }
+    assert.ok(steps>1,'positive control crosses byte-budget slices');
+    assert.equal(retired,true,'legal append must make progress without relaxing the per-call budget');
+    t.diagnostic(JSON.stringify({sourceBudget:128,steps,prefixBytes}));
+  }else assert.throws(()=>lease.supersededByOwnWrite(createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  assert.throws(()=>lease.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/,'retirement never rebases the old lease');
 });
 test('changing timeframe or explicit cutoff cancels rather than finishes an old audit',t=>{
   const f=fixture(t);complete(f);const selection={asOf:null,now:new Date(options.asOf),staged:true};
@@ -507,7 +618,7 @@ test('normal polling and capture resume the same frozen audit rather than resett
   const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
   assert.equal(run(f,selection).sourceAuditProgress.processedRecords,0);
   const capture=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+250)});
-  assert.equal(capture.sourceAuditProgress.processedRecords,100,'capture mode is not source identity');
+  assert.equal(capture.sourceAuditProgress.processedRecords+sourceProofChunkCount(f),100,'capture mode is not source identity; proof rows use the same record budget');
   const normal=run(f,{...selection,now:new Date(now.getTime()+500)});
   assert.equal(normal.sourceAuditProgress.state,'COMPLETE');assert.equal(normal.asOf,options.asOf);
   const held=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+750)});
@@ -548,4 +659,369 @@ test('completed capture reuse expires and does not hide a changed verified store
   const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
   db.exec('UPDATE events SET key=NULL WHERE rowid=(SELECT min(rowid) FROM events)');db.close();
   assert.throws(()=>run(f,{...selection,now:new Date(now.getTime()+500),holdCompletedAudit:true}),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+
+
+// Original-byte proof regressions: all sources are isolated synthetic files.
+function proofHistory(t,{rows=180}={}){
+  const f=smallHistory(t,4*1024*1024);
+  const records=Array.from({length:rows},(_,index)=>({index,padding:'x'.repeat(80)}));
+  const bytes=Buffer.from(records.map(JSON.stringify).join('\n')+'\n');
+  fs.writeFileSync(f.file,bytes);const history=f.read();
+  assert.equal(history.sources[0].progress.complete,true);
+  return {...f,records,bytes,history};
+}
+for(const ownWrites of [false,true])test(`original-byte proof makes finite 128-byte progress with append between every step; ownWrites=${ownWrites}`,t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease(),seen=[];
+  if(ownWrites)assert.equal(lease.step(()=>{},createTxChartReadBudget()),true);
+  let done=false,steps=0,previous=0,totalRead=0;
+  const start=performance.now(),bound=Math.ceil(f.bytes.length/128)+2;
+  for(;steps<bound&&!done;steps++){
+    fs.appendFileSync(f.file,'{}\n');
+    if(ownWrites)f.read();
+    const budget=createTxChartReadBudget({maxSourceBytes:128});
+    done=ownWrites?lease.supersededByOwnWrite(budget)==='SUPERSEDED':lease.step(row=>seen.push(row),budget);
+    assert.ok(budget.sourceBytesRead<=128);assert.ok(budget.cacheBytesRead<=budget.maxCacheBytes);
+    const progress=lease.sourceProofProgress;assert.ok(progress.scannedBytes>previous);
+    previous=progress.scannedBytes;totalRead+=budget.sourceBytesRead;
+  }
+  assert.equal(done,true);assert.equal(previous,f.bytes.length);assert.equal(totalRead,f.bytes.length);
+  assert.equal(lease.sourceProofProgress.state,'VERIFIED');
+  if(!ownWrites)assert.deepEqual(seen,f.records,'appended rows remain outside the frozen snapshot');
+  t.diagnostic(JSON.stringify({sourceBudget:128,steps,bytes:totalRead,appendEveryStep:true,ownWrites,elapsedMs:performance.now()-start}));
+});
+
+test('proof cancellation discards capture cursors and the next capture verifies from a fresh lease',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  complete(f,selection);
+  fs.appendFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify({...f.records.at(-1),eventId:'cancel-proof'})+'\n');
+  run(f,{...selection,now:new Date(now.getTime()+1000)});
+  const pending=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+1250),limits:{maxSourceBytes:128}});
+  assert.equal(pending.sourceComplete,false);assert.equal(pending.sourceAuditProgress.phase,'SOURCE_PROOF');
+  releaseTxChartAudit();
+  const next=run(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+1500)});
+  assert.equal(next.sourceAuditProgress.state,'PENDING');assert.equal(next.sourceAuditProgress.processedRecords,0);
+  assert.equal(next.asOf,new Date(now.getTime()+1500).toISOString());
+  assert.equal(complete(f,{...selection,holdCompletedAudit:true,now:new Date(now.getTime()+1750)}).sourceEventCount,141);
+});
+
+for(const change of ['interior','truncate','replace','cache'])test(`pending original-byte proof remains invalid after ${change}`,t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease();
+  assert.equal(lease.step(()=>assert.fail('unverified rows'),createTxChartReadBudget({maxSourceBytes:128})),false);
+  if(change==='interior'){
+    const bytes=Buffer.from(f.bytes),at=bytes.indexOf(Buffer.from('"index":90'));
+    assert.ok(at>512&&at<f.bytes.length-512);bytes.write('"index":99',at);fs.writeFileSync(f.file,bytes);fs.appendFileSync(f.file,'{}\n');
+  }else if(change==='truncate')fs.writeFileSync(f.file,'{}\n');
+  else if(change==='replace'){fs.renameSync(f.file,f.file+'.old');fs.writeFileSync(f.file,f.bytes);}
+  else{const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));try{db.exec("UPDATE events SET json='{}' WHERE offset=0");}finally{db.close();}}
+  for(let attempt=0;attempt<2;attempt++)assert.throws(()=>lease.step(()=>assert.fail('unverified rows'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  assert.equal(lease.sourceProofProgress.state,'INVALID');
+});
+
+test('a completed proof renews all raw bytes after an interior edit plus append even without own writes',t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease();assert.equal(lease.step(()=>{},createTxChartReadBudget()),true);
+  const bytes=Buffer.from(f.bytes),at=bytes.indexOf(Buffer.from('"index":90'));bytes.write('"index":99',at);
+  fs.writeFileSync(f.file,bytes);fs.appendFileSync(f.file,'{}\n');
+  assert.throws(()=>lease.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+
+test('source proof includes original bytes discarded by the chart projection',t=>{
+  const f=smallHistory(t,4096),before='{"keep":1}\n'+JSON.stringify({ignored:'x'.repeat(2000)})+'\n';fs.writeFileSync(f.file,before);
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,files:[f.file],budget:createTxChartReadBudget(),
+    decode:line=>{const row=JSON.parse(line);return row.keep?row:null;},normalize:()=>({key:null,violation:null}),calendar:{}});
+  const lease=history.createRawReadLease();assert.equal(lease.totalRecords,1);
+  const after=Buffer.from(before);after[1000]=121;fs.writeFileSync(f.file,after);fs.appendFileSync(f.file,'{}\n');
+  assert.throws(()=>lease.step(()=>assert.fail('unverified rows'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+
+for(const race of ['same-size rewrite','replace','truncate'])test(`proof slice detects source ${race} between read and final descriptor/path check`,t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease(),read=fs.readSync;let injected=false;
+  t.mock.method(fs,'readSync',function(...args){const result=read.apply(this,args);if(!injected){injected=true;
+    if(race==='same-size rewrite'){const changed=Buffer.from(f.bytes);changed[1000]=121;fs.writeFileSync(f.file,changed);const later=new Date(Date.now()+5000);fs.utimesSync(f.file,later,later);}
+    else if(race==='truncate')fs.writeFileSync(f.file,'{}\n');
+    else{fs.renameSync(f.file,f.file+'.old');fs.writeFileSync(f.file,f.bytes);}
+  }return result;});
+  assert.throws(()=>lease.step(()=>assert.fail('unverified rows'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  assert.equal(injected,true);assert.equal(lease.sourceProofProgress.state,'INVALID');
+});
+
+test('original proof and appended rows roll back together on source mutation during ingestion',t=>{
+  const f=proofHistory(t,{rows:5}),dbFile=txChartHistoryPath(f.root,f.cacheRoot);
+  const snapshot=()=>{const db=new DatabaseSync(dbFile,{readOnly:true});try{return {
+    source:db.prepare('SELECT * FROM sources').all(),proof:db.prepare('SELECT * FROM source_provenance').all(),
+    chunks:db.prepare('SELECT * FROM source_chunks').all(),events:db.prepare('SELECT * FROM events').all()};}finally{db.close();}};
+  const before=snapshot();fs.appendFileSync(f.file,'{}\n');let injected=false;
+  assert.throws(()=>readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,files:[f.file],budget:createTxChartReadBudget(),decode:JSON.parse,
+    normalize:()=>{if(!injected){injected=true;const raw=fs.readFileSync(f.file);raw[100]=121;fs.writeFileSync(f.file,raw);const later=new Date(Date.now()+5000);fs.utimesSync(f.file,later,later);}return {key:null,violation:null};},calendar:{}}),/TX_CHART_SOURCE_CHANGED_DURING_READ/);
+  assert.deepEqual(snapshot(),before,'all attempted proof, rows and cursor changes roll back');
+  // Restore only this isolated synthetic source for an exact-once retry.
+  fs.writeFileSync(f.file,Buffer.concat([f.bytes,Buffer.from('{}\n')]));
+  clearTxChartLedgerCache();let result;for(let i=0;i<4;i++){result=f.read();if(result.sources[0].progress.complete)break;}
+  const lease=result.createRawReadLease(),seen=[];assert.equal(lease.step(row=>seen.push(row),createTxChartReadBudget()),true);
+  assert.equal(seen.length,6);
+});
+
+test('legacy cache without original proofs is preserved while a separate bounded current generation is reconstructed',t=>{
+  // Build the actual pre-proof schema and rows directly. Never obtain a legacy
+  // fixture by deleting witnesses from a generation created by today's writer.
+  const f=smallHistory(t,4*1024*1024),records=Array.from({length:180},(_,index)=>({index,padding:'x'.repeat(80)}));
+  f.bytes=Buffer.from(records.map(JSON.stringify).join('\n')+'\n');fs.writeFileSync(f.file,f.bytes);
+  fs.mkdirSync(f.cacheRoot);const dbFile=txChartHistoryPath(f.root,f.cacheRoot),db=new DatabaseSync(dbFile);let original;
+  const digest=value=>createHash('sha256').update(value).digest('hex'),stat=fs.statSync(f.file);
+  const recipe=digest(JSON.stringify(['tx-chart-history-v2','checkpoint-debt-v1',{}]));
+  const sourceIdentity=`${stat.dev}:${stat.ino}:${stat.birthtimeMs}:${recipe}`;
+  try{db.exec(`CREATE TABLE binding(version TEXT,root TEXT);
+    CREATE TABLE sources(id INTEGER PRIMARY KEY,path TEXT,identity TEXT,offset INTEGER,observed INTEGER,mtime REAL,
+      headSize INTEGER,headHash TEXT,tailSize INTEGER,tailHash TEXT,count INTEGER);
+    CREATE TABLE active(path TEXT PRIMARY KEY,id INTEGER);
+    CREATE TABLE events(source INTEGER,offset INTEGER,json TEXT,key TEXT,event REAL,available REAL,violation TEXT,
+      rawHash TEXT,keyHash TEXT,violationHash TEXT,PRIMARY KEY(source,offset));`);
+    db.prepare('INSERT INTO binding VALUES(?,?)').run('tx-chart-history-v2',path.resolve(f.root));
+    db.prepare('INSERT INTO sources VALUES(1,?,?,?,?,?,512,?,512,?,?)').run(f.file,sourceIdentity,f.bytes.length,f.bytes.length,stat.mtimeMs,
+      digest(f.bytes.subarray(0,512)),digest(f.bytes.subarray(-512)),records.length);
+    db.prepare('INSERT INTO active VALUES(?,1)').run(f.file);
+    let offset=0;for(const record of records){const json=JSON.stringify(record),prefix=`1:${offset}:`,rawHash=digest(prefix+json);
+      db.prepare('INSERT INTO events VALUES(1,?,?,NULL,NULL,NULL,NULL,?,?,?)').run(offset,json,rawHash,
+        digest(prefix+JSON.stringify([null,null,null,rawHash])),digest(prefix));offset+=Buffer.byteLength(json)+1;}
+    assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'source_%' AND name!='sources'").all().length,0);
+    original={sources:db.prepare('SELECT * FROM sources').all(),events:db.prepare('SELECT * FROM events').all()};
+  }finally{db.close();}
+  // A current raw rewrite cannot retroactively prove the historical cached 90.
+  const raw=Buffer.from(f.bytes),at=raw.indexOf(Buffer.from('"index":90'));raw.write('"index":99',at);fs.writeFileSync(f.file,raw);
+  const oldId=original.sources[0].id;let result,polls=0;
+  for(;polls<100;polls++){result=f.read(1024);if(result.sources[0].progress.complete)break;
+    assert.throws(()=>result.createRawReadLease(),/TX_CHART_HISTORY_NOT_VERIFIED/);
+    if(polls===2)clearTxChartLedgerCache();
+  }
+  assert.ok(polls>2&&polls<100);assert.notEqual(result.sources[0].id,oldId);
+  const check=new DatabaseSync(dbFile,{readOnly:true});
+  try{const oldSource=check.prepare('SELECT * FROM sources WHERE id=?').get(oldId);
+    const {proofFormat,...oldFields}=oldSource;assert.ok(proofFormat==null);assert.deepEqual([oldFields],original.sources.map(row=>({...row})));
+    assert.deepEqual(check.prepare('SELECT * FROM events WHERE source=?').all(oldId),original.events);
+    assert.equal(check.prepare('SELECT * FROM source_provenance WHERE source=?').get(oldId),undefined);
+    assert.equal(check.prepare('SELECT count(*) n FROM source_chunks WHERE source=?').get(oldId).n,0);
+  }finally{check.close();}
+  const lease=result.createRawReadLease(),seen=[];assert.equal(lease.step(row=>seen.push(row),createTxChartReadBudget()),true);
+  assert.equal(seen[90].index,99);assert.equal(JSON.parse(original.events[90].json).index,90);
+  t.diagnostic(JSON.stringify({legacyPreserved:true,currentGeneration:result.sources[0].id,reconstructionPolls:polls+1,sourceBudget:1024}));
+});
+
+for(const corruption of ['missing chunk','wrong digest','gap','wrong generation'])test(`persisted original-byte evidence fails closed after restart: ${corruption}`,t=>{
+  const f=proofHistory(t);clearTxChartLedgerCache();const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+  try{if(corruption==='missing chunk')db.exec('DELETE FROM source_chunks');
+    else if(corruption==='wrong digest')db.exec("UPDATE source_chunks SET digest='"+'0'.repeat(64)+"'");
+    else if(corruption==='gap')db.exec('UPDATE source_chunks SET start=start+1');
+    else db.exec('UPDATE source_chunks SET source=source+100');
+  }finally{db.close();}
+  let history;for(let i=0;i<4;i++){history=f.read();if(history.sources[0].progress.complete)break;}
+  const lease=history.createRawReadLease();
+  assert.throws(()=>lease.step(()=>assert.fail('unverified proof'),createTxChartReadBudget()),/TX_CHART_HISTORY_(PROOF_UNAVAILABLE|READ_LEASE_INVALID)/);
+  assert.equal(lease.sourceProofProgress.state,'INVALID');
+});
+
+test('bounded proof metadata/cache budget and cooperative time slice yield without losing the raw cursor',t=>{
+  const f=proofHistory(t,{rows:1600}),lease=f.history.createRawReadLease(),seen=[];
+  let clock=0;t.mock.method(performance,'now',()=>clock+=400);
+  const first=createTxChartReadBudget();assert.equal(lease.step(row=>seen.push(row),first),false);
+  assert.ok(first.sourceBytesRead>0&&first.sourceBytesRead<f.bytes.length);assert.deepEqual(seen,[]);
+  t.mock.restoreAll();const progress=lease.sourceProofProgress.scannedBytes;
+  const noCache=createTxChartReadBudget({maxCacheBytes:1});assert.equal(lease.step(row=>seen.push(row),noCache),false);
+  assert.equal(lease.sourceProofProgress.scannedBytes,progress);assert.equal(noCache.cacheBytesRead,0);
+  const last=createTxChartReadBudget();assert.equal(lease.step(row=>seen.push(row),last),true);assert.deepEqual(seen,f.records);
+  assert.equal(first.sourceBytesRead+last.sourceBytesRead,f.bytes.length);
+  assert.ok(last.sourceBytesRead<=last.maxSourceBytes);assert.ok(last.cacheBytesRead<=last.maxCacheBytes);
+});
+
+
+test('suffix append inside proof read does not invalidate a correctly witnessed frozen prefix',t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease(),read=fs.readSync,seen=[];let injected=false;
+  t.mock.method(fs,'readSync',function(...args){const result=read.apply(this,args);if(!injected){injected=true;fs.appendFileSync(f.file,'{}\n');}return result;});
+  assert.equal(lease.step(row=>seen.push(row),createTxChartReadBudget()),true);
+  assert.deepEqual(seen,f.records);assert.equal(injected,true);
+  assert.ok(fs.statSync(f.file).size>lease.sourceProofProgress.totalBytes);
+});
+
+test('suffix append inside ingestion preserves the fixed observed range and progresses on the next poll',t=>{
+  const f=proofHistory(t,{rows:5});fs.appendFileSync(f.file,'{}\n');let injected=false;
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,files:[f.file],budget:createTxChartReadBudget(),decode:JSON.parse,
+    normalize:()=>{if(!injected){injected=true;fs.appendFileSync(f.file,'{}\n');}return {key:null,violation:null};},calendar:{}});
+  const frozen=history.createRawReadLease(),seen=[];assert.equal(frozen.step(row=>seen.push(row),createTxChartReadBudget()),true);
+  assert.equal(seen.length,6);const next=f.read(),appended=[];
+  assert.equal(next.createRawReadLease().step(row=>appended.push(row),createTxChartReadBudget()),true);assert.equal(appended.length,7);
+});
+
+
+test('multiple growing sources share a bounded proof cursor without redoing completed earlier sources',t=>{
+  const f=proofHistory(t,{rows:1}),second=path.join(f.root,'second.ndjson'),records=Array.from({length:40},(_,index)=>({index}));
+  const bytes=Buffer.from(records.map(JSON.stringify).join('\n')+'\n');fs.writeFileSync(second,bytes);
+  const history=readTxChartHistory({dataRoot:f.root,cacheRoot:f.cacheRoot,files:[f.file,second],budget:createTxChartReadBudget(),
+    decode:JSON.parse,normalize:()=>({key:null,violation:null}),calendar:{}});
+  const lease=history.createRawReadLease(),seen=[];let done=false,read=0,steps=0;
+  for(;steps<20&&!done;steps++){
+    fs.appendFileSync(f.file,'{}\n');fs.appendFileSync(second,'{}\n');
+    const budget=createTxChartReadBudget({maxSourceBytes:128});done=lease.step(row=>seen.push(row),budget);read+=budget.sourceBytesRead;
+    assert.ok(budget.sourceBytesRead<=128);
+  }
+  assert.equal(done,true);assert.deepEqual(seen,[...f.records,...records]);assert.equal(read,f.bytes.length+bytes.length);
+});
+
+test('restart cannot mint original proof from an interior rewrite followed by append',t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease();
+  assert.equal(lease.step(()=>{},createTxChartReadBudget({maxSourceBytes:128})),false);clearTxChartLedgerCache();
+  const changed=Buffer.from(f.bytes),at=changed.indexOf(Buffer.from('"index":90'));changed.write('"index":99',at);
+  fs.writeFileSync(f.file,changed);fs.appendFileSync(f.file,'{}\n');
+  assert.throws(()=>lease.step(()=>{},createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  let history;for(let i=0;i<4;i++){history=f.read();if(history.sources[0].progress.complete)break;}
+  assert.equal(history.sources[0].id,f.history.sources[0].id,'existing proof remains attached to its original generation');
+  assert.throws(()=>history.createRawReadLease().step(()=>assert.fail('unverified rows'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  t.diagnostic(JSON.stringify({beforeSha256:createHash('sha256').update(f.bytes).digest('hex'),
+    afterSha256:createHash('sha256').update(fs.readFileSync(f.file)).digest('hex'),rewriteOffset:at,restartRejected:true}));
+});
+
+test('modest multi-chunk prefix verifies within original source/cache/record budgets and worker time limit',t=>{
+  const start=performance.now(),f=proofHistory(t,{rows:12000}),lease=f.history.createRawReadLease();
+  let done=false,steps=0,totalRead=0,records=0,maxStepMs=0;
+  while(!done&&steps<20){const budget=createTxChartReadBudget({maxSourceBytes:128*1024,maxRecords:2000}),at=performance.now();
+    done=lease.step(()=>records++,budget);steps++;totalRead+=budget.sourceBytesRead;maxStepMs=Math.max(maxStepMs,performance.now()-at);
+    assert.ok(budget.sourceBytesRead<=budget.maxSourceBytes);assert.ok(budget.cacheBytesRead<=budget.maxCacheBytes);assert.ok(budget.remainingRecords>=0);
+  }
+  assert.equal(done,true);assert.equal(records,12000);assert.equal(totalRead,f.bytes.length);assert.ok(steps>1);assert.ok(maxStepMs<8000);
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});let chunks;
+  try{chunks=db.prepare('SELECT count(*) n FROM source_chunks').get().n;assert.ok(chunks>1);assert.ok(db.prepare('SELECT max(end-start) n FROM source_chunks').get().n<=65536);}
+  finally{db.close();}
+  t.diagnostic(JSON.stringify({syntheticRecords:records,prefixBytes:f.bytes.length,proofChunks:chunks,sourceBudget:128*1024,recordBudget:2000,steps,maxStepMs,totalMs:performance.now()-start}));
+});
+
+
+test('pending retirement proof cannot return a cutoff below a newer minimumCutoff',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};complete(f,selection);
+  fs.appendFileSync(path.join(f.root,'live-events','2026-11-05.ndjson'),JSON.stringify({...f.records.at(-1),eventId:'newer-minimum'})+'\n');
+  const b=run(f,{...selection,now:new Date(now.getTime()+1000)});assert.equal(b.sourceAuditProgress.state,'PENDING');
+  const minimumCutoff=new Date(now.getTime()+1500).toISOString();
+  const capture={...selection,holdCompletedAudit:true,minimumCutoff,now:new Date(now.getTime()+2000)};
+  const pending=run(f,{...capture,limits:{maxSourceBytes:128}});
+  assert.equal(pending.sourceComplete,false);assert.ok(Date.parse(pending.asOf)>=Date.parse(minimumCutoff));
+  assert.notEqual(pending.asOf,b.asOf,'a pending proof must not expose the old frozen frame under a newer minimum');
+  const final=complete(f,capture);assert.equal(final.sourceComplete,true);assert.ok(Date.parse(final.asOf)>=Date.parse(minimumCutoff));
+});
+
+
+test('proof metadata and raw audit rows share the exact record budget',t=>{
+  const f=proofHistory(t,{rows:3}),lease=f.history.createRawReadLease(),seen=[];
+  const proof=createTxChartReadBudget({maxRecords:1});assert.equal(lease.step(row=>seen.push(row),proof),false);
+  assert.equal(proof.remainingRecords,0);assert.equal(proof.sourceBytesRead,f.bytes.length);assert.deepEqual(seen,[]);
+  const audit=createTxChartReadBudget({maxRecords:1});assert.equal(lease.step(row=>seen.push(row),audit),false);
+  assert.equal(audit.remainingRecords,0);assert.equal(audit.sourceBytesRead,0);assert.deepEqual(seen,[f.records[0]]);
+  assert.equal(lease.step(row=>seen.push(row),createTxChartReadBudget()),true);assert.deepEqual(seen,f.records);
+});
+
+
+test('r5 missing provenance after refused interior rewrite cannot reconstruct a proven generation on restart',t=>{
+  const f=proofHistory(t),id=f.history.sources[0].id,lease=f.history.createRawReadLease();
+  const raw=Buffer.from(f.bytes),at=raw.indexOf(Buffer.from('"index":90'));
+  assert.ok(at>512&&at<f.bytes.length-512);raw.write('"index":99',at);
+  fs.writeFileSync(f.file,raw);fs.appendFileSync(f.file,'{}\n');
+  assert.throws(()=>lease.step(()=>assert.fail('corrupt prefix published'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  assert.equal(lease.sourceProofProgress.state,'INVALID');clearTxChartLedgerCache();
+  const dbFile=txChartHistoryPath(f.root,f.cacheRoot),db=new DatabaseSync(dbFile);let chunks;
+  try{chunks=db.prepare('SELECT * FROM source_chunks').all();assert.ok(chunks.length>0);
+    db.prepare('DELETE FROM source_provenance WHERE source=?').run(id);
+  }finally{db.close();}
+  for(let attempt=0;attempt<2;attempt++){
+    assert.throws(()=>f.read(),/TX_CHART_HISTORY_PROOF_UNAVAILABLE/);clearTxChartLedgerCache();
+  }
+  const check=new DatabaseSync(dbFile,{readOnly:true});try{
+    assert.equal(check.prepare('SELECT id FROM active').get().id,id);
+    assert.equal(check.prepare('SELECT count(*) n FROM sources').get().n,1);
+    assert.deepEqual(check.prepare('SELECT * FROM source_chunks').all(),chunks);
+    assert.equal(check.prepare('SELECT * FROM source_provenance').get(),undefined);
+  }finally{check.close();}
+});
+
+for(const mode of ['empty','missing chunks','missing proof tables','missing format and provenance'])test(`r5 generation marker prevents false legacy reconstruction: ${mode}`,t=>{
+  const f=mode==='empty'?smallHistory(t):proofHistory(t);
+  if(mode==='empty'){fs.writeFileSync(f.file,'');f.history=f.read();}
+  const id=f.history.sources[0].id;clearTxChartLedgerCache();const dbFile=txChartHistoryPath(f.root,f.cacheRoot),db=new DatabaseSync(dbFile);
+  try{if(mode==='missing proof tables')db.exec('DROP TABLE source_provenance; DROP TABLE source_chunks');
+    else{db.exec('DELETE FROM source_provenance');if(mode==='missing chunks')db.exec('DELETE FROM source_chunks');
+      if(mode==='missing format and provenance')db.exec('ALTER TABLE sources DROP COLUMN proofFormat');}
+  }finally{db.close();}
+  assert.throws(()=>f.read(),/TX_CHART_HISTORY_PROOF_UNAVAILABLE/);
+  const check=new DatabaseSync(dbFile,{readOnly:true});try{assert.equal(check.prepare('SELECT id FROM active').get().id,id);
+    assert.equal(check.prepare('SELECT count(*) n FROM sources').get().n,1);
+  }finally{check.close();}
+});
+
+// Inject only after the final descriptor sample has been taken, before the
+// following path sample. Real read/ingest/lease code executes unchanged.
+function mutateBetweenFdAndPath(t,file,mutate){
+  const read=fs.readSync,fstat=fs.fstatSync,stat=fs.statSync;let readSeen=false,injected=false,pathSeen=false,sampledSize;
+  t.mock.method(fs,'readSync',function(...args){const result=read.apply(this,args);readSeen=true;return result;});
+  t.mock.method(fs,'fstatSync',function(...args){const result=fstat.apply(this,args);
+    if(readSeen&&!injected&&args[1]?.bigint){sampledSize=result.size;injected=true;mutate();}return result;});
+  t.mock.method(fs,'statSync',function(...args){const result=stat.apply(this,args);
+    if(injected&&args[0]===file&&args[1]?.bigint)pathSeen=true;return result;});
+  return ()=>{assert.equal(injected,true);assert.equal(pathSeen,true);return sampledSize;};
+}
+for(const phase of ['proof','ingestion'])test(`r5 suffix append between fd and path samples preserves ${phase}`,t=>{
+  const f=proofHistory(t,{rows:5}),lease=f.history.createRawReadLease(),seen=[];
+  if(phase==='ingestion')fs.appendFileSync(f.file,'{}\n');
+  const assertInjected=mutateBetweenFdAndPath(t,f.file,()=>fs.appendFileSync(f.file,'{}\n'));
+  if(phase==='proof')assert.equal(lease.step(row=>seen.push(row),createTxChartReadBudget()),true);
+  else assert.equal(f.read().createRawReadLease().step(row=>seen.push(row),createTxChartReadBudget()),true);
+  const sampledSize=assertInjected();assert.ok(BigInt(fs.statSync(f.file).size)>sampledSize);t.mock.restoreAll();
+  assert.deepEqual(seen,phase==='proof'?f.records:[...f.records,{}]);
+  if(phase==='proof'){assert.equal(lease.sourceProofProgress.state,'VERIFIED');assert.equal(lease.step(()=>assert.fail('duplicate'),createTxChartReadBudget()),true);}
+  const next=[];assert.equal(f.read().createRawReadLease().step(row=>next.push(row),createTxChartReadBudget()),true);
+  assert.deepEqual(next,[...f.records,...Array.from({length:phase==='proof'?1:2},()=>({}))]);
+});
+for(const change of ['same-size rewrite','shrink','shrink grown suffix','replacement'])test(`r5 fd/path sample gap still rejects ${change}`,t=>{
+  const f=proofHistory(t),lease=f.history.createRawReadLease();
+  if(change==='shrink grown suffix')fs.appendFileSync(f.file,'{}\n{}\n');
+  const assertInjected=mutateBetweenFdAndPath(t,f.file,()=>{
+    if(change==='same-size rewrite'){const bytes=Buffer.from(f.bytes);bytes[1000]=121;fs.writeFileSync(f.file,bytes);
+      const later=new Date(Date.now()+5000);fs.utimesSync(f.file,later,later);}
+    else if(change==='shrink')fs.writeFileSync(f.file,'{}\n');
+    else if(change==='shrink grown suffix')fs.truncateSync(f.file,f.bytes.length+3);
+    else{fs.renameSync(f.file,f.file+'.old');fs.writeFileSync(f.file,f.bytes);}
+  });
+  assert.throws(()=>lease.step(()=>assert.fail('unverified rows'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+  assertInjected();t.mock.restoreAll();assert.equal(lease.sourceProofProgress.state,'INVALID');
+  assert.throws(()=>lease.step(()=>assert.fail('sticky failure'),createTxChartReadBudget()),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});
+
+
+for(const empty of [false,true])test(`r5 pre-marker proof generation is sealed without reconstructing original witnesses: empty=${empty}`,t=>{
+  const f=empty?smallHistory(t):proofHistory(t);
+  if(empty){fs.writeFileSync(f.file,'');f.history=f.read();}
+  const id=f.history.sources[0].id,dbFile=txChartHistoryPath(f.root,f.cacheRoot);clearTxChartLedgerCache();
+  const db=new DatabaseSync(dbFile);let original;
+  try{db.exec('ALTER TABLE sources DROP COLUMN proofFormat');
+    original={provenance:db.prepare('SELECT * FROM source_provenance').all(),chunks:db.prepare('SELECT * FROM source_chunks').all(),
+      events:db.prepare('SELECT * FROM events').all()};
+  }finally{db.close();}
+  let history;for(let i=0;i<4;i++){history=f.read();if(history.sources[0].progress.complete)break;}
+  assert.equal(history.sources[0].id,id);const seen=[];
+  assert.equal(history.createRawReadLease().step(row=>seen.push(row),createTxChartReadBudget()),true);
+  assert.deepEqual(seen,empty?[]:f.records);clearTxChartLedgerCache();
+  const check=new DatabaseSync(dbFile);try{
+    assert.equal(check.prepare('SELECT proofFormat FROM sources WHERE id=?').get(id).proofFormat,'original-bytes-v1');
+    assert.deepEqual(check.prepare('SELECT * FROM source_provenance').all(),original.provenance);
+    assert.deepEqual(check.prepare('SELECT * FROM source_chunks').all(),original.chunks);
+    assert.deepEqual(check.prepare('SELECT * FROM events').all(),original.events);
+    check.exec('DELETE FROM source_provenance; DELETE FROM source_chunks');
+  }finally{check.close();}
+  assert.throws(()=>f.read(),/TX_CHART_HISTORY_PROOF_UNAVAILABLE/);
+});
+
+for(const field of ['identity','offset','count','proofFormat'])test(`r5 corrupt generation witness rejects ${field} after restart`,t=>{
+  const f=proofHistory(t),id=f.history.sources[0].id;clearTxChartLedgerCache();
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+  try{if(field==='proofFormat')db.exec("UPDATE sources SET proofFormat='unknown-format'");
+    else if(field==='identity')db.exec("UPDATE source_provenance SET identity='wrong-generation'");
+    else db.exec(`UPDATE source_provenance SET ${field}=${field}+1`);
+  }finally{db.close();}
+  assert.throws(()=>f.read(),/TX_CHART_HISTORY_(PROVENANCE_MISMATCH|ROW_COUNT_MISMATCH)/);
+  const check=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot),{readOnly:true});
+  try{assert.equal(check.prepare('SELECT id FROM active').get().id,id);}finally{check.close();}
 });

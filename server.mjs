@@ -290,7 +290,7 @@ function readLocalJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 }
 
-async function decisionWorkspacePayload(snapshot, service, marketInputs = null, { capture = false } = {}) {
+async function decisionWorkspacePayload(snapshot, service, marketInputs = null, { capture = false, minimumCutoff = null } = {}) {
   // Read the projection before the chart's cutoff is chosen; do not mix in a later publication.
   const projectedFlow = marketInputs ? marketInputs.flow : currentObservedFlow();
   const indexLeadership = service?.indexLeadership || null;
@@ -300,7 +300,7 @@ async function decisionWorkspacePayload(snapshot, service, marketInputs = null, 
     explicitRoot: process.env.FORWARD_SHADOW_RUNTIME_ROOT || null,
   });
   const chart = marketInputs ? marketInputs.chart
-    : await txChartService.load({ timeframe: '5m', mode: 'LIVE', ...(capture ? { capture: true } : {}) });
+    : await txChartService.load({ timeframe: '5m', mode: 'LIVE', ...(capture ? { capture: true, minimumCutoff } : {}) });
   const currentIdentity = chart?.tradeDate && chart?.actualContract && chart?.session
     ? { state: 'AVAILABLE', tradeDate: chart.tradeDate, contract: chart.actualContract, session: chart.session }
     : { state: 'UNAVAILABLE', tradeDate: null, contract: null, session: null };
@@ -696,8 +696,13 @@ const requestHandler = async (req, res) => {
         if (timeframe !== '5m') {
           sendJson(res, 400, { ok: false, error: 'DECISION_CAPTURE_REQUIRES_5M' }, { 'Cache-Control': 'no-store' }); return;
         }
+        const minimumCutoff = url.searchParams.get('minimumCutoff');
+        if (minimumCutoff !== null && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(minimumCutoff)
+            || !Number.isFinite(Date.parse(minimumCutoff)) || new Date(minimumCutoff).toISOString() !== minimumCutoff)) {
+          sendJson(res, 400, { ok: false, error: 'DECISION_CAPTURE_CUTOFF_INVALID' }, { 'Cache-Control': 'no-store' }); return;
+        }
         try {
-          const capture = await currentDiscussionWorkspace({ capture: true });
+          const capture = await currentDiscussionWorkspace({ capture: true, minimumCutoff });
           const data = decisionCaptureEnvelope(capture, timeframe);
           sendJson(res, data.state === 'PENDING' ? 202 : 200, { ok: true, data }, { 'Cache-Control': 'no-store' });
         } catch {

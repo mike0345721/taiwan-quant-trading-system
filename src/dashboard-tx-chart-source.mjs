@@ -12,6 +12,7 @@ import { readBoundedFile } from './daily-data-operations-files.mjs';
 
 const ledgerCache = new Map();
 let stagedAudit = null;
+let completedAudit = null;
 let timestampLineageCache = new WeakMap();
 const TAIPEI_OFFSET = '+08:00';
 const PERSISTENT_CACHE_CHECKPOINT_BYTES = 64 * 1024 * 1024;
@@ -550,8 +551,13 @@ export function loadTxDecisionChart({
   sourceBudget = null,
   staged = false,
   holdCompletedAudit = false,
+  minimumCutoff = null,
 } = {}) {
   if (!dataRoot || !calendar) throw new Error('TX_CHART_SOURCE_CONFIG_REQUIRED');
+  if (minimumCutoff !== null && (!holdCompletedAudit || typeof minimumCutoff !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(minimumCutoff)
+      || !Number.isFinite(Date.parse(minimumCutoff)) || new Date(minimumCutoff).toISOString() !== minimumCutoff))
+    throw Error('CHART_SELECTION_INVALID');
   const defaults = resolveDefaultChartSelection(calendar, now);
   const selectedTradeDate = tradeDate || defaults.tradeDate;
   const selectedSession = timeframe === '1D' ? 'NIGHT_PLUS_DAY' : (session || defaults.session);
@@ -562,23 +568,49 @@ export function loadTxDecisionChart({
   // The lease is never renewed by polling, so abandoned captures cannot freeze LIVE forever.
   if(stagedAudit?.captureStartedAt!=null&&(now.getTime()<stagedAudit.captureStartedAt
       ||now.getTime()-stagedAudit.captureStartedAt>=10000))stagedAudit=null;
-  // Keep only the last completed ordinary prefix for a bounded immediate Copy.
-  // Ordinary polling still starts fresh. A capture must recheck the original
-  // read lease below; a completed result is not permission to trust changed IO.
-  if(stagedAudit?.completedAt!=null&&stagedAudit.captureStartedAt==null
-      &&(!holdCompletedAudit||now.getTime()<stagedAudit.completedAt
-        ||now.getTime()-stagedAudit.completedAt>10000))stagedAudit=null;
-  if(staged&&sourceBudget&&stagedAudit?.key===auditKey){
-    const job=stagedAudit;
+  // A new ordinary audit must not evict the last reusable completed prefix.
+  // Keep at most one of each; neither clock rollback nor polling renews a lease.
+  if(completedAudit&&(now.getTime()<completedAudit.completedAt
+      ||(completedAudit.captureStartedAt==null?now.getTime()-completedAudit.completedAt>10000
+        :now.getTime()<completedAudit.captureStartedAt||now.getTime()-completedAudit.captureStartedAt>=10000)))completedAudit=null;
+  if(stagedAudit?.completedAt!=null&&stagedAudit.captureStartedAt==null)stagedAudit=null;
+  const meetsCutoff=job=>minimumCutoff===null||Date.parse(job.cutoff)>=Date.parse(minimumCutoff);
+  if(staged&&sourceBudget&&completedAudit?.key===auditKey){
+    let retirement;
+    try{retirement=completedAudit.lease.supersededByOwnWrite(sourceBudget);}
+    catch(error){completedAudit=null;stagedAudit=null;throw error;}
+    if(retirement==='PENDING'){
+      if(holdCompletedAudit){
+        if(completedAudit.captureStartedAt==null)completedAudit.captureStartedAt=now.getTime();
+        if(stagedAudit?.key===auditKey&&stagedAudit.captureStartedAt==null)stagedAudit.captureStartedAt=now.getTime();
+      }
+      // Do not call the stale lease's strict step or select a new audit while
+      // retirement proof is incomplete. Keep the displayed cutoff constraint.
+      const pending=stagedAudit?.key===auditKey?stagedAudit:completedAudit;
+      if(meetsCutoff(pending))return finishTxDecisionChart(pending.base,{...pending.context,sourceBudget,auditPending:true,
+        auditProgress:{state:'PENDING',phase:'SOURCE_PROOF',processedRecords:pending.lease.processedRecords,
+          totalRecords:pending.lease.totalRecords,cutoff:pending.cutoff,evaluatedAt:now.toISOString()}});
+      // A newer minimum has no eligible frozen frame yet. Continue through the
+      // ordinary bounded input-warmup path, without relabelling the old cutoff.
+    }
+    if(retirement==='SUPERSEDED'){
+      if(stagedAudit===completedAudit)stagedAudit=null;
+      completedAudit=null;
+    }
+  }
+  const reusable=completedAudit?.key===auditKey&&meetsCutoff(completedAudit)
+    &&(holdCompletedAudit||completedAudit.captureStartedAt!=null)?completedAudit:null;
+  const job=reusable??(stagedAudit?.key===auditKey&&meetsCutoff(stagedAudit)?stagedAudit:null);
+  if(staged&&sourceBudget&&job){
     if(holdCompletedAudit&&job.captureStartedAt==null)job.captureStartedAt=now.getTime();
     try{
       const complete=job.lease.step(job.audit.append,sourceBudget);
       const progress={state:complete?'COMPLETE':'PENDING',processedRecords:job.lease.processedRecords,
         totalRecords:job.lease.totalRecords,cutoff:job.cutoff,evaluatedAt:now.toISOString()};
-      if(complete&&job.completedAt==null)job.completedAt=now.getTime();
+      if(complete&&job.completedAt==null){job.completedAt=now.getTime();completedAudit=job;}
       return finishTxDecisionChart(complete?job.audit.finish({now:now.toISOString()}):job.base,
         {...job.context,sourceBudget,auditPending:!complete,auditProgress:progress});
-    }catch(error){stagedAudit=null;throw error;}
+    }catch(error){if(stagedAudit===job)stagedAudit=null;if(completedAudit===job)completedAudit=null;throw error;}
   }
   stagedAudit=null;
   if (!selectedTradeDate) {
@@ -667,9 +699,13 @@ function finishTxDecisionChart(result,{sources,sourceBudget,history,ledgerDates,
   return Object.freeze({ ...chart, trendStrength: buildChartTrendStrength(chart) });
 }
 
-export function releaseTxChartAudit(){stagedAudit=null;}
+export function releaseTxChartAudit(){
+  if(stagedAudit?.captureStartedAt!=null)stagedAudit=null;
+  if(completedAudit?.captureStartedAt!=null)completedAudit=null;
+}
 export function clearTxChartLedgerCache() {
   stagedAudit=null;
+  completedAudit=null;
   ledgerCache.clear();
   clearTxChartHistoryCache();
   timestampLineageCache = new WeakMap();

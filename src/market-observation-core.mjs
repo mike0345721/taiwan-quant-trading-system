@@ -44,12 +44,13 @@ function observePhysicalKnowledge(timeline,at,ordinal){
   if(fences.length>=LINEAGE_HISTORY_LIMIT)throw Error('OBSERVATION_LINEAGE_HISTORY_BUDGET');
   fences.push({startOrdinal:ordinal,knownNotBeforeMs:witness});
 }
-function beginInvalid(timeline,startMs,reason=LINEAGE_REASON,startInclusive=true){
+function beginInvalid(timeline,startMs,reason=LINEAGE_REASON,startInclusive=true,regressed=false){
   if(timeline.open)return;
   // A later physical invalidation cannot retroactively start before an already
   // witnessed quote/tick. Keep earlier snapshots intact; later queries remain
   // invalid until the existing explicit recovery rule is satisfied.
-  if(timeline.lastWitnessMs!==null&&(startMs===null||startMs<timeline.lastWitnessMs)){
+  if(timeline.lastWitnessMs!==null&&(startMs===null||startMs<timeline.lastWitnessMs
+      ||(regressed&&startMs===timeline.lastWitnessMs))){
     startMs=timeline.lastWitnessMs;startInclusive=false;
   }
   timeline.open={startMs,endMs:null,startInclusive,reason};
@@ -78,7 +79,8 @@ function observeCanonicalLineage(timeline,event,{inferMissingBreak=false}={}){
   const changed=timeline.activeIdentity!==null&&timeline.activeIdentity!==key(event);
   timeline.activeIdentity=key(event);
   if(changed&&event.kind==='futures_bidask')beginInvalid(timeline,at??timeline.highWaterMs);
-  if(event.availabilityLineageStatus!=='USABLE')beginInvalid(timeline,timeline.highWaterMs??at);
+  if(event.availabilityLineageStatus!=='USABLE')beginInvalid(timeline,timeline.highWaterMs??at,LINEAGE_REASON,true,
+    at!==null&&timeline.lastWitnessMs!==null&&at<timeline.lastWitnessMs);
   if(at!==null)timeline.highWaterMs=timeline.highWaterMs===null?at:Math.max(timeline.highWaterMs,at);
   const quarantined=timeline.quarantinedEpochs.some(item=>item.epoch===epoch);
   if(!quarantined&&event.kind==='futures_tick'&&event.availabilityLineageStatus==='USABLE'&&event.identityStatus==='USABLE')recoverLineage(timeline,at);
@@ -109,7 +111,8 @@ export function appendMarketObservationRecords(previous, records, options) {
     const next=materializeTxCanonicalObservations([record],{...options,ledgerOrdinalOffset:before.ordinal+i,initialState:physicalState});
     if(physicalState&&next.terminalState.epoch!==physicalState.epoch)timeline.highWaterMs=null;
     const invalidClock=at===null||(timeline.highWaterMs!==null&&at<timeline.highWaterMs);
-    if(invalidClock)beginInvalid(timeline,timeline.highWaterMs??at);
+    if(invalidClock)beginInvalid(timeline,timeline.highWaterMs??at,LINEAGE_REASON,true,
+      at!==null&&timeline.lastWitnessMs!==null&&at<timeline.lastWitnessMs);
     if(next.terminalState.breakPending)beginInvalid(timeline,at??timeline.highWaterMs);
     if(next.terminalState.epochLineageInvalid)beginInvalid(timeline,timeline.highWaterMs??at);
     if(at!==null)timeline.highWaterMs=timeline.highWaterMs===null?at:Math.max(timeline.highWaterMs,at);
@@ -256,7 +259,7 @@ export function marketObservationSnapshot(state,{timeframe='1m',mode='REPLAY',cu
   const semantic=state.fragmentSemantic??cvdSemanticResult(state.cvd).semantic;
   if(ms(cutoff)==null) return unavailableObservation('CUTOFF_REQUIRED',{timeframe,mode});
   const timeline=state.lineageTimeline;
-  const fence=timeline?.knowledgeFences?.find(item=>item.knownNotBeforeMs>ms(cutoff));
+  const fence=timeline?.knowledgeFences?.find(item=>item.knownNotBeforeMs>=ms(cutoff));
   const segmentKnowledgeBound=fence?fence.startOrdinal-1:Number.MAX_SAFE_INTEGER;
   const segment=[...state.segments].reverse().find(s=>{
     if(ms(s.startAvailableAt)>ms(cutoff)||ms(s.startAvailableAt)===null
