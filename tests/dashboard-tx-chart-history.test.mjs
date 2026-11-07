@@ -524,3 +524,28 @@ test('abandoned capture hold expires without renewal and ordinary live polling a
   assert.equal(released.sourceEventCount,141);assert.equal(released.lastPrice,20201);
   assert.equal(released.asOf,new Date(now.getTime()+10001).toISOString());
 });
+
+// A completed ordinary chart is the user's currently visible verified prefix.
+// Copy must not immediately repeat the same full chart/audit work.
+test('capture reuses a recently completed ordinary audit without changing its cutoff',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  const visible=complete(f,selection);assert.equal(visible.sourceAuditProgress.state,'COMPLETE');
+  const captured=run(f,{...selection,now:new Date(now.getTime()+500),holdCompletedAudit:true});
+  assert.equal(captured.sourceAuditProgress.state,'COMPLETE');assert.equal(captured.asOf,visible.asOf);
+  assert.equal(captured.sourceEventCount,visible.sourceEventCount);assert.equal(captured.lastPrice,visible.lastPrice);
+});
+test('ordinary polling after completion starts a new audit instead of freezing the completed prefix',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  const previous=complete(f,selection),next=run(f,{...selection,now:new Date(now.getTime()+1000)});
+  assert.equal(next.sourceAuditProgress.state,'PENDING');assert.notEqual(next.asOf,previous.asOf);
+});
+test('completed capture reuse expires and does not hide a changed verified store',t=>{
+  const f=fixture(t);complete(f);const now=new Date(options.asOf),selection={asOf:null,now,staged:true};
+  complete(f,selection);
+  const expired=run(f,{...selection,now:new Date(now.getTime()+10001),holdCompletedAudit:true});
+  assert.equal(expired.sourceAuditProgress.state,'PENDING');assert.notEqual(expired.asOf,options.asOf);
+  clearTxChartLedgerCache();complete(f);complete(f,selection);
+  const db=new DatabaseSync(txChartHistoryPath(f.root,f.cacheRoot));
+  db.exec('UPDATE events SET key=NULL WHERE rowid=(SELECT min(rowid) FROM events)');db.close();
+  assert.throws(()=>run(f,{...selection,now:new Date(now.getTime()+500),holdCompletedAudit:true}),/TX_CHART_HISTORY_READ_LEASE_INVALID/);
+});

@@ -562,6 +562,12 @@ export function loadTxDecisionChart({
   // The lease is never renewed by polling, so abandoned captures cannot freeze LIVE forever.
   if(stagedAudit?.captureStartedAt!=null&&(now.getTime()<stagedAudit.captureStartedAt
       ||now.getTime()-stagedAudit.captureStartedAt>=10000))stagedAudit=null;
+  // Keep only the last completed ordinary prefix for a bounded immediate Copy.
+  // Ordinary polling still starts fresh. A capture must recheck the original
+  // read lease below; a completed result is not permission to trust changed IO.
+  if(stagedAudit?.completedAt!=null&&stagedAudit.captureStartedAt==null
+      &&(!holdCompletedAudit||now.getTime()<stagedAudit.completedAt
+        ||now.getTime()-stagedAudit.completedAt>10000))stagedAudit=null;
   if(staged&&sourceBudget&&stagedAudit?.key===auditKey){
     const job=stagedAudit;
     if(holdCompletedAudit&&job.captureStartedAt==null)job.captureStartedAt=now.getTime();
@@ -569,7 +575,7 @@ export function loadTxDecisionChart({
       const complete=job.lease.step(job.audit.append,sourceBudget);
       const progress={state:complete?'COMPLETE':'PENDING',processedRecords:job.lease.processedRecords,
         totalRecords:job.lease.totalRecords,cutoff:job.cutoff,evaluatedAt:now.toISOString()};
-      if(complete&&job.captureStartedAt==null)stagedAudit=null;
+      if(complete&&job.completedAt==null)job.completedAt=now.getTime();
       return finishTxDecisionChart(complete?job.audit.finish({now:now.toISOString()}):job.base,
         {...job.context,sourceBudget,auditPending:!complete,auditProgress:progress});
     }catch(error){stagedAudit=null;throw error;}
