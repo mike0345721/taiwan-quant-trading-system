@@ -20,7 +20,10 @@ export function assertInteractiveOwnerParent(observed, { scriptPath, bindingPath
   };
   const expected = new RegExp('^-noprofile\\s+-sta\\s+-file\\s+'+token(scriptPath)+'\\s+-bindingpath\\s+'+token(bindingPath)+'$');
   const line = String(observed?.commandLine || '');
-  const args = line.replace(/^(?:"[^"]+"|\S+)\s+/, '');
+  // Process launchers may append ASCII argument separators; these are not part of a quoted path.
+  // Do not trim path values or accept control characters, extra flags, or additional arguments.
+  if (/[\0\r\n]/.test(line)) throw Error('OWNER_INTERACTIVE_PARENT_REQUIRED');
+  const args = line.replace(/^(?:"[^"]+"|\S+)\s+/, '').replace(/[ \t]+$/, '');
   if (observed?.interactive !== true || !Number.isInteger(observed.sessionId) || observed.sessionId <= 0
       || observed.parentSessionId !== observed.sessionId || normalized(observed.executablePath) !== normalized(shellPath)
       || !expected.test(normalized(args))) throw Error('OWNER_INTERACTIVE_PARENT_REQUIRED');

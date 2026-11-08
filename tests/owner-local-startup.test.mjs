@@ -88,3 +88,22 @@ test('parent query explicitly emits UTF8 without changing machine console settin
  const source=fs.readFileSync(new URL('../src/owner-local-startup.mjs',import.meta.url),'utf8');
  assert.ok(source.includes('[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);'));
 });
+
+// Reproduces the real MSI Start-Process command line's final separator, not an extra argument.
+test('interactive parent accepts trailing ASCII separators without changing path arguments',()=>{
+ const options={scriptPath:'D:/Taiwan stock/runtime/scripts/start-owner-local-acceptance.ps1',bindingPath:'D:/Taiwan stock/evidence/binding.json',shellPath:'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'};
+ const base={interactive:true,sessionId:1,parentSessionId:1,executablePath:options.shellPath};
+ const command='"'+options.shellPath+'" -NoProfile -STA -File "'+options.scriptPath+'" -BindingPath "'+options.bindingPath+'"';
+ for(const suffix of [' ','\t',' \t  ']) assert.doesNotThrow(()=>assertInteractiveOwnerParent({...base,commandLine:command+suffix.replaceAll('\\t','\t')},options));
+ for(const line of [command+' -Accept ',command+' -ExecutionPolicy Bypass ',command.replace('binding.json"','binding.json "')+' ',command.replace('binding.json','other.json')+' '])
+  assert.throws(()=>assertInteractiveOwnerParent({...base,commandLine:line},options),/OWNER_INTERACTIVE_PARENT_REQUIRED/);
+ for(const patch of [{interactive:false},{sessionId:0},{parentSessionId:2},{executablePath:'node.exe'}])
+  assert.throws(()=>assertInteractiveOwnerParent({...base,...patch,commandLine:command+' '},options),/OWNER_INTERACTIVE_PARENT_REQUIRED/);
+});
+test('interactive parent rejects newline and NUL even outside its arguments',()=>{
+ const options={scriptPath:'D:/runtime/start.ps1',bindingPath:'D:/binding.json',shellPath:'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'};
+ const base={interactive:true,sessionId:1,parentSessionId:1,executablePath:options.shellPath};
+ const command='powershell.exe -NoProfile -STA -File D:/runtime/start.ps1 -BindingPath D:/binding.json';
+ for(const suffix of ['\n','\r','\r\n','\0',' \n'])
+  assert.throws(()=>assertInteractiveOwnerParent({...base,commandLine:command+suffix},options),/OWNER_INTERACTIVE_PARENT_REQUIRED/);
+});
