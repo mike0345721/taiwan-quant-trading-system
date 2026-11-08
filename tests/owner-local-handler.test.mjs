@@ -1,3 +1,5 @@
+// Ephemeral test-only credentials; no Owner or live credential is used.
+import { randomBytes as randomFixtureBytes } from 'node:crypto';
 // Actual product request handler, auth, HTTP serialization, static serving and Journal.
 // Synthetic filesystem only; captured responses, no listener/Chrome/market source.
 import test from 'node:test';
@@ -17,7 +19,7 @@ import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs'
 import { OWNER_COOKIE, OWNER_NOTICE, ownerRequestAllowed } from '../src/owner-local-acceptance.mjs';
 import { assertMarketCandidateFilesystemRoots, marketCandidateRouteAllowed, marketCandidateQueryAllowed } from '../src/cru21-market-candidate.mjs';
 
-const fixturePassword = 'Fixture-Only-Password-2026';
+const fixturePassword = randomFixtureBytes(24).toString('base64url');
 const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 function fixture(t) {
   const base=path.resolve('data');fs.mkdirSync(base,{recursive:true});

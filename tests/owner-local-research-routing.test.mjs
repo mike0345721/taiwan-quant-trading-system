@@ -1,3 +1,5 @@
+// Ephemeral test-only credentials; no Owner or live credential is used.
+import { randomBytes as randomFixtureBytes } from 'node:crypto';
 // Synthetic paths only. No server/listener, real binding, database or runtime access.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -140,7 +142,7 @@ test('admitted Owner validates both environment and config routing; common serve
   const f = fixture(t), roots = prepareOwnerRoots(f.binding, runId);
   const env = ownerEnvironment(f.binding, roots, {});
   const admission = admitOwner({ accepted: true, riskVersion: OWNER_RISK_VERSION,
-    password: 'Synthetic-fixture-password-only' }, f.binding, runId);
+    password: randomFixtureBytes(24).toString('base64url') }, f.binding, runId);
   const config = { appRoot: roots.sourceRoot, dataDir: roots.privateDataRoot, host: '127.0.0.1', port: 18723,
     nodeEnv: 'production', mockData: false, cookieSecure: true, trustProxy: false, candidateReadOnly: true,
     passwordHash: admission.passwordHash, v2DatabasePath: f.database, v2ReportPath: f.report };

@@ -1,3 +1,5 @@
+// Ephemeral test-only credentials; no Owner or live credential is used.
+import { randomBytes as randomFixtureBytes } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER_SCOPE, OWNER_PREVIEW, assertOwnerMode, ownerRequestAllowed,
@@ -6,8 +8,8 @@ import { OWNER_SCOPE, OWNER_PREVIEW, assertOwnerMode, ownerRequestAllowed,
 test('owner mode defaults off and cannot be enabled by scope or password alone', () => {
   assert.equal(assertOwnerMode({}, {}), false);
   assert.throws(() => assertOwnerMode({ DASHBOARD_RELEASE_SCOPE: OWNER_SCOPE }, {}), /OWNER_/);
-  for (const input of [null, {}, { accepted: false, password: 'Fixture-only-1234' },
-    { accepted: true, password: 'short' }, { accepted: true, password: 'Fixture-only-1234', riskVersion: 'other' }]) {
+  for (const input of [null, {}, { accepted: false, password: randomFixtureBytes(24).toString('base64url') },
+    { accepted: true, password: 'short' }, { accepted: true, password: randomFixtureBytes(24).toString('base64url'), riskVersion: 'other' }]) {
     assert.throws(() => assertOwnerConsent(input), /OWNER_/);
   }
 });

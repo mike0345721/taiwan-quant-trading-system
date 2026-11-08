@@ -1,3 +1,5 @@
+// Ephemeral test-only credentials; no Owner or live credential is used.
+import { randomBytes as randomFixtureBytes } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -60,7 +62,7 @@ test('fresh private namespaces isolate prior sessions and exclude inherited secr
 
 test('launcher empty/cancelled/short-password input exits without a listener or receipt',()=>{
   const entry=path.resolve('scripts/start-owner-local-acceptance.mjs');
-  for(const frame of ['',JSON.stringify({accepted:false,password:'Fixture-Only-Password-2026'}),
+  for(const frame of ['',JSON.stringify({accepted:false,password:randomFixtureBytes(24).toString('base64url')}),
     JSON.stringify({accepted:true,riskVersion:'owner-local-http-risk-v1',password:'short',bindingPath:'SHOULD_NOT_BE_READ'})]) {
     const result=spawnSync(process.execPath,[entry],{input:frame?frame+'\n':'',encoding:'utf8',timeout:5000,
       windowsHide:true,env:ownerEnvironment({}, {readDataRoot:path.resolve('data'),producerDataRoot:path.resolve('data'),chartCacheRoot:path.resolve('data')})});
