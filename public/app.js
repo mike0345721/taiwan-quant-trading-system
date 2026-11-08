@@ -4146,7 +4146,8 @@ function renderRuntimeVersion(version = {}) {
   dwText('dw-version-sync', sync);
   const preview = $('cru46-preview-version');
   const isIntegrationPreview = version.previewType === 'INTEGRATION_OWNER_PREVIEW'
-    || version.previewType === 'CRU44_OWNER_PREVIEW' || version.previewType === 'CRU21_OWNER_PREVIEW';
+    || version.previewType === 'CRU44_OWNER_PREVIEW' || version.previewType === 'CRU21_OWNER_PREVIEW'
+    || version.previewType === 'OWNER_LOCAL_ACCEPTANCE_HTTP';
   preview?.classList.toggle('hidden', !isIntegrationPreview);
   if (!isIntegrationPreview) return;
   dwText('cru46-preview-badge', version.previewLabel || 'INTEGRATION OWNER PREVIEW');

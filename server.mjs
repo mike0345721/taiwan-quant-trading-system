@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { OWNER_SCOPE, OWNER_COOKIE, OWNER_NOTICE, assertOwnerMode, assertOwnerRoots, ownerRequestAllowed,
+  buildOwnerVersion, validateOwnerIdentity, attachOwnerStop, ownerStopping } from './src/owner-local-acceptance.mjs';
 import { assessCandidateMarketInputs } from './src/candidate-market-inputs.mjs';
 import { MARKET_CANDIDATE_SCOPE, MARKET_CANDIDATE_PREVIEW, assertMarketCandidateMode,
   assertMarketCandidateEnvironmentRoots, assertMarketCandidateFilesystemRoots, buildMarketCandidateVersion, validateMarketCandidateVersionTruth,
@@ -91,24 +93,29 @@ const [nodeMajor,nodeMinor]=process.versions.node.split('.').map(Number);
 if(nodeMajor<22||(nodeMajor===22&&nodeMinor<13)||(nodeMajor===23&&nodeMinor<4))throw new Error('DAILY_RELEASE_REQUIRES_NODE_22_13_OR_23_4_OR_NEWER');
 validateConfig();
 // Fail before cache/session/account initialization for an invalid scoped release.
-const marketCandidate = assertMarketCandidateMode(process.env, config);
+const ownerLocal = assertOwnerMode(process.env, config);
+const marketCandidate = ownerLocal || assertMarketCandidateMode(process.env, config);
 const localMarketOnly = marketCandidate ? false : assertLocalMarketMode(process.env, config);
 // Reject roots/version before any cache, Session, managed-entry or research initialization.
 const marketCandidateStartup = marketCandidate ? (() => {
-  const roots = assertMarketCandidateEnvironmentRoots(process.env, config);
+  const roots = assertMarketCandidateEnvironmentRoots(process.env, config, ownerLocal ? assertOwnerRoots : undefined);
   assertMarketCandidateFilesystemRoots(roots);
-  const runtimeIdentity = readRuntimeIdentity(config.appRoot);
-  const approvedMainIdentity = readRuntimeIdentity(config.appRoot, {ref:'refs/heads/main'});
   const git = args => execFileSync('git', ['--no-optional-locks','-c','core.fsmonitor=false','-c','core.untrackedCache=false',...args],
     {cwd:config.appRoot,encoding:'utf8',windowsHide:true,timeout:2000}).trim();
+  const runtimeIdentity = ownerLocal ? {status:'VERIFIED',commit:git(['rev-parse','HEAD'])} : readRuntimeIdentity(config.appRoot);
+  const approvedMainIdentity = ownerLocal ? {status:'VERIFIED',commit:git(['rev-parse','refs/heads/main'])}
+    : readRuntimeIdentity(config.appRoot, {ref:'refs/heads/main'});
   const actualTree = git(['rev-parse','HEAD^{tree}']);
   const actualBranch = git(['branch','--show-current']);
   const sourceClean = git(['status','--porcelain']) === '';
   const runtimeStartedAt = new Date().toISOString();
   const baseVersion = buildRuntimeVersionStatus({runtimeIdentity,approvedMainIdentity,runtimeStartedAt});
-  const version = buildMarketCandidateVersion({runtimeVersion:{...baseVersion,runtimeTree:actualTree},
+  const version = (ownerLocal ? buildOwnerVersion : buildMarketCandidateVersion)({runtimeVersion:{...baseVersion,runtimeTree:actualTree},
     branch:process.env.DASHBOARD_PREVIEW_BRANCH,dataMode:'LIVE'});
-  const truth = validateMarketCandidateVersionTruth(version, {expectedHead:process.env.DASHBOARD_PREVIEW_EXPECTED_HEAD,
+  const truth = ownerLocal ? validateOwnerIdentity({expectedHead:process.env.DASHBOARD_PREVIEW_EXPECTED_HEAD,
+    expectedTree:process.env.DASHBOARD_PREVIEW_EXPECTED_TREE,expectedBaseMain:process.env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN,
+    actualHead:runtimeIdentity.commit,actualTree,actualBaseMain:approvedMainIdentity.commit,actualBranch,sourceClean})
+    : validateMarketCandidateVersionTruth(version, {expectedHead:process.env.DASHBOARD_PREVIEW_EXPECTED_HEAD,
     expectedTree:process.env.DASHBOARD_PREVIEW_EXPECTED_TREE,actualTree,
     expectedBaseMain:process.env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN,actualBranch,sourceClean,
     host:config.host,port:config.port,inlineEnabled:false,candidateReadRoot:roots.readDataRoot,actualDataMode:'LIVE'});
@@ -123,7 +130,7 @@ const cru55 = config.cru55Candidate ? await import('./src/cru55-main-integration
 
 const expectedDataMode = config.mockData ? 'mock' : 'live';
 // Explicit source bindings read existing governed products; private writes stay in config.dataDir.
-const readDataRoot = resolveDashboardReadDataRoot({
+const readDataRoot = ownerLocal ? marketCandidateStartup.roots.readDataRoot : resolveDashboardReadDataRoot({
   dataDir: cru55 ? process.env.CRU55_FORMAL_DATA_ROOT : config.dataDir,
   host: config.host, port: config.port, actualDataMode: expectedDataMode.toUpperCase(),
   previewType: process.env.DASHBOARD_PREVIEW_TYPE, inlineEnabled: process.env.ASK_GPT_INLINE_ENABLED === '1',
@@ -283,6 +290,11 @@ function currentCru46RuntimeReadiness() {
   const browser = validateBrowserRuntimeProof(browserRuntimeProof,
     { exactHead: runtimeIdentity.commit, runtimeStartedAt, requireLongWindows: cru44PreviewEnabled });
   const readiness = buildCru46Readiness({ identity, vendor, producer, chart, observedFlow, browser });
+  if (ownerLocal) {
+    const unqualified = { ready:false, reasons:['OWNER_HTTP_NOT_FORMAL_HTTPS_NATIVE_OR_LIVE_QUALIFICATION'] };
+    return { ...readiness, runtimePreflightReady:false, runtimeReady:{...readiness.runtimeReady,...unqualified},
+      ownerPreviewReady:unqualified, vendor, producer, chart, observedFlow, parity:readiness.runtimeReady.parity, browser };
+  }
   return { ...readiness, vendor, producer, chart, observedFlow, parity: readiness.runtimeReady.parity, browser };
 }
 
@@ -511,7 +523,7 @@ function getSession(req) {
 function runtimeSessionCookieName() {
   // Cookies are shared across localhost ports. Candidate login/logout must not
   // replace or clear the formal dashboard's browser session.
-  return cru55 ? 'cru55_main_session' : marketCandidate || config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session';
+  return typeof ownerLocal !== 'undefined' && ownerLocal ? OWNER_COOKIE : cru55 ? 'cru55_main_session' : marketCandidate || config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session';
 }
 
 function requireSession(req, res) {
@@ -541,6 +553,9 @@ const inlineAssistant = new InlineAssistant({ enabled: inlineEnabled,
 const inlineHandler = createInlineHandler({assistant:inlineAssistant,port:config.port,requireCsrf});
 
 const requestHandler = async (req, res) => {
+  if (typeof ownerLocal !== 'undefined' && ownerLocal && !ownerRequestAllowed(req)) {
+    sendJson(res,403,{ok:false,error:'OWNER_HTTP_ORIGIN_REJECTED'}); return;
+  }
   const isHttps = requestIsHttps(req, config.trustProxy);
   setSecurityHeaders(res, { isHttps });
   res.setHeader('X-Request-Id', crypto.randomUUID());
@@ -550,6 +565,9 @@ const requestHandler = async (req, res) => {
   const ip = clientIp(req, config.trustProxy);
 
   try {
+    if (ownerLocal && pathname === '/api/v1/cru46-browser-runtime-proof') {
+      sendJson(res,403,{ok:false,error:'OWNER_HTTP_NOT_HTTPS_OR_NATIVE_EVIDENCE'}); return;
+    }
     if (marketCandidate) assertMarketCandidateFilesystemRoots(marketCandidateStartup.roots);
     if (marketCandidate && !marketCandidateRouteAllowed(req.method, pathname)) {
       sendJson(res,403,{ok:false,error:'MARKET_CANDIDATE_READ_ONLY'}); return;
@@ -579,7 +597,9 @@ const requestHandler = async (req, res) => {
           calendar: operatingCalendar,
         }),
         inlineAssistant: {enabled:inlineEnabled,usageRoute:'CHATGPT_SUBSCRIPTION',paidApiFallback:false},
-        candidateRelease: marketCandidate ? {scope:MARKET_CANDIDATE_SCOPE,transport:'HTTPS',
+        ownerLocalAcceptance: ownerLocal ? {scope:OWNER_SCOPE,transport:'HTTP',deliveryAccepted:false,
+          dataQualificationDeclared:false,httpsQualified:false,nativeQualified:false,secureCookieBrowserVerification:'NOT_RUN'} : null,
+        candidateRelease: marketCandidate && !ownerLocal ? {scope:MARKET_CANDIDATE_SCOPE,transport:'HTTPS',
           aiEnabled:false,certificatePinConfigured:process.env.DASHBOARD_TLS_CERT_SHA256,
           deliveryAccepted:false,dataQualificationDeclared:false} : null,
         localRelease: localMarketOnly ? { scope:'MARKET_RESEARCH_AI_DISABLED', transport:'HTTPS',
@@ -1014,11 +1034,11 @@ const requestHandler = async (req, res) => {
         const served = await serveStatic(res, path.dirname(lightweightChartsPath), `/${path.basename(lightweightChartsPath)}`);
         if (served) return;
       }
-      const served = await serveStatic(res, config.publicDir, pathname);
+      const served = await serveStatic(res, config.publicDir, pathname, ownerLocal ? {htmlNotice:OWNER_NOTICE} : undefined);
       if (served) return;
       // SPA fallback only for paths without a file extension.
       if (!pathname.includes('.')) {
-        const fallback = await serveStatic(res, config.publicDir, '/index.html');
+        const fallback = await serveStatic(res, config.publicDir, '/index.html', ownerLocal ? {htmlNotice:OWNER_NOTICE} : undefined);
         if (fallback) return;
       }
     }
@@ -1033,7 +1053,13 @@ const requestHandler = async (req, res) => {
     sendJson(res, status, { ok: false, error: status >= 500 && !knownResearchUnavailable ? 'INTERNAL_ERROR' : error.message });
   }
 };
-const server = createDashboardServer(requestHandler, process.env, config);
+// Explicitly admitted mode only. The existing TLS factory is never downgraded.
+const server = ownerLocal ? http.createServer(requestHandler) : createDashboardServer(requestHandler, process.env, config);
+if (ownerLocal) {
+  assertOwnerMode(process.env, config);
+  attachOwnerStop(() => shutdown('OWNER_STOP_OR_DIALOG_CLOSED'));
+  if (ownerStopping()) throw Error('OWNER_CANCELLED');
+}
 
 server.requestTimeout = 20_000;
 server.headersTimeout = 10_000;
@@ -1041,8 +1067,11 @@ server.keepAliveTimeout = 5_000;
 server.maxRequestsPerSocket = 100;
 
 server.listen(config.port, config.host, async () => {
-  console.log(`台股決策雷達 V3.7.3：${localMarketOnly || marketCandidate ? 'https' : 'http'}://${config.host}:${config.port}`);
-  console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
+  if (ownerLocal) console.log('OWNER_LOCAL_LISTENING http://localhost:18723 | HTTP | NOT PRODUCTION | NOT LIVE QUALIFIED');
+  else {
+    console.log(`台股決策雷達 V3.7.3：${localMarketOnly || marketCandidate ? 'https' : 'http'}://${config.host}:${config.port}`);
+    console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
+  }
   // Warm only after listening, through the same bounded worker as chart requests.
   // Health reads cached evidence and truthfully reports pending/stale state.
   if (!cru55 && !config.cru55Acceptance) {

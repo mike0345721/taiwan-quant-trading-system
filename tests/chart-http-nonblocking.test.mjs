@@ -18,7 +18,7 @@ function harness() {
   const context = {
     URL, sessions, parseCookies, safeEqual, console, crypto: { randomUUID: () => 'synthetic-chart-request' },
     config: { candidateReadOnly: false, host: '127.0.0.1', port: 18723 },
-    process: { env: {} }, cru55: null, formalEntry: null, marketCandidate: false,
+    process: { env: {} }, cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
     inlineHandler: async () => false,
     sendJson(res, status, body) { res.status = status; res.body = JSON.parse(JSON.stringify(body)); },
@@ -54,7 +54,7 @@ function harness() {
   const readiness = source.slice(source.indexOf('function currentCru46RuntimeReadiness()'), source.indexOf('function readLocalJson('));
   const feedStart = source.indexOf('async function loadMarketChangeFeed(');
   const feed = source.slice(feedStart, source.indexOf('function preliveStatus('));
-  const handler = source.slice(source.indexOf('const requestHandler ='), source.indexOf('const server = createDashboardServer'));
+  const handler = source.slice(source.indexOf('const requestHandler ='), source.indexOf('const server ='));
   assert.ok(feedStart >= 0, 'market-change requests must await the bounded chart service');
   vm.runInNewContext(`${auth}\n${readiness}\n${feed}\n${handler}\nglobalThis.handle=requestHandler;`, context);
   async function request(url, authenticated = true) {

@@ -149,6 +149,7 @@ export function selectDashboardProductSurface({ previewType, actualBranch, local
   // This describes visible capabilities, never market qualification or Owner acceptance.
   if (localMarketOnly === true && !previewType) return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;
   if (marketCandidate === true && previewType === 'CRU21_MARKET_RESEARCH_CANDIDATE') return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;
+  if (marketCandidate === true && previewType === 'OWNER_LOCAL_ACCEPTANCE_HTTP') return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;
   if (previewType === 'CRU21_OWNER_PREVIEW'
       && ['codex/cru21-decision-quality-p0-20261016', 'codex/cru21-ui-auth-acceptance-20261023', 'codex/cru21-emergency-market-calendar-qa-20261023', 'codex/cru21-preopen-integrated-candidate-20261023', 'codex/cru21-flow-freshness-repair-20261027', 'codex/cru21-offline-compatibility-20261027', 'codex/cru21-repository-closeout-20261029'].includes(actualBranch)) {
     return CRU21_EVIDENCE_HOME_PRODUCT_SURFACE;

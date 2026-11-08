@@ -1,9 +1,13 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readManagedConfig } from './cru55-managed-plan.mjs';
+import { assertOwnerSelected, ownerAdmission } from './owner-local-acceptance.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
+// No scoped Owner config may reach any managed/source/auth store via env alone.
+const ownerLocal = assertOwnerSelected(process.env);
+const ownerData = ownerLocal ? path.join(appRoot, 'data/owner-local-acceptance', ownerAdmission().runId) : null;
 // Explicit reader boundary; absent/0 preserves the existing formal behavior.
 const candidateReadOnly = process.env.DASHBOARD_CANDIDATE_READ_ONLY;
 if (candidateReadOnly && !['0', '1'].includes(candidateReadOnly)) throw Error('CANDIDATE_READ_ONLY_FLAG_INVALID');
@@ -53,15 +57,15 @@ export const config = Object.freeze({
   cru55Acceptance: acceptance,
   candidateReadOnly: candidateReadOnly === '1',
   candidateV2Binding,
-  dataDir: acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot, 'data')),
-  historyDir: path.join(acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot,'data')), 'history'),
+  dataDir: ownerData || acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot, 'data')),
+  historyDir: path.join(ownerData || acceptanceData || (cru55Candidate ? candidateData : path.join(appRoot,'data')), 'history'),
   // Explicit read-only research inputs; never redirected to the caller cwd.
   v2DatabasePath: path.resolve(appRoot, process.env.V2_RESEARCH_DATABASE_PATH || 'v2/data/research-v2.sqlite'),
   v2ReportPath: path.resolve(appRoot, process.env.V2_BACKTEST_REPORT_PATH || 'v2/reports/latest-backtest.json'),
   host: process.env.HOST || '127.0.0.1',
   port: intEnv('PORT', 8787, 1, 65535),
   nodeEnv: process.env.NODE_ENV || 'production',
-  passwordHash: process.env.DASHBOARD_PASSWORD_HASH || '',
+  passwordHash: ownerLocal ? ownerAdmission().passwordHash : process.env.DASHBOARD_PASSWORD_HASH || '',
   sessionTtlMs: intEnv('SESSION_TTL_MINUTES', 480, 5, 1440) * 60_000,
   rememberedSessionTtlMs: intEnv('REMEMBER_SESSION_DAYS', 30, 1, 90) * 86_400_000,
   refreshIntervalMs: intEnv('REFRESH_INTERVAL_SECONDS', 300, 0, 86_400) * 1000,

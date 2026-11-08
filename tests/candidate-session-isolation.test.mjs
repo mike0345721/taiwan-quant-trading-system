@@ -9,7 +9,7 @@ function harness(candidateReadOnly, cru55 = null, marketCandidate = false) {
   const sessions = new SessionStore(60000), session = sessions.create('127.0.0.1');
   const context = { sessions, parseCookies, safeEqual, sessionCookie, clearSessionCookie,
     config: { candidateReadOnly, nodeEnv: 'test', passwordHash: '', sessionTtlMs: 60000, cookieSecure: true },
-    cru55, marketCandidate, formalEntry: null, URL, crypto: { randomUUID: () => 'synthetic-session-test' }, console,
+    cru55, marketCandidate, ownerLocal:false, formalEntry: null, URL, crypto: { randomUUID: () => 'synthetic-session-test' }, console,
     marketCandidateStartup: { roots: {} }, assertMarketCandidateFilesystemRoots() {},
     marketCandidateRouteAllowed: () => true, marketCandidateQueryAllowed: () => true,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
@@ -18,7 +18,7 @@ function harness(candidateReadOnly, cru55 = null, marketCandidate = false) {
     sendJson(res, status, body) { res.status = status; res.body = body; },
   };
   const auth = source.slice(source.indexOf('function getSession(req)'), source.indexOf('const inlineEnabled ='));
-  const handler = source.slice(source.indexOf('const requestHandler ='), source.indexOf('const server = createDashboardServer'));
+  const handler = source.slice(source.indexOf('const requestHandler ='), source.indexOf('const server ='));
   vm.runInNewContext(`${auth}\n${handler}\nglobalThis.readSession=getSession;globalThis.handle=requestHandler;`, context);
   return { session,
     read(cookie) { return context.readSession({ headers: { cookie } }); },

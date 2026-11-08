@@ -17,7 +17,7 @@ const reason = 'CANDIDATE_READ_ONLY_DAILY_UPDATE';
 // socket, child process, external request, real credential or data file is used.
 function readConfig(flag) {
   const context = { path, fileURLToPath,
-    readManagedConfig() { throw Error('UNEXPECTED_MANAGED_CONFIG'); },
+    assertOwnerSelected: () => false, ownerAdmission: () => null, readManagedConfig() { throw Error('UNEXPECTED_MANAGED_CONFIG'); },
     process: { env: { NODE_ENV: 'production', DASHBOARD_PASSWORD_HASH: 'synthetic-config-only',
       ...(flag === undefined ? {} : { DASHBOARD_CANDIDATE_READ_ONLY: flag }) } } };
   const code = configSource.replace(/^import .*;\r?\n/gm, '')
@@ -36,7 +36,7 @@ function harness(flag) {
     process: { execPath: 'synthetic-node', env: { V2_DATABASE_PATH: 'synthetic-protected-source' } },
     crypto: { randomUUID: () => 'synthetic-request' }, console,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
-    cru55: null, formalEntry: null, marketCandidate: false, inlineHandler: async () => false,
+    cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false, inlineHandler: async () => false,
     currentCru46RuntimeReadiness: () => ({ runtimeReady: false }),
     runtimeIdentity: { commit: 'a'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: { approvedMainCommit: 'b'.repeat(40), syncState: 'MISMATCH' },
@@ -53,7 +53,7 @@ function harness(flag) {
     readDecisionOutcomes: () => [],
   };
   const auth = serverSource.slice(serverSource.indexOf('function getSession(req)'), serverSource.indexOf('const inlineEnabled ='));
-  const handler = serverSource.slice(serverSource.indexOf('const requestHandler ='), serverSource.indexOf('const server = createDashboardServer'));
+  const handler = serverSource.slice(serverSource.indexOf('const requestHandler ='), serverSource.indexOf('const server ='));
   assert.ok(auth && handler && handler.includes("pathname === '/api/v2/daily-update'"));
   vm.runInNewContext(`let dailyUpdateProcess=null;\n${auth}\n${handler}\nglobalThis.handle=requestHandler;`, context);
   async function request(url, { method = 'GET', authenticated = true, csrf = true, body = {} } = {}) {

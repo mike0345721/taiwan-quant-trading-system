@@ -73,7 +73,7 @@ export async function readJson(req, { maxBytes = 16_384 } = {}) {
   }
 }
 
-export async function serveStatic(res, publicDir, pathname) {
+export async function serveStatic(res, publicDir, pathname, { htmlNotice = null } = {}) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   const normalized = path.posix.normalize(requested).replace(/^\.\.\/(?:\.\.\/)+/, '');
   const absolute = path.resolve(publicDir, `.${normalized}`);
@@ -82,7 +82,11 @@ export async function serveStatic(res, publicDir, pathname) {
   try {
     const stat = await fs.stat(absolute);
     if (!stat.isFile()) return false;
-    const body = await fs.readFile(absolute);
+    let body = await fs.readFile(absolute);
+    if (htmlNotice && path.extname(absolute) === '.html') {
+      const escaped = htmlNotice.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+      body = Buffer.from(body.toString('utf8').replace(/<body([^>]*)>/i, `<body$1><aside class="owner-local-notice" role="status">${escaped}</aside>`));
+    }
     const type = MIME[path.extname(absolute).toLowerCase()] || 'application/octet-stream';
     res.writeHead(200, {
       'Content-Type': type,

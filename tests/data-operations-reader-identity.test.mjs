@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { readDataOperationsReaderIdentity } from '../src/dashboard-data-operations-reader-identity.mjs';
 
 const serverSource = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
-const handler = serverSource.slice(serverSource.indexOf('const requestHandler ='), serverSource.indexOf('const server = createDashboardServer'));
+const handler = serverSource.slice(serverSource.indexOf('const requestHandler ='), serverSource.indexOf('const server ='));
 const manifestHash = 'a'.repeat(64), calendarHash = 'b'.repeat(64);
 const reason = 'DATA_OPERATIONS_READER_UNVERIFIED';
 const unavailable = { schemaVersion: 'data-operations-reader-identity-v1', state: 'UNVERIFIED', reasonCodes: [reason] };
@@ -22,7 +22,7 @@ function harness({ candidateReadOnly = true, manifestPath = 'C:/synthetic/govern
     URL, process: { env: { DATA_OPERATIONS_MANIFEST_PATH: manifestPath, DATA_OPERATIONS_OUTPUT_ROOT: outputRoot } },
     config: { candidateReadOnly, dataDir: 'C:/synthetic/candidate/data' },
     crypto: { randomUUID: () => 'synthetic' }, requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => 'loopback',
-    cru55: null, formalEntry: null, marketCandidate: false, inlineHandler: async () => false, runtimeIdentity: { commit: 'c'.repeat(40), status: 'VERIFIED' },
+    cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false, inlineHandler: async () => false, runtimeIdentity: { commit: 'c'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: {}, currentCru46RuntimeReadiness: () => ({ runtimeReady: { ready: false, reasons: ['EXISTING_BLOCKER'] } }),
     inlineEnabled: false, localMarketOnly: false, productSurfaceContract: {}, operatingCalendar: calendar,
     assessTaifexMarketSession: () => ({ state: 'UNKNOWN' }),

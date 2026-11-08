@@ -977,3 +977,12 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
 .dw-gpt-body .dw-gpt-feedback { margin-top: 8px; overflow-wrap: anywhere; }
 .dw-gpt-open { display: inline-block; margin-top: 8px; font-size: 11px; }
 .dw-gpt-open.hidden { display: none; }
+:root .owner-local-notice {
+  position: relative;
+  z-index: 100;
+  padding: 12px 20px;
+  border-bottom: 2px solid #f0b34b;
+  background: #3a2608;
+  color: #fff3d6;
+  font: 600 14px/1.5 system-ui, sans-serif;
+}

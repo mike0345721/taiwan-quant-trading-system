@@ -16,10 +16,19 @@ export function assertMarketCandidateMode(env, config) {
       fail('MARKET_CANDIDATE_SCOPE_REQUIRED');
     return false;
   }
+  assertCandidateModeBoundary(env, config, MARKET_CANDIDATE_PREVIEW);
+  if (!path.isAbsolute(env.DASHBOARD_TLS_BUNDLE || '') || /^[\\/]{2}/.test(env.DASHBOARD_TLS_BUNDLE || '')
+      || !hash(env.DASHBOARD_TLS_BUNDLE_SHA256) || !hash(env.DASHBOARD_TLS_CERT_SHA256))
+    fail('MARKET_CANDIDATE_TLS_IDENTITY_REQUIRED');
+  return true;
+}
+
+// Shared isolation only. Each transport retains its own independent admission.
+export function assertCandidateModeBoundary(env, config, preview) {
   if (config.host !== '127.0.0.1' || config.port !== 18723 || config.nodeEnv !== 'production'
       || config.mockData !== false || config.cookieSecure !== true || config.trustProxy !== false
       || config.cru55Candidate || config.cru55Acceptance || env.ASK_GPT_INLINE_ENABLED !== '0'
-      || env.DASHBOARD_PREVIEW_TYPE !== MARKET_CANDIDATE_PREVIEW
+      || env.DASHBOARD_PREVIEW_TYPE !== preview
       || env.DASHBOARD_PREVIEW_BRANCH !== MARKET_CANDIDATE_BRANCH
       || !sha(env.DASHBOARD_PREVIEW_EXPECTED_HEAD) || !sha(env.DASHBOARD_PREVIEW_EXPECTED_TREE)
       || !sha(env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN)
@@ -31,13 +40,14 @@ export function assertMarketCandidateMode(env, config) {
         'DASHBOARD_FORMAL_READ_ROOT', 'ASK_GPT_CANDIDATE_READ_ROOT', 'DASHBOARD_RUNTIME_COMMIT',
         'DATA_OPERATIONS_MANIFEST_PATH', 'CRU34_SNAPSHOT_ARTIFACT_PATH', 'CRU34_SNAPSHOT_FRESHNESS_CUTOFF']
         .some(key => env[key])) fail('MARKET_CANDIDATE_MODE_REJECTED');
-  if (!path.isAbsolute(env.DASHBOARD_TLS_BUNDLE || '') || /^[\\/]{2}/.test(env.DASHBOARD_TLS_BUNDLE || '')
-      || !hash(env.DASHBOARD_TLS_BUNDLE_SHA256) || !hash(env.DASHBOARD_TLS_CERT_SHA256))
-    fail('MARKET_CANDIDATE_TLS_IDENTITY_REQUIRED');
   return true;
 }
 
-export function assertMarketCandidateRoots({ sourceRoot, privateDataRoot, readDataRoot, producerDataRoot, chartCacheRoot } = {}) {
+export function assertMarketCandidateRoots(input = {}) {
+  return assertCandidateRoots(input, 'data');
+}
+
+export function assertCandidateRoots({ sourceRoot, privateDataRoot, readDataRoot, producerDataRoot, chartCacheRoot } = {}, privateDirectory) {
   const input = { sourceRoot, privateDataRoot, readDataRoot, producerDataRoot, chartCacheRoot };
   if (Object.values(input).some(value => typeof value !== 'string' || !path.isAbsolute(value)
       || /^[\\/]{2}/.test(value) || /[\0\r\n]/.test(value))) fail('MARKET_CANDIDATE_ROOT_REQUIRED');
@@ -46,7 +56,7 @@ export function assertMarketCandidateRoots({ sourceRoot, privateDataRoot, readDa
   const equal = (left, right) => normalized(left) === normalized(right);
   const inside = (left, right) => { const relative = path.relative(normalized(left), normalized(right));
     return !relative || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative)); };
-  if (!equal(roots.privateDataRoot, path.join(roots.sourceRoot, 'data'))
+  if (!equal(roots.privateDataRoot, path.join(roots.sourceRoot, privateDirectory))
       || !equal(roots.chartCacheRoot, path.join(roots.privateDataRoot, 'dashboard-chart-cache'))
       || [[roots.sourceRoot, roots.readDataRoot], [roots.sourceRoot, roots.producerDataRoot],
         [roots.readDataRoot, roots.producerDataRoot]].some(([left, right]) => inside(left, right) || inside(right, left)))
@@ -54,8 +64,8 @@ export function assertMarketCandidateRoots({ sourceRoot, privateDataRoot, readDa
   return Object.freeze(roots);
 }
 
-export function assertMarketCandidateEnvironmentRoots(env, config) {
-  const roots = assertMarketCandidateRoots({ sourceRoot: config.appRoot, privateDataRoot: config.dataDir,
+export function assertMarketCandidateEnvironmentRoots(env, config, validateRoots = assertMarketCandidateRoots) {
+  const roots = validateRoots({ sourceRoot: config.appRoot, privateDataRoot: config.dataDir,
     readDataRoot: env.DASHBOARD_CANDIDATE_READ_ROOT, producerDataRoot: env.CRU34_LIVE_DATA_ROOT,
     chartCacheRoot: env.TX_CHART_CACHE_ROOT });
   const expected = { TX_CHART_DATA_ROOT: roots.readDataRoot,

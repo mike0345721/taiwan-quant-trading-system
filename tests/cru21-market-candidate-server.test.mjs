@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
 const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
+  'src/owner-local-acceptance.mjs',
   'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs',
   'src/candidate-market-inputs.mjs', 'src/data-quality.mjs',
   'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
@@ -59,7 +60,12 @@ function syntheticMarketInputs() {
   return { chart, flow };
 }
 
-function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, nodeVersion=process.versions.node } = {}) {
+function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, nodeVersion=process.versions.node,
+  owner = false, consent = true } = {}) {
+  const runId = '12345678-1234-1234-1234-123456789abc';
+  const dataRoot = path.join(appRoot, owner ? 'data/owner-local-acceptance/' + runId : 'data');
+  const sessionFile = path.join(dataRoot, 'sessions.json');
+  let effectivePasswordHash = passwordHash;
   const counters = { network: 0, bridge: 0, spawn: 0, marketConstructor: 0, marketRefresh: 0,
     cacheConstructor: 0, cacheInit: 0, cacheRead: 0, cacheWrite: 0, intervals: 0,
     credential: 0, aiOperation: 0, forbiddenOther: 0, tlsCapture: 0, fsReads: [], fsWrites: [], git: [], chartSelections: [] };
@@ -88,10 +94,13 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
     CRU34_LIVE_STATUS_PATH: path.join(producerRoot, 'runtime/cru34-live/status.json'),
     V2_RESEARCH_DATABASE_PATH: path.join(readRoot, 'v2/data/research-v2.sqlite'),
     V2_BACKTEST_REPORT_PATH: path.join(readRoot, 'v2/reports/latest-backtest.json'),
-    DATA_OPERATIONS_OUTPUT_ROOT: path.join(readRoot, 'quality/daily-data-operations'), ...envPatch };
+    DATA_OPERATIONS_OUTPUT_ROOT: path.join(readRoot, 'quality/daily-data-operations'),
+    ...(owner ? {DASHBOARD_RELEASE_SCOPE:'OWNER_LOCAL_ACCEPTANCE_HTTP_V1',DASHBOARD_PREVIEW_TYPE:'OWNER_LOCAL_ACCEPTANCE_HTTP',
+      REFRESH_INTERVAL_SECONDS:'0',DASHBOARD_TLS_BUNDLE:'',DASHBOARD_TLS_BUNDLE_SHA256:'',DASHBOARD_TLS_CERT_SHA256:''} : {}), ...envPatch };
   const config = Object.freeze({ appRoot, publicDir: path.join(appRoot, 'public'), dataDir: dataRoot,
     historyDir: path.join(dataRoot, 'history'), host: '127.0.0.1', port: 18723, nodeEnv: 'production',
-    passwordHash, cookieSecure: true, mockData: false, trustProxy: false, cru55Candidate: false, cru55Acceptance: null,
+    get passwordHash() { return effectivePasswordHash; }, candidateReadOnly:owner,
+    cookieSecure: true, mockData: false, trustProxy: false, cru55Candidate: false, cru55Acceptance: null,
     sessionTtlMs: 300000, rememberedSessionTtlMs: 600000, refreshIntervalMs: 300000, upstreamTimeoutMs: 1000,
     ...configPatch });
   const readMemory = (name, encoding) => {
@@ -129,7 +138,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
   const bridge = () => deny('bridge');
   const off = () => unavailable('SYNTHETIC_INPUT_UNAVAILABLE');
   const mocks = {
-    'src/config.mjs': { config, validateConfig() { assert.equal(config.nodeEnv, 'production'); assert.equal(config.passwordHash, passwordHash); } },
+    'src/config.mjs': { config, validateConfig() { assert.equal(config.nodeEnv, 'production'); assert.equal(config.passwordHash, effectivePasswordHash); } },
     'src/cache-store.mjs': { CacheStore: class {
       constructor(options) { counters.cacheConstructor++; assert.equal(options.dataDir, readRoot); assert.equal(options.historyDir, path.join(readRoot, 'history')); }
       async init() { counters.cacheInit++; throw Error('Candidate must not initialize a read-only source cache'); }
@@ -250,6 +259,8 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
       assert.equal(executable, 'git'); counters.git.push(args.join(' '));
       assert.equal(JSON.stringify(args.slice(0, 5)), '["--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false"]');
       const command = args.slice(5);
+      if (owner && JSON.stringify(command) === '["rev-parse","HEAD"]') return observed.head ?? head;
+      if (owner && JSON.stringify(command) === '["rev-parse","refs/heads/main"]') return observed.base ?? base;
       if (JSON.stringify(command) === '["rev-parse","HEAD^{tree}"]') return observed.tree ?? tree;
       if (JSON.stringify(command) === '["branch","--show-current"]') return observed.branch ?? branch;
       if (JSON.stringify(command) === '["status","--porcelain"]') return observed.dirty ? ' M synthetic-source\n' : '';
@@ -257,7 +268,12 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
     },
   };
   const network = new Proxy({}, { get() { return () => deny('network'); } });
-  const builtins = { 'node:http': { default: network }, 'node:crypto': { default: crypto, createHash: crypto.createHash },
+  const ownerHttp = { createServer(callback) {
+    assert.equal(handler,null); handler=callback;
+    return {listen(port,host,ready){assert.equal(port,18723);assert.equal(host,'127.0.0.1');
+      intent={host,port};startup.push(Promise.resolve().then(()=>ready?.()));return this;},close(){deny('close');}};
+  } };
+  const builtins = { 'node:http': { default: owner ? ownerHttp : network }, 'node:crypto': { default: crypto, createHash: crypto.createHash },
     'node:fs': { default: memoryFs }, 'node:fs/promises': { default: memoryPromises },
     'node:path': { default: path }, 'node:url': { URL }, 'node:child_process': child };
   const context = vm.createContext({ Buffer, URL, TextEncoder, TextDecoder, AbortController, AbortSignal,
@@ -289,15 +305,21 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
     const main = module('server.mjs');
     await main.link((specifier, referencing) => module(specifier.startsWith('node:') ? specifier
       : path.posix.normalize(path.posix.join(path.posix.dirname(referencing.identifier), specifier))));
+    if (owner && consent) {
+      const admission = module('src/owner-local-acceptance.mjs'); await admission.evaluate();
+      effectivePasswordHash = admission.namespace.admitOwner({accepted:true,riskVersion:'owner-local-http-risk-v1',password},
+        {sourceRoot:appRoot,readDataRoot:readRoot,producerDataRoot:producerRoot,expectedHead:head,expectedTree:tree,expectedBaseMain:base},runId).passwordHash;
+    }
     await main.evaluate({ timeout: 5000 }); await Promise.all(startup);
     assert.equal(typeof handler, 'function'); return intent;
   }
-  async function dispatch(method, route, { body, cookie, csrf } = {}) {
+  async function dispatch(method, route, { body, cookie, csrf, headers:headerPatch={}, remoteAddress='127.0.0.1' } = {}) {
     assert.equal(typeof handler, 'function');
     const req = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
-    Object.assign(req, { method, url: route, socket: { remoteAddress: '127.0.0.1', encrypted: true },
+    Object.assign(req, { method, url: route, socket: { remoteAddress, encrypted: !owner },
       headers: { host: '127.0.0.1:18723', origin: 'https://127.0.0.1:18723', 'content-type': 'application/json',
-        ...(cookie ? { cookie } : {}), ...(csrf ? { 'x-csrf-token': csrf } : {}) } });
+        ...(owner ? {host:'localhost:18723',origin:'http://localhost:18723','sec-fetch-site':'same-origin'} : {}),
+        ...(cookie ? { cookie } : {}), ...(csrf ? { 'x-csrf-token': csrf } : {}), ...headerPatch } });
     const headers = {}, chunks = []; let status = null;
     const res = { setHeader(name, value) { headers[name.toLowerCase()] = value; },
       writeHead(code, values = {}) { status = code; for (const [name, value] of Object.entries(values)) this.setHeader(name, value); },
@@ -319,6 +341,52 @@ function noExternalEffects(h) {
     'cacheWrite', 'intervals', 'credential', 'aiOperation', 'forbiddenOther']) assert.equal(h.counters[name], 0, name);
   assert.ok(h.counters.fsReads.every(name => [sessionFile, futuresAuditFile].includes(name)));
   assert.ok(h.counters.fsWrites.every(name => name === sessionFile));
+}
+
+test('Owner scope cannot start from environment without interactive process admission', async () => {
+  const h=harness({owner:true,consent:false});
+  await assert.rejects(h.start(),/OWNER_INTERACTIVE_ADMISSION_REQUIRED/);
+  assert.equal(h.counters.cacheConstructor,0);assert.deepEqual(h.counters.fsWrites,[]);assert.equal(h.counters.tlsCapture,0);
+});
+
+test('Owner HTTP uses the original handler/auth with dedicated cookie and no HTTPS qualification', async () => {
+  const h=harness({owner:true});await h.start();
+  assert.equal(h.counters.tlsCapture,0);
+  for(const options of [{headers:{host:'127.0.0.1:18723'}},{headers:{origin:'http://localhost:8787'}},
+    {headers:{'sec-fetch-site':'cross-site'}},{headers:{forwarded:'for=127.0.0.1'}},{remoteAddress:'192.0.2.1'}]) {
+    assert.equal((await h.dispatch('POST','/api/auth/login',{body:{password},...options})).status,403);
+  }
+  assert.deepEqual(h.counters.fsWrites,[]);
+  assert.equal((await h.dispatch('POST','/api/auth/login',{body:{password:'wrong'}})).status,401);
+  const auth=await h.login();assert.match(auth.cookie,/^twchip_owner_local_http_v1=/);
+  assert.match(auth.response.headers['set-cookie'],/Secure/);assert.match(auth.response.headers['set-cookie'],/HttpOnly/);
+  assert.match(auth.response.headers['set-cookie'],/SameSite=Strict/);
+  for(const name of ['twchip_session','twchip_candidate_session','cru55_main_session']) {
+    const foreign=auth.cookie.replace('twchip_owner_local_http_v1',name);
+    assert.equal((await h.dispatch('GET','/api/session',{cookie:foreign})).json().authenticated,false);
+  }
+  assert.equal((await h.dispatch('GET','/api/session',auth)).json().authenticated,true);
+  assert.equal((await h.dispatch('POST','/api/auth/logout',{cookie:auth.cookie})).status,403);
+  for(const route of ['/api/v1/refresh','/api/v2/daily-update','/api/v1/ask-gpt/setup','/api/v1/cru46-browser-runtime-proof'])
+    assert.equal((await h.dispatch('POST',route,{...auth,body:{}})).status,403);
+  const health=(await h.dispatch('GET','/healthz')).json();
+  assert.equal(health.candidateRelease,null);assert.equal(health.localRelease,null);
+  assert.equal(health.versionTruth.transport,'HTTP');assert.equal(health.versionTruth.dataMode,'UNQUALIFIED');
+  assert.equal(health.runtimeReady.ready,false);assert.equal(health.ownerPreviewReady.ready,false);
+  assert.equal(health.ownerLocalAcceptance.secureCookieBrowserVerification,'NOT_RUN');
+  assert.equal((await h.dispatch('POST','/api/auth/logout',{...auth,body:{}})).status,200);
+  assert.equal((await h.dispatch('GET','/api/session',auth)).json().authenticated,false);
+  assert.ok(h.counters.fsWrites.every(p=>p.includes(path.join('data','owner-local-acceptance'))));
+  for(const k of ['network','bridge','spawn','marketConstructor','marketRefresh','cacheInit','cacheWrite','intervals','credential','aiOperation'])
+    assert.equal(h.counters[k],0,k);
+});
+
+for(const patch of [{HOST:'0.0.0.0'}, {DASHBOARD_RELEASE_SCOPE:'MARKET_RESEARCH_AI_DISABLED_CANDIDATE'},
+  {DASHBOARD_TLS_BUNDLE:'/foreign-tls'}, {ASK_GPT_INLINE_ENABLED:'1'}]) {
+  test('Owner invalid mode fails before initialization: '+JSON.stringify(patch),async()=>{
+    const h=harness({owner:true,env:patch,...(patch.HOST?{config:{host:patch.HOST}}:{})});
+    await assert.rejects(h.start());assert.equal(h.counters.cacheConstructor,0);assert.deepEqual(h.counters.fsWrites,[]);
+  });
 }
 
 test('captured current server starts with no collection, Bridge, timer, child or account effect', async t => {
