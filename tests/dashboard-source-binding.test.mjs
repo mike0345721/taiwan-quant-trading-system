@@ -144,14 +144,30 @@ test('server source defaults and explicit projection bindings remain independent
 });
 
 // Evaluate the shipped conditional declaration; do not replace it with fixture output.
-test('admitted Owner source uses its verified root while journal/cache remain private', t => {
+test('admitted Owner source uses its verified root, persistent journal and per-launch cache', t => {
   const { root, local, shared } = sourceFixture(t);
+  const journalRoot = path.join(root, 'owner-local-daily');
+  const nextPrivate = path.join(root, 'next-launch');
+  fs.mkdirSync(journalRoot); fs.mkdirSync(nextPrivate);
   const config = { appRoot: root, dataDir: local, host: '127.0.0.1', port: 18723 };
-  const selected = serverSourcePaths(config, {}, { readDataRoot: shared });
+  const roots = { readDataRoot: shared, journalRoot };
+  const selected = serverSourcePaths(config, {}, roots);
   assert.equal(selected.readDataRoot, shared);
   assert.equal(selected.txChartDataRoot, shared);
   assert.equal(selected.txChartCacheRoot, path.join(local, 'dashboard-chart-cache'));
-  assert.equal(selected.decisionJournalPath, path.join(local, 'decision-workspace', 'journal.ndjson'));
+  assert.equal(selected.decisionJournalPath, path.join(journalRoot, 'decision-workspace', 'journal.ndjson'));
+  assert.notEqual(selected.decisionJournalPath, path.join(local, 'decision-workspace', 'journal.ndjson'));
+  const reopened = serverSourcePaths({ ...config, dataDir: nextPrivate }, {}, roots);
+  assert.equal(reopened.decisionJournalPath, selected.decisionJournalPath);
+  assert.equal(reopened.txChartCacheRoot, path.join(nextPrivate, 'dashboard-chart-cache'));
+  assert.notEqual(reopened.txChartCacheRoot, selected.txChartCacheRoot);
+  for (const dir of [local, shared, journalRoot, nextPrivate]) assert.deepEqual(fs.readdirSync(dir), []);
+});
+
+test('Owner path projection cannot silently substitute per-launch storage for a missing journal root', t => {
+  const { root, local, shared } = sourceFixture(t);
+  const config = { appRoot: root, dataDir: local, host: '127.0.0.1', port: 18723 };
+  assert.throws(() => serverSourcePaths(config, {}, { readDataRoot: shared }));
   assert.deepEqual(fs.readdirSync(local), []);
   assert.deepEqual(fs.readdirSync(shared), []);
 });
