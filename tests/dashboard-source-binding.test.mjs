@@ -87,11 +87,11 @@ test('isolated defaults remain unchanged without a formal override', () => {
 
 // Evaluate the server's shipped path declarations without opening a socket,
 // starting upstream polling, or evaluating any private configuration file.
-function serverSourcePaths(config, env = {}) {
+function serverSourcePaths(config, env = {}, ownerRoots = null) {
   const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
   const names = ['txChartDataRoot', 'txChartCacheRoot', 'cru34LiveSnapshotPath',
     'cru34LiveStatusPath', 'cru34LiveDataRoot', 'cru34LiveProjectionRoot', 'decisionJournalPath'];
-  const root = source.match(/const readDataRoot = resolveDashboardReadDataRoot\(\{[\s\S]*?\n\}\);/);
+  const root = source.match(/const readDataRoot = [\s\S]*?\n\}\);/);
   assert.ok(root, 'server source binding must remain inspectable');
   const declarations = names.map(name => {
     const declaration = source.match(new RegExp(`const ${name} = [\\s\\S]*?;`));
@@ -101,6 +101,7 @@ function serverSourcePaths(config, env = {}) {
   return vm.runInNewContext(root[0] + '\n' + declarations.join('\n')
     + '\n({' + ['readDataRoot', ...names].join(',') + '})', {
     config, process: { env }, path, cru55: null, expectedDataMode: 'live', resolveDashboardReadDataRoot,
+    ownerLocal: ownerRoots !== null, marketCandidateStartup: ownerRoots ? { roots: ownerRoots } : null,
   });
 }
 
@@ -140,4 +141,17 @@ test('server source defaults and explicit projection bindings remain independent
   assert.equal(explicit.cru34LiveDataRoot, path.join(root, 'flow'));
   assert.equal(explicit.cru34LiveProjectionRoot, projection);
   assert.equal(explicit.txChartCacheRoot, path.join(local, 'dashboard-chart-cache'));
+});
+
+// Evaluate the shipped conditional declaration; do not replace it with fixture output.
+test('admitted Owner source uses its verified root while journal/cache remain private', t => {
+  const { root, local, shared } = sourceFixture(t);
+  const config = { appRoot: root, dataDir: local, host: '127.0.0.1', port: 18723 };
+  const selected = serverSourcePaths(config, {}, { readDataRoot: shared });
+  assert.equal(selected.readDataRoot, shared);
+  assert.equal(selected.txChartDataRoot, shared);
+  assert.equal(selected.txChartCacheRoot, path.join(local, 'dashboard-chart-cache'));
+  assert.equal(selected.decisionJournalPath, path.join(local, 'decision-workspace', 'journal.ndjson'));
+  assert.deepEqual(fs.readdirSync(local), []);
+  assert.deepEqual(fs.readdirSync(shared), []);
 });

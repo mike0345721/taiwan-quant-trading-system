@@ -10,6 +10,7 @@ import { loadGovernedTradingCalendar } from '../src/market-state-forward-shadow-
 import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 import { createGovernedV2Reader, V2_READER_PIN as pin, V2_READER_ROLES, V2_READER_MODE, newV2ReadBudget } from '../src/dashboard-v2-reader-binding.mjs';
 import * as research from '../src/v2-research.mjs';
+import { assertOwnerSelected, ownerAdmission, OWNER_SCOPE } from '../src/owner-local-acceptance.mjs';
 
 function fixture(changes = {}) {
   const reads = [], links = [], files = new Map();
@@ -123,10 +124,12 @@ test('reader DB open races and query errors degrade without exposing paths or fa
 test('V2 binding flag requires explicit reader mode and preserves private cache/journal roots', () => {
   const source = fs.readFileSync(new URL('../src/config.mjs', import.meta.url), 'utf8');
   const run = env => {
-    const context = { path, fileURLToPath, process: { env }, readManagedConfig() { throw Error('NO_MANAGED_READ'); } };
+    const context = { path, fileURLToPath, process: { env }, assertOwnerSelected, ownerAdmission,
+      readManagedConfig() { throw Error('NO_MANAGED_READ'); } };
     const code = source.replace(/^import .*;\r?\n/gm, '').replaceAll('import.meta.url', JSON.stringify('file:///C:/synthetic/src/config.mjs')).replace(/^export /gm, '');
     vm.runInNewContext(`${code}\nglobalThis.result=config;`, context); return context.result;
   };
+  assert.throws(() => run({ DASHBOARD_RELEASE_SCOPE: OWNER_SCOPE }), /OWNER_INTERACTIVE_ADMISSION_REQUIRED/);
   const original = run({});
   const enabled = run({ DASHBOARD_CANDIDATE_READ_ONLY: '1', DASHBOARD_CANDIDATE_V2_BINDING: V2_READER_MODE });
   assert.equal(original.candidateV2Binding, '');
