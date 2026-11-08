@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { assertCandidateModeBoundary, assertCandidateRoots, MARKET_CANDIDATE_BRANCH } from './cru21-market-candidate.mjs';
 import { hashPassword } from './security.mjs';
+import { resolveOwnerResearchRoot } from './owner-local-research-root.mjs';
 
 export const OWNER_SCOPE = 'OWNER_LOCAL_ACCEPTANCE_HTTP_V1';
 export const OWNER_PREVIEW = 'OWNER_LOCAL_ACCEPTANCE_HTTP';
@@ -52,11 +53,17 @@ export function assertOwnerMode(env, config) {
       || env.DASHBOARD_PREVIEW_EXPECTED_TREE !== b.expectedTree
       || env.DASHBOARD_PREVIEW_EXPECTED_BASE_MAIN !== b.expectedBaseMain)
     throw Error('OWNER_BINDING_REJECTED');
+  const researchRoot = resolveOwnerResearchRoot(b);
+  if (env.V2_RESEARCH_DATABASE_PATH !== path.join(researchRoot, 'data/research-v2.sqlite')
+      || env.V2_BACKTEST_REPORT_PATH !== path.join(researchRoot, 'reports/latest-backtest.json')
+      || config.v2DatabasePath !== env.V2_RESEARCH_DATABASE_PATH || config.v2ReportPath !== env.V2_BACKTEST_REPORT_PATH)
+    throw Error('OWNER_RESEARCH_ROUTING_REJECTED');
   return true;
 }
 export function assertOwnerRoots(input) {
   if (!admission) throw Error('OWNER_INTERACTIVE_ADMISSION_REQUIRED');
-  return assertCandidateRoots(input, path.join('data', 'owner-local-acceptance', admission.runId));
+  const roots = assertCandidateRoots(input, path.join('data', 'owner-local-acceptance', admission.runId));
+  return Object.freeze({ ...roots, researchRoot: resolveOwnerResearchRoot(admission.binding) });
 }
 export function validateOwnerIdentity({ expectedHead, expectedTree, expectedBaseMain, actualHead,
   actualTree, actualBaseMain, actualBranch, sourceClean }) {

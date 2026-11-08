@@ -4,6 +4,8 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { MARKET_CANDIDATE_BRANCH, assertCandidateRoots, assertMarketCandidateFilesystemRoots } from './cru21-market-candidate.mjs';
 import { OWNER_SCOPE, OWNER_PREVIEW, validateOwnerIdentity } from './owner-local-acceptance.mjs';
+import { assertPlainLocalPath, resolveOwnerResearchRoot } from './owner-local-research-root.mjs';
+export { assertPlainLocalPath } from './owner-local-research-root.mjs';
 
 export function assertInteractiveOwnerParent(observed, { scriptPath, bindingPath, shellPath }) {
   // Accept only the documented interactive -File invocation. An env flag or a
@@ -41,18 +43,6 @@ export function verifyInteractiveOwnerParent(scriptPath, bindingPath) {
   assertInteractiveOwnerParent(observed, { scriptPath, bindingPath, shellPath });
 }
 
-export function assertPlainLocalPath(target, directory = true) {
-  if (typeof target !== 'string' || !path.isAbsolute(target) || /^[\\/]{2}/.test(target) || /[\0\r\n]/.test(target))
-    throw Error('OWNER_LOCAL_PATH_REQUIRED');
-  for (let current = target;; current = path.dirname(current)) {
-    const st = fs.lstatSync(current);
-    if (st.isSymbolicLink() || (current === target && !directory ? !st.isFile() || st.nlink !== 1 : !st.isDirectory()))
-      throw Error('OWNER_PATH_ALIAS_REJECTED');
-    if (current === path.dirname(current)) break;
-  }
-  if (fs.realpathSync(target).toLowerCase() !== path.resolve(target).toLowerCase()) throw Error('OWNER_PATH_ALIAS_REJECTED');
-}
-
 // Only called after consent. Git is read-only; no pull, config, safe.directory or clone.
 export function verifyOwnerBinding(binding, appRoot, { git = args => execFileSync('git',
   ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', ...args],
@@ -62,6 +52,7 @@ export function verifyOwnerBinding(binding, appRoot, { git = args => execFileSyn
       || binding.sourceRoot !== appRoot || binding.branch !== MARKET_CANDIDATE_BRANCH
       || /[\\/]worktrees[\\/]/i.test(appRoot)) throw Error('OWNER_RUNTIME_BINDING_REJECTED');
   for (const name of ['sourceRoot', 'readDataRoot', 'producerDataRoot']) inspect(binding[name]);
+  resolveOwnerResearchRoot(binding, inspect);
   // A runtime checkout must have its own .git directory, never this development worktree.
   inspect(path.join(appRoot, '.git'));
   const truth = validateOwnerIdentity({ ...binding, actualHead: git(['rev-parse', 'HEAD']),
@@ -74,9 +65,11 @@ export function verifyOwnerBinding(binding, appRoot, { git = args => execFileSyn
 export function prepareOwnerRoots(binding, runId) {
   if (!/^[a-f0-9-]{36}$/.test(runId)) throw Error('OWNER_RUN_ID_REJECTED');
   const privateDirectory = path.join('data', 'owner-local-acceptance', runId);
-  const roots = assertCandidateRoots({ sourceRoot: binding.sourceRoot, readDataRoot: binding.readDataRoot,
+  const splitRoots = assertCandidateRoots({ sourceRoot: binding.sourceRoot, readDataRoot: binding.readDataRoot,
     producerDataRoot: binding.producerDataRoot, privateDataRoot: path.join(binding.sourceRoot, privateDirectory),
     chartCacheRoot: path.join(binding.sourceRoot, privateDirectory, 'dashboard-chart-cache') }, privateDirectory);
+  // Verify explicit research inputs before the first private write.
+  const roots = Object.freeze({ ...splitRoots, researchRoot: resolveOwnerResearchRoot(binding) });
   for (const dir of [path.join(binding.sourceRoot, 'data'), path.join(binding.sourceRoot, 'data/owner-local-acceptance')]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { mode: 0o700 });
     assertPlainLocalPath(dir);
@@ -90,6 +83,7 @@ export function prepareOwnerRoots(binding, runId) {
 }
 
 export function ownerEnvironment(binding, roots, inherited = process.env) {
+  const researchRoot = resolveOwnerResearchRoot({ ...roots, researchRoot: binding.researchRoot });
   const env = {};
   // Never import .env, credentials, TLS, GIT_ overrides, Node hooks, AI or broker settings.
   for (const [key, value] of Object.entries(inherited)) {
@@ -105,7 +99,7 @@ export function ownerEnvironment(binding, roots, inherited = process.env) {
     TX_CHART_CACHE_ROOT: roots.chartCacheRoot, CRU34_LIVE_DATA_ROOT: roots.producerDataRoot,
     CRU34_LIVE_SNAPSHOT_PATH: path.join(roots.producerDataRoot, 'runtime/cru34-live/latest.json'),
     CRU34_LIVE_STATUS_PATH: path.join(roots.producerDataRoot, 'runtime/cru34-live/status.json'),
-    V2_RESEARCH_DATABASE_PATH: path.join(roots.readDataRoot, 'v2/data/research-v2.sqlite'),
-    V2_BACKTEST_REPORT_PATH: path.join(roots.readDataRoot, 'v2/reports/latest-backtest.json'),
+    V2_RESEARCH_DATABASE_PATH: path.join(researchRoot, 'data/research-v2.sqlite'),
+    V2_BACKTEST_REPORT_PATH: path.join(researchRoot, 'reports/latest-backtest.json'),
     DATA_OPERATIONS_OUTPUT_ROOT: path.join(roots.readDataRoot, 'quality/daily-data-operations') };
 }

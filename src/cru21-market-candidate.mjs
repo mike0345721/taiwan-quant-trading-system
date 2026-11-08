@@ -68,11 +68,15 @@ export function assertMarketCandidateEnvironmentRoots(env, config, validateRoots
   const roots = validateRoots({ sourceRoot: config.appRoot, privateDataRoot: config.dataDir,
     readDataRoot: env.DASHBOARD_CANDIDATE_READ_ROOT, producerDataRoot: env.CRU34_LIVE_DATA_ROOT,
     chartCacheRoot: env.TX_CHART_CACHE_ROOT });
+  // Only the admitted Owner validator supplies this binding; HTTPS keeps read/v2.
+  if (roots.researchRoot && env.DASHBOARD_RELEASE_SCOPE !== 'OWNER_LOCAL_ACCEPTANCE_HTTP_V1')
+    fail('MARKET_CANDIDATE_INPUT_ROUTING_REJECTED');
+  const researchRoot = roots.researchRoot || path.join(roots.readDataRoot, 'v2');
   const expected = { TX_CHART_DATA_ROOT: roots.readDataRoot,
     CRU34_LIVE_SNAPSHOT_PATH: path.join(roots.producerDataRoot, 'runtime/cru34-live/latest.json'),
     CRU34_LIVE_STATUS_PATH: path.join(roots.producerDataRoot, 'runtime/cru34-live/status.json'),
-    V2_RESEARCH_DATABASE_PATH: path.join(roots.readDataRoot, 'v2/data/research-v2.sqlite'),
-    V2_BACKTEST_REPORT_PATH: path.join(roots.readDataRoot, 'v2/reports/latest-backtest.json'),
+    V2_RESEARCH_DATABASE_PATH: path.join(researchRoot, 'data/research-v2.sqlite'),
+    V2_BACKTEST_REPORT_PATH: path.join(researchRoot, 'reports/latest-backtest.json'),
     DATA_OPERATIONS_OUTPUT_ROOT: path.join(roots.readDataRoot, 'quality/daily-data-operations') };
   if (Object.entries(expected).some(([key, value]) => typeof env[key] !== 'string'
       || !path.isAbsolute(env[key]) || path.resolve(env[key]) !== value)) fail('MARKET_CANDIDATE_INPUT_ROUTING_REJECTED');

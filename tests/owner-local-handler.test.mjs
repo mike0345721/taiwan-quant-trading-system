@@ -7,6 +7,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { Readable } from 'node:stream';
+import { DatabaseSync } from 'node:sqlite';
+import { V2ResearchService } from '../src/v2-research.mjs';
+import { ownerEnvironment } from '../src/owner-local-startup.mjs';
 import * as security from '../src/security.mjs';
 import * as httpUtils from '../src/http-utils.mjs';
 import * as journal from '../src/decision-journal.mjs';
@@ -20,7 +23,7 @@ function fixture(t) {
   const base=path.resolve('data');fs.mkdirSync(base,{recursive:true});
   const home=fs.mkdtempSync(path.join(base,'owner-http-fixture-'));
   t.after(()=>{assert.ok(home.startsWith(base+path.sep));fs.rmSync(home,{recursive:true,force:true});});
-  const roots={sourceRoot:path.join(home,'runtime'),readDataRoot:path.join(home,'read'),producerDataRoot:path.join(home,'producer')};
+  const roots={sourceRoot:path.join(home,'runtime'),readDataRoot:path.join(home,'standalone/data'),producerDataRoot:path.join(home,'producer')};
   roots.privateDataRoot=path.join(roots.sourceRoot,'data/owner-local-acceptance/synthetic');
   roots.chartCacheRoot=path.join(roots.privateDataRoot,'dashboard-chart-cache');
   for(const dir of [...Object.values(roots),path.join(roots.privateDataRoot,'decision-workspace')]) fs.mkdirSync(dir,{recursive:true});
@@ -48,7 +51,7 @@ function fixture(t) {
       for(const [k,v]of Object.entries(values||{}))this.setHeader(k,v);},end(bytes){result.raw=Buffer.from(bytes).toString('utf8');}};
     await context.handle(req,res);result.json=()=>JSON.parse(result.raw);return result;
   }
-  return {request,roots,marker,sessionPath,decisionJournalPath,decisionOutcomesPath};
+  return {request,roots,marker,sessionPath,decisionJournalPath,decisionOutcomesPath,context};
 }
 
 test('original HTML/assets, password, Session, CSRF and real Journal/Outcome writes stay private',async t=>{
@@ -89,4 +92,71 @@ test('normal login rate limiter remains enforced in Owner handler',async t=>{
   for(let i=0;i<5;i++)assert.equal((await f.request('POST','/api/auth/login',{body:{password:'wrong'}})).status,401);
   const limited=await f.request('POST','/api/auth/login',{body:{password:fixturePassword}});
   assert.equal(limited.status,429);assert.ok(limited.headers['retry-after']);assert.equal(fs.existsSync(f.sessionPath),false);
+});
+
+test('Owner V2 handler reads bound sibling SQLite/report only, keeps auth and blocks writer without input leakage or mutation', async t => {
+  const f = fixture(t), researchRoot = path.join(path.dirname(f.roots.readDataRoot), 'v2');
+  fs.mkdirSync(path.join(researchRoot, 'data'), { recursive: true });
+  fs.mkdirSync(path.join(researchRoot, 'reports'));
+  const database = path.join(researchRoot, 'data/research-v2.sqlite');
+  const report = path.join(researchRoot, 'reports/latest-backtest.json');
+  const db = new DatabaseSync(database);
+  db.exec(`
+    CREATE TABLE market_daily(trade_date TEXT, twii_close REAL, tx_close REAL, tx_open_interest INTEGER, basis REAL);
+    CREATE TABLE futures_positions_daily(trade_date TEXT, foreign_net INTEGER, market_open_interest INTEGER);
+    CREATE TABLE futures_contract_daily(trade_date TEXT, product TEXT, contract TEXT, session TEXT, open REAL, high REAL, low REAL, close REAL, is_active INTEGER);
+    CREATE TABLE options_contract_daily(trade_date TEXT, contract TEXT, contract_type TEXT, expiry_date TEXT, days_to_expiry INTEGER, is_active INTEGER, call_volume INTEGER, put_volume INTEGER, volume_pc_ratio REAL, call_oi INTEGER, put_oi INTEGER, oi_pc_ratio REAL, call_wall_strike REAL, call_wall_oi INTEGER, put_wall_strike REAL, put_wall_oi INTEGER, max_pain REAL);
+    CREATE TABLE options_strike_daily(trade_date TEXT, contract TEXT, strike REAL, call_oi INTEGER, put_oi INTEGER, call_volume INTEGER, put_volume INTEGER);
+    CREATE TABLE option_oi_changes(trade_date TEXT, contract TEXT, strike REAL, call_oi_delta_1d INTEGER, put_oi_delta_1d INTEGER);
+    CREATE TABLE quality_issues(severity TEXT);
+    INSERT INTO market_daily VALUES ('2026-07-09', 100, 102, 900, 2);
+    INSERT INTO futures_positions_daily VALUES ('2026-07-09', -50, NULL);
+  `);
+  db.close();
+  fs.writeFileSync(report, '{"fixture":"bound-sibling-report","researchOnly":true,"formalWeight":0}');
+  fs.writeFileSync(path.join(researchRoot, 'reports/v3-daily-update-status.json'), '{"state":"synthetic-only"}');
+  const env = ownerEnvironment({ researchRoot }, f.roots, {});
+  f.context.v2Research = new V2ResearchService(env.V2_RESEARCH_DATABASE_PATH, env.V2_BACKTEST_REPORT_PATH);
+  f.context.config.candidateReadOnly = true;
+  f.context.dailyUpdateProcess = null;
+  f.context.console = { error() {} };
+  let spawns = 0;
+  f.context.spawn = () => { spawns++; throw Error('WRITER_MUST_NOT_START'); };
+  const snapshot = root => fs.readdirSync(root).sort().flatMap(name => {
+    const file = path.join(root, name);
+    return fs.statSync(file).isDirectory() ? [file, ...snapshot(file)]
+      : [[file, crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]];
+  });
+  const inputs = [f.roots.readDataRoot, f.roots.producerDataRoot, researchRoot];
+  const before = inputs.map(snapshot);
+  for (const route of ['/api/v2/research', '/api/v2/backtests', '/api/v2/daily-update'])
+    assert.equal((await f.request('GET', route)).status, 401);
+  const login = await f.request('POST', '/api/auth/login', { body: { password: fixturePassword } });
+  assert.equal(login.status, 200);
+  const headers = { cookie: login.headers['set-cookie'].split(';')[0], 'x-csrf-token': login.json().csrfToken };
+  const result = await f.request('GET', '/api/v2/research?databasePath=' + encodeURIComponent(f.marker)
+    + '&sql=DELETE%20FROM%20market_daily', { headers });
+  assert.equal(result.status, 200, result.raw);
+  assert.equal(result.json().data.futures[0].txClose, 102);
+  assert.deepEqual(result.json().data.service, { readOnly: true, brokerConnected: false, rawSqlAccepted: false });
+  const backtest = await f.request('GET', '/api/v2/backtests?reportPath=' + encodeURIComponent(f.marker), { headers });
+  assert.equal(backtest.status, 200); assert.equal(backtest.json().data.fixture, 'bound-sibling-report');
+  const daily = await f.request('GET', '/api/v2/daily-update', { headers });
+  assert.equal(daily.status, 200); assert.equal(daily.json().data.state, 'synthetic-only');
+  assert.equal(daily.json().manualRun.allowed, false);
+  assert.equal((await f.request('POST', '/api/v2/daily-update', { headers, body: {} })).status, 403);
+  for (const response of [result, backtest, daily]) {
+    assert.ok(!response.raw.includes(researchRoot));
+    assert.ok(!response.raw.includes('SYNTHETIC READ-ONLY INPUT'));
+    assert.ok(!response.raw.includes(fixturePassword));
+  }
+  assert.equal(spawns, 0);
+  assert.deepEqual(inputs.map(snapshot), before, 'all input bytes and directory entries, including SQLite sidecars, unchanged');
+  fs.unlinkSync(report);
+  const absent = await f.request('GET', '/api/v2/backtests', { headers });
+  assert.equal(absent.status, 503); assert.equal(absent.json().error, 'V2_BACKTEST_NOT_READY');
+  fs.unlinkSync(database);
+  const missing = await f.request('GET', '/api/v2/research', { headers });
+  assert.equal(missing.status, 503); assert.equal(missing.json().error, 'V2_DATABASE_NOT_READY');
+  assert.equal(fs.existsSync(path.join(f.roots.readDataRoot, 'v2')), false);
 });

@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
 const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
-  'src/owner-local-acceptance.mjs',
+  'src/owner-local-acceptance.mjs', 'src/owner-local-research-root.mjs',
   'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs',
   'src/candidate-market-inputs.mjs', 'src/data-quality.mjs',
   'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
@@ -100,6 +100,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
   const config = Object.freeze({ appRoot, publicDir: path.join(appRoot, 'public'), dataDir: dataRoot,
     historyDir: path.join(dataRoot, 'history'), host: '127.0.0.1', port: 18723, nodeEnv: 'production',
     get passwordHash() { return effectivePasswordHash; }, candidateReadOnly:owner,
+    v2DatabasePath: env.V2_RESEARCH_DATABASE_PATH, v2ReportPath: env.V2_BACKTEST_REPORT_PATH,
     cookieSecure: true, mockData: false, trustProxy: false, cru55Candidate: false, cru55Acceptance: null,
     sessionTtlMs: 300000, rememberedSessionTtlMs: 600000, refreshIntervalMs: 300000, upstreamTimeoutMs: 1000,
     ...configPatch });
