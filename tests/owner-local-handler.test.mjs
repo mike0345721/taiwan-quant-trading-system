@@ -12,6 +12,7 @@ import { Readable } from 'node:stream';
 import { DatabaseSync } from 'node:sqlite';
 import { V2ResearchService } from '../src/v2-research.mjs';
 import { ownerEnvironment } from '../src/owner-local-startup.mjs';
+import { prepareOwnerJournal, assertOwnerJournalFilesystemRoots } from '../src/owner-local-journal.mjs';
 import * as security from '../src/security.mjs';
 import * as httpUtils from '../src/http-utils.mjs';
 import * as journal from '../src/decision-journal.mjs';
@@ -29,12 +30,13 @@ function fixture(t) {
   roots.privateDataRoot=path.join(roots.sourceRoot,'data/owner-local-acceptance/synthetic');
   roots.chartCacheRoot=path.join(roots.privateDataRoot,'dashboard-chart-cache');
   for(const dir of [...Object.values(roots),path.join(roots.privateDataRoot,'decision-workspace')]) fs.mkdirSync(dir,{recursive:true});
+  roots.journalRoot=prepareOwnerJournal(roots);
   const marker=path.join(roots.readDataRoot,'do-not-write.txt');fs.writeFileSync(marker,'SYNTHETIC READ-ONLY INPUT');
   const sessionPath=path.join(roots.privateDataRoot,'sessions.json');
-  const decisionJournalPath=path.join(roots.privateDataRoot,'decision-workspace/journal.ndjson');
-  const decisionOutcomesPath=path.join(roots.privateDataRoot,'decision-workspace/journal-outcomes.ndjson');
+  const decisionJournalPath=path.join(roots.journalRoot,'decision-workspace/journal.ndjson');
+  const decisionOutcomesPath=path.join(roots.journalRoot,'decision-workspace/journal-outcomes.ndjson');
   const context={...security,...httpUtils,...journal,OWNER_COOKIE,OWNER_NOTICE,ownerRequestAllowed,
-    assertMarketCandidateFilesystemRoots,marketCandidateRouteAllowed,marketCandidateQueryAllowed,
+    assertMarketCandidateFilesystemRoots,assertOwnerJournalFilesystemRoots,marketCandidateRouteAllowed,marketCandidateQueryAllowed,
     marketCandidateStartup:{roots},ownerLocal:true,marketCandidate:true,cru55:null,formalEntry:null,
     sessions:new security.SessionStore(60000,{filePath:sessionPath}),loginLimiter:new security.LoginRateLimiter(),
     config:{passwordHash:security.hashPassword(fixturePassword),nodeEnv:'production',cookieSecure:true,trustProxy:false,
@@ -94,6 +96,26 @@ test('normal login rate limiter remains enforced in Owner handler',async t=>{
   for(let i=0;i<5;i++)assert.equal((await f.request('POST','/api/auth/login',{body:{password:'wrong'}})).status,401);
   const limited=await f.request('POST','/api/auth/login',{body:{password:fixturePassword}});
   assert.equal(limited.status,429);assert.ok(limited.headers['retry-after']);assert.equal(fs.existsSync(f.sessionPath),false);
+});
+
+test('actual Owner handler refuses changed journal binding or file alias before any journal write', async t => {
+  const f = fixture(t);
+  const login = await f.request('POST', '/api/auth/login', { body: { password: fixturePassword } });
+  assert.equal(login.status, 200);
+  const headers = { cookie: login.headers['set-cookie'].split(';')[0], 'x-csrf-token': login.json().csrfToken };
+  const manifest = path.join(f.roots.journalRoot, 'binding.json'), original = fs.readFileSync(manifest);
+  const wrong = JSON.parse(original); wrong.producerDataRoot += '-foreign';
+  fs.writeFileSync(manifest, JSON.stringify(wrong) + '\n');
+  f.context.console = { error() {} };
+  assert.equal((await f.request('GET', '/api/v1/decision-journal', { headers })).status, 500);
+  assert.equal((await f.request('POST', '/api/v1/decision-journal', { headers, body: {} })).status, 500);
+  assert.equal(fs.existsSync(f.decisionJournalPath), false);
+  fs.writeFileSync(manifest, original);
+  fs.linkSync(f.marker, f.decisionJournalPath);
+  assert.equal((await f.request('POST', '/api/v1/decision-journal', { headers, body: {} })).status, 500);
+  assert.equal(fs.readFileSync(f.marker, 'utf8'), 'SYNTHETIC READ-ONLY INPUT');
+  fs.unlinkSync(f.decisionJournalPath);
+  assert.equal((await f.request('GET', '/api/v1/decision-journal', { headers })).status, 200);
 });
 
 test('Owner V2 handler reads bound sibling SQLite/report only, keeps auth and blocks writer without input leakage or mutation', async t => {

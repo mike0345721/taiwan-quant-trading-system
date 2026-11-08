@@ -1,10 +1,12 @@
+import { dailyStorageRoots, assertDailyArguments } from '../src/daily-storage-binding.mjs';
+assertDailyArguments();
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { buildIntradayResearchDataset, writeIntradayResearchDataset } from '../src/intraday-research-features.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const appRoot = path.dirname(scriptDir);
+const appRoot = dailyStorageRoots(path.dirname(scriptDir)).storageAppRoot;
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);

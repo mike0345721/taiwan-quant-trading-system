@@ -9,7 +9,7 @@ import { parseOptionInstitutionCsv } from '../src/taifex-option-participants.mjs
 
 const SOURCE_URL = 'https://www.taifex.com.tw/cht/3/optContractsDateDown';
 const config = v2Config(); const db = openDatabase(config.databasePath);
-const cacheDir = path.join(config.root, 'data', 'option-institution-cache');
+const cacheDir = path.join(config.dataRoot, 'data', 'option-institution-cache');
 fs.mkdirSync(cacheDir, { recursive: true });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');

@@ -1,11 +1,13 @@
 import fs from 'node:fs';
+import { dailyStorageRoots, assertDailyArguments } from '../src/daily-storage-binding.mjs';
+assertDailyArguments();
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { auditLiveEventLedger, evaluateLiveEventAcceptance } from '../src/live-event-ledger.mjs';
 import { selectDurableLiveAcceptance } from '../src/live-acceptance-state.mjs';
 
-const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const appRoot = dailyStorageRoots(path.dirname(path.dirname(fileURLToPath(import.meta.url)))).storageAppRoot;
 const ledgerDir = path.join(appRoot, 'data', 'live-events');
 const reportDir = path.join(ledgerDir, 'audits');
 const files = fs.existsSync(ledgerDir)

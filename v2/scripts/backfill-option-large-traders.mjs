@@ -9,7 +9,7 @@ import { parseOptionLargeTraderCsv } from '../src/taifex-option-participants.mjs
 
 const SOURCE_URL = 'https://www.taifex.com.tw/cht/3/largeTraderOptDown';
 const config = v2Config(); const db = openDatabase(config.databasePath);
-const cacheDir = path.join(config.root, 'data', 'option-large-trader-cache');
+const cacheDir = path.join(config.dataRoot, 'data', 'option-large-trader-cache');
 fs.mkdirSync(cacheDir, { recursive: true });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');

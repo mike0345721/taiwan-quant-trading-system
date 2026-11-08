@@ -10,12 +10,12 @@ Add-Type -AssemblyName System.Drawing
 $script:ownerUiText = ConvertFrom-Json '{"start":"\u958b\u59cb\u9a57\u6536\u7db2\u7ad9","stop":"\u53d6\u6d88\uff0f\u505c\u6b62\u5019\u9078\u7db2\u7ad9","checkbox":"\u6211\u5df2\u95b1\u8b80\u4e26\u63a5\u53d7\u4ee5\u4e0a\u672c\u6a5f HTTP \u98a8\u96aa\uff0c\u50c5\u540c\u610f\u672c\u6b21\u4e92\u52d5\u9a57\u6536\u3002","passwordLabel":"\u8a2d\u5b9a\u672c\u6b21\u9a57\u6536\u5c08\u7528\u5bc6\u78bc\uff08\u81f3\u5c11 12 \u500b\u5b57\u5143\uff1b\u4e0d\u8981\u6cbf\u7528\u6b63\u5f0f\u7248\u5bc6\u78bc\uff09\uff1a","confirm":"\u518d\u8f38\u5165\u4e00\u6b21\u76f8\u540c\u5bc6\u78bc\uff08\u5340\u5206\u5927\u5c0f\u5beb\uff09","risk":"\u5c1a\u672a\u555f\u52d5\uff1a\u8acb\u5148\u52fe\u9078\u4e0a\u65b9\u7684\u672c\u6a5f HTTP \u98a8\u96aa\u78ba\u8a8d\u3002","length":"\u5c1a\u672a\u555f\u52d5\uff1a\u5169\u683c\u5bc6\u78bc\u90fd\u9700\u81f3\u5c11 12 \u500b\u5b57\u5143\u3002\u76ee\u524d\u7b2c\u4e00\u683c {0} \u500b\uff0c\u7b2c\u4e8c\u683c {1} \u500b\u3002","mismatch":"\u5c1a\u672a\u555f\u52d5\uff1a\u5169\u6b21\u5bc6\u78bc\u4e0d\u4e00\u81f4\uff08\u5340\u5206\u5927\u5c0f\u5beb\uff0c\u7a7a\u767d\u4e5f\u7b97\u5b57\u5143\uff09\u3002\u8acb\u4fee\u6b63\u7b2c\u4e8c\u683c\u3002","ready":"\u8f38\u5165\u6aa2\u67e5\u5b8c\u6210\u3002\u8acb\u6309\u300c\u958b\u59cb\u9a57\u6536\u7db2\u7ad9\u300d\uff1b\u6210\u529f\u555f\u52d5\u5f8c\u624d\u6703\u958b\u555f\u700f\u89bd\u5668\u3002","tooLong":"\u5c1a\u672a\u555f\u52d5\uff1a\u5bc6\u78bc\u4e0d\u53ef\u8d85\u904e 1024 \u500b\u5b57\u5143\u3002"}'
 $form = New-Object Windows.Forms.Form
 $form.Text = 'Owner local acceptance v1.1 - HTTP - NOT PRODUCTION'
-$form.ClientSize = New-Object Drawing.Size(720, 540)
+$form.ClientSize = New-Object Drawing.Size(720, 580)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $notice = New-Object Windows.Forms.Label
-$notice.SetBounds(20, 15, 680, 225)
+$notice.SetBounds(20, 15, 680, 265)
 $notice.Text = @"
 OWNER LOCAL ACCEPTANCE / HTTP / NOT LIVE QUALIFIED
 Machine: $([Environment]::MachineName)
@@ -29,44 +29,47 @@ an unconditional 15-minute hard deadline. This is acceptance, not production.
 Secure + HttpOnly + SameSite=Strict cookies remain enabled. Whether this
 browser accepts Secure cookies on localhost HTTP must be verified by you.
 Missing/stale LIVE/Flow remains unavailable; no producer is started.
+Journal / Review persist across restarts for the same source/read/research/producer
+bindings. Changed bindings use a separate space; old run data is not merged.
+Each launch still needs your consent, a new password and a fresh Session.
 Keep this window open. Stop or close it to stop only this candidate.
 No binding/source/private/auth access or listener until you accept below.
 "@
 $form.Controls.Add($notice)
 $agree = New-Object Windows.Forms.CheckBox
-$agree.SetBounds(20, 248, 680, 35)
+$agree.SetBounds(20, 288, 680, 35)
 $agree.Text = $script:ownerUiText.checkbox
 $agree.Checked = $false
 $form.Controls.Add($agree)
 $label = New-Object Windows.Forms.Label
-$label.SetBounds(20, 292, 680, 25)
+$label.SetBounds(20, 332, 680, 25)
 $label.Text = $script:ownerUiText.passwordLabel
 $form.Controls.Add($label)
 $password = New-Object Windows.Forms.TextBox
-$password.SetBounds(20, 322, 330, 28)
+$password.SetBounds(20, 362, 330, 28)
 $password.UseSystemPasswordChar = $true
 $password.MaxLength = 1024
 $form.Controls.Add($password)
 $confirm = New-Object Windows.Forms.TextBox
-$confirm.SetBounds(370, 322, 330, 28)
+$confirm.SetBounds(370, 362, 330, 28)
 $confirm.UseSystemPasswordChar = $true
 $confirm.MaxLength = 1024
 $form.Controls.Add($confirm)
 $hint = New-Object Windows.Forms.Label
-$hint.SetBounds(370, 353, 320, 22)
+$hint.SetBounds(370, 393, 320, 22)
 $hint.Text = $script:ownerUiText.confirm
 $form.Controls.Add($hint)
 $status = New-Object Windows.Forms.Label
-$status.SetBounds(20, 390, 680, 60)
+$status.SetBounds(20, 430, 680, 60)
 $status.Text = $script:ownerUiText.risk
 $form.Controls.Add($status)
 $start = New-Object Windows.Forms.Button
-$start.SetBounds(20, 470, 210, 40)
+$start.SetBounds(20, 510, 210, 40)
 $start.Text = $script:ownerUiText.start
 $start.Enabled = $true
 $form.Controls.Add($start)
 $stop = New-Object Windows.Forms.Button
-$stop.SetBounds(490, 470, 210, 40)
+$stop.SetBounds(490, 510, 210, 40)
 $stop.Text = $script:ownerUiText.stop
 $form.Controls.Add($stop)
 $script:child = $null

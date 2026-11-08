@@ -6,9 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { buildContinuityReport } from '../../src/data-continuity.mjs';
 import { readBoundedLiveCoverage } from '../../src/data-continuity-audit.mjs';
 
+import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
+
+assertDailyArguments();
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const v2Root = path.dirname(scriptDir);
-const appRoot = path.dirname(v2Root);
+const roots = dailyStorageRoots(path.resolve(scriptDir, '../..'));
+const v2Root = roots.storageV2Root;
+const appRoot = roots.storageAppRoot;
 const value = (name, fallback) => { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : fallback; };
 const databasePath = path.resolve(value('--database', path.join(v2Root, 'data', 'research-v2.sqlite')));
 const liveEventsDir = path.resolve(value('--live-events-dir', path.join(appRoot, 'data', 'live-events')));

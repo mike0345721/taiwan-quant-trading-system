@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { v2Config } from '../src/config.mjs';
 import { openDatabase, applyMigrations } from '../src/db.mjs';
+import { readOptionOiCoverage } from '../src/option-oi-coverage.mjs';
 
 const config = v2Config();
 const db = openDatabase(config.databasePath);
 try {
   applyMigrations(db, config.migrationsPath);
+  const oi = readOptionOiCoverage(db);
   const report = {
     generatedAt: new Date().toISOString(),
     databaseBytes: fs.statSync(config.databasePath).size,
@@ -22,10 +24,10 @@ try {
       futuresContracts: db.prepare('SELECT COUNT(*) AS count FROM futures_contract_daily').get().count,
       optionContracts: db.prepare('SELECT COUNT(*) AS count FROM options_contract_daily').get().count,
       optionStrikes: db.prepare('SELECT COUNT(*) AS count FROM options_strike_daily').get().count,
-      optionOiChanges: db.prepare('SELECT COUNT(*) AS count FROM option_oi_changes').get().count,
-      optionOiDelta1d: db.prepare('SELECT COUNT(*) AS count FROM option_oi_changes WHERE call_oi_delta_1d IS NOT NULL OR put_oi_delta_1d IS NOT NULL').get().count,
-      optionOiDelta3d: db.prepare('SELECT COUNT(*) AS count FROM option_oi_changes WHERE call_oi_delta_3d IS NOT NULL OR put_oi_delta_3d IS NOT NULL').get().count,
-      optionOiDelta5d: db.prepare('SELECT COUNT(*) AS count FROM option_oi_changes WHERE call_oi_delta_5d IS NOT NULL OR put_oi_delta_5d IS NOT NULL').get().count,
+      optionOiChanges: oi.total,
+      optionOiDelta1d: oi.delta1d,
+      optionOiDelta3d: oi.delta3d,
+      optionOiDelta5d: oi.delta5d,
       globalMarketRows: db.prepare('SELECT COUNT(*) AS count FROM global_market_daily').get().count,
       macroObservations: db.prepare('SELECT COUNT(*) AS count FROM macro_observations').get().count,
       volatilityRelativeDays: db.prepare('SELECT COUNT(*) AS count FROM volatility_relative_daily').get().count,

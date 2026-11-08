@@ -7,9 +7,17 @@ param(
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $root = Split-Path $PSScriptRoot -Parent
-$rawDir = Join-Path $root 'data\intraday\raw'
-$archiveDir = Join-Path $root 'data\intraday\archive'
-$statusPath = Join-Path $root 'data\intraday\taifex-backfill-status.json'
+$storageRoot = $root
+if (Test-Path Env:DAILY_WRITER_BINDING_PATH) {
+  if ($Limit -ne 30 -or $DelayMs -ne 3000 -or $ForceRebuild) { throw 'DAILY_ARGUMENT_REJECTED' }
+  $boundNode = (Get-Command node -ErrorAction Stop).Source
+  $resolvedStorage = & $boundNode (Join-Path $root 'scripts\resolve-daily-storage-root.mjs')
+  if ($LASTEXITCODE -ne 0) { throw 'DAILY_STORAGE_PREFLIGHT_FAILED' }
+  $storageRoot = [string]$resolvedStorage
+}
+$rawDir = Join-Path $storageRoot 'data\intraday\raw'
+$archiveDir = Join-Path $storageRoot 'data\intraday\archive'
+$statusPath = Join-Path $storageRoot 'data\intraday\taifex-backfill-status.json'
 $pageUrl = 'https://www.taifex.com.tw/cht/3/futPrevious30DaysSalesData'
 New-Item -ItemType Directory -Force $rawDir, $archiveDir | Out-Null
 
@@ -104,7 +112,7 @@ $verified = @(Get-ChildItem -LiteralPath $archiveDir -Filter '*-audit.json' -Fil
 $latestVerified = $verified | Select-Object -Last 1
 if ($latestVerified) {
   $latestDay = Join-Path $archiveDir "$($latestVerified.TradeDate)-day.json"
-  if (Test-Path $latestDay) { Copy-Item -LiteralPath $latestDay -Destination (Join-Path $root 'data\intraday\replay-bars.json') -Force }
+  if (Test-Path $latestDay) { Copy-Item -LiteralPath $latestDay -Destination (Join-Path $storageRoot 'data\intraday\replay-bars.json') -Force }
 }
 
 $status = [ordered]@{

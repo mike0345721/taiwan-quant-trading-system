@@ -4,7 +4,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { buildV3Decision, ledgerRecord } from '../../src/v3-decision.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
+
+assertDailyArguments();
+const root = dailyStorageRoots(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')).storageV2Root;
 const databasePath = path.join(root, 'data', 'research-v2.sqlite');
 const ledgerPath = path.join(root, 'data', 'forward', 'v3-decision-ledger.jsonl');
 

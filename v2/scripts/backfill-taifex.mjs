@@ -21,21 +21,29 @@ try {
   const endDate = process.env.V2_BACKFILL_END || taipeiToday;
   console.log(`TAIFEX official backfill ${startDate} to ${endDate}`);
   const result = await backfillTaifex(db, {
-    startDate, endDate, cacheDir: path.join(config.root, 'data', 'official-cache'),
+    startDate, endDate, cacheDir: path.join(config.dataRoot, 'data', 'official-cache'),
     onProgress: (message) => console.log(`[${new Date().toISOString()}] ${message}`),
   });
-  console.log(`[${new Date().toISOString()}] Starting post-import rebuildFeatures`);
-  let started = Date.now();
-  const features = rebuildFeatures(db);
-  console.log(`[${new Date().toISOString()}] Completed post-import rebuildFeatures: ${features.rows} rows / ${Date.now() - started}ms`);
-  console.log(`[${new Date().toISOString()}] Starting post-import runQualityChecks`);
-  started = Date.now();
-  const quality = runQualityChecks(db);
-  console.log(`[${new Date().toISOString()}] Completed post-import runQualityChecks: ${Date.now() - started}ms`);
-  fs.mkdirSync(config.reportsPath, { recursive: true });
-  fs.writeFileSync(path.join(config.reportsPath, 'latest-quality.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), ...quality }, null, 2)}\n`);
+  // The daily runner performs these after all other imports. Standalone calls
+  // still rebuild and check; deferral is explicit and never reports quality PASS.
+  const deferred = process.argv?.includes('--defer-derived-to-daily-stages') === true;
+  let quality;
+  if (!deferred) {
+    console.log(`[${new Date().toISOString()}] Starting post-import rebuildFeatures`);
+    let started = Date.now();
+    const features = rebuildFeatures(db);
+    console.log(`[${new Date().toISOString()}] Completed post-import rebuildFeatures: ${features.rows} rows / ${Date.now() - started}ms`);
+    console.log(`[${new Date().toISOString()}] Starting post-import runQualityChecks`);
+    started = Date.now();
+    quality = runQualityChecks(db);
+    console.log(`[${new Date().toISOString()}] Completed post-import runQualityChecks: ${Date.now() - started}ms`);
+    fs.mkdirSync(config.reportsPath, { recursive: true });
+    fs.writeFileSync(path.join(config.reportsPath, 'latest-quality.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), ...quality }, null, 2)}\n`);
+  }
   const ok = result.state === 'COMPLETE' && result.failures.length === 0;
-  console.log(JSON.stringify({ ok, ...result, coverage: quality.coverage, issues: quality.issues, byRule: quality.byRule }, null, 2));
+  console.log(JSON.stringify({ ok, ...result, ...(deferred
+    ? { derived: { state: 'DEFERRED_TO_DAILY_STAGES', requiredStages: ['features', 'quality'], historicalQualification: 'NOT_EVALUATED' } }
+    : { coverage: quality.coverage, issues: quality.issues, byRule: quality.byRule }) }, null, 2));
   if (!ok) process.exitCode = 1;
 } finally {
   db.close();

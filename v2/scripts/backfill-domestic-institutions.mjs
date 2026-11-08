@@ -23,7 +23,7 @@ const taipeiToday = dateTaipei();
 // collector runs first, so its latest official TX date is the safe upper bound.
 const latestOfficialMarketDate = db.prepare('SELECT MAX(trade_date) AS date FROM market_daily WHERE tx_close IS NOT NULL AND trade_date<=?').get(taipeiToday)?.date;
 const endDate = process.env.V2_DOMESTIC_END || latestOfficialMarketDate || taipeiToday;
-const cacheDir = path.join(config.root, 'data', 'domestic-institution-cache');
+const cacheDir = path.join(config.dataRoot, 'data', 'domestic-institution-cache');
 fs.mkdirSync(cacheDir, { recursive: true });
 
 function hash(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }

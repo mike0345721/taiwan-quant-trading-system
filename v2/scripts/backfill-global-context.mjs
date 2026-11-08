@@ -9,7 +9,7 @@ try {
   const result = await backfillGlobalContext(db, {
     startDate: process.env.V2_GLOBAL_START || '2023-06-01',
     endDate: process.env.V2_GLOBAL_END || new Date().toISOString().slice(0, 10),
-    cacheDir: path.join(config.root, 'data', 'global-cache'),
+    cacheDir: path.join(config.dataRoot, 'data', 'global-cache'),
   });
   console.log(JSON.stringify({ ok: true, result }, null, 2));
 } finally { db.close(); }

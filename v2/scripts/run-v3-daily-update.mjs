@@ -5,12 +5,17 @@ import { fileURLToPath } from 'node:url';
 import { buildDailyUpdateGateSummary } from '../../src/daily-update-gates.mjs';
 import { inspectDailyMarket } from '../../src/daily-market-applicability.mjs';
 
+import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
+import { assertExistingDailyDatabase } from '../../src/daily-storage-database.mjs';
+
+assertDailyArguments(['--dry-run']);
+const roots = dailyStorageRoots();
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(scriptDir);
 const appRoot = path.dirname(root);
-const reportsDir = path.join(root, 'reports');
-const logsDir = path.join(root, 'logs');
-const dataDir = path.join(root, 'data');
+const reportsDir = path.join(roots.storageV2Root, 'reports');
+const logsDir = path.join(roots.storageV2Root, 'logs');
+const dataDir = path.join(roots.storageV2Root, 'data');
 const statusPath = path.join(reportsDir, 'v3-daily-update-status.json');
 const lockPath = path.join(dataDir, '.v3-daily-update.lock');
 const dryRun = process.argv.includes('--dry-run') || process.env.V3_DAILY_DRY_RUN === '1';
@@ -24,13 +29,10 @@ function inspectMarketDaily() {
     calendarPath: path.join(appRoot, 'config/taifex-official-calendar-2026.json') });
 }
 
-fs.mkdirSync(reportsDir, { recursive: true });
-fs.mkdirSync(logsDir, { recursive: true });
-fs.mkdirSync(dataDir, { recursive: true });
 
 const stages = [
   { key: 'prepare', script: 'setup-all.mjs', critical: true },
-  { key: 'taifex', script: 'backfill-taifex.mjs' },
+  { key: 'taifex', script: 'backfill-taifex.mjs', args: ['--defer-derived-to-daily-stages'] },
   { key: 'intraday_replay', script: 'backfill-taifex-replay-root.mjs', timeoutMs: 15 * 60 * 1000 },
   { key: 'intraday_features', script: 'build-intraday-research-features-root.mjs' },
   { key: 'intraday_strategy_engineering', script: 'run-intraday-strategy-engineering-root.mjs' },
@@ -82,12 +84,21 @@ if (dryRun) {
   process.exit(0);
 }
 
+assertExistingDailyDatabase(roots);
+fs.mkdirSync(reportsDir, { recursive: true });
+fs.mkdirSync(logsDir, { recursive: true });
+fs.mkdirSync(dataDir, { recursive: true });
+
 let lockHandle;
 try {
   lockHandle = fs.openSync(lockPath, 'wx', 0o600);
   fs.writeFileSync(lockHandle, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
 } catch (error) {
   if (error.code === 'EEXIST') {
+    if (roots.bound) {
+      console.error('A V3 daily lock exists; bound execution will not reclaim it.');
+      process.exit(2);
+    }
     let active = true;
     try {
       const previous = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
@@ -115,7 +126,7 @@ const status = {
   formalResearchRerun: false,
   mockSnapshotsAccepted: false,
   policy: 'Daily updates collect data and resolve frozen forward records. They do not retune thresholds or rerun the formal V3.6.2 holdout research.',
-  stages: [], failures: [], logPath: path.relative(appRoot, logPath),
+  stages: [], failures: [], logPath: path.relative(roots.storageAppRoot, logPath),
 };
 status.gateSummary = buildDailyUpdateGateSummary({ stages: status.stages, failures: status.failures, marketDaily: inspectMarketDaily() });
 
@@ -132,7 +143,7 @@ try {
     writeJsonAtomic(statusPath, status);
     log(`START ${stage.key}`);
     const began = Date.now();
-    const result = spawnSync(process.execPath, [path.join(scriptDir, stage.script)], {
+    const result = spawnSync(process.execPath, [path.join(scriptDir, stage.script), ...(stage.args || [])], {
       cwd: root,
       env: { ...process.env, ...(stage.env || {}) },
       encoding: 'utf8',

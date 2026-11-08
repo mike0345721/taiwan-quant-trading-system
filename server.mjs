@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { OWNER_SCOPE, OWNER_COOKIE, OWNER_NOTICE, assertOwnerMode, assertOwnerRoots, ownerRequestAllowed,
-  buildOwnerVersion, validateOwnerIdentity, attachOwnerStop, ownerStopping } from './src/owner-local-acceptance.mjs';
+  buildOwnerVersion, validateOwnerIdentity, attachOwnerStop, ownerStopping, assertOwnerJournalFilesystemRoots } from './src/owner-local-acceptance.mjs';
 import { assessCandidateMarketInputs } from './src/candidate-market-inputs.mjs';
 import { MARKET_CANDIDATE_SCOPE, MARKET_CANDIDATE_PREVIEW, assertMarketCandidateMode,
   assertMarketCandidateEnvironmentRoots, assertMarketCandidateFilesystemRoots, buildMarketCandidateVersion, validateMarketCandidateVersionTruth,
@@ -158,8 +158,8 @@ let dailyUpdateProcess = null;
 const intradayPath = path.join(readDataRoot, 'intraday', 'latest-bars.json');
 const replayPath = path.join(readDataRoot, 'intraday', 'replay-bars.json');
 const replayArchiveDir = path.join(readDataRoot, 'intraday', 'archive');
-const decisionJournalPath = path.join(config.dataDir, 'decision-workspace', 'journal.ndjson');
-const decisionOutcomesPath = path.join(config.dataDir, 'decision-workspace', 'journal-outcomes.ndjson');
+const decisionJournalPath = path.join(ownerLocal ? marketCandidateStartup.roots.journalRoot : config.dataDir, 'decision-workspace', 'journal.ndjson');
+const decisionOutcomesPath = path.join(ownerLocal ? marketCandidateStartup.roots.journalRoot : config.dataDir, 'decision-workspace', 'journal-outcomes.ndjson');
 const forwardShadowBaseRoot = path.join(readDataRoot, 'market-state', 'forward-shadow');
 const futuresAuditPath = path.join(readDataRoot, 'live-events', 'futures-audits', 'latest.json');
 const shioajiContinuityStatusPath = path.join(readDataRoot, 'runtime', 'shioaji-continuity', 'status.json');
@@ -569,6 +569,7 @@ const requestHandler = async (req, res) => {
       sendJson(res,403,{ok:false,error:'OWNER_HTTP_NOT_HTTPS_OR_NATIVE_EVIDENCE'}); return;
     }
     if (marketCandidate) assertMarketCandidateFilesystemRoots(marketCandidateStartup.roots);
+    if (ownerLocal) assertOwnerJournalFilesystemRoots(marketCandidateStartup.roots);
     if (marketCandidate && !marketCandidateRouteAllowed(req.method, pathname)) {
       sendJson(res,403,{ok:false,error:'MARKET_CANDIDATE_READ_ONLY'}); return;
     }

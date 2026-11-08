@@ -3,6 +3,8 @@ import path from 'node:path';
 import { assertCandidateModeBoundary, assertCandidateRoots, MARKET_CANDIDATE_BRANCH } from './cru21-market-candidate.mjs';
 import { hashPassword } from './security.mjs';
 import { resolveOwnerResearchRoot } from './owner-local-research-root.mjs';
+import { ownerJournalRoot } from './owner-local-journal.mjs';
+export { assertOwnerJournalFilesystemRoots } from './owner-local-journal.mjs';
 
 export const OWNER_SCOPE = 'OWNER_LOCAL_ACCEPTANCE_HTTP_V1';
 export const OWNER_PREVIEW = 'OWNER_LOCAL_ACCEPTANCE_HTTP';
@@ -63,7 +65,8 @@ export function assertOwnerMode(env, config) {
 export function assertOwnerRoots(input) {
   if (!admission) throw Error('OWNER_INTERACTIVE_ADMISSION_REQUIRED');
   const roots = assertCandidateRoots(input, path.join('data', 'owner-local-acceptance', admission.runId));
-  return Object.freeze({ ...roots, researchRoot: resolveOwnerResearchRoot(admission.binding) });
+  return Object.freeze({ ...roots, researchRoot: resolveOwnerResearchRoot(admission.binding),
+    journalRoot: ownerJournalRoot(admission.binding) });
 }
 export function validateOwnerIdentity({ expectedHead, expectedTree, expectedBaseMain, actualHead,
   actualTree, actualBaseMain, actualBranch, sourceClean }) {

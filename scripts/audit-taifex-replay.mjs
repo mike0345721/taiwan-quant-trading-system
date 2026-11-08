@@ -3,6 +3,15 @@ import path from 'node:path';
 import process from 'node:process';
 import { DatabaseSync } from 'node:sqlite';
 
+import { dailyStorageRoots } from '../src/daily-storage-binding.mjs';
+
+const roots = dailyStorageRoots();
+const dataPath = (...parts) => path.resolve(roots.bound ? roots.storageAppRoot : process.cwd(), ...parts);
+if (roots.bound) {
+  const args = process.argv.slice(2);
+  const allowed = new Set(['--trade-date']);
+  if (args.length !== allowed.size * 2 || args.some((arg, i) => i % 2 === 0 && !allowed.delete(arg))) throw Error('DAILY_ARGUMENT_REJECTED');
+}
 function argument(name) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : null; }
 function finite(value) { return value !== null && value !== undefined && Number.isFinite(Number(value)); }
 function same(left, right) { return finite(left) && finite(right) && Math.abs(Number(left) - Number(right)) < 1e-9; }
@@ -14,12 +23,12 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(tradeDate || '')) {
   process.exit(2);
 }
 
-const replayPath = path.resolve('data', 'intraday', 'archive', `${tradeDate}-day.json`);
+const replayPath = dataPath('data', 'intraday', 'archive', `${tradeDate}-day.json`);
 if (!fs.existsSync(replayPath)) throw new Error('TAIFEX_REPLAY_DAY_ARCHIVE_NOT_FOUND');
 const replay = JSON.parse(fs.readFileSync(replayPath, 'utf8'));
 const bars = replay.bars || [];
 if (!bars.length) throw new Error('TAIFEX_REPLAY_DAY_BARS_EMPTY');
-const nightPath = path.resolve('data', 'intraday', 'archive', `${tradeDate}-night.json`);
+const nightPath = dataPath('data', 'intraday', 'archive', `${tradeDate}-night.json`);
 if (!fs.existsSync(nightPath)) throw new Error('TAIFEX_REPLAY_NIGHT_ARCHIVE_NOT_FOUND');
 const nightReplay = JSON.parse(fs.readFileSync(nightPath, 'utf8'));
 const nightBars = nightReplay.bars || [];
@@ -30,7 +39,7 @@ const calculated = {
   bars: bars.length,
 };
 
-const db = new DatabaseSync(path.resolve('v2', 'data', 'research-v2.sqlite'), { readOnly: true });
+const db = new DatabaseSync(dataPath('v2', 'data', 'research-v2.sqlite'), { readOnly: true });
 let official;
 let officialRows;
 try {
@@ -70,7 +79,7 @@ const report = {
   volumeScope: 'tick replay contains outright non-block trades; official daily volume also includes spread and block trades, so only a containment check is valid', executionAuthorized: false,
   officialCandidates: officialRows,
 };
-atomicWrite(path.resolve('data', 'intraday', 'taifex-replay-audit.json'), report);
-atomicWrite(path.resolve('data', 'intraday', 'archive', `${tradeDate}-audit.json`), report);
+atomicWrite(dataPath('data', 'intraday', 'taifex-replay-audit.json'), report);
+atomicWrite(dataPath('data', 'intraday', 'archive', `${tradeDate}-audit.json`), report);
 console.log(JSON.stringify(report, null, 2));
 if (!pass) process.exit(1);

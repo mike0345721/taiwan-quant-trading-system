@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { MARKET_CANDIDATE_BRANCH, assertCandidateRoots, assertMarketCandidateFilesystemRoots } from './cru21-market-candidate.mjs';
 import { OWNER_SCOPE, OWNER_PREVIEW, validateOwnerIdentity } from './owner-local-acceptance.mjs';
 import { assertPlainLocalPath, resolveOwnerResearchRoot } from './owner-local-research-root.mjs';
+import { prepareOwnerJournal } from './owner-local-journal.mjs';
 export { assertPlainLocalPath } from './owner-local-research-root.mjs';
 
 export function assertInteractiveOwnerParent(observed, { scriptPath, bindingPath, shellPath }) {
@@ -79,7 +80,7 @@ export function prepareOwnerRoots(binding, runId) {
   fs.mkdirSync(roots.chartCacheRoot, { mode: 0o700 });
   fs.mkdirSync(path.join(roots.privateDataRoot, 'decision-workspace'), { mode: 0o700 });
   assertMarketCandidateFilesystemRoots(roots);
-  return roots;
+  return Object.freeze({ ...roots, journalRoot: prepareOwnerJournal(binding) });
 }
 
 export function ownerEnvironment(binding, roots, inherited = process.env) {

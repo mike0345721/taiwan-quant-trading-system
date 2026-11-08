@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { optionStructure } from './taifex-csv.mjs';
+import { readOptionOiCoverage } from './option-oi-coverage.mjs';
 
 function evenlySpaced(rows, count) {
   if (rows.length <= count) return rows;
@@ -59,7 +60,15 @@ export function validateOfficialBackfill(db, cacheDir) {
       `walls ${contract.call_wall_strike}/${contract.put_wall_strike}; max pain ${contract.max_pain}`);
   }
 
-  const deltaSamples = evenlySpaced(db.prepare(`SELECT * FROM option_oi_changes WHERE call_oi_delta_1d IS NOT NULL AND put_oi_delta_1d IS NOT NULL ORDER BY contract, strike, trade_date`).all(), 20);
+  const oi = readOptionOiCoverage(db);
+  // Preserve the exact original 20 evenly-spaced samples and ordering, but do
+  // not transfer/materialize the entire historical table as JS objects.
+  const positions = oi.sampleRows <= 20 ? Array.from({ length: oi.sampleRows }, (_, i) => i + 1)
+    : Array.from({ length: 20 }, (_, i) => Math.round(i * (oi.sampleRows - 1) / 19) + 1);
+  const deltaSamples = positions.length ? db.prepare(`WITH ranked AS (
+    SELECT *, ROW_NUMBER() OVER (ORDER BY contract, strike, trade_date) AS ordinal
+    FROM option_oi_changes WHERE call_oi_delta_1d IS NOT NULL AND put_oi_delta_1d IS NOT NULL)
+    SELECT * FROM ranked WHERE ordinal IN (${positions.map(() => '?').join(',')}) ORDER BY ordinal`).all(...positions) : [];
   for (const row of deltaSamples) {
     const previous = db.prepare(`SELECT call_oi, put_oi FROM options_strike_daily WHERE contract=? AND strike=? AND trade_date<? ORDER BY trade_date DESC LIMIT 1`).get(row.contract, row.strike, row.trade_date);
     check(`option delta ${row.trade_date} ${row.contract} ${row.strike}`, previous && row.call_oi - previous.call_oi === row.call_oi_delta_1d && row.put_oi - previous.put_oi === row.put_oi_delta_1d,
@@ -69,8 +78,8 @@ export function validateOfficialBackfill(db, cacheDir) {
   const coverage = db.prepare(`SELECT
     (SELECT COUNT(DISTINCT trade_date) FROM futures_contract_daily WHERE product='TX' AND session='一般') AS futures_days,
     (SELECT COUNT(DISTINCT trade_date) FROM options_contract_daily) AS option_days,
-    (SELECT COUNT(*) FROM options_strike_daily) AS option_strikes,
-    (SELECT COUNT(*) FROM option_oi_changes WHERE call_oi_delta_1d IS NOT NULL OR put_oi_delta_1d IS NOT NULL) AS delta_rows`).get();
+    (SELECT COUNT(*) FROM options_strike_daily) AS option_strikes`).get();
+  coverage.delta_rows = oi.delta1d;
   check('at least one year of futures', coverage.futures_days >= 240, `${coverage.futures_days} trading days`);
   check('at least one year of options', coverage.option_days >= 240, `${coverage.option_days} trading days`);
   const invalidSessions = db.prepare(`SELECT COUNT(*) AS count FROM futures_contract_daily WHERE session<>'一般'`).get().count;

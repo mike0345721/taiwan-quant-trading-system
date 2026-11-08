@@ -11,7 +11,10 @@ import {
   v3OutcomeKey,
 } from '../src/v3-outcome-ledger.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
+
+assertDailyArguments();
+const root = dailyStorageRoots(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')).storageV2Root;
 const decisionPath = path.join(root, 'data', 'forward', 'v3-decision-ledger.jsonl');
 const outcomePath = path.join(root, 'data', 'forward', 'v3-outcomes-ledger.jsonl');
 const statusPath = path.join(root, 'reports', 'v3-forward-status.json');

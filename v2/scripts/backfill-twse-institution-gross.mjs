@@ -10,7 +10,7 @@ const SOURCE_URL = 'https://www.twse.com.tw/fund/BFI82U';
 const REVISION = 'final_including_block_trades';
 const config = v2Config();
 const db = openDatabase(config.databasePath);
-const cacheDir = path.join(config.root, 'data', 'twse-institution-cache');
+const cacheDir = path.join(config.dataRoot, 'data', 'twse-institution-cache');
 fs.mkdirSync(cacheDir, { recursive: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -3,6 +3,10 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
+
+assertDailyArguments();
+const roots = dailyStorageRoots();
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(scriptDir, '..', '..');
 const scriptPath = path.join(appRoot, 'scripts', 'backfill-taifex-replay.ps1');
@@ -11,7 +15,7 @@ const delayMs = process.env.V3_INTRADAY_BACKFILL_DELAY_MS || '3000';
 
 const result = spawnSync(shell, [
   '-NoProfile',
-  '-ExecutionPolicy', 'Bypass',
+  ...(roots.bound ? [] : ['-ExecutionPolicy', 'Bypass']),
   '-File', scriptPath,
   '-Limit', '30',
   '-DelayMs', delayMs,

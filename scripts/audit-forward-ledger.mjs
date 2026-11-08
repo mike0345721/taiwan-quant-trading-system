@@ -1,11 +1,13 @@
 import fs from 'node:fs';
+import { dailyStorageRoots, assertDailyArguments } from '../src/daily-storage-binding.mjs';
+assertDailyArguments();
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { materializeV3OutcomeLedger, validResolvedOutcome } from '../v2/src/v3-outcome-ledger.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const appRoot = path.dirname(scriptDir);
+const appRoot = dailyStorageRoots(path.dirname(scriptDir)).storageAppRoot;
 const ledgerPath = path.join(appRoot, 'v2', 'data', 'forward', 'v3-decision-ledger.jsonl');
 const outcomeLedgerPath = path.join(appRoot, 'v2', 'data', 'forward', 'v3-outcomes-ledger.jsonl');
 const reportPath = path.join(appRoot, 'v2', 'reports', 'v3-forward-ledger-audit.json');

@@ -1,4 +1,5 @@
 import { auditInstitutionalFuturesOiConsistency } from './domestic-institution-backfill.mjs';
+import { readOptionOiCoverage } from './option-oi-coverage.mjs';
 
 function addIssue(db, issue) {
   db.prepare(`INSERT OR IGNORE INTO quality_issues(trade_date, severity, rule_code, source_key, message, detected_at) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -62,11 +63,10 @@ export function runQualityChecks(db) {
       (SELECT COUNT(*) FROM spot_institutional_daily WHERE foreign_net_e IS NOT NULL) AS spot_days,
       (SELECT COUNT(*) FROM futures_positions_daily WHERE foreign_net IS NOT NULL) AS futures_position_days,
       (SELECT COUNT(DISTINCT trade_date) FROM options_contract_daily) AS option_days,
-      (SELECT COUNT(*) FROM option_oi_changes WHERE put_oi_delta_1d IS NOT NULL OR call_oi_delta_1d IS NOT NULL) AS option_oi_delta_1d_rows,
-      (SELECT COUNT(*) FROM option_oi_changes WHERE put_oi_delta_3d IS NOT NULL OR call_oi_delta_3d IS NOT NULL) AS option_oi_delta_3d_rows,
-      (SELECT COUNT(*) FROM option_oi_changes WHERE put_oi_delta_5d IS NOT NULL OR call_oi_delta_5d IS NOT NULL) AS option_oi_delta_5d_rows,
       (SELECT COUNT(*) FROM signals_daily WHERE total_score IS NOT NULL) AS signal_days,
       (SELECT COUNT(*) FROM daily_features WHERE next_tx_return_pct IS NOT NULL) AS labeled_days`).get();
+  const oi = readOptionOiCoverage(db);
+  Object.assign(coverage, { option_oi_delta_1d_rows: oi.delta1d, option_oi_delta_3d_rows: oi.delta3d, option_oi_delta_5d_rows: oi.delta5d });
   return { ...summary, ...optionSummary, coverage, institutionalFuturesOiConsistency,
     issues: { error: counts.error || 0, warning: counts.warning || 0, info: counts.info || 0 }, byRule, sampleIssues };
 }

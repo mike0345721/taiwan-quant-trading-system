@@ -8,11 +8,12 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { Readable } from 'node:stream';
 import { observedFlowAtChart } from '../src/dashboard-observed-flow.mjs';
+import { ownerJournalRoot, ownerJournalBinding } from '../src/owner-local-journal.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
 const actualNames = ['server.mjs', 'src/security.mjs', 'src/http-utils.mjs',
-  'src/owner-local-acceptance.mjs', 'src/owner-local-research-root.mjs',
+  'src/owner-local-acceptance.mjs', 'src/owner-local-research-root.mjs', 'src/owner-local-journal.mjs',
   'src/cru21-market-candidate.mjs', 'src/dashboard-source-binding.mjs',
   'src/candidate-market-inputs.mjs', 'src/data-quality.mjs',
   'src/dashboard-data-health.mjs', 'src/dashboard-decision-workspace.mjs',
@@ -72,6 +73,12 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
   const memory = new Map([[sessionFile, Buffer.from('{}\n')]]);
   const directories = new Set([appRoot, readRoot, producerRoot, dataRoot,
     path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'decision-workspace')]);
+  const journalBinding = { sourceRoot: appRoot, readDataRoot: readRoot, producerDataRoot: producerRoot };
+  const journalRoot = ownerJournalRoot(journalBinding), journalManifest = path.join(journalRoot, 'binding.json');
+  if (owner) {
+    directories.add(journalRoot); directories.add(path.join(journalRoot, 'decision-workspace'));
+    memory.set(journalManifest, Buffer.from(JSON.stringify(ownerJournalBinding(journalBinding)) + '\n'));
+  }
   for (const dir of [...directories]) {
     let current = dir;
     for (;;) { directories.add(current); const parent = path.dirname(current); if (parent === current) break; current = parent; }
@@ -106,7 +113,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
     ...configPatch });
   const readMemory = (name, encoding) => {
     counters.fsReads.push(name);
-    assert.ok([sessionFile, futuresAuditFile].includes(name), 'Only the private Session or fixed synthetic input audit may be read');
+    assert.ok([sessionFile, futuresAuditFile, ...(owner ? [journalManifest] : [])].includes(name), 'Only the private Session, bound Owner manifest or fixed synthetic input audit may be read');
     const bytes = memory.get(name);
     if (!bytes) throw Object.assign(Error('Synthetic file missing'), { code: 'ENOENT' });
     return encoding ? bytes.toString(encoding) : Buffer.from(bytes);
@@ -126,11 +133,13 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
       return { isSymbolicLink: () => observed.namespaceAlias === name,
         isDirectory: () => directories.has(name), isFile: () => memory.has(name), nlink: 1 };
     },
+    statSync(name) { assert.ok(owner && name === journalManifest); return { size: memory.get(name).length }; },
     realpathSync(name) {
       assert.ok(directories.has(name) || memory.has(name)); return name;
     },
     readdirSync(name) {
-      assert.ok([path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'dashboard-chart-cache/market-observation'), path.join(dataRoot, 'decision-workspace')].includes(name));
+      assert.ok([path.join(dataRoot, 'dashboard-chart-cache'), path.join(dataRoot, 'dashboard-chart-cache/market-observation'), path.join(dataRoot, 'decision-workspace'),
+        ...(owner ? [journalRoot, path.join(journalRoot, 'decision-workspace')] : [])].includes(name));
       return [...new Set([...directories,...memory.keys()])].filter(p=>p!==name&&path.dirname(p)===name).map(p=>path.basename(p));
     },
   }, { get(target, key) { return Object.hasOwn(target, key) ? target[key] : () => deny('filesystem:' + String(key)); } });

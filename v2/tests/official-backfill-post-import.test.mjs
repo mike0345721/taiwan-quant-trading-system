@@ -182,7 +182,7 @@ test('actual wrapper reports partial failure with nonzero status while running f
     const logs=[],calls=[],proc={env:{},exitCode:0};const context=vm.createContext({console:{log:v=>logs.push(v)},process:proc,Date});
     const mocks={
       'node:fs':{default:{mkdirSync(){},writeFileSync(){calls.push('report')}}},'node:path':{default:path},
-      '../src/config.mjs':{v2Config:()=>({root:'/synthetic',databasePath:'/synthetic/db',migrationsPath:'/synthetic/migrations',reportsPath:'/synthetic/reports'})},
+      '../src/config.mjs':{v2Config:()=>({root:'/synthetic',dataRoot:'/synthetic',databasePath:'/synthetic/db',migrationsPath:'/synthetic/migrations',reportsPath:'/synthetic/reports'})},
       '../src/db.mjs':{openDatabase:()=>({prepare:()=>({get:()=>({date:'2026-11-04'})}),close(){calls.push('close')}}),applyMigrations(){}},
       '../src/official-backfill.mjs':{backfillTaifex:async()=>({state:'PARTIAL_SOURCE_FALLBACK',failures:[{reason:'TAIFEX_FETCH_FAILED'}]})},
       '../src/features.mjs':{rebuildFeatures(){calls.push('features');return {rows:1}}},

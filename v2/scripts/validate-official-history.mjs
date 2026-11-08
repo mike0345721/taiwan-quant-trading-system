@@ -8,7 +8,7 @@ const config = v2Config();
 const db = openDatabase(config.databasePath);
 try {
   applyMigrations(db, config.migrationsPath);
-  const result = validateOfficialBackfill(db, path.join(config.root, 'data', 'official-cache'));
+  const result = validateOfficialBackfill(db, path.join(config.dataRoot, 'data', 'official-cache'));
   fs.mkdirSync(config.reportsPath, { recursive: true });
   const reportPath = path.join(config.reportsPath, 'official-validation.json');
   fs.writeFileSync(reportPath, `${JSON.stringify(result, null, 2)}\n`);

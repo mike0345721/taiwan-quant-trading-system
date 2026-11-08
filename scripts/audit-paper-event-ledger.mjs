@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { dailyStorageRoots, assertDailyArguments } from '../src/daily-storage-binding.mjs';
+assertDailyArguments();
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +11,7 @@ import {
   validatePaperEvidence,
 } from '../src/paper-event-ledger.mjs';
 
-const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const appRoot = dailyStorageRoots(path.dirname(path.dirname(fileURLToPath(import.meta.url)))).storageAppRoot;
 const archiveDir = path.join(appRoot, 'data', 'intraday', 'archive');
 const ledgerPath = path.join(appRoot, 'data', 'forward', 'v3.8-paper-events.jsonl');
 const reportPath = path.join(appRoot, 'data', 'forward', 'v3.8-paper-events-audit.json');

@@ -97,12 +97,15 @@ test('morning DAY-final absence retains missing rows and proves only that the se
   assert.notEqual(buildDailyUpdateGateSummary({ stages: [{ key: 'taifex', ok: false }], marketDaily: market }).requiredSource, 'NOT_DUE');
 });
 
-test('daily batch target stays fixed across midnight while each row observation keeps its actual later time', () => {
+test('daily batch target stays fixed across midnight while each row observation keeps its actual later time', async () => {
+  const { dailyStorageRoots, assertDailyArguments } = await import('../src/daily-storage-binding.mjs');
+  const { assertExistingDailyDatabase } = await import('../src/daily-storage-database.mjs');
   const scriptUrl = new URL('../v2/scripts/run-v3-daily-update.mjs', import.meta.url).href;
   const script = fs.readFileSync(fileURLToPath(scriptUrl), 'utf8').replace(/^import .*\r?\n/gm, '').replaceAll('import.meta.url', 'scriptUrl');
   let clock = Date.parse('2026-11-06T15:59:50Z'); const files = new Map(), inspections = [];
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return clock; } }
   vm.runInNewContext(script, { scriptUrl, path, fileURLToPath, Date: Clock, Intl,
+    dailyStorageRoots, assertDailyArguments, assertExistingDailyDatabase,
     process: { argv: [], env: {}, pid: 123, execPath: 'synthetic-node' }, console: { log() {}, error() {} },
     fs: { mkdirSync() {}, openSync() { return 42; }, closeSync() {}, appendFileSync() {},
       writeFileSync(k, v) { files.set(k, v); }, renameSync(a, b) { files.set(b, files.get(a)); files.delete(a); }, unlinkSync(k) { files.delete(k); } },
