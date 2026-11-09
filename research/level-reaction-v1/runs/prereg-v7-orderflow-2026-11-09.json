@@ -1,0 +1,57 @@
+{
+ "type": "preregistration",
+ "createdAt": "2026-11-09T08:33:59.868Z",
+ "study": "V7 Shioaji order-flow confirmation + 1m alignment",
+ "spec": {
+  "version": "orderflow-v7",
+  "data": "Shioaji TX ticks (provider tick_type aggressor) and 5-level bid/ask, aggregated to 1m; dominant contract per session",
+  "qualityGate": "a session is used only if captured TX volume is 90%-110% of the official 5m archive volume over the same 5m buckets AND the official archive has >= 95% of the session 5m buckets covered by captured ticks",
+  "bars5m": "5m bars built from 1m (Taipei clock buckets); ATR14 on 5m rolled across sessions within a contract (official archive used for warm-up when the Shioaji day is missing)",
+  "decisionPoints": "every 5m bar close t in a usable session, from the 3rd 5m bar of the session, excluding the last 12 bars of the session",
+  "base": "momentum move: m = close_t - close_(t-15min); a decision point qualifies if |m| >= 0.5 * ATR14_5m; base direction = sign(m)",
+  "features": {
+   "cvd15": "(aggressor buy volume - aggressor sell volume) / total volume over the last 15 minutes (tick_type)",
+   "book5": "mean over bid/ask snapshots in the last 5 minutes of (sum top-5 bid volume - sum top-5 ask volume) / (sum both)"
+  },
+  "confirmed": "feature has the same sign as the base direction AND |feature| >= the DEV-window 67th percentile of |feature| at qualifying points (threshold computed from DEV features only, then frozen and reused on HOLDOUT)",
+  "opposed": "feature has the opposite sign of the base direction (any magnitude)",
+  "trade": "enter at the open of the next 1m bar in the base direction; stop 1.5 x ATR14_5m; target 2R; time exit 60 minutes; session end exit; exits checked on 1m bars, a bar touching both counts as stop; TX costs (2 ticks per side)",
+  "primary": {
+   "P1": "cvd15: mean net R(confirmed) - mean net R(opposed)",
+   "P2": "book5: mean net R(confirmed) - mean net R(opposed)",
+   "P3": "6-timeframe alignment incl. 1m (1,5,15,30,60,240; EMA20 direction as in V6; 5m+ from official archive closes rolled within contract, 1m EMA20 from Shioaji 1m closes reset each session): onsets of full alignment at 1m closes, one position at a time, vs same-hour same-direction random 1m entries (2000 draws), mean net R excess"
+  },
+  "inference": "P1/P2: one-sided p from 2000 within-day permutations of the feature among qualifying points (price paths fixed). P3: one-sided p vs matched controls. Holm across P1-P3. Pass = Holm-adjusted p < 0.05 and positive effect. Tradable flag additionally requires mean net R of confirmed (or aligned) trades > 0.",
+  "secondary": [
+   "tick-count imbalance (buy ticks - sell ticks)/(all) over 15m",
+   "quote-classified CVD",
+   "basis lead (TX minus IX0001 change over 15m, DAY only)",
+   "2330 aggressor flow 15m (DAY only)",
+   "DAY vs NIGHT",
+   "veto view: opposed vs all qualifying points",
+   "win rates"
+  ],
+  "holdoutStart": "2026-09-01",
+  "researchOnly": true,
+  "executionAuthorized": false
+ },
+ "specHash": "4cfd5f6a326106b8a643ff8185ad1b909c2227412b1cfa708a481511b91eab7f",
+ "codeSha256": "f0374cbb0adc81e602efd341f2bb19c702bcd589d7c7bffc7abc6a78c594d9ec",
+ "builderSha256": "ad35d68239d0cbe3c545a1b859802fee542f8a74087e95da648e60bbe638c904",
+ "validationBeforeOutcomes": {
+  "syntheticRandomFlow": "P1 p 0.21, P2 p 0.95",
+  "plantedFlow": "P1 diff +1.20 p 0.0005, P2 diff +0.99 p 0.0005",
+  "randomWalkNull5": "P1 p [0.946,0.211,0.341,0.991,0.063]; P2 p [0.751,0.193,0.924,0.958,0.368]; P3 p [0.674,0.070,0.561,0.629,0.992]",
+  "plantedMomentumP3": "excess +0.292 p 0.0005"
+ },
+ "ownerDecision": "Owner chose (2026-11-09 16:21) to test order flow on the holdout (>= 2026-09-01), one shot.",
+ "plan": "Build 1m files on MSI; run DEV (2026-07-30..08-31) to fix thresholds from DEV features; then run HOLDOUT once with the DEV thresholds; report both.",
+ "cumulativePrimaryAttemptsBefore": 27,
+ "theseAttempts": [
+  28,
+  29,
+  30
+ ],
+ "researchOnly": true,
+ "executionAuthorized": false
+}
