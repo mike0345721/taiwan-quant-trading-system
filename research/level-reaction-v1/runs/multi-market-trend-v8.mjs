@@ -125,10 +125,12 @@ export function backtest(R, dates, sigs, names) {
 }
 
 export const sharpe = xs => { const m = xs.reduce((s, v) => s + v, 0) / xs.length; const sd = Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / (xs.length - 1)); return sd > 0 ? m / sd * Math.sqrt(252) : 0; };
+// reporting fix (after first run): the union calendar has ~290 rows a year, so annualise with the actual rows per calendar year
 function stats(pnl) {
   const xs = pnl.map(p => p.r); let eq = 1, pk = 1, dd = 0; for (const x of xs) { eq *= 1 + x; pk = Math.max(pk, eq); dd = Math.min(dd, eq / pk - 1); }
-  const yrs = xs.length / 252; const m = xs.reduce((s, v) => s + v, 0) / xs.length; const sd = Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / (xs.length - 1));
-  return { sharpe: +sharpe(xs).toFixed(3), annReturn: +(m * 252 * 100).toFixed(2), annVol: +(sd * Math.sqrt(252) * 100).toFixed(2), cagr: +((eq ** (1 / yrs) - 1) * 100).toFixed(2), maxDD: +(dd * 100).toFixed(1), years: +yrs.toFixed(1) };
+  const yrs = (Date.parse(pnl.at(-1).d) - Date.parse(pnl[0].d)) / (365.25 * 86400000) || 1; const k = xs.length / yrs;
+  const m = xs.reduce((s, v) => s + v, 0) / xs.length; const sd = Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / (xs.length - 1));
+  return { sharpe: +(m / sd * Math.sqrt(k)).toFixed(3), annReturn: +(m * k * 100).toFixed(2), annVol: +(sd * Math.sqrt(k) * 100).toFixed(2), cagr: +((eq ** (1 / yrs) - 1) * 100).toFixed(2), maxDD: +(dd * 100).toFixed(1), years: +yrs.toFixed(1) };
 }
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function yearBootstrap(pnlA, pnlB, draws = 5000, seed = 8) {

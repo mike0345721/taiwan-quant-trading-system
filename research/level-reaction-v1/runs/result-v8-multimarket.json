@@ -1,0 +1,341 @@
+{
+ "specHash": "9cfda62c1d2da747bf773c8e2a6b480980bc25f856ac2871a0f22b13c530e5aa",
+ "primary": {
+  "portfolio": {
+   "sharpe": 0.865,
+   "annReturn": 3.56,
+   "annVol": 4.12,
+   "cagr": 3.54,
+   "maxDD": -8.7,
+   "years": 25.8
+  },
+  "txOnly": {
+   "sharpe": 0.537,
+   "annReturn": 5.6,
+   "annVol": 10.43,
+   "cagr": 5.18,
+   "maxDD": -28.4,
+   "years": 25.8
+  },
+  "pSharpeLE0": 0.0001999600079984003,
+  "pass": true,
+  "pPortfolioNotBetterThanTX": 0.008598280343931213
+ },
+ "donchian": {
+  "portfolio": {
+   "sharpe": 0.563,
+   "annReturn": 1.96,
+   "annVol": 3.47,
+   "cagr": 1.91,
+   "maxDD": -6.9,
+   "years": 25.8
+  },
+  "txOnly": {
+   "sharpe": 0.276,
+   "annReturn": 2.51,
+   "annVol": 9.08,
+   "cagr": 2.12,
+   "maxDD": -36.2,
+   "years": 25.8
+  }
+ },
+ "subPeriods": {
+  "2001-2010": {
+   "portfolio": {
+    "sharpe": 0.754,
+    "annReturn": 3.49,
+    "annVol": 4.62,
+    "cagr": 3.44,
+    "maxDD": -8.7,
+    "years": 10
+   },
+   "txOnly": {
+    "sharpe": 0.513,
+    "annReturn": 5.25,
+    "annVol": 10.24,
+    "cagr": 4.84,
+    "maxDD": -24.6,
+    "years": 10
+   },
+   "twiiBuyHold": {
+    "sharpe": 0.418,
+    "annReturn": 9.85,
+    "annVol": 23.59,
+    "cagr": 7.32,
+    "maxDD": -58.3,
+    "years": 10
+   }
+  },
+  "2011-2018": {
+   "portfolio": {
+    "sharpe": 0.616,
+    "annReturn": 2.19,
+    "annVol": 3.56,
+    "cagr": 2.15,
+    "maxDD": -5.9,
+    "years": 8
+   },
+   "txOnly": {
+    "sharpe": 0.066,
+    "annReturn": 0.68,
+    "annVol": 10.33,
+    "cagr": 0.14,
+    "maxDD": -27,
+    "years": 8
+   },
+   "twiiBuyHold": {
+    "sharpe": 0.297,
+    "annReturn": 4.17,
+    "annVol": 14.04,
+    "cagr": 3.23,
+    "maxDD": -25.7,
+    "years": 8
+   }
+  },
+  "2019-2026": {
+   "portfolio": {
+    "sharpe": 1.276,
+    "annReturn": 5.05,
+    "annVol": 3.96,
+    "cagr": 5.1,
+    "maxDD": -7.1,
+    "years": 7.8
+   },
+   "txOnly": {
+    "sharpe": 1.026,
+    "annReturn": 11.06,
+    "annVol": 10.78,
+    "cagr": 11.04,
+    "maxDD": -19,
+    "years": 7.8
+   },
+   "twiiBuyHold": {
+    "sharpe": 1.196,
+    "annReturn": 22.95,
+    "annVol": 19.19,
+    "cagr": 23.49,
+    "maxDD": -31.6,
+    "years": 7.8
+   }
+  }
+ },
+ "crisisYearsPct": {
+  "2008": {
+   "portfolio": 4.3,
+   "txOnly": 7,
+   "twiiBuyHold": -56
+  },
+  "2011": {
+   "portfolio": 1.6,
+   "txOnly": -14.1,
+   "twiiBuyHold": -15.9
+  },
+  "2015": {
+   "portfolio": 2.3,
+   "txOnly": 1.9,
+   "twiiBuyHold": -9.8
+  },
+  "2018": {
+   "portfolio": -1.5,
+   "txOnly": 3.8,
+   "twiiBuyHold": 3.5
+  },
+  "2020": {
+   "portfolio": 7.9,
+   "txOnly": 4.6,
+   "twiiBuyHold": 28.5
+  },
+  "2022": {
+   "portfolio": 5.1,
+   "txOnly": 1.5,
+   "twiiBuyHold": -23.4
+  }
+ },
+ "corrWithTWIIBuyHold": 0.137,
+ "contributionShare": {
+  "TWII": 19.5,
+  "TSMC": 8.9,
+  "MEDIATEK": 13.5,
+  "SP500_FUT": 15.8,
+  "UST10Y_FUT": 2.4,
+  "EUR_FUT": 2,
+  "JPY_FUT": 3.3,
+  "GOLD_FUT": 11.8,
+  "CRUDE_FUT": 10,
+  "COPPER_FUT": 8,
+  "SOYBEAN_FUT": 4.1,
+  "CORN_FUT": 0.6
+ },
+ "weeklyCorrelations2005": {
+  "TWII": {
+   "TWII": 1,
+   "TSMC": 0.77,
+   "MEDIATEK": 0.61,
+   "SP500_FUT": 0.4,
+   "UST10Y_FUT": -0.09,
+   "EUR_FUT": 0.2,
+   "JPY_FUT": -0.03,
+   "GOLD_FUT": 0.14,
+   "CRUDE_FUT": 0.15,
+   "COPPER_FUT": 0.32,
+   "SOYBEAN_FUT": 0.18,
+   "CORN_FUT": 0.13
+  },
+  "TSMC": {
+   "TWII": 0.77,
+   "TSMC": 1,
+   "MEDIATEK": 0.5,
+   "SP500_FUT": 0.36,
+   "UST10Y_FUT": -0.07,
+   "EUR_FUT": 0.17,
+   "JPY_FUT": -0.05,
+   "GOLD_FUT": 0.14,
+   "CRUDE_FUT": 0.1,
+   "COPPER_FUT": 0.25,
+   "SOYBEAN_FUT": 0.16,
+   "CORN_FUT": 0.1
+  },
+  "MEDIATEK": {
+   "TWII": 0.61,
+   "TSMC": 0.5,
+   "MEDIATEK": 1,
+   "SP500_FUT": 0.26,
+   "UST10Y_FUT": -0.08,
+   "EUR_FUT": 0.11,
+   "JPY_FUT": -0.01,
+   "GOLD_FUT": 0.07,
+   "CRUDE_FUT": 0.09,
+   "COPPER_FUT": 0.16,
+   "SOYBEAN_FUT": 0.08,
+   "CORN_FUT": 0.05
+  },
+  "SP500_FUT": {
+   "TWII": 0.4,
+   "TSMC": 0.36,
+   "MEDIATEK": 0.26,
+   "SP500_FUT": 1,
+   "UST10Y_FUT": -0.18,
+   "EUR_FUT": 0.29,
+   "JPY_FUT": -0.19,
+   "GOLD_FUT": 0.11,
+   "CRUDE_FUT": 0.22,
+   "COPPER_FUT": 0.43,
+   "SOYBEAN_FUT": 0.18,
+   "CORN_FUT": 0.15
+  },
+  "UST10Y_FUT": {
+   "TWII": -0.09,
+   "TSMC": -0.07,
+   "MEDIATEK": -0.08,
+   "SP500_FUT": -0.18,
+   "UST10Y_FUT": 1,
+   "EUR_FUT": 0.08,
+   "JPY_FUT": 0.53,
+   "GOLD_FUT": 0.21,
+   "CRUDE_FUT": -0.22,
+   "COPPER_FUT": -0.16,
+   "SOYBEAN_FUT": -0.13,
+   "CORN_FUT": -0.08
+  },
+  "EUR_FUT": {
+   "TWII": 0.2,
+   "TSMC": 0.17,
+   "MEDIATEK": 0.11,
+   "SP500_FUT": 0.29,
+   "UST10Y_FUT": 0.08,
+   "EUR_FUT": 1,
+   "JPY_FUT": 0.3,
+   "GOLD_FUT": 0.42,
+   "CRUDE_FUT": 0.14,
+   "COPPER_FUT": 0.36,
+   "SOYBEAN_FUT": 0.2,
+   "CORN_FUT": 0.22
+  },
+  "JPY_FUT": {
+   "TWII": -0.03,
+   "TSMC": -0.05,
+   "MEDIATEK": -0.01,
+   "SP500_FUT": -0.19,
+   "UST10Y_FUT": 0.53,
+   "EUR_FUT": 0.3,
+   "JPY_FUT": 1,
+   "GOLD_FUT": 0.3,
+   "CRUDE_FUT": -0.11,
+   "COPPER_FUT": -0.09,
+   "SOYBEAN_FUT": -0.05,
+   "CORN_FUT": -0.01
+  },
+  "GOLD_FUT": {
+   "TWII": 0.14,
+   "TSMC": 0.14,
+   "MEDIATEK": 0.07,
+   "SP500_FUT": 0.11,
+   "UST10Y_FUT": 0.21,
+   "EUR_FUT": 0.42,
+   "JPY_FUT": 0.3,
+   "GOLD_FUT": 1,
+   "CRUDE_FUT": 0.15,
+   "COPPER_FUT": 0.34,
+   "SOYBEAN_FUT": 0.12,
+   "CORN_FUT": 0.16
+  },
+  "CRUDE_FUT": {
+   "TWII": 0.15,
+   "TSMC": 0.1,
+   "MEDIATEK": 0.09,
+   "SP500_FUT": 0.22,
+   "UST10Y_FUT": -0.22,
+   "EUR_FUT": 0.14,
+   "JPY_FUT": -0.11,
+   "GOLD_FUT": 0.15,
+   "CRUDE_FUT": 1,
+   "COPPER_FUT": 0.29,
+   "SOYBEAN_FUT": 0.23,
+   "CORN_FUT": 0.21
+  },
+  "COPPER_FUT": {
+   "TWII": 0.32,
+   "TSMC": 0.25,
+   "MEDIATEK": 0.16,
+   "SP500_FUT": 0.43,
+   "UST10Y_FUT": -0.16,
+   "EUR_FUT": 0.36,
+   "JPY_FUT": -0.09,
+   "GOLD_FUT": 0.34,
+   "CRUDE_FUT": 0.29,
+   "COPPER_FUT": 1,
+   "SOYBEAN_FUT": 0.3,
+   "CORN_FUT": 0.21
+  },
+  "SOYBEAN_FUT": {
+   "TWII": 0.18,
+   "TSMC": 0.16,
+   "MEDIATEK": 0.08,
+   "SP500_FUT": 0.18,
+   "UST10Y_FUT": -0.13,
+   "EUR_FUT": 0.2,
+   "JPY_FUT": -0.05,
+   "GOLD_FUT": 0.12,
+   "CRUDE_FUT": 0.23,
+   "COPPER_FUT": 0.3,
+   "SOYBEAN_FUT": 1,
+   "CORN_FUT": 0.56
+  },
+  "CORN_FUT": {
+   "TWII": 0.13,
+   "TSMC": 0.1,
+   "MEDIATEK": 0.05,
+   "SP500_FUT": 0.15,
+   "UST10Y_FUT": -0.08,
+   "EUR_FUT": 0.22,
+   "JPY_FUT": -0.01,
+   "GOLD_FUT": 0.16,
+   "CRUDE_FUT": 0.21,
+   "COPPER_FUT": 0.21,
+   "SOYBEAN_FUT": 0.56,
+   "CORN_FUT": 1
+  }
+ },
+ "researchOnly": true,
+ "executionAuthorized": false
+}
