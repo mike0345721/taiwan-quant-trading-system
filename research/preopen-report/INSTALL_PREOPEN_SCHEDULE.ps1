@@ -18,6 +18,7 @@ foreach ($j in $jobs) {
   $t = Get-ScheduledTask -TaskName $j.Name
   Write-Host "Installed: $($t.TaskName) daily $($j.At) mode=$($j.Mode) wake=$($t.Settings.WakeToRun)"
 }
+& (Join-Path $here 'MAKE_DESKTOP_SHORTCUT.ps1')
 Write-Host 'Building the first report now (first run reads several days of tick files, may take 5-20 minutes)...'
 & cmd.exe /c "`"$bat`" report"
 Get-Content (Join-Path $here 'out\run-log.txt') -Tail 4
