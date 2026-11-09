@@ -1,0 +1,347 @@
+{
+ "days": 38,
+ "pairs": {
+  "MTX-TMF": {
+   "episodes": 10205,
+   "perDay": 268.6,
+   "withSize1": 1652,
+   "durAtLeast300ms": 313,
+   "durAtLeast1s": 94,
+   "stillAbove300ms": 501,
+   "stillAbove1s": 407,
+   "stillAbove1sWithSize": 145,
+   "startGapMedian": 8,
+   "durMedianMs": 0,
+   "durP90Ms": 93,
+   "durP99Ms": 875,
+   "optimisticRoundTripAfter1s": {
+    "n": 407,
+    "median": -5.72
+   }
+  },
+  "TX-TMF": {
+   "episodes": 10131,
+   "perDay": 266.6,
+   "withSize1": 77,
+   "durAtLeast300ms": 236,
+   "durAtLeast1s": 65,
+   "stillAbove300ms": 362,
+   "stillAbove1s": 271,
+   "stillAbove1sWithSize": 6,
+   "startGapMedian": 8,
+   "durMedianMs": 0,
+   "durP90Ms": 78,
+   "durP99Ms": 625,
+   "optimisticRoundTripAfter1s": {
+    "n": 271,
+    "median": -6.35
+   }
+  },
+  "TX-MTX": {
+   "episodes": 14750,
+   "perDay": 388.2,
+   "withSize1": 1506,
+   "durAtLeast300ms": 8,
+   "durAtLeast1s": 2,
+   "stillAbove300ms": 30,
+   "stillAbove1s": 26,
+   "stillAbove1sWithSize": 1,
+   "startGapMedian": 6,
+   "durMedianMs": 0,
+   "durP90Ms": 0,
+   "durP99Ms": 125,
+   "optimisticRoundTripAfter1s": {
+    "n": 26,
+    "median": 13.33
+   }
+  }
+ },
+ "hours": {
+  "10": {
+   "all": 2688,
+   "live1000": 0
+  },
+  "11": {
+   "all": 1287,
+   "live1000": 0
+  },
+  "12": {
+   "all": 973,
+   "live1000": 0
+  },
+  "13": {
+   "all": 1504,
+   "live1000": 1
+  },
+  "15": {
+   "all": 1159,
+   "live1000": 22
+  },
+  "16": {
+   "all": 1199,
+   "live1000": 7
+  },
+  "17": {
+   "all": 795,
+   "live1000": 0
+  },
+  "18": {
+   "all": 676,
+   "live1000": 0
+  },
+  "19": {
+   "all": 927,
+   "live1000": 1
+  },
+  "20": {
+   "all": 2143,
+   "live1000": 48
+  },
+  "21": {
+   "all": 4821,
+   "live1000": 12
+  },
+  "22": {
+   "all": 3124,
+   "live1000": 1
+  },
+  "23": {
+   "all": 2794,
+   "live1000": 596
+  },
+  "09": {
+   "all": 8509,
+   "live1000": 5
+  },
+  "00": {
+   "all": 72,
+   "live1000": 0
+  },
+  "08": {
+   "all": 2340,
+   "live1000": 11
+  },
+  "01": {
+   "all": 18,
+   "live1000": 0
+  },
+  "03": {
+   "all": 27,
+   "live1000": 0
+  },
+  "04": {
+   "all": 16,
+   "live1000": 0
+  },
+  "02": {
+   "all": 14,
+   "live1000": 0
+  }
+ },
+ "examples": [
+  {
+   "date": "2026-07-30",
+   "pair": "TX-TMF",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785376152159,
+   "dur": 0,
+   "startGap": 9,
+   "maxGap": 9,
+   "fee": 5.94,
+   "qty": 0,
+   "g300": -6,
+   "g1000": 9,
+   "bestRev60": 9,
+   "updates": 1,
+   "tpe": "09:49:12.159"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-TMF",
+   "side": "sellA",
+   "contract": "H6",
+   "t": 1785389104658,
+   "dur": 125,
+   "startGap": 6,
+   "maxGap": 6,
+   "fee": 5.91,
+   "qty": 0,
+   "g300": -4,
+   "g1000": 6,
+   "bestRev60": 9,
+   "updates": 1,
+   "tpe": "13:25:04.658"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394800406,
+   "dur": 10,
+   "startGap": 12,
+   "maxGap": 12,
+   "fee": 4.18,
+   "qty": 1,
+   "g300": 4,
+   "g1000": 14,
+   "bestRev60": 12,
+   "updates": 6,
+   "tpe": "15:00:00.406"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "MTX-TMF",
+   "side": "sellA",
+   "contract": "H6",
+   "t": 1785394800406,
+   "dur": 1,
+   "startGap": 12,
+   "maxGap": 12,
+   "fee": 6.28,
+   "qty": 0,
+   "g300": -4,
+   "g1000": 13,
+   "bestRev60": 17,
+   "updates": 1,
+   "tpe": "15:00:00.406"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394800502,
+   "dur": 166,
+   "startGap": 7,
+   "maxGap": 14,
+   "fee": 4.18,
+   "qty": 0,
+   "g300": -11,
+   "g1000": 7,
+   "bestRev60": 12,
+   "updates": 30,
+   "tpe": "15:00:00.502"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394800775,
+   "dur": 16,
+   "startGap": 23,
+   "maxGap": 23,
+   "fee": 4.18,
+   "qty": 0,
+   "g300": -11,
+   "g1000": 8,
+   "bestRev60": 12,
+   "updates": 6,
+   "tpe": "15:00:00.775"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394800876,
+   "dur": 17,
+   "startGap": 6,
+   "maxGap": 6,
+   "fee": 4.18,
+   "qty": 0,
+   "g300": -11,
+   "g1000": 16,
+   "bestRev60": 12,
+   "updates": 6,
+   "tpe": "15:00:00.876"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "MTX-TMF",
+   "side": "sellA",
+   "contract": "H6",
+   "t": 1785394800876,
+   "dur": 185,
+   "startGap": 9,
+   "maxGap": 9,
+   "fee": 6.28,
+   "qty": 0,
+   "g300": -9,
+   "g1000": 14,
+   "bestRev60": 17,
+   "updates": 57,
+   "tpe": "15:00:00.876"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394801193,
+   "dur": 1430,
+   "startGap": 8,
+   "maxGap": 16,
+   "fee": 4.18,
+   "qty": 0,
+   "g300": 7,
+   "g1000": 14,
+   "bestRev60": 12,
+   "updates": 177,
+   "tpe": "15:00:01.193"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "MTX-TMF",
+   "side": "sellA",
+   "contract": "H6",
+   "t": 1785394801193,
+   "dur": 393,
+   "startGap": 10,
+   "maxGap": 13,
+   "fee": 6.28,
+   "qty": 0,
+   "g300": 9,
+   "g1000": 16,
+   "bestRev60": 17,
+   "updates": 62,
+   "tpe": "15:00:01.193"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "MTX-TMF",
+   "side": "sellA",
+   "contract": "H6",
+   "t": 1785394801773,
+   "dur": 503,
+   "startGap": 14,
+   "maxGap": 16,
+   "fee": 6.28,
+   "qty": 0,
+   "g300": 8,
+   "g1000": 8,
+   "bestRev60": 17,
+   "updates": 54,
+   "tpe": "15:00:01.773"
+  },
+  {
+   "date": "2026-07-30",
+   "pair": "TX-MTX",
+   "side": "sellB",
+   "contract": "H6",
+   "t": 1785394802624,
+   "dur": 1157,
+   "startGap": 9,
+   "maxGap": 37,
+   "fee": 4.19,
+   "qty": 0,
+   "g300": 18,
+   "g1000": 18,
+   "bestRev60": 12,
+   "updates": 152,
+   "tpe": "15:00:02.624"
+  }
+ ]
+}
