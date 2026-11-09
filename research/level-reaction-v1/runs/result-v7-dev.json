@@ -1,0 +1,517 @@
+{
+ "specHash": "4cfd5f6a326106b8a643ff8185ad1b909c2227412b1cfa708a481511b91eab7f",
+ "window": "DEV",
+ "thresholds": {
+  "cvd15": 0.1757770632368703,
+  "book5": 0.050813760585229004,
+  "cnt15": 0.14,
+  "qcvd15": 0.18053375196232338,
+  "basis": 0.5451048218029414,
+  "s2330": 0.5470798569725864
+ },
+ "sessions": [
+  {
+   "key": "DAY:2026-07-30",
+   "tradeDate": "2026-07-30",
+   "contract": "TXFH6",
+   "volRatio": 0.624,
+   "coverage": 0.767,
+   "usable": false
+  },
+  {
+   "key": "NIGHT:2026-07-30",
+   "tradeDate": "2026-07-31",
+   "contract": "TXFH6",
+   "volRatio": 0.843,
+   "coverage": 0.655,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-07-31",
+   "tradeDate": "2026-07-31",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-07-31",
+   "tradeDate": "2026-08-03",
+   "contract": "TXFH6",
+   "volRatio": 0.832,
+   "coverage": 0.649,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-03",
+   "tradeDate": "2026-08-03",
+   "contract": "TXFH6",
+   "volRatio": 0.773,
+   "coverage": 0.733,
+   "usable": false
+  },
+  {
+   "key": "NIGHT:2026-08-03",
+   "tradeDate": "2026-08-04",
+   "contract": "TXFH6",
+   "volRatio": 0.484,
+   "coverage": 0.357,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-04",
+   "tradeDate": "2026-08-04",
+   "contract": "TXFH6",
+   "volRatio": 0.957,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-04",
+   "tradeDate": "2026-08-05",
+   "contract": "TXFH6",
+   "volRatio": 0.778,
+   "coverage": 0.631,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-05",
+   "tradeDate": "2026-08-05",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-05",
+   "tradeDate": "2026-08-06",
+   "contract": "TXFH6",
+   "volRatio": 0.86,
+   "coverage": 0.643,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-06",
+   "tradeDate": "2026-08-06",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-06",
+   "tradeDate": "2026-08-07",
+   "contract": "TXFH6",
+   "volRatio": 0.8,
+   "coverage": 0.637,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-07",
+   "tradeDate": "2026-08-07",
+   "contract": "TXFH6",
+   "volRatio": 0.991,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-07",
+   "tradeDate": "2026-08-10",
+   "contract": "TXFH6",
+   "volRatio": 0.855,
+   "coverage": 0.679,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-10",
+   "tradeDate": "2026-08-10",
+   "contract": "TXFH6",
+   "volRatio": 0.996,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-10",
+   "tradeDate": "2026-08-11",
+   "contract": "TXFH6",
+   "volRatio": 0.862,
+   "coverage": 0.655,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-11",
+   "tradeDate": "2026-08-11",
+   "contract": "TXFH6",
+   "volRatio": 0.996,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-11",
+   "tradeDate": "2026-08-12",
+   "contract": "TXFH6",
+   "volRatio": 0.839,
+   "coverage": 0.655,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-12",
+   "tradeDate": "2026-08-12",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-12",
+   "tradeDate": "2026-08-13",
+   "contract": "TXFH6",
+   "volRatio": 0.89,
+   "coverage": 0.667,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-13",
+   "tradeDate": "2026-08-13",
+   "contract": "TXFH6",
+   "volRatio": 0.993,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-13",
+   "tradeDate": "2026-08-14",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "DAY:2026-08-14",
+   "tradeDate": "2026-08-14",
+   "contract": "TXFH6",
+   "volRatio": 0.994,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-14",
+   "tradeDate": "2026-08-17",
+   "contract": "TXFH6",
+   "volRatio": 0.835,
+   "coverage": 0.649,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-17",
+   "tradeDate": "2026-08-17",
+   "contract": "TXFH6",
+   "volRatio": 0.994,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-17",
+   "tradeDate": "2026-08-18",
+   "contract": "TXFH6",
+   "volRatio": 0.731,
+   "coverage": 0.625,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-18",
+   "tradeDate": "2026-08-18",
+   "contract": "TXFH6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-18",
+   "tradeDate": "2026-08-19",
+   "contract": "TXFH6",
+   "volRatio": 3.792,
+   "coverage": 0.647,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-19",
+   "tradeDate": "2026-08-19",
+   "contract": "TXFH6",
+   "volRatio": 0.627,
+   "coverage": 0.95,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-20",
+   "tradeDate": "2026-08-20",
+   "contract": "TXFI6",
+   "volRatio": 0.996,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-20",
+   "tradeDate": "2026-08-21",
+   "contract": "TXFI6",
+   "volRatio": 0.884,
+   "coverage": 0.643,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-21",
+   "tradeDate": "2026-08-21",
+   "contract": "TXFI6",
+   "volRatio": 0.988,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-21",
+   "tradeDate": "2026-08-24",
+   "contract": "TXFI6",
+   "volRatio": 0.84,
+   "coverage": 0.637,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-24",
+   "tradeDate": "2026-08-24",
+   "contract": "TXFI6",
+   "volRatio": 0.995,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-24",
+   "tradeDate": "2026-08-25",
+   "contract": "TXFI6",
+   "volRatio": 0.864,
+   "coverage": 0.661,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-25",
+   "tradeDate": "2026-08-25",
+   "contract": "TXFI6",
+   "volRatio": 0.994,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-25",
+   "tradeDate": "2026-08-26",
+   "contract": "TXFI6",
+   "volRatio": 0.776,
+   "coverage": 0.595,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-26",
+   "tradeDate": "2026-08-26",
+   "contract": "TXFI6",
+   "volRatio": 0,
+   "coverage": 0,
+   "usable": false
+  },
+  {
+   "key": "NIGHT:2026-08-26",
+   "tradeDate": "2026-08-27",
+   "contract": "TXFI6",
+   "volRatio": 0,
+   "coverage": 0,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-27",
+   "tradeDate": "2026-08-27",
+   "contract": "TXFI6",
+   "volRatio": 0.996,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-27",
+   "tradeDate": "2026-08-28",
+   "contract": "TXFI6",
+   "volRatio": 0.193,
+   "coverage": 0.137,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-28",
+   "tradeDate": "2026-08-28",
+   "contract": "TXFI6",
+   "volRatio": 0.993,
+   "coverage": 1,
+   "usable": true
+  },
+  {
+   "key": "NIGHT:2026-08-28",
+   "tradeDate": "2026-08-31",
+   "contract": "TXFI6",
+   "volRatio": 0.686,
+   "coverage": 0.637,
+   "usable": false
+  },
+  {
+   "key": "DAY:2026-08-31",
+   "tradeDate": "2026-08-31",
+   "contract": "TXFI6",
+   "volRatio": 0.845,
+   "coverage": 0.933,
+   "usable": false
+  }
+ ],
+ "usableSessions": 19,
+ "qualifyingPoints": 587,
+ "P1": {
+  "feature": "cvd15",
+  "threshold": 0.1757770632368703,
+  "n": 587,
+  "nConfirmed": 194,
+  "nOpposed": 39,
+  "meanConfirmed": -0.04124727355394602,
+  "meanOpposed": 0.05938311922761645,
+  "meanAll": -0.1211720711982662,
+  "winConfirmed": 0.38144329896907214,
+  "winOpposed": 0.48717948717948717,
+  "winAll": 0.3679727427597956,
+  "diff": -0.10063039278156247,
+  "p": 0.999000499750125
+ },
+ "P2": {
+  "feature": "book5",
+  "threshold": 0.050813760585229004,
+  "n": 587,
+  "nConfirmed": 62,
+  "nOpposed": 363,
+  "meanConfirmed": 0.04256495543253827,
+  "meanOpposed": -0.10658073903998544,
+  "meanAll": -0.1211720711982662,
+  "winConfirmed": 0.43548387096774194,
+  "winOpposed": 0.38016528925619836,
+  "winAll": 0.3679727427597956,
+  "diff": 0.1491456944725237,
+  "p": 0.13543228385807096
+ },
+ "P3": {
+  "n": 84,
+  "meanRNet": -0.21062646244829916,
+  "winRate": 0.34523809523809523,
+  "controlMeanRNet": -0.08975719514121891,
+  "excess": -0.12086926730708025,
+  "p": 0.8665667166416792
+ },
+ "holmAdjusted": {
+  "P1": 1,
+  "P2": 0.4062968515742129,
+  "P3": 1
+ },
+ "pass": {
+  "P1": false,
+  "P2": false,
+  "P3": false
+ },
+ "tradable": {
+  "P1": false,
+  "P2": true,
+  "P3": false
+ },
+ "secondary": {
+  "cnt15": {
+   "feature": "cnt15",
+   "threshold": 0.14,
+   "n": 587,
+   "nConfirmed": 193,
+   "nOpposed": 44,
+   "meanConfirmed": -0.14573401801902772,
+   "meanOpposed": -0.05878309458620254,
+   "meanAll": -0.1211720711982662,
+   "winConfirmed": 0.3471502590673575,
+   "winOpposed": 0.4318181818181818,
+   "winAll": 0.3679727427597956,
+   "diff": -0.08695092343282518,
+   "p": 0.998003992015968
+  },
+  "qcvd15": {
+   "feature": "qcvd15",
+   "threshold": 0.18053375196232338,
+   "n": 587,
+   "nConfirmed": 193,
+   "nOpposed": 62,
+   "meanConfirmed": -0.19778808815378499,
+   "meanOpposed": 0.0987728330009866,
+   "meanAll": -0.1211720711982662,
+   "winConfirmed": 0.32642487046632124,
+   "winOpposed": 0.46774193548387094,
+   "winAll": 0.3679727427597956,
+   "diff": -0.2965609211547716,
+   "p": 1
+  },
+  "basis": {
+   "feature": "basis",
+   "threshold": 0.5451048218029414,
+   "n": 449,
+   "nConfirmed": 111,
+   "nOpposed": 152,
+   "meanConfirmed": -0.22774400902955935,
+   "meanOpposed": -0.10440114491846603,
+   "meanAll": -0.1577070362720025,
+   "winConfirmed": 0.35135135135135137,
+   "winOpposed": 0.3618421052631579,
+   "winAll": 0.35634743875278396,
+   "diff": -0.12334286411109333,
+   "p": 0.9720558882235529
+  },
+  "s2330": {
+   "feature": "s2330",
+   "threshold": 0.5470798569725864,
+   "n": 493,
+   "nConfirmed": 129,
+   "nOpposed": 156,
+   "meanConfirmed": -0.2794184193235893,
+   "meanOpposed": -0.2548006328571252,
+   "meanAll": -0.1735536995192017,
+   "winConfirmed": 0.3023255813953488,
+   "winOpposed": 0.30128205128205127,
+   "winAll": 0.3488843813387424,
+   "diff": -0.02461778646646412,
+   "p": 0.8562874251497006
+  }
+ },
+ "cvdByType": {
+  "DAY": {
+   "feature": "cvd15",
+   "threshold": 0.1757770632368703,
+   "n": 493,
+   "nConfirmed": 133,
+   "nOpposed": 27,
+   "meanConfirmed": -0.16902088142933597,
+   "meanOpposed": -0.10453266479995132,
+   "meanAll": -0.1735536995192017,
+   "winConfirmed": 0.3383458646616541,
+   "winOpposed": 0.4074074074074074,
+   "winAll": 0.3488843813387424,
+   "diff": -0.06448821662938464,
+   "p": 1
+  },
+  "NIGHT": {
+   "feature": "cvd15",
+   "threshold": 0.1757770632368703,
+   "n": 94,
+   "nConfirmed": 61,
+   "nOpposed": 12,
+   "meanConfirmed": 0.23734108460059306,
+   "meanOpposed": 0.42819363328964394,
+   "meanAll": 0.15355285180408693,
+   "winConfirmed": 0.47540983606557374,
+   "winOpposed": 0.6666666666666666,
+   "winAll": 0.46808510638297873,
+   "diff": -0.19085254868905088,
+   "p": 0.7305389221556886
+  }
+ },
+ "researchOnly": true,
+ "executionAuthorized": false
+}
