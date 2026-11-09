@@ -1,0 +1,56 @@
+{
+ "type": "preregistration",
+ "createdAt": "2026-11-09T08:25:44.171Z",
+ "study": "V6 multi-timeframe alignment",
+ "spec": {
+  "version": "mtf-alignment-v6",
+  "data": "official TAIFEX 5m archive, TX, DAY and NIGHT sessions concatenated per contract; indicators reset at contract change",
+  "timeframesMin": [
+   5,
+   15,
+   30,
+   60,
+   240
+  ],
+  "tfBars": "session-anchored clock buckets (DAY from 08:45, NIGHT from 15:00); last bucket of a session may be partial; a bucket counts only after its last 5m bar has closed",
+  "direction": "at the close of 5m bar i, for each timeframe: sign(close_i - EMA20 of that timeframe completed-bar closes); EMA seeded by SMA of first 20 bars of the contract segment",
+  "score": "sum of the five directions (-5..+5); bars lacking any EMA or ATR are ineligible",
+  "event": "onset of full alignment: |score_i| = 5 and score_{i-1} != score_i; direction = sign(score_i); one position at a time",
+  "entry": "open of bar i+1 (same session required)",
+  "risk": "1.5 x ATR14 of 5m bars at bar i (true range rolled across sessions within contract)",
+  "exits": "stop -1R, target +2R, time exit at close of bar i+12 (60 min) or the session last bar, whichever first; a bar touching both stop and target counts as stop; a later-bar open beyond stop/target fills at that open",
+  "instrument": "TX",
+  "costView": "2 ticks slippage per side + commission + tax (repo cost policy)",
+  "alsoReport": [
+   "MTX",
+   "TMF"
+  ],
+  "control": "for each event, a random eligible bar of the same session type and same hour-from-session-start bucket, traded in the SAME direction as the event with identical exits; 2000 draws",
+  "primary": "mean net R (TX) of events minus mean of matched controls; one-sided p = share of control draws with mean >= events mean; pass if p < 0.05 AND events mean net R > 0",
+  "secondary": [
+   "win rate (net R > 0) events vs controls",
+   "dose response: every eligible bar traded in sign(score) direction, grouped by |score| 1..5 (overlapping, descriptive)",
+   "5m-only onsets: 5m direction flips while the four higher timeframes are not all in that direction",
+   "split by DAY/NIGHT and LONG/SHORT",
+   "MTX and TMF costs"
+  ],
+  "holdoutStart": "2026-09-01",
+  "researchOnly": true,
+  "executionAuthorized": false
+ },
+ "specHash": "c8ebcefe6f4a813558340418191f588e3b9aff6f86d111f2fb666b34fd40ad0a",
+ "codeSha256": "e2189f38d431d9258fdcd963617f9b5cc14c2e38432e562fa00b00e417dac595",
+ "devInputSha256": "69278e736b697a4060fc56259453bd15e00b5c795c8d3ebba848562acb32c4fc",
+ "devFiles": 318,
+ "validationBeforeOutcomes": {
+  "lookAheadTruncationMismatches": 0,
+  "syntheticNull": "8 random-walk replicates: mean excess -0.003R, 0/8 p<0.05",
+  "plantedMomentum": "phi0.9 kick1e-4: excess +0.110 p 0.0045; kick2e-4: +0.288 p 0.0005; phi0.95: +0.239 p 0.0005"
+ },
+ "ownerDecision": "Owner chose (2026-11-09 16:21) to use the holdout (>= 2026-09-01) for a one-shot confirmatory run of this frozen spec.",
+ "plan": "run once on DEV (Jan-Aug) and once on HOLDOUT with identical code; no changes in between; report both regardless of outcome",
+ "cumulativePrimaryAttemptsBefore": 26,
+ "thisAttempt": 27,
+ "researchOnly": true,
+ "executionAuthorized": false
+}
