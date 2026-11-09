@@ -1,0 +1,66 @@
+{
+ "type": "preregistration",
+ "createdAt": "2026-11-09T13:59:31.049Z",
+ "study": "V8 multi-market trend following (daily)",
+ "spec": {
+  "version": "multi-market-trend-v8",
+  "universe": [
+   "TWII",
+   "TSMC",
+   "MEDIATEK",
+   "SP500_FUT",
+   "UST10Y_FUT",
+   "EUR_FUT",
+   "JPY_FUT",
+   "GOLD_FUT",
+   "CRUDE_FUT",
+   "COPPER_FUT",
+   "SOYBEAN_FUT",
+   "CORN_FUT"
+  ],
+  "excluded": {
+   "NASDAQ_FUT": "redundant with SP500",
+   "NIKKEI": "redundant equity",
+   "USDTWD": "no liquid retail futures"
+  },
+  "period": "2001-01-02 .. 2026-11-06 (a market joins after 260 valid days)",
+  "calendar": "union of all trading dates; a market with no bar on a date has return 0 that day and keeps its position",
+  "returns": "close-to-close simple return; if price <= 0 or |r| > 6 x trailing 60-day std of that market, r := 0 (continuous-contract roll artefacts, negative oil)",
+  "proxyNote": "TWII price index stands in for TX futures; TSMC/MEDIATEK stock prices stand in for their stock futures; Yahoo =F series are unadjusted front-month splices",
+  "vol": "sigma_i = std of the last 60 daily returns x sqrt(252)",
+  "signalA_primary": "time-series momentum: s = sign(sum of the last 252 daily returns)",
+  "signalB_secondary": "Donchian: long after close > highest close of prior 100 days, short after close < lowest of prior 100; exit long when close < lowest close of prior 50, exit short when close > highest of prior 50",
+  "sizing": "w_i = s_i x (0.10 / sigma_i) / N_active (N_active = markets with a valid signal that day)",
+  "rebalance": "positions recomputed every 5th calendar-union business day from closes; applied from the NEXT day return (1-day lag)",
+  "costsPerUnitTurnover": {
+   "equityIndexRatesFx": 0.0003,
+   "commodities": 0.0005,
+   "singleStocks": 0.001
+  },
+  "benchmark": "TX-only: the same rule and sizing on TWII alone (w = s x 0.10/sigma)",
+  "primary": "portfolio net annualised Sharpe over the full period; one-sided p from 5000 calendar-year block bootstrap draws (share of draws with Sharpe <= 0); pass if p < 0.05",
+  "secondary": [
+   "portfolio Sharpe minus TX-only Sharpe (same bootstrap)",
+   "Donchian version",
+   "sub-periods 2001-2010, 2011-2018, 2019-2026",
+   "max drawdown",
+   "correlation of portfolio daily returns with TWII buy-and-hold",
+   "calendar years 2008, 2020, 2022",
+   "per-market contribution"
+  ],
+  "researchOnly": true,
+  "executionAuthorized": false
+ },
+ "specHash": "9cfda62c1d2da747bf773c8e2a6b480980bc25f856ac2871a0f22b13c530e5aa",
+ "codeSha256": "9571805aec42cf2b43ac92efeda12df72221d6a9a78c129fc461b925db7fc87e",
+ "inputSha256": "31fd013cc53a7c96bc33eee704515e8ce785a1879c4b49c513c9834f4727f910",
+ "validationBeforeOutcomes": {
+  "randomWalkNull5": "portfolio Sharpe [0.06,0.06,0.30,-0.19,-0.03], p [0.33,0.39,0.047,0.85,0.56]",
+  "plantedTrend": "Sharpe 0.74 p 0.0018; Donchian 1.50"
+ },
+ "note": "Rules are textbook parameters (12-month TSMOM; 100/50 Donchian), chosen before reading any outcome on these markets. Data never used before in this project except TWII.",
+ "cumulativePrimaryAttemptsBefore": 30,
+ "thisAttempt": 31,
+ "researchOnly": true,
+ "executionAuthorized": false
+}
