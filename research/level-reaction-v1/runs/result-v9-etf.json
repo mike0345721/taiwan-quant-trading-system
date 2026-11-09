@@ -1,0 +1,117 @@
+{
+ "specHash": "580160eb0db6d1a3ba9a1e71c5f18bdcb23d1918f4e9796ead5a42cdbc3826c5",
+ "trend": {
+  "sharpe": 0.993,
+  "cagr": 5.87,
+  "annVol": 5.92,
+  "maxDD": -11.2,
+  "years": 25.8,
+  "avgInvested": 0.798
+ },
+ "hold": {
+  "sharpe": 0.88,
+  "cagr": 4.92,
+  "annVol": 5.64,
+  "maxDD": -19,
+  "years": 25.8,
+  "avgInvested": 0.956
+ },
+ "pTrendNotBetter": 0.2549490101979604,
+ "pass": false,
+ "subPeriods": {
+  "2001-2010": {
+   "trend": {
+    "sharpe": 0.843,
+    "cagr": 5.19,
+    "annVol": 6.23,
+    "maxDD": -10.7,
+    "years": 10
+   },
+   "hold": {
+    "sharpe": 0.831,
+    "cagr": 4.82,
+    "annVol": 5.88,
+    "maxDD": -18.5,
+    "years": 10
+   }
+  },
+  "2011-2018": {
+   "trend": {
+    "sharpe": 0.62,
+    "cagr": 3.23,
+    "annVol": 5.36,
+    "maxDD": -7.9,
+    "years": 8
+   },
+   "hold": {
+    "sharpe": 0.648,
+    "cagr": 2.93,
+    "annVol": 4.63,
+    "maxDD": -7.8,
+    "years": 8
+   }
+  },
+  "2019-2026": {
+   "trend": {
+    "sharpe": 1.531,
+    "cagr": 9.55,
+    "annVol": 6.08,
+    "maxDD": -11.2,
+    "years": 7.8
+   },
+   "hold": {
+    "sharpe": 1.133,
+    "cagr": 7.11,
+    "annVol": 6.24,
+    "maxDD": -19,
+    "years": 7.8
+   }
+  }
+ },
+ "years": {
+  "2008": {
+   "trend": -1.9,
+   "hold": -10.9
+  },
+  "2011": {
+   "trend": 3.8,
+   "hold": 4.5
+  },
+  "2015": {
+   "trend": -1.7,
+   "hold": -3.7
+  },
+  "2018": {
+   "trend": 0.7,
+   "hold": 0.5
+  },
+  "2020": {
+   "trend": 8.7,
+   "hold": 9.8
+  },
+  "2022": {
+   "trend": -6.5,
+   "hold": -14.4
+  }
+ },
+ "currentSignals": {
+  "TWII": {
+   "trend": 1,
+   "vol": 23
+  },
+  "SP500_FUT": {
+   "trend": 1,
+   "vol": 11.1
+  },
+  "UST10Y_FUT": {
+   "trend": 0,
+   "vol": 5.2
+  },
+  "GOLD_FUT": {
+   "trend": 1,
+   "vol": 21.5
+  }
+ },
+ "researchOnly": true,
+ "executionAuthorized": false
+}
