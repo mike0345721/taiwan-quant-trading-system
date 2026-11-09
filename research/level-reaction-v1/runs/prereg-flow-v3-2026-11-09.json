@@ -1,0 +1,23 @@
+{
+  "writtenAt": "2026-11-09T04:07:04.809Z",
+  "flowSpecHash": "3f49896cc2c8075fa5b5022dd9d36c8a3b6142c15e7594406816cdc2c65b9cbb",
+  "version": "level-reaction-flow-v3",
+  "eventSpecHash": "cfb0160d3c12f7f54658c1ffc6622d70e63d6dec6e6e2f55a4a98933b57b273c",
+  "feature": "approach*(buy-sell)/volume over touch..decision bars",
+  "split": "push>0 vs push<=0",
+  "primary": [
+    "REJECT_POOLED",
+    "ACCEPT_POOLED"
+  ],
+  "permutation": "WITHIN_DAY",
+  "draws": 10000,
+  "alpha": 0.05,
+  "decisionRule": "Flow adds information if difference > 0 with pHolm < 0.05. A tradable candidate additionally needs the flow-confirmed subset to have n>=100, mean net R>0, day-cluster CI lower>0.",
+  "side": "TICK_RULE_PROXY",
+  "researchOnly": true,
+  "executionAuthorized": false,
+  "flowDataReadBeforeThisFile": false,
+  "cumulativeAttemptsOnWindowBefore": 22,
+  "primaryAttempts": 2,
+  "note": "Flow files did not exist when this was written; they are being built on MSI by build-flow-5m.mjs."
+}
