@@ -129,15 +129,16 @@ export async function buildReport(cfg, now, { fetchQuotes = yahoo } = {}) {
   const audit = readJson(cfg.liveAuditLatest);
   const v310 = readJson(cfg.v310Status);
   const v4 = readJson(cfg.v4Status);
+  const mm = readJson(cfg.mmStatus);
   const lastTick = Math.max(0, ...caches.map(c => c.lastTickMs || 0)) || null;
   const health = [
     { label: '行情收集', ok: !!(lastTick && nowMs - lastTick < 5 * 3600000), text: lastTick ? `最後一筆台指期成交 ${new Date(lastTick + 8 * 3600000).toISOString().slice(5, 16).replace('T', ' ')}` : '找不到今天的逐筆資料' },
-    { label: '前向測試（V3.10）', ok: v310?.state === 'PASS' && Math.abs(nowMs - Date.parse(v310.tradeDate + 'T14:00:00+08:00')) < 4 * 86400000, text: v310 ? `${v310.tradeDate} ${v310.state}` : '讀不到狀態' },
+    { label: '配置與多市場紙上追蹤', ok: !!(mm && nowMs - Date.parse(mm.generatedAt) < 4 * 86400000), text: mm ? `資料到 ${mm.lastDataDate}` : '讀不到狀態' },
     { label: 'V4 趨勢紙上追蹤', ok: !!v4, text: v4 ? `已平倉 ${v4.closedTrades}/60 筆，資料到 ${v4.lastTradeDate}` : '讀不到狀態' },
     { label: '下單功能', ok: true, text: '關閉（研究與計畫用途）' },
   ];
 
-  return { generatedAt: now.toISOString(), today, ref, night: N, nightKey: night?.key, priorDay: D, priorKey: priorDay?.key, contract: night?.contract || priorDay?.contract, vp, vol, levels: dedup, overnight, events, health, v4, latestAsOf: latest?.asOfDate, taiwanVix: latest?.taiwanVix?.data?.close, nightFlow: night ? night.bars.reduce((s, b) => s + b.buy - b.sell, 0) : null, cfg: { account: cfg.account, riskPct: cfg.riskPct, costs: cfg.costs } };
+  return { generatedAt: now.toISOString(), today, ref, night: N, nightKey: night?.key, priorDay: D, priorKey: priorDay?.key, contract: night?.contract || priorDay?.contract, vp, vol, levels: dedup, overnight, events, health, v4, mm, latestAsOf: latest?.asOfDate, taiwanVix: latest?.taiwanVix?.data?.close, nightFlow: night ? night.bars.reduce((s, b) => s + b.buy - b.sell, 0) : null, cfg: { account: cfg.account, riskPct: cfg.riskPct, costs: cfg.costs } };
 }
 
 const pct = (x, d = 2) => x == null ? '—' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(d)}%`;
@@ -157,6 +158,15 @@ export function renderHtml(r) {
   const ev = r.events.length ? r.events.map(e => `<div class="ev"><strong>${e.date.slice(5)}</strong> ${esc(e.text)} <span class="src">${esc(e.source)}</span></div>`).join('') : '<div class="muted">10 天內沒有登記的事件（美國數據請填 calendar.json）</div>';
   const v = r.vol;
   const v4 = r.v4;
+  const mm = r.mm;
+  const mmHtml = mm ? `<section class="grid2">
+<div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>資產配置（V9，紙上）</h2><span class="tag ok" style="color:#17693F">回測：一直持有夏普 0.88，加趨勢過濾回撤 −19%→−11%</span></div>
+<table style="margin-top:10px"><thead><tr><th>資產</th><th style="text-align:right">規則目前比例</th></tr></thead><tbody>${Object.values(mm.v9.allocationPct).map(a => `<tr><td>${esc(a.name)}</td><td style="text-align:right" class="mono">${a.pct.toFixed(1)}%</td></tr>`).join('')}<tr><td>現金</td><td style="text-align:right" class="mono">${mm.v9.cashPct.toFixed(1)}%</td></tr></tbody></table>
+<p class="muted">約每月調整一次，距下次約 ${mm.v9.tradingDaysToNextRebalance} 個交易日。紙上追蹤自 ${esc(mm.forwardStart)} 起：${mm.v9.forward.cumPct >= 0 ? '+' : ''}${mm.v9.forward.cumPct}%（${mm.v9.forward.days} 天）。研究結果，不是投資建議。</p></div>
+<div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>12 市場趨勢（V8，紙上）</h2><span class="tag ok" style="color:#17693F">回測夏普 ${mm.v8.backtestSharpe}，已通過</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">${Object.values(mm.v8.weights).map(w => `<div class="box" style="padding:8px 10px"><div class="lab">${esc(w.name)}</div><div style="font-weight:700;color:${w.side === '多' ? '#B4232C' : w.side === '空' ? '#17693F' : '#5B6270'}">${w.side} ${Math.abs(w.weightPct).toFixed(1)}%</div></div>`).join('')}</div>
+<p class="muted">每 5 天調整。紙上追蹤自 ${esc(mm.forwardStart)} 起：${mm.v8.forward.cumPct >= 0 ? '+' : ''}${mm.v8.forward.cumPct}%（${mm.v8.forward.days} 天）。需約 NT$1,000 萬以上才能用期貨實作，目前只記錄。</p></div>
+</section>` : '<section class="card"><h2>資產配置與多市場趨勢</h2><p class="muted">讀不到紙上追蹤狀態。</p></section>';
   const data = JSON.stringify({ ref: r.ref, costs: r.cfg.costs, account: r.cfg.account, riskPct: r.cfg.riskPct, stopTyp: v?.stopTyp ?? null });
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>勢衡 開盤前報告 ${r.today}</title>
 <style>
@@ -176,6 +186,8 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#5B6270}in
 <main>
 <section class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>系統健康</h2><span class="muted">不是綠燈的項目，今天的紀錄要打折看</span></div><div class="grid4" style="margin-top:12px">${healthHtml}</div></section>
 
+${mmHtml}
+
 <section class="grid2">
 <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>今天會動多大？</h2><span class="tag ok" style="color:#17693F">已驗證：夜盤波幅 → 日盤波幅，相關 0.49</span></div>
 ${v ? `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px"><div style="font-size:40px;font-weight:700">${v.group}</div><div style="display:flex;gap:6px">${groupBars}</div><div>預期日盤高低差約 <b>${fmt(v.expPts, 0)} 點</b>（多數落在 ${fmt(v.lo, 0)}–${fmt(v.hi, 0)}）</div></div>
@@ -186,10 +198,8 @@ ${v ? `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margi
 <div class="card"><h2>今日背景數字</h2><div style="margin-top:10px">
 ${row('夜盤 高／低／收', r.night ? `${fmt(r.night.high)} ／ ${fmt(r.night.low)} ／ ${fmt(r.night.close)}` : '—')}
 ${row('昨日日盤 高／低／收', r.priorDay ? `${fmt(r.priorDay.high)} ／ ${fmt(r.priorDay.low)} ／ ${fmt(r.priorDay.close)}` : '—')}
-${row('昨日 POC／VAH／VAL', r.vp ? `${fmt(r.vp.poc)} ／ ${fmt(r.vp.vah)} ／ ${fmt(r.vp.val)}` : '—')}
-${row('夜盤主動買賣差（口）', r.nightFlow == null ? '—' : (r.nightFlow > 0 ? '+' : '') + fmt(r.nightFlow))}
 ${row('台灣 VIX', r.taiwanVix ?? '—')}
-<div class="muted" style="border-top:1px solid #DCDDD8;padding-top:8px;margin-top:6px">籌碼與選擇權資料日期：${esc(r.latestAsOf || '—')}。主動買賣差只是描述，不代表方向。</div></div></div>
+<div class="muted" style="border-top:1px solid #DCDDD8;padding-top:8px;margin-top:6px">籌碼資料日期：${esc(r.latestAsOf || '—')}。盤中訂單流、價位反應、多週期同向都測過沒有優勢，所以不再列出。</div></div></div>
 </section>
 
 <section class="grid2">
@@ -200,9 +210,6 @@ ${o.errors.length ? `<p class="muted">取不到：${esc(o.errors.join(', '))}</p
 <div class="card"><h2>未來 10 天行事曆</h2><div class="muted">會放大波動的事件</div>${ev}</div>
 </section>
 
-<section class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>參考價位地圖</h2><span class="tag warn" style="color:#7A4A00">參考價位，不是預測目標</span></div>
-<div style="overflow-x:auto;margin-top:10px"><table><thead><tr><th>價位</th><th>來源</th><th style="text-align:right">距離目前</th><th style="text-align:right">約幾倍預期波幅</th><th>資料</th></tr></thead><tbody>${lv.join('')}</tbody></table></div>
-<p class="muted">紅字在上方、綠字在下方。超過 1.5 倍預期波幅的價位已淡化，今天大多碰不到。</p></section>
 
 <section class="grid2">
 <div class="card"><h2>交易計畫計算器</h2><p class="muted">你決定方向和價位，系統算風險報酬、打平勝率和口數</p>
@@ -214,8 +221,8 @@ ${o.errors.length ? `<p class="muted">取不到：${esc(o.errors.join(', '))}</p
 
 <section class="card"><h2>開盤前檢查</h2><div class="grid2" style="margin-top:10px;font-size:15px">
 <label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 系統健康全部綠燈或已知原因</label><label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 知道今天的波動組別和口數上限</label>
-<label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 只在參考價位附近找機會，不追價</label><label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 每筆進場前用計算器填完計畫</label>
-<label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 今日虧損達 3R 就停止交易</label></div></section>
+<label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 短線不是主力：沒有寫好的計畫就不進場</label><label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 每筆進場前用計算器填完計畫</label>
+<label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 今日虧損達 3R 就停止交易</label><label style="flex-direction:row;align-items:center;color:#15171C"><input type="checkbox"> 配置該調整的那天，照規則比例檢查一次</label></div></section>
 </main>
 <script>
 const D=${data};

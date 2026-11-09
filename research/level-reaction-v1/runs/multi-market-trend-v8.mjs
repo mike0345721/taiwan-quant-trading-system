@@ -29,7 +29,7 @@ export const MM_SPEC_HASH = crypto.createHash('sha256').update(stableJson(MM_SPE
 
 const COST_CLASS = { TSMC: 'singleStocks', MEDIATEK: 'singleStocks', CRUDE_FUT: 'commodities', COPPER_FUT: 'commodities', SOYBEAN_FUT: 'commodities', CORN_FUT: 'commodities', GOLD_FUT: 'commodities' };
 const costOf = m => MM_SPEC.costsPerUnitTurnover[COST_CLASS[m] || 'equityIndexRatesFx'];
-const START = '2001-01-02', END = '2026-11-06';
+const START = '2001-01-02', END = process.env.MM_END || '2026-11-06'; // MM_END override is used only by the forward tracker (rules unchanged)
 
 export function loadMarkets(dir, names) {
   const out = {};
@@ -63,7 +63,7 @@ export function buildReturns(markets) {
   return { dates, R };
 }
 
-function signalsTSMOM(R, dates) {
+export function signalsTSMOM(R, dates) {
   const out = {};
   for (const [n, { r, valid }] of Object.entries(R)) {
     const s = new Array(dates.length).fill(null), sig = new Array(dates.length).fill(null);
@@ -121,7 +121,7 @@ export function backtest(R, dates, sigs, names) {
     }
     if (dates[i] >= START) pnl.push({ d: dates[i], r: day });
   }
-  return { pnl, contrib };
+  return { pnl, contrib, weights: { ...w } }; // weights added for forward tracking (logic unchanged)
 }
 
 export const sharpe = xs => { const m = xs.reduce((s, v) => s + v, 0) / xs.length; const sd = Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / (xs.length - 1)); return sd > 0 ? m / sd * Math.sqrt(252) : 0; };
@@ -174,13 +174,13 @@ export function runV8(dir) {
     weeklyCorrelations2005: corrM,
     equityCurve: port.pnl.filter((p, i) => i % 21 === 0).map(p => p.d),
     researchOnly: true, executionAuthorized: false,
-    _series: { port: port.pnl, tx: tx.pnl, twBH },
+    _series: { port: port.pnl, tx: tx.pnl, twBH }, _weights: port.weights,
   };
 }
 
 if (process.argv[1]?.endsWith('multi-market-trend-v8.mjs')) {
   const r = runV8(process.argv[2]);
-  const { _series, equityCurve, ...brief } = r;
+  const { _series, _weights, equityCurve, ...brief } = r;
   if (process.argv[3]) fs.writeFileSync(process.argv[3], JSON.stringify(brief, null, 1));
   console.log(JSON.stringify(brief, null, 1));
 }

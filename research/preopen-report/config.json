@@ -4,7 +4,7 @@
   "outDir": "out",
   "calendarFile": "calendar.json",
   "lookbackDays": 5,
-  "account": 300000,
+  "account": 1000000,
   "riskPct": 1,
   "latestJsonCandidates": [
     "D:\\Taiwan stock\\approved-main-runtime\\data\\latest.json",
@@ -13,13 +13,45 @@
   "liveAuditLatest": "D:\\Taiwan stock\\standalone-v1\\data\\live-events\\audits\\latest.json",
   "v310Status": "D:\\Taiwan stock\\standalone-v1\\data\\intraday\\research\\v3.10-wave3-forward\\operations-status.json",
   "v4Status": "D:\\Taiwan stock\\standalone-v1\\data\\strategy-research\\forward-v4-20261109\\ledger\\forward-v4-status.json",
-  "volModel": { "a": -2.3075, "b": 0.4369, "lo": -0.341, "hi": 0.327, "nightTerciles": [0.01521, 0.02297], "atrOverRange": 0.1233 },
+  "volModel": {
+    "a": -2.3075,
+    "b": 0.4369,
+    "lo": -0.341,
+    "hi": 0.327,
+    "nightTerciles": [
+      0.01521,
+      0.02297
+    ],
+    "atrOverRange": 0.1233
+  },
   "costs": {
-    "taxRate": 0.00002, "slipTicks": 2,
-    "TX": { "mult": 200, "comm": 30 },
-    "MTX": { "mult": 50, "comm": 17 },
-    "TMF": { "mult": 10, "comm": 12 }
+    "taxRate": 2e-05,
+    "slipTicks": 2,
+    "TX": {
+      "mult": 200,
+      "comm": 30
+    },
+    "MTX": {
+      "mult": 50,
+      "comm": 17
+    },
+    "TMF": {
+      "mult": 10,
+      "comm": 12
+    }
   },
   "yahoo": true,
-  "yahooSymbols": { "sox": "^SOX", "nasdaq": "^IXIC", "tsmADR": "TSM", "usVix": "^VIX", "nq": "NQ=F", "es": "ES=F", "nikkei": "^N225", "kospi": "^KS11", "usdtwd": "TWD=X", "tw2330": "2330.TW" }
+  "yahooSymbols": {
+    "sox": "^SOX",
+    "nasdaq": "^IXIC",
+    "tsmADR": "TSM",
+    "usVix": "^VIX",
+    "nq": "NQ=F",
+    "es": "ES=F",
+    "nikkei": "^N225",
+    "kospi": "^KS11",
+    "usdtwd": "TWD=X",
+    "tw2330": "2330.TW"
+  },
+  "mmStatus": "D:\\Taiwan stock\\standalone-v1\\data\\strategy-research\\forward-v4-20261109\\ledger-mm\\forward-mm-status.json"
 }

@@ -54,7 +54,7 @@ export function runV9(dir) {
       }
       pnl.push({ d: dates[i], r: day });
     }
-    return { pnl, avgInvested: +(invested / cnt).toFixed(3) };
+    return { pnl, avgInvested: +(invested / cnt).toFixed(3), weights: { ...w } }; // weights added for forward tracking (logic unchanged)
   };
   const T = run(true), H = run(false);
   const years = [...new Set(T.pnl.map(p => p.d.slice(0, 4)))];
@@ -66,7 +66,7 @@ export function runV9(dir) {
   const yr = (pn, y) => +(pn.filter(q => q.d.startsWith(y)).reduce((s, q) => s + q.r, 0) * 100).toFixed(1);
   const st = sig; const last = dates.length - 1;
   return {
-    specHash: ETF_SPEC_HASH, trend: { ...stats(T.pnl), avgInvested: T.avgInvested }, hold: { ...stats(H.pnl), avgInvested: H.avgInvested },
+    specHash: ETF_SPEC_HASH, trendWeights: T.weights, holdWeights: H.weights, _pnl: { trend: T.pnl, hold: H.pnl }, trend: { ...stats(T.pnl), avgInvested: T.avgInvested }, hold: { ...stats(H.pnl), avgInvested: H.avgInvested },
     pTrendNotBetter: p, pass: p < 0.05 && stats(T.pnl).sharpe > stats(H.pnl).sharpe,
     subPeriods: Object.fromEntries([['2001-2010', '2001-01-01', '2010-12-31'], ['2011-2018', '2011-01-01', '2018-12-31'], ['2019-2026', '2019-01-01', '2026-12-31']].map(([k, a, b]) => [k, { trend: sub(T.pnl, a, b), hold: sub(H.pnl, a, b) }])),
     years: Object.fromEntries(['2008', '2011', '2015', '2018', '2020', '2022'].map(y => [y, { trend: yr(T.pnl, y), hold: yr(H.pnl, y) }])),
@@ -76,5 +76,5 @@ export function runV9(dir) {
 }
 
 if (process.argv[1]?.endsWith('etf-trend-v9.mjs')) {
-  const r = runV9(process.argv[2]); if (process.argv[3]) fs.writeFileSync(process.argv[3], JSON.stringify(r, null, 1)); console.log(JSON.stringify(r, null, 1));
+  const { _pnl, ...r } = runV9(process.argv[2]); if (process.argv[3]) fs.writeFileSync(process.argv[3], JSON.stringify(r, null, 1)); console.log(JSON.stringify(r, null, 1));
 }
