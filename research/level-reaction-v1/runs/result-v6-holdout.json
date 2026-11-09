@@ -1,0 +1,78 @@
+{
+ "specHash": "c8ebcefe6f4a813558340418191f588e3b9aff6f86d111f2fb666b34fd40ad0a",
+ "window": "HOLDOUT",
+ "firstDate": "2026-09-01",
+ "lastDate": "2026-11-06",
+ "events": {
+  "n": 379,
+  "meanRNet": -0.05871264895601726,
+  "winRate": 0.40633245382585753,
+  "meanRGross": 0.033468943926935744
+ },
+ "long": {
+  "n": 177,
+  "meanRNet": -0.105638857764716,
+  "winRate": 0.384180790960452,
+  "meanRGross": 0.0056537109487549
+ },
+ "short": {
+  "n": 202,
+  "meanRNet": -0.01759413925730581,
+  "winRate": 0.42574257425742573,
+  "meanRGross": 0.057841697576133826
+ },
+ "day": {
+  "n": 115,
+  "meanRNet": -0.09176921825215704,
+  "winRate": 0.4,
+  "meanRGross": -0.01895908684779112
+ },
+ "night": {
+  "n": 264,
+  "meanRNet": -0.04431300702777445,
+  "winRate": 0.4090909090909091,
+  "meanRGross": 0.05630691187804786
+ },
+ "meanRNetMTX": -0.06432997057421691,
+ "meanRNetTMF": -0.0898189040703189,
+ "controlMeanRNet": -0.0894597700306914,
+ "controlWinRate": 0.4049366754617408,
+ "excessRNet": 0.030747121074674144,
+ "pOneSided": 0.2933533233383308,
+ "pass": false,
+ "reasons": {
+  "TIME": 111,
+  "STOP": 181,
+  "TARGET": 68,
+  "SESSION_END": 18,
+  "STOP_GAP": 1
+ },
+ "dose": {
+  "1": {
+   "n": 1788,
+   "meanRNet": -0.1583741313710649,
+   "winRate": 0.3814317673378076,
+   "meanRGross": -0.05765808367008212
+  },
+  "3": {
+   "n": 2290,
+   "meanRNet": -0.11164949281874137,
+   "winRate": 0.3947598253275109,
+   "meanRGross": -0.021491950215418894
+  },
+  "5": {
+   "n": 4318,
+   "meanRNet": -0.05212706766717648,
+   "winRate": 0.4221861973135711,
+   "meanRGross": 0.037287013785563435
+  }
+ },
+ "only5m": {
+  "n": 396,
+  "meanRNet": -0.09148303326830404,
+  "winRate": 0.4065656565656566,
+  "meanRGross": 0.006277366757047188
+ },
+ "researchOnly": true,
+ "executionAuthorized": false
+}
