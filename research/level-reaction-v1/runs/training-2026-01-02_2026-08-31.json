@@ -1,0 +1,1332 @@
+{
+ "primary": {
+  "specVersion": "level-reaction-study-v1",
+  "specHash": "bfded0407aebd85f7a65b6a5d8fdd2116350d2318fad69c90032b0ee83dc9989",
+  "specOverridden": false,
+  "attempts": 10,
+  "sessions": 318,
+  "days": 159,
+  "events": {
+   "REJECT": 4414,
+   "ACCEPT": 4271,
+   "CHOP": 6532
+  },
+  "skipped": {
+   "GAP_THROUGH": 637,
+   "INSUFFICIENT_BARS": 471,
+   "NO_ATR": 513
+  },
+  "tradesSimulated": 8172,
+  "cells": [
+   {
+    "family": "SWING",
+    "reaction": "REJECT",
+    "n": 1682,
+    "days": 159,
+    "meanRNet": -0.05603581410253973,
+    "meanRGross": 0.039633425393923005,
+    "medianRNet": -0.32149299785146646,
+    "winRate": 0.4233055885850178,
+    "profitFactor": 0.894696657036857,
+    "ci95": [
+     -0.1155638156219538,
+     0.0060262617222488725
+    ],
+    "controlMeanRNet": -0.11769042041346499,
+    "excessOverControl": 0.06165460631092526,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.023106777206374284,
+     "BASE_2_TICKS_PER_SIDE": -0.05603581410253973,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.08896503147103547
+    },
+    "pRaw": 0.010994502748625687,
+    "pHolm": 0.10994502748625687
+   },
+   {
+    "family": "SWING",
+    "reaction": "ACCEPT",
+    "n": 1749,
+    "days": 159,
+    "meanRNet": -0.06823352095054643,
+    "meanRGross": 0.018242270598898387,
+    "medianRNet": -0.5126041666666666,
+    "winRate": 0.41395082904516867,
+    "profitFactor": 0.8770480107382318,
+    "ci95": [
+     -0.14012267175319848,
+     0.003950105601152894
+    ],
+    "controlMeanRNet": -0.03442116470203257,
+    "excessOverControl": -0.03381235624851386,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.03849618558513417,
+     "BASE_2_TICKS_PER_SIDE": -0.06823352095054643,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.09797145651866723
+    },
+    "pRaw": 0.8995502248875562,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "REJECT",
+    "n": 637,
+    "days": 158,
+    "meanRNet": -0.10248152860719077,
+    "meanRGross": -0.009921355823081885,
+    "medianRNet": -0.5804459308807135,
+    "winRate": 0.3987441130298273,
+    "profitFactor": 0.8166915734157206,
+    "ci95": [
+     -0.18754658619146844,
+     -0.017825684818914552
+    ],
+    "controlMeanRNet": -0.09853298533430416,
+    "excessOverControl": -0.003948543272886615,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.07061600485233004,
+     "BASE_2_TICKS_PER_SIDE": -0.10248152860719077,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.13434662903613942
+    },
+    "pRaw": 0.5242378810594702,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "ACCEPT",
+    "n": 592,
+    "days": 156,
+    "meanRNet": -0.03892402493110329,
+    "meanRGross": 0.047735623095099045,
+    "medianRNet": -0.2697267883988116,
+    "winRate": 0.4391891891891892,
+    "profitFactor": 0.9248507574225064,
+    "ci95": [
+     -0.12873648304693242,
+     0.04816637303662467
+    ],
+    "controlMeanRNet": -0.08356207522399849,
+    "excessOverControl": 0.04463805029289519,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.009122417354070619,
+     "BASE_2_TICKS_PER_SIDE": -0.03892402493110329,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.06872599762938088
+    },
+    "pRaw": 0.17491254372813594,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "REJECT",
+    "n": 1822,
+    "days": 159,
+    "meanRNet": -0.0730365704263251,
+    "meanRGross": 0.020500072429248485,
+    "medianRNet": -0.31294604775691914,
+    "winRate": 0.43249176728869376,
+    "profitFactor": 0.8596511485377297,
+    "ci95": [
+     -0.12252034241942046,
+     -0.02110662652179656
+    ],
+    "controlMeanRNet": -0.10176980577892936,
+    "excessOverControl": 0.02873323535260426,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.04074593310972128,
+     "BASE_2_TICKS_PER_SIDE": -0.0730365704263251,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.10532706124415844
+    },
+    "pRaw": 0.12893553223388307,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "ACCEPT",
+    "n": 1590,
+    "days": 159,
+    "meanRNet": -0.05281565959933411,
+    "meanRGross": 0.03636089148133712,
+    "medianRNet": -0.3342521367521367,
+    "winRate": 0.42012578616352203,
+    "profitFactor": 0.8987213718800844,
+    "ci95": [
+     -0.1160372190693898,
+     0.008234784038780056
+    ],
+    "controlMeanRNet": -0.0833957610900168,
+    "excessOverControl": 0.030580101490682687,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.022135308027420114,
+     "BASE_2_TICKS_PER_SIDE": -0.05281565959933411,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.08349568319778171
+    },
+    "pRaw": 0.13343328335832083,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "REJECT",
+    "n": 6,
+    "days": 6,
+    "meanRNet": 0.188939147619148,
+    "meanRGross": 0.23265443324564786,
+    "medianRNet": 0.33987562062053545,
+    "winRate": 0.6666666666666666,
+    "profitFactor": 1.7193275460261968,
+    "ci95": [
+     -0.4651494802227063,
+     0.8490026918931926
+    ],
+    "controlMeanRNet": -0.05809609792808437,
+    "excessOverControl": 0.24703524554723238,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.20410494854435454,
+     "BASE_2_TICKS_PER_SIDE": 0.188939147619148,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.17377334669394143
+    },
+    "pRaw": 0.25787106446776614,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "ACCEPT",
+    "n": 9,
+    "days": 9,
+    "meanRNet": 0.1453244066432795,
+    "meanRGross": 0.18191193619285792,
+    "medianRNet": -0.3084434144457319,
+    "winRate": 0.4444444444444444,
+    "profitFactor": 1.2946569572083557,
+    "ci95": [
+     -0.6190454660012938,
+     0.979004865926427
+    ],
+    "controlMeanRNet": -0.018599993651454094,
+    "excessOverControl": 0.1639244002947336,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.1578696199822822,
+     "BASE_2_TICKS_PER_SIDE": 0.1453244066432795,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.1327791933042768
+    },
+    "pRaw": 0.31584207896051975,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "REJECT",
+    "n": 27,
+    "days": 27,
+    "meanRNet": 0.22003997411899825,
+    "meanRGross": 0.28679136907662145,
+    "medianRNet": 0.0499066179455948,
+    "winRate": 0.5185185185185185,
+    "profitFactor": 1.488035386950151,
+    "ci95": [
+     -0.219676053825723,
+     0.6963077128167531
+    ],
+    "controlMeanRNet": -0.012725658264473206,
+    "excessOverControl": 0.23276563238347145,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.24292662916188823,
+     "BASE_2_TICKS_PER_SIDE": 0.22003997411899825,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.19715331907610822
+    },
+    "pRaw": 0.15992003998001,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "ACCEPT",
+    "n": 58,
+    "days": 56,
+    "meanRNet": -0.0709083949628069,
+    "meanRGross": -0.002454061817389177,
+    "medianRNet": -1.0214578064400759,
+    "winRate": 0.3620689655172414,
+    "profitFactor": 0.8853247953872743,
+    "ci95": [
+     -0.3858460450630561,
+     0.2606327123570026
+    ],
+    "controlMeanRNet": 0.057636321895657164,
+    "excessOverControl": -0.12854471685846408,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.04759139235046314,
+     "BASE_2_TICKS_PER_SIDE": -0.0709083949628069,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.09422445288437163
+    },
+    "pRaw": 0.7851074462768616,
+    "pHolm": 1
+   }
+  ],
+  "notes": [
+   "Independent events; overlapping trades are not a portfolio simulation.",
+   "Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).",
+   "Research only: formalWeight=0, executionAuthorized=false."
+  ]
+ },
+ "day": {
+  "specVersion": "level-reaction-study-v1",
+  "specHash": "bfded0407aebd85f7a65b6a5d8fdd2116350d2318fad69c90032b0ee83dc9989",
+  "specOverridden": false,
+  "attempts": 10,
+  "sessions": 159,
+  "days": 159,
+  "events": {
+   "REJECT": 987,
+   "ACCEPT": 939,
+   "CHOP": 1522
+  },
+  "skipped": {
+   "GAP_THROUGH": 147,
+   "INSUFFICIENT_BARS": 233,
+   "NO_ATR": 313
+  },
+  "tradesSimulated": 1613,
+  "cells": [
+   {
+    "family": "SWING",
+    "reaction": "REJECT",
+    "n": 363,
+    "days": 138,
+    "meanRNet": -0.1595857838542565,
+    "meanRGross": -0.09540870040906343,
+    "medianRNet": -0.3378165548098434,
+    "winRate": 0.39669421487603307,
+    "profitFactor": 0.6918647094122237,
+    "ci95": [
+     -0.2628511538916284,
+     -0.0518922399909372
+    ],
+    "controlMeanRNet": -0.09024826697696955,
+    "excessOverControl": -0.06933751687728695,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.13752867004662078,
+     "BASE_2_TICKS_PER_SIDE": -0.1595857838542565,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.1816428230078245
+    },
+    "pRaw": 0.9120439780109945,
+    "pHolm": 1
+   },
+   {
+    "family": "SWING",
+    "reaction": "ACCEPT",
+    "n": 307,
+    "days": 138,
+    "meanRNet": -0.07790328410668622,
+    "meanRGross": -0.019103767464636677,
+    "medianRNet": -0.32468786808009426,
+    "winRate": 0.4201954397394137,
+    "profitFactor": 0.8441301000839574,
+    "ci95": [
+     -0.21878724929419147,
+     0.06243615584847687
+    ],
+    "controlMeanRNet": 0.006199709927042944,
+    "excessOverControl": -0.08410299403372916,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.057715293839865206,
+     "BASE_2_TICKS_PER_SIDE": -0.07790328410668622,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.09809146956466333
+    },
+    "pRaw": 0.912543728135932,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "REJECT",
+    "n": 89,
+    "days": 67,
+    "meanRNet": 0.00209595449456304,
+    "meanRGross": 0.06052102164663075,
+    "medianRNet": -0.2927867673498742,
+    "winRate": 0.4157303370786517,
+    "profitFactor": 1.0046383814353237,
+    "ci95": [
+     -0.21193294152514647,
+     0.22175938006471865
+    ],
+    "controlMeanRNet": -0.05747471868702311,
+    "excessOverControl": 0.05957067318158615,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.022188803816532616,
+     "BASE_2_TICKS_PER_SIDE": 0.00209595449456304,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.017996552118537745
+    },
+    "pRaw": 0.2908545727136432,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "ACCEPT",
+    "n": 125,
+    "days": 94,
+    "meanRNet": -0.09441005867419928,
+    "meanRGross": -0.031661380057259526,
+    "medianRNet": -0.18149888143176734,
+    "winRate": 0.44,
+    "profitFactor": 0.7942481605470472,
+    "ci95": [
+     -0.27167061055957875,
+     0.09139202016765574
+    ],
+    "controlMeanRNet": -0.08812436596818632,
+    "excessOverControl": -0.006285692706012966,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.0727055286555831,
+     "BASE_2_TICKS_PER_SIDE": -0.09441005867419928,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.11611384083676918
+    },
+    "pRaw": 0.5322338830584707,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "REJECT",
+    "n": 368,
+    "days": 148,
+    "meanRNet": 0.006807643157655589,
+    "meanRGross": 0.06581748097506604,
+    "medianRNet": -0.07982830578002531,
+    "winRate": 0.47282608695652173,
+    "profitFactor": 1.0160662066652009,
+    "ci95": [
+     -0.09654976683881168,
+     0.11871083602626625
+    ],
+    "controlMeanRNet": -0.06282839802181084,
+    "excessOverControl": 0.06963604117946642,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.02716966440324146,
+     "BASE_2_TICKS_PER_SIDE": 0.006807643157655589,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.013554246679637416
+    },
+    "pRaw": 0.07896051974012994,
+    "pHolm": 0.7896051974012994
+   },
+   {
+    "family": "FVG",
+    "reaction": "ACCEPT",
+    "n": 334,
+    "days": 130,
+    "meanRNet": 0.010210593658402475,
+    "meanRGross": 0.06691773411080605,
+    "medianRNet": -0.04271732872769143,
+    "winRate": 0.48502994011976047,
+    "profitFactor": 1.023520590670187,
+    "ci95": [
+     -0.118608019871055,
+     0.15341925574558782
+    ],
+    "controlMeanRNet": -0.059468037246078076,
+    "excessOverControl": 0.06967863090448055,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.029735173134258473,
+     "BASE_2_TICKS_PER_SIDE": 0.010210593658402475,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.009313359480326527
+    },
+    "pRaw": 0.12193903048475763,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "REJECT",
+    "n": 6,
+    "days": 6,
+    "meanRNet": 0.188939147619148,
+    "meanRGross": 0.23265443324564786,
+    "medianRNet": 0.33987562062053545,
+    "winRate": 0.6666666666666666,
+    "profitFactor": 1.7193275460261968,
+    "ci95": [
+     -0.46289694612344384,
+     0.8467501577939301
+    ],
+    "controlMeanRNet": -0.06722278776141884,
+    "excessOverControl": 0.25616193538056686,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.20410494854435454,
+     "BASE_2_TICKS_PER_SIDE": 0.188939147619148,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.17377334669394143
+    },
+    "pRaw": 0.2538730634682659,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "ACCEPT",
+    "n": 9,
+    "days": 9,
+    "meanRNet": 0.1453244066432795,
+    "meanRGross": 0.18191193619285792,
+    "medianRNet": -0.3084434144457319,
+    "winRate": 0.4444444444444444,
+    "profitFactor": 1.2946569572083557,
+    "ci95": [
+     -0.6161214086096586,
+     0.9766937104427753
+    ],
+    "controlMeanRNet": -0.03125218538685432,
+    "excessOverControl": 0.17657659203013382,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.1578696199822822,
+     "BASE_2_TICKS_PER_SIDE": 0.1453244066432795,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.1327791933042768
+    },
+    "pRaw": 0.3053473263368316,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "REJECT",
+    "n": 9,
+    "days": 9,
+    "meanRNet": 0.06252710019886606,
+    "meanRGross": 0.11705595505011172,
+    "medianRNet": -1.0349133663366217,
+    "winRate": 0.4444444444444444,
+    "profitFactor": 1.1069008598647465,
+    "ci95": [
+     -0.7308530667284265,
+     0.9123265184964813
+    ],
+    "controlMeanRNet": 0.021482177609773237,
+    "excessOverControl": 0.04104492258909283,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.08114422821844743,
+     "BASE_2_TICKS_PER_SIDE": 0.06252710019886606,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.04390997217928475
+    },
+    "pRaw": 0.4592703648175912,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "ACCEPT",
+    "n": 3,
+    "days": 3,
+    "meanRNet": -1.0414702886588332,
+    "meanRGross": -1.0000000000000036,
+    "medianRNet": -1.0313648293963253,
+    "winRate": 0,
+    "profitFactor": 0,
+    "ci95": [
+     -1.072797619047619,
+     -1.0202484175325555
+    ],
+    "controlMeanRNet": 0.019903240637394945,
+    "excessOverControl": -1.061373529296228,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -1.0278048300550606,
+     "BASE_2_TICKS_PER_SIDE": -1.0414702886588332,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -1.0551357472626062
+    },
+    "pRaw": 0.8865567216391804,
+    "pHolm": 1
+   }
+  ],
+  "notes": [
+   "Independent events; overlapping trades are not a portfolio simulation.",
+   "Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).",
+   "Research only: formalWeight=0, executionAuthorized=false."
+  ]
+ },
+ "night": {
+  "specVersion": "level-reaction-study-v1",
+  "specHash": "bfded0407aebd85f7a65b6a5d8fdd2116350d2318fad69c90032b0ee83dc9989",
+  "specOverridden": false,
+  "attempts": 10,
+  "sessions": 159,
+  "days": 159,
+  "events": {
+   "REJECT": 3400,
+   "ACCEPT": 3260,
+   "CHOP": 4972
+  },
+  "skipped": {
+   "GAP_THROUGH": 473,
+   "INSUFFICIENT_BARS": 238,
+   "NO_ATR": 174
+  },
+  "tradesSimulated": 6486,
+  "cells": [
+   {
+    "family": "SWING",
+    "reaction": "REJECT",
+    "n": 1319,
+    "days": 159,
+    "meanRNet": -0.027537983154948133,
+    "meanRGross": 0.07679816509557878,
+    "medianRNet": -0.3152791068580542,
+    "winRate": 0.4306292645943897,
+    "profitFactor": 0.9486282459463108,
+    "ci95": [
+     -0.10068545961679762,
+     0.04344696437718471
+    ],
+    "controlMeanRNet": -0.1256090615142166,
+    "excessOverControl": 0.09807107835926848,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.008383099291737488,
+     "BASE_2_TICKS_PER_SIDE": -0.027537983154948133,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.06345931628691559
+    },
+    "pRaw": 0.0014992503748125937,
+    "pHolm": 0.014992503748125937
+   },
+   {
+    "family": "SWING",
+    "reaction": "ACCEPT",
+    "n": 1442,
+    "days": 159,
+    "meanRNet": -0.06617484044504375,
+    "meanRGross": 0.02619319548482437,
+    "medianRNet": -0.580300408282298,
+    "winRate": 0.41262135922330095,
+    "profitFactor": 0.8832287701436842,
+    "ci95": [
+     -0.14724288188937396,
+     0.018147401018938462
+    ],
+    "controlMeanRNet": -0.043498109098029675,
+    "excessOverControl": -0.022676731347014076,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.03440446142826694,
+     "BASE_2_TICKS_PER_SIDE": -0.06617484044504375,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.09794590589098294
+    },
+    "pRaw": 0.7661169415292354,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "REJECT",
+    "n": 548,
+    "days": 156,
+    "meanRNet": -0.11946582787006683,
+    "meanRGross": -0.021361814937688493,
+    "medianRNet": -0.6379527522116273,
+    "winRate": 0.395985401459854,
+    "profitFactor": 0.7927650813524576,
+    "ci95": [
+     -0.20858843357520448,
+     -0.028373246740588925
+    ],
+    "controlMeanRNet": -0.1056887839071617,
+    "excessOverControl": -0.013777043962905133,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.08568831866898849,
+     "BASE_2_TICKS_PER_SIDE": -0.11946582787006683,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.1532429006523192
+    },
+    "pRaw": 0.6081959020489756,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "ACCEPT",
+    "n": 467,
+    "days": 153,
+    "meanRNet": -0.024072302837126826,
+    "meanRGross": 0.06898749760054837,
+    "medianRNet": -0.3412846270928463,
+    "winRate": 0.43897216274089934,
+    "profitFactor": 0.9549018627855496,
+    "ci95": [
+     -0.13709691343718036,
+     0.0849630179958119
+    ],
+    "controlMeanRNet": -0.08107600845173454,
+    "excessOverControl": 0.057003705614607714,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.007896616720209993,
+     "BASE_2_TICKS_PER_SIDE": -0.024072302837126826,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.05604188542183572
+    },
+    "pRaw": 0.13093453273363317,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "REJECT",
+    "n": 1454,
+    "days": 159,
+    "meanRNet": -0.09324473452460905,
+    "meanRGross": 0.009030466965107595,
+    "medianRNet": -0.4222116524028966,
+    "winRate": 0.422283356258597,
+    "profitFactor": 0.8288646051334219,
+    "ci95": [
+     -0.15371617936948428,
+     -0.028290529409850215
+    ],
+    "controlMeanRNet": -0.11038620402763391,
+    "excessOverControl": 0.017141469503024864,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.057935025190031054,
+     "BASE_2_TICKS_PER_SIDE": -0.09324473452460905,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.12855429354109355
+    },
+    "pRaw": 0.280359820089955,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "ACCEPT",
+    "n": 1256,
+    "days": 159,
+    "meanRNet": -0.06957582567264926,
+    "meanRGross": 0.0282351068967491,
+    "medianRNet": -0.44184080903515377,
+    "winRate": 0.4028662420382166,
+    "profitFactor": 0.8722732408751126,
+    "ci95": [
+     -0.13468908312353034,
+     -0.001684159564130072
+    ],
+    "controlMeanRNet": -0.08967946121184156,
+    "excessOverControl": 0.020103635539192297,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.03592889139366261,
+     "BASE_2_TICKS_PER_SIDE": -0.06957582567264926,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.1032225113200986
+    },
+    "pRaw": 0.2588705647176412,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "REJECT",
+    "n": 0,
+    "days": 0,
+    "meanRNet": null,
+    "meanRGross": null,
+    "medianRNet": null,
+    "winRate": null,
+    "profitFactor": null,
+    "ci95": [
+     null,
+     null
+    ],
+    "controlMeanRNet": null,
+    "excessOverControl": null,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": null,
+     "BASE_2_TICKS_PER_SIDE": null,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": null
+    },
+    "pRaw": null,
+    "pHolm": null
+   },
+   {
+    "family": "OR",
+    "reaction": "ACCEPT",
+    "n": 0,
+    "days": 0,
+    "meanRNet": null,
+    "meanRGross": null,
+    "medianRNet": null,
+    "winRate": null,
+    "profitFactor": null,
+    "ci95": [
+     null,
+     null
+    ],
+    "controlMeanRNet": null,
+    "excessOverControl": null,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": null,
+     "BASE_2_TICKS_PER_SIDE": null,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": null
+    },
+    "pRaw": null,
+    "pHolm": null
+   },
+   {
+    "family": "PD",
+    "reaction": "REJECT",
+    "n": 0,
+    "days": 0,
+    "meanRNet": null,
+    "meanRGross": null,
+    "medianRNet": null,
+    "winRate": null,
+    "profitFactor": null,
+    "ci95": [
+     null,
+     null
+    ],
+    "controlMeanRNet": null,
+    "excessOverControl": null,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": null,
+     "BASE_2_TICKS_PER_SIDE": null,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": null
+    },
+    "pRaw": null,
+    "pHolm": null
+   },
+   {
+    "family": "PD",
+    "reaction": "ACCEPT",
+    "n": 0,
+    "days": 0,
+    "meanRNet": null,
+    "meanRGross": null,
+    "medianRNet": null,
+    "winRate": null,
+    "profitFactor": null,
+    "ci95": [
+     null,
+     null
+    ],
+    "controlMeanRNet": null,
+    "excessOverControl": null,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": null,
+     "BASE_2_TICKS_PER_SIDE": null,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": null
+    },
+    "pRaw": null,
+    "pHolm": null
+   }
+  ],
+  "notes": [
+   "Independent events; overlapping trades are not a portfolio simulation.",
+   "Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).",
+   "Research only: formalWeight=0, executionAuthorized=false."
+  ]
+ },
+ "firstHalf": {
+  "specVersion": "level-reaction-study-v1",
+  "specHash": "bfded0407aebd85f7a65b6a5d8fdd2116350d2318fad69c90032b0ee83dc9989",
+  "specOverridden": false,
+  "attempts": 10,
+  "sessions": 150,
+  "days": 75,
+  "events": {
+   "REJECT": 2079,
+   "ACCEPT": 1986,
+   "CHOP": 3070
+  },
+  "skipped": {
+   "GAP_THROUGH": 269,
+   "INSUFFICIENT_BARS": 226,
+   "NO_ATR": 241
+  },
+  "tradesSimulated": 3824,
+  "cells": [
+   {
+    "family": "SWING",
+    "reaction": "REJECT",
+    "n": 773,
+    "days": 75,
+    "meanRNet": -0.03319770474896915,
+    "meanRGross": 0.0854423332970078,
+    "medianRNet": -0.2895678391959799,
+    "winRate": 0.4333764553686934,
+    "profitFactor": 0.9375030223081072,
+    "ci95": [
+     -0.13797955824333935,
+     0.0634012737250854
+    ],
+    "controlMeanRNet": -0.13782733452699136,
+    "excessOverControl": 0.1046296297780222,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.008998673800719904,
+     "BASE_2_TICKS_PER_SIDE": -0.03319770474896915,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.07539441380578304
+    },
+    "pRaw": 0.00399800099950025,
+    "pHolm": 0.039980009995002494
+   },
+   {
+    "family": "SWING",
+    "reaction": "ACCEPT",
+    "n": 804,
+    "days": 75,
+    "meanRNet": -0.11471874290309444,
+    "meanRGross": -0.008892287130729313,
+    "medianRNet": -0.5692767160263126,
+    "winRate": 0.39925373134328357,
+    "profitFactor": 0.8009624984159992,
+    "ci95": [
+     -0.21588786529445195,
+     -0.015481747212756329
+    ],
+    "controlMeanRNet": -0.05198917095652527,
+    "excessOverControl": -0.06272957194656917,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.07710157330409706,
+     "BASE_2_TICKS_PER_SIDE": -0.11471874290309444,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.1523366401405282
+    },
+    "pRaw": 0.9340329835082459,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "REJECT",
+    "n": 308,
+    "days": 75,
+    "meanRNet": -0.14901158217541188,
+    "meanRGross": -0.03666812715141544,
+    "medianRNet": -0.6696080092897718,
+    "winRate": 0.38311688311688313,
+    "profitFactor": 0.7473144880548175,
+    "ci95": [
+     -0.2737784915735144,
+     -0.01923980359128207
+    ],
+    "controlMeanRNet": -0.13223912001664487,
+    "excessOverControl": -0.016772462158767015,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.10910859960031115,
+     "BASE_2_TICKS_PER_SIDE": -0.14901158217541188,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.18891437806700126
+    },
+    "pRaw": 0.6111944027986007,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "ACCEPT",
+    "n": 274,
+    "days": 74,
+    "meanRNet": -0.041198143691546486,
+    "meanRGross": 0.06407940905064925,
+    "medianRNet": -0.2501528982826702,
+    "winRate": 0.4416058394160584,
+    "profitFactor": 0.9204644571800012,
+    "ci95": [
+     -0.17211045921489737,
+     0.10207607035142693
+    ],
+    "controlMeanRNet": -0.10717514925688926,
+    "excessOverControl": 0.06597700556534278,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.0037881338328768868,
+     "BASE_2_TICKS_PER_SIDE": -0.041198143691546486,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.07860813852614187
+    },
+    "pRaw": 0.17041479260369816,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "REJECT",
+    "n": 873,
+    "days": 75,
+    "meanRNet": -0.12046718004094152,
+    "meanRGross": -0.004113597428340671,
+    "medianRNet": -0.41720151269584005,
+    "winRate": 0.41809851088201605,
+    "profitFactor": 0.7764248852458588,
+    "ci95": [
+     -0.19506062003194782,
+     -0.04607340512507247
+    ],
+    "controlMeanRNet": -0.1353355653865105,
+    "excessOverControl": 0.014868385345568988,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.07904232117199604,
+     "BASE_2_TICKS_PER_SIDE": -0.12046718004094152,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.16189174422092587
+    },
+    "pRaw": 0.34382808595702147,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "ACCEPT",
+    "n": 752,
+    "days": 75,
+    "meanRNet": -0.09449658046877966,
+    "meanRGross": 0.013508577619430192,
+    "medianRNet": -0.35845816347255466,
+    "winRate": 0.3962765957446808,
+    "profitFactor": 0.8222705894087788,
+    "ci95": [
+     -0.1660095428762539,
+     -0.018309518974609487
+    ],
+    "controlMeanRNet": -0.10868044158347741,
+    "excessOverControl": 0.014183861114697743,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.056143466935747816,
+     "BASE_2_TICKS_PER_SIDE": -0.09449658046877966,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.13284921758892343
+    },
+    "pRaw": 0.3553223388305847,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "REJECT",
+    "n": 4,
+    "days": 4,
+    "meanRNet": 0.11009210996956079,
+    "meanRGross": 0.16227214785620359,
+    "medianRNet": -0.049139056855758756,
+    "winRate": 0.5,
+    "profitFactor": 1.279427841535806,
+    "ci95": [
+     -0.7879823954869112,
+     1.0525700786706211
+    ],
+    "controlMeanRNet": -0.02815572442489798,
+    "excessOverControl": 0.13824783439445876,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.1284623508235857,
+     "BASE_2_TICKS_PER_SIDE": 0.11009210996956079,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.0917218691155358
+    },
+    "pRaw": 0.3868065967016492,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "ACCEPT",
+    "n": 4,
+    "days": 4,
+    "meanRNet": -0.10054050226815592,
+    "meanRGross": -0.062186172267284845,
+    "medianRNet": -0.668525230258099,
+    "winRate": 0.25,
+    "profitFactor": 0.8306959868489788,
+    "ci95": [
+     -1.0334701897018996,
+     1.2227645770650644
+    ],
+    "controlMeanRNet": -0.05613930170163859,
+    "excessOverControl": -0.04440120056651733,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.08690570192987601,
+     "BASE_2_TICKS_PER_SIDE": -0.10054050226815592,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.11417530260643577
+    },
+    "pRaw": 0.487256371814093,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "REJECT",
+    "n": 10,
+    "days": 10,
+    "meanRNet": 0.4726669405431144,
+    "meanRGross": 0.5650861002027499,
+    "medianRNet": 0.4607827299430634,
+    "winRate": 0.6,
+    "profitFactor": 2.2763792433370624,
+    "ci95": [
+     -0.3076892390830796,
+     1.25509410770453
+    ],
+    "controlMeanRNet": 0.02141768941860354,
+    "excessOverControl": 0.45124925112451086,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.5055729164361186,
+     "BASE_2_TICKS_PER_SIDE": 0.4726669405431144,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.43976096465011044
+    },
+    "pRaw": 0.12743628185907047,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "ACCEPT",
+    "n": 22,
+    "days": 21,
+    "meanRNet": -0.4786772801358856,
+    "meanRGross": -0.3977259547373864,
+    "medianRNet": -1.0454403922727216,
+    "winRate": 0.22727272727272727,
+    "profitFactor": 0.3952683114400848,
+    "ci95": [
+     -0.8827703583969909,
+     0.03197476435079105
+    ],
+    "controlMeanRNet": -0.019696105744581634,
+    "excessOverControl": -0.458981174391304,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.4499481881550205,
+     "BASE_2_TICKS_PER_SIDE": -0.4786772801358856,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.5074047226516487
+    },
+    "pRaw": 0.9610194902548725,
+    "pHolm": 1
+   }
+  ],
+  "notes": [
+   "Independent events; overlapping trades are not a portfolio simulation.",
+   "Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).",
+   "Research only: formalWeight=0, executionAuthorized=false."
+  ]
+ },
+ "secondHalf": {
+  "specVersion": "level-reaction-study-v1",
+  "specHash": "bfded0407aebd85f7a65b6a5d8fdd2116350d2318fad69c90032b0ee83dc9989",
+  "specOverridden": false,
+  "attempts": 10,
+  "sessions": 168,
+  "days": 84,
+  "events": {
+   "REJECT": 2335,
+   "ACCEPT": 2284,
+   "CHOP": 3462
+  },
+  "skipped": {
+   "GAP_THROUGH": 367,
+   "INSUFFICIENT_BARS": 245,
+   "NO_ATR": 272
+  },
+  "tradesSimulated": 4347,
+  "cells": [
+   {
+    "family": "SWING",
+    "reaction": "REJECT",
+    "n": 909,
+    "days": 84,
+    "meanRNet": -0.07545700060453084,
+    "meanRGross": 0.0006782154829391491,
+    "medianRNet": -0.37299638989169676,
+    "winRate": 0.41474147414741475,
+    "profitFactor": 0.8584145956829131,
+    "ci95": [
+     -0.1522426966886821,
+     0.004532128601375579
+    ],
+    "controlMeanRNet": -0.10015307871707668,
+    "excessOverControl": 0.024696078112545844,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.05040877239722552,
+     "BASE_2_TICKS_PER_SIDE": -0.07545700060453084,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.10050528169682242
+    },
+    "pRaw": 0.2463768115942029,
+    "pHolm": 1
+   },
+   {
+    "family": "SWING",
+    "reaction": "ACCEPT",
+    "n": 945,
+    "days": 84,
+    "meanRNet": -0.028684189257585004,
+    "meanRGross": 0.041328180032359434,
+    "medianRNet": -0.45415229133995466,
+    "winRate": 0.4264550264550265,
+    "profitFactor": 0.9465592925194432,
+    "ci95": [
+     -0.1198225968786018,
+     0.06758897976378936
+    ],
+    "controlMeanRNet": -0.021926154113564612,
+    "excessOverControl": -0.006758035144020392,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.00565096682741304,
+     "BASE_2_TICKS_PER_SIDE": -0.028684189257585004,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.05171790346895674
+    },
+    "pRaw": 0.5642178910544727,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "REJECT",
+    "n": 329,
+    "days": 83,
+    "meanRNet": -0.05892147845821785,
+    "meanRGross": 0.015118174782166564,
+    "medianRNet": -0.4709038854805726,
+    "winRate": 0.4133738601823708,
+    "profitFactor": 0.8889063582097838,
+    "ci95": [
+     -0.17184818320518994,
+     0.05515499437234298
+    ],
+    "controlMeanRNet": -0.07183642693962214,
+    "excessOverControl": 0.012914948481404287,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.03458038423719878,
+     "BASE_2_TICKS_PER_SIDE": -0.05892147845821785,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.08326192781575843
+    },
+    "pRaw": 0.4192903548225887,
+    "pHolm": 1
+   },
+   {
+    "family": "OB",
+    "reaction": "ACCEPT",
+    "n": 318,
+    "days": 82,
+    "meanRNet": -0.036964564112356636,
+    "meanRGross": 0.03365324148559973,
+    "medianRNet": -0.3359200913242009,
+    "winRate": 0.4371069182389937,
+    "profitFactor": 0.9286305251207837,
+    "ci95": [
+     -0.16128036070024995,
+     0.0840136875165263
+    ],
+    "controlMeanRNet": -0.06523281900536217,
+    "excessOverControl": 0.02826825489300553,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.013718623910067777,
+     "BASE_2_TICKS_PER_SIDE": -0.036964564112356636,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.0602111969824861
+    },
+    "pRaw": 0.3293353323338331,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "REJECT",
+    "n": 949,
+    "days": 84,
+    "meanRNet": -0.02940440794628261,
+    "meanRGross": 0.04314257378401702,
+    "medianRNet": -0.26595469255663434,
+    "winRate": 0.4457323498419389,
+    "profitFactor": 0.9415930311865225,
+    "ci95": [
+     -0.10141163518357565,
+     0.041832845300022896
+    ],
+    "controlMeanRNet": -0.06980124376536988,
+    "excessOverControl": 0.04039683581908727,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": -0.00551648444969414,
+     "BASE_2_TICKS_PER_SIDE": -0.02940440794628261,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.05329232126658411
+    },
+    "pRaw": 0.12493753123438281,
+    "pHolm": 1
+   },
+   {
+    "family": "FVG",
+    "reaction": "ACCEPT",
+    "n": 838,
+    "days": 84,
+    "meanRNet": -0.015412255668757532,
+    "meanRGross": 0.056867979815649734,
+    "medianRNet": -0.2682580553447833,
+    "winRate": 0.441527446300716,
+    "profitFactor": 0.9699176896032485,
+    "ci95": [
+     -0.10622519057240455,
+     0.07525239844498853
+    ],
+    "controlMeanRNet": -0.058452820521155746,
+    "excessOverControl": 0.04304056485239821,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.008382753427308402,
+     "BASE_2_TICKS_PER_SIDE": -0.015412255668757532,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": -0.039207069997139195
+    },
+    "pRaw": 0.12693653173413294,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "REJECT",
+    "n": 2,
+    "days": 2,
+    "meanRNet": 0.3466332229183225,
+    "meanRGross": 0.37341900402453637,
+    "medianRNet": 0.3466332229183225,
+    "winRate": 1,
+    "profitFactor": null,
+    "ci95": [
+     0.2446409252005223,
+     0.44862552063612265
+    ],
+    "controlMeanRNet": -0.1269634975516041,
+    "excessOverControl": 0.4735967204699266,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.3553901439858922,
+     "BASE_2_TICKS_PER_SIDE": 0.3466332229183225,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.3378763018507528
+    },
+    "pRaw": 0.21889055472263869,
+    "pHolm": 1
+   },
+   {
+    "family": "OR",
+    "reaction": "ACCEPT",
+    "n": 5,
+    "days": 5,
+    "meanRNet": 0.34201633377242785,
+    "meanRGross": 0.3771904229609721,
+    "medianRNet": 0.6265045395590142,
+    "winRate": 0.6,
+    "profitFactor": 1.8287673165826306,
+    "ci95": [
+     -0.7000606306747101,
+     1.384093298219566
+    ],
+    "controlMeanRNet": 0.04150479913849738,
+    "excessOverControl": 0.3005115346339305,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.35368987751200875,
+     "BASE_2_TICKS_PER_SIDE": 0.34201633377242785,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.3303427900328469
+    },
+    "pRaw": 0.2623688155922039,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "REJECT",
+    "n": 17,
+    "days": 17,
+    "meanRNet": 0.07143587622245924,
+    "meanRGross": 0.12308858606125174,
+    "medianRNet": -0.018507273877292847,
+    "winRate": 0.47058823529411764,
+    "profitFactor": 1.143373147793209,
+    "ci95": [
+     -0.46879166459753185,
+     0.6732292288297743
+    ],
+    "controlMeanRNet": -0.05357493005996958,
+    "excessOverControl": 0.12501080628242883,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.0884288131182233,
+     "BASE_2_TICKS_PER_SIDE": 0.07143587622245924,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.05444293932669518
+    },
+    "pRaw": 0.30634682658670664,
+    "pHolm": 1
+   },
+   {
+    "family": "PD",
+    "reaction": "ACCEPT",
+    "n": 35,
+    "days": 34,
+    "meanRNet": 0.12923720896202287,
+    "meanRGross": 0.1887895833946821,
+    "medianRNet": -0.45100175746924426,
+    "winRate": 0.42857142857142855,
+    "profitFactor": 1.245170544364012,
+    "ci95": [
+     -0.26365584782678425,
+     0.5243196754928959
+    ],
+    "controlMeanRNet": 0.08909061477942079,
+    "excessOverControl": 0.04014659418260208,
+    "meanRByCostView": {
+     "OPTIMISTIC_1_TICK_PER_SIDE": 0.14880071519824267,
+     "BASE_2_TICKS_PER_SIDE": 0.12923720896202287,
+     "CONSERVATIVE_3_TICKS_PER_SIDE": 0.10967423140674414
+    },
+    "pRaw": 0.4217891054472764,
+    "pHolm": 1
+   }
+  ],
+  "notes": [
+   "Independent events; overlapping trades are not a portfolio simulation.",
+   "Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).",
+   "Research only: formalWeight=0, executionAuthorized=false."
+  ]
+ }
+}
