@@ -16,8 +16,9 @@ $action = New-ScheduledTaskAction -Execute $powershell `
   -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$forwardScript`"" `
   -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -Weekly `
-  -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:35'
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
+  -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:25'
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun `
+  -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
@@ -26,4 +27,4 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
   -Force | Out-Null
 
 Write-Host 'V3.10 frozen forward automation installed.'
-Write-Host 'It starts Monday-Friday at 08:35 and never enables execution.'
+Write-Host 'It starts Monday-Friday at 08:25 and never enables execution.'

@@ -65,8 +65,9 @@ $forwardAction = New-ScheduledTaskAction -Execute $powershell `
   -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$forwardScript`"" `
   -WorkingDirectory $root
 $forwardTrigger = New-ScheduledTaskTrigger -Weekly `
-  -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:35'
-$forwardSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
+  -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:25'
+$forwardSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun `
+  -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $forwardTaskName -Action $forwardAction -Trigger $forwardTrigger `
   -Settings $forwardSettings `
@@ -80,6 +81,7 @@ $p0ForwardAction = New-ScheduledTaskAction -Execute $powershell `
 $p0ForwardTrigger = New-ScheduledTaskTrigger -Weekly `
   -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '08:35'
 $p0ForwardSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun `
+  -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit (New-TimeSpan -Hours 6) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $p0ForwardTaskName -Action $p0ForwardAction -Trigger $p0ForwardTrigger `
   -Settings $p0ForwardSettings `
@@ -90,7 +92,7 @@ Register-ScheduledTask -TaskName $p0ForwardTaskName -Action $p0ForwardAction -Tr
 Write-Host 'Automation installed.'
 Write-Host 'The dashboard starts after Windows sign-in.'
 Write-Host 'Official data updates Monday-Friday at 08:30 and 21:15.'
-Write-Host 'V3.10 frozen forward observer starts Monday-Friday at 08:35 and never enables execution.'
+Write-Host 'V3.10 frozen forward observer starts Monday-Friday at 08:25 and never enables execution.'
 Write-Host 'P0 forward paper observer starts Monday-Friday at 08:35 and remains paper-only.'
 Write-Host 'After Windows sign-in, missed official updates are checked and recovered automatically.'
 Write-Host 'Missed P0 forward paper sessions are never backfilled.'
