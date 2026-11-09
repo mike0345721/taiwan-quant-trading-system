@@ -41,12 +41,19 @@ async function yahoo(symbols, timeoutMs = 8000) {
   await Promise.all(Object.entries(symbols).map(async ([key, sym]) => {
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
-      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=2d&interval=5m`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctl.signal });
+      const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}`;
+      const [r, rd] = await Promise.all([
+        fetch(`${base}?range=5d&interval=5m&includePrePost=true`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctl.signal }),
+        fetch(`${base}?range=10d&interval=1d`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctl.signal }),
+      ]);
       clearTimeout(t);
       const j = await r.json(); const res = j?.chart?.result?.[0]; if (!res) throw new Error('no result');
       const ts = res.timestamp || [], cl = res.indicators?.quote?.[0]?.close || [];
       const pts = ts.map((x, i) => [x * 1000, cl[i]]).filter(p => Number.isFinite(p[1]));
-      out[key] = { symbol: sym, price: res.meta?.regularMarketPrice ?? pts.at(-1)?.[1], prevClose: res.meta?.chartPreviousClose ?? res.meta?.previousClose, points: pts };
+      // daily change = last daily close vs the daily close before it (one session, not chartPreviousClose of the whole range)
+      const jd = await rd.json(); const dres = jd?.chart?.result?.[0]; const dcl = (dres?.indicators?.quote?.[0]?.close || []).filter(Number.isFinite);
+      const price = res.meta?.regularMarketPrice ?? dcl.at(-1) ?? pts.at(-1)?.[1];
+      out[key] = { symbol: sym, price, prevClose: dcl.length >= 2 ? dcl.at(-2) : null, lastDailyClose: dcl.at(-1) ?? null, points: pts };
     } catch (e) { out[key] = { symbol: sym, error: String(e.message || e) }; }
   }));
   return out;
@@ -112,7 +119,7 @@ export async function buildReport(cfg, now, { fetchQuotes = yahoo } = {}) {
   if (q && !q.error) {
     const d = new Date(nowMs + 8 * 3600000); const at5 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 5) - 8 * 3600000;
     const pc = k => q[k]?.price && q[k]?.prevClose ? q[k].price / q[k].prevClose - 1 : null;
-    const adr = q.tsmADR?.price, twd = q.usdtwd?.price, tw2330 = q.tw2330?.prevClose ?? q.tw2330?.price;
+    const adr = q.tsmADR?.price, twd = q.usdtwd?.price, tw2330 = q.tw2330?.lastDailyClose ?? q.tw2330?.price;
     overnight = { sox: pc('sox'), nasdaq: pc('nasdaq'), tsmADR: pc('tsmADR'), usVix: q.usVix?.price, nqSince5: changeSince(q.nq?.points, at5), esSince5: changeSince(q.es?.points, at5), nikkei: pc('nikkei'), kospi: pc('kospi'), usdtwd: twd, usdtwdChg: pc('usdtwd'),
       adrPremium: adr && twd && tw2330 ? (adr * twd / 5) / tw2330 - 1 : null, errors: Object.entries(q).filter(([, v]) => v.error).map(([k]) => k) };
   }
