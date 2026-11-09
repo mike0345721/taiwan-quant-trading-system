@@ -1,0 +1,63 @@
+{
+  "writtenAt": "2026-11-09T07:26:20.085Z",
+  "trendSpecHash": "4f8234e468e2284b1d15f701e3024966d3a2e7439898f389b17ab9a35e2433ed",
+  "surgeSpecHash": "c613cad8edca75760e832b1d9032fca037e92ed4e81cc21ed507318501149b66",
+  "trendSpec": {
+    "version": "trend-60m-v4",
+    "barMinutes": 60,
+    "sessions": "DAY+NIGHT continuous within one contract; indicators reset at contract change",
+    "entry": "close beyond prior 20-bar Donchian high/low -> enter next bar open in breakout direction; one position at a time",
+    "channel": 20,
+    "atrPeriod": 14,
+    "initialStopAtr": 2,
+    "chandelierAtr": 3,
+    "trailing": "long: max(stop, highest high since entry - 3*ATR) updated at each bar close; short mirrored",
+    "exits": "gap through stop fills at bar open; else stop price; forced exit at last bar close before contract change",
+    "volFilter": "skip entry when ATR14 is in the bottom third of its own prior 250 60m-bar values; no trades before 250 bars of history",
+    "instrument": "TX",
+    "costView": "BASE_2_TICKS_PER_SIDE",
+    "alsoReport": [
+      "MTX",
+      "TMF"
+    ],
+    "control": "same number of random entries (eligible bars, random direction), identical exits, 2000 draws; p = share of draws with mean net R >= observed",
+    "researchOnly": true,
+    "executionAuthorized": false
+  },
+  "surgeSpec": {
+    "version": "volume-surge-v5",
+    "bar": "5m",
+    "rvol": "bar volume / median volume of the same clock slot over the prior 20 sessions of the same type (DAY or NIGHT)",
+    "eventThreshold": 3,
+    "controlMaxRvol": 1.5,
+    "direction": "sign(close - open) of the surge bar; zero-body bars skipped",
+    "outcome": "signed move from surge-bar close to close 12 bars later (60m), in units of ATR14 (5m, rolled across previous session); events without 12 later bars in the session are excluded",
+    "control": "for each event, a random non-surge bar (RVOL<1.5) in the same session type, same hour bucket and same decile of |body|/ATR; 2000 draws",
+    "primary": "mean signed outcome of surge events minus matched controls, two-sided permutation p (continuation if >0, reversal if <0)",
+    "secondary": [
+      "30m horizon",
+      "TW day open (08:45-09:14 bars)",
+      "US cash open (first 15 min after 21:30 summer / 22:30 winter Taiwan time)",
+      "other times",
+      "tradable check: enter next bar open in surge direction, 1.5 ATR stop, 60m time exit, net R"
+    ],
+    "researchOnly": true,
+    "executionAuthorized": false
+  },
+  "inputSha256": "69278e736b697a4060fc56259453bd15e00b5c795c8d3ebba848562acb32c4fc",
+  "trainingWindow": [
+    "2026-01-02",
+    "2026-08-31"
+  ],
+  "holdout": "2026-09-01 onward, NOT READ",
+  "primaryTests": [
+    "V4 trend: mean net R vs random-entry control, one-sided p<0.05",
+    "V5 surge: 60m signed move vs matched control, two-sided p<0.05"
+  ],
+  "decisionRule": "Holm over these 2. A trend candidate additionally needs mean net R>0 for TX costs and both halves (Jan-Apr, May-Aug) non-negative. A surge effect is information only; it becomes a strategy candidate only if the tradable check is also net positive.",
+  "cumulativeAttemptsBefore": 24,
+  "syntheticChecks": {
+    "null": "6 runs, no false positive",
+    "planted": "3/3 detected for both"
+  }
+}

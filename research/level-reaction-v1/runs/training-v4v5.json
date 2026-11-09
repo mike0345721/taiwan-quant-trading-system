@@ -1,0 +1,106 @@
+{
+ "trend": {
+  "specHash": "4f8234e468e2284b1d15f701e3024966d3a2e7439898f389b17ab9a35e2433ed",
+  "hourlyBars": 3021,
+  "n": 74,
+  "long": 41,
+  "short": 33,
+  "meanRNet": 0.2347662244336506,
+  "meanRGross": 0.24671249867014244,
+  "meanRNetMTX": 0.23399004871744394,
+  "meanRNetTMF": 0.2304870899575469,
+  "totalRNet": 17.372700608090145,
+  "winRate": 0.40540540540540543,
+  "avgWinR": 1.549688507056698,
+  "avgLossR": -0.661771695536609,
+  "maxDrawdownR": -5.664435445352291,
+  "top3ShareOfGrossWins": 0.3063148962305824,
+  "medianHoldHours": 13,
+  "controlMeanRNet": 0.051447872126057066,
+  "pVsRandom": 0.11094452773613193,
+  "firstHalf": -0.012153295042072493,
+  "secondHalf": 0.4335063254750863,
+  "nFirstHalf": 33,
+  "reasons": {
+   "STOP": 70,
+   "CONTRACT_END": 3,
+   "STOP_GAP": 1
+  }
+ },
+ "surge": {
+  "specHash": "c613cad8edca75760e832b1d9032fca037e92ed4e81cc21ed507318501149b66",
+  "candidateBars": 31208,
+  "surgeEvents": 1951,
+  "surgeShare": 0.06251602153294027,
+  "primary": {
+   "n": 1791,
+   "days": 129,
+   "meanSignedAtr": 0.0018378491222356193,
+   "controlMeanSignedAtr": -0.01464531648829987,
+   "diff": 0.016483165610535488,
+   "pTwoSided": 0.8040979510244878,
+   "continuationShare": 0.4796203238414294
+  },
+  "secondary": {
+   "h30m": {
+    "n": 1895,
+    "days": 129,
+    "meanSignedAtr": 0.0018870305117291133,
+    "controlMeanSignedAtr": -0.03495176533298149,
+    "diff": 0.03683879584471061,
+    "pTwoSided": 0.40879560219890054,
+    "continuationShare": 0.47915567282321897
+   },
+   "twOpen": {
+    "n": 3,
+    "days": 3,
+    "meanSignedAtr": 1.1444242175982229,
+    "controlMeanSignedAtr": -0.30073831662956235,
+    "diff": 1.4451625342277852,
+    "pTwoSided": 0.6181909045477262,
+    "continuationShare": 0.6666666666666666
+   },
+   "usOpen": {
+    "n": 18,
+    "days": 9,
+    "meanSignedAtr": -0.5456251936774855,
+    "controlMeanSignedAtr": 0.1723477190644808,
+    "diff": -0.7179729127419663,
+    "pTwoSided": 0.5107446276861569,
+    "continuationShare": 0.3888888888888889
+   },
+   "other": {
+    "n": 1770,
+    "days": 129,
+    "meanSignedAtr": 0.005468682831256452,
+    "controlMeanSignedAtr": -0.015827573423722544,
+    "diff": 0.021296256254978996,
+    "pTwoSided": 0.7546226886556722,
+    "continuationShare": 0.480225988700565
+   },
+   "day": {
+    "n": 127,
+    "days": 46,
+    "meanSignedAtr": 0.18736239015398354,
+    "controlMeanSignedAtr": -0.015759958347100186,
+    "diff": 0.20312234850108374,
+    "pTwoSided": 0.30484757621189407,
+    "continuationShare": 0.5196850393700787
+   },
+   "night": {
+    "n": 1664,
+    "days": 127,
+    "meanSignedAtr": -0.012321776305067257,
+    "controlMeanSignedAtr": -0.014815320214795088,
+    "diff": 0.0024935439097278304,
+    "pTwoSided": 0.9750124937531235,
+    "continuationShare": 0.4765625
+   }
+  },
+  "tradable": {
+   "n": 1781,
+   "meanRNet": -0.027342546185476047,
+   "winRate": 0.4059517125210556
+  }
+ }
+}
