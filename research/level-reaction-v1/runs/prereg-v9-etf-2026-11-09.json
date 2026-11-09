@@ -1,0 +1,41 @@
+{
+ "type": "preregistration",
+ "createdAt": "2026-11-09T14:20:13.200Z",
+ "study": "V9 small-account long/flat trend (ETF proxies)",
+ "spec": {
+  "version": "etf-trend-v9",
+  "universe": {
+   "TWII": "Taiwan equity ETF (e.g. 0050/006208)",
+   "SP500_FUT": "US equity ETF (e.g. 00646)",
+   "UST10Y_FUT": "US Treasury ETF (proxy: 10y futures price, no coupon)",
+   "GOLD_FUT": "gold ETF (e.g. 00635U)"
+  },
+  "period": "2001-01-02 .. 2026-11-06; returns as in V8 (6-sigma roll filter)",
+  "trend": "long/flat: hold the asset if the sum of its last 252 daily returns > 0, else cash (0% return)",
+  "hold": "benchmark: always hold every asset (same risk sizing, no trend filter)",
+  "sizing": "raw w_i = 0.15 / sigma_i(60d) / 4; if sum of raw weights over held assets > 1, scale them down to sum 1 (no leverage)",
+  "rebalance": "every 21st union-calendar day from closes, applied from the next day",
+  "costs": "0.10% per unit turnover (discounted commission + 0.1% ETF sell tax, halved per side) + 0.40%/year holding cost on invested weight",
+  "primary": "annualised Sharpe of trend minus hold; one-sided p from 5000 calendar-year block bootstrap draws (share with difference <= 0); pass if p < 0.05",
+  "secondary": [
+   "max drawdown trend vs hold",
+   "sub-periods 2001-2010, 2011-2018, 2019-2026",
+   "years 2008, 2011, 2015, 2018, 2020, 2022",
+   "average invested share",
+   "CAGR"
+  ],
+  "researchOnly": true,
+  "executionAuthorized": false
+ },
+ "specHash": "580160eb0db6d1a3ba9a1e71c5f18bdcb23d1918f4e9796ead5a42cdbc3826c5",
+ "codeSha256": "321dbfbe544c8e1ee297c485bdc12abe380ded556260068ea0c189eeb407ac2a",
+ "validationBeforeOutcomes": {
+  "randomWalkNull4": "p [0.12,0.88,0.09,0.18], 0/4 pass",
+  "plantedTrend": "p 0.041"
+ },
+ "ownerContext": "owner capital about NT$1M or less",
+ "cumulativePrimaryAttemptsBefore": 31,
+ "thisAttempt": 32,
+ "researchOnly": true,
+ "executionAuthorized": false
+}
