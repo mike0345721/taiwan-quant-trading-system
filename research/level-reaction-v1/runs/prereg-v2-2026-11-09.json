@@ -1,0 +1,34 @@
+{
+  "writtenAt": "2026-11-09T03:55:56.435Z",
+  "version": "level-reaction-study-v2",
+  "specHash": "cfb0160d3c12f7f54658c1ffc6622d70e63d6dec6e6e2f55a4a98933b57b273c",
+  "changesFromV1": [
+    "ATR rolled across previous session",
+    "ROUND family: multiples of 100 within +-500 of session open (Osler 2003, FRBNY SR125)"
+  ],
+  "inputSha256": "69278e736b697a4060fc56259453bd15e00b5c795c8d3ebba848562acb32c4fc",
+  "trainingWindow": [
+    "2026-01-02",
+    "2026-08-31"
+  ],
+  "holdout": "2026-09-01 onward, NOT READ",
+  "attemptsThisVersion": 12,
+  "cumulativeAttemptsOnThisWindow": 22,
+  "primaryAnalysis": "All sessions pooled, 12 cells, Holm across 12, BASE 2 ticks.",
+  "decisionRule": "A cell is a candidate only if pHolm<0.05 AND meanRNet>0 AND day-cluster 95% CI lower bound >0 AND n>=100. Candidates are not tradable; they become a single pre-registered hypothesis for forward/holdout testing. Additionally: excess over control minus synthetic null bias must be >0.",
+  "syntheticNullBiasOfExcess": {
+    "SWING:REJECT": 0.0308,
+    "SWING:ACCEPT": -0.0648,
+    "OB:REJECT": -0.0023,
+    "OB:ACCEPT": -0.0043,
+    "FVG:REJECT": 0.0075,
+    "FVG:ACCEPT": -0.0199,
+    "OR:REJECT": 0.0434,
+    "OR:ACCEPT": 0.008,
+    "PD:REJECT": -0.0501,
+    "PD:ACCEPT": -0.0463,
+    "ROUND:REJECT": -0.0028,
+    "ROUND:ACCEPT": -0.0928
+  },
+  "knownCaveat": "This training window has already been used by ~30 earlier CRU-60 hypotheses (different rules). Results are exploratory. V2 was designed after seeing V1 results (event counts motivated change 1)."
+}

@@ -56,3 +56,17 @@ test('events do not change when future bars are removed or altered', () => {
   }
   assert.ok(checked > 50);
 });
+
+test('V2: rolling ATR lets early-session events trade; ROUND levels bracket the open', async () => {
+  const { STUDY_SPEC_V2 } = await import('../src/level-reaction-study.mjs');
+  const raw = syntheticSessions({ seed: 5, days: 30 });
+  const r1 = runLevelReactionStudy(raw, { seed: 5 });
+  const r2 = runLevelReactionStudy(raw, { seed: 5, baseSpec: STUDY_SPEC_V2 });
+  assert.ok(r2.skipped.NO_ATR < r1.skipped.NO_ATR);
+  assert.equal(r2.cells.length, 12);
+  const s = prepareSession(raw[3]);
+  const round = extractLevels(s, prepareSession(raw[2]), STUDY_SPEC_V2).filter(l => l.family === 'ROUND');
+  assert.ok(round.length >= 9 && round.every(l => l.price % 100 === 0 && Math.abs(l.price - s.rows[0].open) <= 500));
+  assert.ok(round.every(l => (l.price > s.rows[0].open) === (l.approach === 1)));
+  assert.equal(extractLevels(s, null).some(l => l.family === 'ROUND'), false);
+});

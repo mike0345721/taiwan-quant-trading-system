@@ -53,6 +53,24 @@ export const STUDY_SPEC = Object.freeze({
 export const STUDY_SPEC_HASH = sha(stableJson(STUDY_SPEC));
 export const ATTEMPT_COUNT = STUDY_SPEC.levelFamilies.length * STUDY_SPEC.reactions.length;
 
+// V2 changes exactly two things, decided after V1 from event counts (not from V1 outcomes of the new parts):
+// 1) ATR is rolled across the chronologically previous session, so early-session levels (OR, PD) can trade.
+// 2) ROUND family: multiples of roundStep within roundBand of the session open (Osler 2003 order clustering).
+// Everything else is identical to V1. Attempts are cumulative on the same training window.
+export const STUDY_SPEC_V2 = Object.freeze({
+  ...STUDY_SPEC,
+  version: 'level-reaction-study-v2',
+  levelFamilies: Object.freeze(['SWING', 'OB', 'FVG', 'OR', 'PD', 'ROUND']),
+  atrMethod: 'SMA_OF_TRUE_RANGE_ROLLING_ACROSS_PREVIOUS_SESSION',
+  roundStep: 100,
+  roundBand: 500,
+  roundApproach: 'ABOVE_SESSION_OPEN_FROM_BELOW_ELSE_FROM_ABOVE',
+  priorVersions: Object.freeze([{ version: 'level-reaction-study-v1', specHash: STUDY_SPEC_HASH, attempts: ATTEMPT_COUNT }]),
+});
+export const STUDY_SPEC_V2_HASH = sha(stableJson(STUDY_SPEC_V2));
+export const ATTEMPT_COUNT_V2 = STUDY_SPEC_V2.levelFamilies.length * STUDY_SPEC_V2.reactions.length;
+export const CUMULATIVE_ATTEMPTS_V2 = ATTEMPT_COUNT + ATTEMPT_COUNT_V2;
+
 export function loadCostPolicy(path = new URL('../research/t0-v1/cost-policy.json', import.meta.url)) {
   return JSON.parse(fs.readFileSync(path, 'utf8'));
 }
@@ -77,20 +95,21 @@ export function prepareSession({ contract, tradeDate, session, bars }) {
   return { contract, tradeDate, session, rows, identity, coreBars, id: `${tradeDate}:${session}` };
 }
 
-function atrSeries(rows, period) {
-  const tr = rows.map((r, i) => i === 0 ? r.high - r.low : Math.max(r.high - r.low, Math.abs(r.high - rows[i - 1].close), Math.abs(r.low - rows[i - 1].close)));
+function atrSeries(rows, period, prevRows = []) {
+  const all = prevRows.concat(rows), off = prevRows.length;
+  const tr = all.map((r, i) => i === 0 ? r.high - r.low : Math.max(r.high - r.low, Math.abs(r.high - all[i - 1].close), Math.abs(r.low - all[i - 1].close)));
   const atr = new Array(rows.length).fill(null);
   let sum = 0;
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = 1; i < all.length; i++) {
     sum += tr[i];
     if (i > period) sum -= tr[i - period];
-    if (i >= period) atr[i] = sum / period;
+    if (i >= period && i >= off) atr[i - off] = sum / period;
   }
   return atr;
 }
 
 // ---------- levels ----------
-export function extractLevels(session, priorDay) {
+export function extractLevels(session, priorDay, spec = STUDY_SPEC) {
   const snap = marketStructureSnapshot(appendMarketStructureBars(createMarketStructureState({ identity: session.identity, timeframe: '5m', maxBars: 20000 }), session.coreBars));
   const resets = snap.events.filter(e => e.type === 'STRUCTURE_RESET').map(e => Date.parse(e.availableAt));
   const nextReset = from => resets.filter(t => t > from).sort((a, b) => a - b)[0] ?? Infinity;
@@ -117,7 +136,14 @@ export function extractLevels(session, priorDay) {
     levels.push({ id: `${session.id}:PD_H`, family: 'PD', kind: 'PRIOR_DAY_HIGH', price: Math.max(...priorDay.rows.map(r => r.high)), approach: 1, from: rows[0].t, until: Infinity });
     levels.push({ id: `${session.id}:PD_L`, family: 'PD', kind: 'PRIOR_DAY_LOW', price: Math.min(...priorDay.rows.map(r => r.low)), approach: -1, from: rows[0].t, until: Infinity });
   }
-  return levels;
+  if (spec.levelFamilies.includes('ROUND')) {
+    const open = rows[0].open, step = spec.roundStep;
+    for (let p = Math.ceil((open - spec.roundBand) / step) * step; p <= open + spec.roundBand; p += step) {
+      if (p === open) continue;
+      levels.push({ id: `${session.id}:R${p}`, family: 'ROUND', kind: p > open ? 'ROUND_ABOVE' : 'ROUND_BELOW', price: p, approach: p > open ? 1 : -1, from: rows[0].t, until: Infinity });
+    }
+  }
+  return levels.filter(l => spec.levelFamilies.includes(l.family));
 }
 
 export function findEvents(session, levels, spec = STUDY_SPEC) {
@@ -196,23 +222,28 @@ export function holm(pValues) {
 }
 
 // ---------- study ----------
-export function runLevelReactionStudy(rawSessions, { costPolicy = loadCostPolicy(), seed = null, overrides = {} } = {}) {
-  const spec = { ...STUDY_SPEC, ...overrides };
+export function runLevelReactionStudy(rawSessions, { costPolicy = loadCostPolicy(), seed = null, overrides = {}, baseSpec = STUDY_SPEC } = {}) {
+  const spec = { ...baseSpec, ...overrides };
+  const specHash = sha(stableJson(baseSpec));
+  const rolling = spec.atrMethod === 'SMA_OF_TRUE_RANGE_ROLLING_ACROSS_PREVIOUS_SESSION';
   const primary = spec.primaryCostView;
-  const rand = rng(seed ?? parseInt(STUDY_SPEC_HASH.slice(0, 8), 16));
+  const rand = rng(seed ?? parseInt(specHash.slice(0, 8), 16));
   const sessions = rawSessions.map(prepareSession).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.session.localeCompare(b.session));
   const trades = [], bySession = new Map(), skipped = { GAP_THROUGH: 0, INSUFFICIENT_BARS: 0, NO_ATR: 0 };
   const reactionCounts = { REJECT: 0, ACCEPT: 0, CHOP: 0 };
+  const chrono = [...sessions].sort((a, b) => a.rows[0].t - b.rows[0].t);
   for (const s of sessions) {
     const prior = sessions.filter(x => x.session === 'DAY' && x.contract === s.contract && x.tradeDate < s.tradeDate).at(-1) ?? null;
-    const levels = extractLevels(s, prior);
-    const atr = atrSeries(s.rows, spec.atrPeriod);
+    const levels = extractLevels(s, prior, spec);
+    const prevSession = rolling ? chrono[chrono.indexOf(s) - 1] : null;
+    const atr = atrSeries(s.rows, spec.atrPeriod, prevSession ? prevSession.rows : []);
     const { events, skipped: sk } = findEvents(s, levels, spec);
     skipped.GAP_THROUGH += sk.GAP_THROUGH; skipped.INSUFFICIENT_BARS += sk.INSUFFICIENT_BARS;
     // control outcome table: every possible entry bar and direction, grouped by hour
     const hourBuckets = new Map();
-    for (let e = spec.atrPeriod + 1; e < s.rows.length - 1; e++) {
+    for (let e = 1; e < s.rows.length - 1; e++) {
       const a = atr[e - 1];
+      if (a === null) continue;
       const hour = Math.floor(s.rows[e].t / 3600000);
       for (const dir of [1, -1]) {
         const t = simulateTrade(s.rows, e, dir, a, spec, costPolicy);
@@ -257,6 +288,6 @@ export function runLevelReactionStudy(rawSessions, { costPolicy = loadCostPolicy
   }
   const adj = holm(cells.map(c => c.pRaw ?? 1));
   cells.forEach((c, i) => { c.pHolm = c.pRaw === null ? null : adj[i]; });
-  return { specVersion: spec.version, specHash: STUDY_SPEC_HASH, specOverridden: Object.keys(overrides).length > 0, attempts: ATTEMPT_COUNT, sessions: sessions.length, days: new Set(sessions.map(s => s.tradeDate)).size,
+  return { specVersion: spec.version, specHash, specOverridden: Object.keys(overrides).length > 0, attempts: spec.levelFamilies.length * spec.reactions.length, sessions: sessions.length, days: new Set(sessions.map(s => s.tradeDate)).size,
     events: reactionCounts, skipped, tradesSimulated: trades.length, cells, notes: ['Independent events; overlapping trades are not a portfolio simulation.', 'Bar-based fills; intrabar order of stop and target is unknown (STOP_FIRST).', 'Research only: formalWeight=0, executionAuthorized=false.'], _trades: trades };
 }
