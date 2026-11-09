@@ -20,7 +20,7 @@ foreach ($t in $all) {
   "AFTER  $($u.TaskName): trigger=$($u.Triggers[0].StartBoundary) wake=$($u.Settings.WakeToRun) battStart=$(-not $u.Settings.DisallowStartIfOnBatteries) battKeep=$(-not $u.Settings.StopIfGoingOnBatteries)" | Tee-Object -FilePath $log -Append
 }
 "`nPower plan (sleep/hibernate timeouts, AC and DC):" | Tee-Object -FilePath $log -Append
-powercfg /query SCHEME_CURRENT SUB_SLEEP | Select-String -Pattern 'Power Setting GUID|Current AC|Current DC|電源設定|目前的 AC|目前的 DC' | ForEach-Object { $_.Line } | Tee-Object -FilePath $log -Append
+powercfg /query SCHEME_CURRENT SUB_SLEEP | Select-String -Pattern 'GUID|AC|DC' | ForEach-Object { $_.Line } | Tee-Object -FilePath $log -Append
 "`nWake timers allowed (AC/DC):" | Tee-Object -FilePath $log -Append
-powercfg /query SCHEME_CURRENT SUB_SLEEP RTCWAKE | Select-String -Pattern 'Current AC|Current DC|目前的 AC|目前的 DC' | ForEach-Object { $_.Line } | Tee-Object -FilePath $log -Append
+powercfg /query SCHEME_CURRENT SUB_SLEEP RTCWAKE | Select-String -Pattern 'AC|DC' | ForEach-Object { $_.Line } | Tee-Object -FilePath $log -Append
 Write-Host "`nDone. Result saved to $log"
