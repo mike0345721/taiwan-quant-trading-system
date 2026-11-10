@@ -1,3 +1,6 @@
+if ($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+  throw 'BOUND_START_WINDOWS_POWERSHELL_51_REQUIRED: Use C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile. PowerShell Core JSON timestamp conversion is unsupported.'
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:BoundStartupTraceDirectory=$null
@@ -134,6 +137,84 @@ function Assert-BoundSource($Source, [string[]]$AllowedDirty = @()) {
   $untracked = @(& git -C $Source.root ls-files --others --exclude-standard)
   Assert-Bound ($LASTEXITCODE -eq 0 -and $untracked.Count -eq 0) 'SOURCE_UNTRACKED'
 }
+function Get-BoundResearchMetadata([string]$Path) {
+  # Metadata handles only: never open SQLite or read research/credential contents.
+  # Final DOS paths detect short names, mapped/substituted drives and aliases;
+  # OPEN_REPARSE_POINT also exposes dangling leaf links instead of treating them as absent.
+  if (-not ('TwChip.BoundResearchPathV1' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+namespace TwChip {
+  public static class BoundResearchPathV1 {
+    [StructLayout(LayoutKind.Sequential)] private struct FileInfo {
+      public uint Attributes;
+      public System.Runtime.InteropServices.ComTypes.FILETIME Creation, Access, Write;
+      public uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+    }
+    public sealed class Metadata { public int Error; public uint Attributes, Links; public string FinalPath; }
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    private static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInfo info);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    private static extern uint GetFinalPathNameByHandle(SafeFileHandle handle, StringBuilder path, uint size, uint flags);
+    public static Metadata Read(string path) {
+      using (var handle=CreateFile(path, 0, 7, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero)) {
+        if(handle.IsInvalid) return new Metadata { Error=Marshal.GetLastWin32Error() };
+        FileInfo info;
+        if(!GetFileInformationByHandle(handle,out info)) return new Metadata { Error=Marshal.GetLastWin32Error() };
+        var name=new StringBuilder(32768);
+        uint length=GetFinalPathNameByHandle(handle,name,(uint)name.Capacity,0);
+        if(length==0) return new Metadata { Error=Marshal.GetLastWin32Error() };
+        if(length>=name.Capacity) return new Metadata { Error=206 };
+        return new Metadata { Attributes=info.Attributes, Links=info.Links, FinalPath=name.ToString() };
+      }
+    }
+  }
+}
+'@
+  }
+  return [TwChip.BoundResearchPathV1]::Read($Path)
+}
+function Assert-BoundResearchPath([string]$Path,[bool]$Directory,[switch]$Optional) {
+  # Validate ancestors before the leaf, including ancestors of an absent optional file.
+  $parent=[IO.Path]::GetDirectoryName($Path)
+  if ($parent -and $parent -cne $Path) {
+    if (-not (Assert-BoundResearchPath $parent $true -Optional:$Optional)) { return $false }
+  }
+  $meta=Get-BoundResearchMetadata $Path
+  if ($Optional -and $meta.Error -in @(2,3)) { return $false }
+  Assert-Bound ($meta.Error -eq 0) 'RESEARCH_PATH_UNAVAILABLE'
+  Assert-Bound (($meta.Attributes -band 0x400) -eq 0 -and (($meta.Attributes -band 0x10) -ne 0) -eq $Directory) 'RESEARCH_PATH_ALIAS'
+  Assert-Bound ($meta.FinalPath.StartsWith('\\?\') -and $meta.FinalPath.Substring(4).TrimEnd('\') -ieq $Path.TrimEnd('\')) 'RESEARCH_PATH_ALIAS'
+  if (-not $Directory) { Assert-Bound ($meta.Links -eq 1) 'RESEARCH_PATH_ALIAS' }
+  return $true
+}
+function Get-BoundResearchPaths($b) {
+  if (-not $b.PSObject.Properties['researchRoot']) { return @{} }
+  $root=$b.researchRoot
+  Assert-Bound ($root -is [string] -and $root -cmatch '^[A-Za-z]:\\' -and $root -cnotmatch '[\x00-\x1f/"<>|?*]' -and $root.Substring(2) -notmatch ':' -and
+    @($root.Substring(3).Split('\') | Where-Object { $_ -eq '.' -or $_ -eq '..' -or $_ -match '[ .]$' -or $_ -eq '' }).Count -eq 0) 'RESEARCH_ROOT_REJECTED'
+  Assert-Bound ([IO.Path]::GetFullPath($root) -ieq $root) 'RESEARCH_ROOT_REJECTED'
+  $database=Join-Path $root 'data\research-v2.sqlite'
+  $reportRoot=Join-Path $root 'reports'
+  $null=Assert-BoundResearchPath $root $true
+  $null=Assert-BoundResearchPath $database $false
+  $null=Assert-BoundResearchPath $reportRoot $true
+  # Fixed reader inputs only, not discovery. Missing optional evidence stays missing.
+  foreach ($name in @('latest-backtest.json','basis-term-structure-research.json','no-trade-veto.json','holding-selector.json',
+      'paired-incremental.json','v3-forward-status.json','oi-normalization-audit.json','v3.4-forward-status.json',
+      'foreign-risk-group-v3.4.json','v3-6-2-extended-factor-research.json','v3-6-2-cross-market-research.json',
+      'v3-6-2-collection-audit.json','v3-daily-update-status.json')) {
+    $null=Assert-BoundResearchPath (Join-Path $reportRoot $name) $false -Optional
+  }
+  $null=Assert-BoundResearchPath (Join-Path $root 'data\forward\paper-ledger-v2.9.4.jsonl') $false -Optional
+  # Metadata preflight is not protection against later filesystem replacement.
+  return @{ V2_RESEARCH_DATABASE_PATH=$database; V2_BACKTEST_REPORT_PATH=(Join-Path $reportRoot 'latest-backtest.json') }
+}
 function Read-BoundPlan([string]$BindingPath, [string]$LauncherRoot) {
   $b = Read-BoundJson $BindingPath
   Assert-Bound ($null -ne $b) 'BINDING_MISSING'
@@ -156,6 +237,7 @@ function Read-BoundPlan([string]$BindingPath, [string]$LauncherRoot) {
   foreach ($file in @($b.envFile,$b.node,(Join-Path $b.dashboard.root 'server.mjs'),(Join-Path $b.dashboard.root 'scripts\start-shioaji-readonly-hidden.ps1'),(Join-Path $b.producer.root 'scripts\run-cru34-live-projection.mjs'))) {
     Assert-Bound ([IO.File]::Exists($file)) 'SOURCE_FILE_MISSING'
   }
+  $null=Get-BoundResearchPaths $b
   # This package cannot activate a different collector, candidate, or CVD binding.
   $localExpected=Get-BoundLocalMarketExpected $b
   $envLines=[IO.File]::ReadAllLines($b.envFile)
@@ -220,6 +302,13 @@ function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) 
   # Market quality/readiness is reported as-is; no predicate or quality threshold is weakened.
 }
 function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoot) {
+  $researchPaths=@{}
+  if ($Role -eq 'dashboard') { $researchPaths=Get-BoundResearchPaths $b }
+  $savedResearch=@{}
+  foreach ($key in $researchPaths.Keys) {
+    $savedResearch[$key]=[Environment]::GetEnvironmentVariable($key,'Process')
+    Assert-Bound (-not $savedResearch[$key]) 'UNEXPECTED_SHELL_ROUTING'
+  }
   $id = [guid]::NewGuid().ToString()
   $stem = Join-Path $b.logRoot "$Role-$id"
   Write-BoundStartupStage ('SPAWN_'+$Role.ToUpperInvariant())
@@ -229,7 +318,12 @@ function Start-BoundNode($b,[string]$Role,[string]$Arguments,[string]$WorkingRoo
     $env:CRU34_LIVE_STDERR_PATH = "$stem.stderr.log"
     $env:CRU34_LIVE_INCIDENT_PATH = "$stem.incident.ndjson"
   }
-  $p = Start-Process -FilePath $b.node -ArgumentList $Arguments -WorkingDirectory $WorkingRoot -WindowStyle Hidden -RedirectStandardOutput "$stem.stdout.log" -RedirectStandardError "$stem.stderr.log" -PassThru
+  try {
+    foreach ($key in $researchPaths.Keys) { [Environment]::SetEnvironmentVariable($key,$researchPaths[$key],'Process') }
+    $p = Start-Process -FilePath $b.node -ArgumentList $Arguments -WorkingDirectory $WorkingRoot -WindowStyle Hidden -RedirectStandardOutput "$stem.stdout.log" -RedirectStandardError "$stem.stderr.log" -PassThru
+  } finally {
+    foreach ($key in $savedResearch.Keys) { [Environment]::SetEnvironmentVariable($key,$savedResearch[$key],'Process') }
+  }
   $receipt = @{ at=[datetime]::UtcNow.ToString('o'); role=$Role; source=$(if ($Role -eq 'producer') {$b.producer} else {$b.dashboard}); process=(Get-BoundProcess $p.Id); logs=$stem }
   $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$stem.launch.json" -Encoding UTF8
   return $p.Id
@@ -251,6 +345,9 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   }
   Write-BoundStartupStage 'CHECK_DASHBOARD'
   $dashboard = Get-BoundListener 8787
+  # Legacy health does not attest the research routes of an incumbent process.
+  # A new binding may not silently claim that an already-running reader uses it.
+  if ($dashboard -and $b.PSObject.Properties['researchRoot']) { Assert-Bound $false 'RESEARCH_INCUMBENT_UNVERIFIED' }
   if ($dashboard) { Assert-BoundDashboard $b (Get-BoundDashboardHealth $b) $dashboard -MissingProducer:($null -eq $owner) }
   Write-BoundStartupStage 'CHECK_BRIDGE'
   $bridge = Get-BoundListener 8790

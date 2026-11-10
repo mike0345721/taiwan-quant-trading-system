@@ -58,7 +58,13 @@ for (const [NoBrowser, CheckOnly] of [[false, false], [true, false], [false, tru
 test('all lifecycle, ownership, deadline, guard and environment source is preserved from 398f3c7', () => {
   const prefix = /-NoProfile -NonInteractive(?: -ExecutionPolicy Bypass)? -File /g;
   assert.equal([...supervisor.matchAll(prefix)].length, 1);
-  const baseline = supervisor.replace(prefix, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ');
+  const engineGuard = `if ($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+  throw 'BOUND_START_WINDOWS_POWERSHELL_51_REQUIRED: Use C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile. PowerShell Core JSON timestamp conversion is unsupported.'
+}
+`;
+  assert.ok(supervisor.startsWith(engineGuard), 'reject Core before any supervisor side effect');
+  assert.ok(read('scripts/bound-daily-use.psm1').startsWith(engineGuard), 'same guard before worker module side effects');
+  const baseline = supervisor.slice(engineGuard.length).replace(prefix, '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ');
   assert.equal(sha(baseline), 'e65d7f4ddee0654282700b31abc1e8cc614bf696f4be70f018dd8880082a0c13');
 });
 

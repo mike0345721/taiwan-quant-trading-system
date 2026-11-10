@@ -1,3 +1,6 @@
+if ($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+  throw 'BOUND_START_WINDOWS_POWERSHELL_51_REQUIRED: Use C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile. PowerShell Core JSON timestamp conversion is unsupported.'
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 
