@@ -1,0 +1,128 @@
+{
+ "specHash": "f2fc53631ee42dfd52cba0a6dee46e1d0b397a91dc2081b7bb8ed68f3b198d84",
+ "days": 202,
+ "firstDay": "2026-01-05",
+ "lastDay": "2026-11-06",
+ "dayTypeThresholds": {
+  "rangeDayER_max": 0.08,
+  "trendDayER_min": 0.164,
+  "medianER": 0.116
+ },
+ "P1": {
+  "preOpenRho": {
+   "nightRange": 0.041,
+   "nightER": 0.039,
+   "prevER": -0.065,
+   "gap": 0.12,
+   "dailySqueeze": -0.047,
+   "nr7": 0.037
+  },
+  "maxAbsRho": 0.12,
+  "p": 0.3968015992003998
+ },
+ "P2": {
+  "rho": -0.009,
+  "p": 0.5492253873063468
+ },
+ "P3_dailyTWII": {
+  "events": 830,
+  "longShare": 0.56,
+  "meanSignedMoveATR": 0.444,
+  "controlMeanATR": 0.116,
+  "excess": 0.327,
+  "p": 0.11017796440711858,
+  "winShare": 0.527,
+  "unsignedMoveEvents": 3.355,
+  "unsignedMoveAll": 3.249,
+  "nonSqueezeBreakouts": {
+   "n": 3020,
+   "meanSignedMoveATR": 0.6,
+   "winShare": 0.574
+  }
+ },
+ "P4_hourlyTX": {
+  "events": 66,
+  "longShare": 0.62,
+  "meanSignedMoveATR": 0.145,
+  "controlMeanATR": -0.413,
+  "excess": 0.558,
+  "p": 0.3532,
+  "winShare": 0.53,
+  "unsignedMoveEvents": 2.117,
+  "unsignedMoveAll": 1.944,
+  "nonSqueezeBreakouts": {
+   "n": 167,
+   "meanSignedMoveATR": -0.06,
+   "winShare": 0.437
+  }
+ },
+ "holmAdjusted": {
+  "P1": 1,
+  "P2": 1,
+  "P3": 0.4407118576284743,
+  "P4": 1
+ },
+ "pass": {
+  "P1": false,
+  "P2": false,
+  "P3": false,
+  "P4": false
+ },
+ "secondary": {
+  "preOpenTopThird": {
+   "nightRange": {
+    "n": 68,
+    "trendDayShare": 0.353,
+    "rangeDayShare": 0.309
+   },
+   "nightER": {
+    "n": 68,
+    "trendDayShare": 0.412,
+    "rangeDayShare": 0.309
+   },
+   "prevER": {
+    "n": 68,
+    "trendDayShare": 0.294,
+    "rangeDayShare": 0.324
+   },
+   "gap": {
+    "n": 68,
+    "trendDayShare": 0.456,
+    "rangeDayShare": 0.265
+   },
+   "dailySqueeze": {
+    "n": 68,
+    "trendDayShare": 0.368,
+    "rangeDayShare": 0.382
+   },
+   "nr7": {
+    "n": 202,
+    "trendDayShare": 0.337,
+    "rangeDayShare": 0.337
+   }
+  },
+  "firstHalfHourDirection": {
+   "n": 201,
+   "sameDirection": 0.498
+  },
+  "firstHourDirection": {
+   "n": 200,
+   "sameDirection": 0.47
+  },
+  "earlyER": {
+   "er6": {
+    "topThirdN": 68,
+    "restIsTrendShare": 0.309,
+    "directionContinues": 0.515
+   },
+   "er12": {
+    "topThirdN": 68,
+    "restIsTrendShare": 0.353,
+    "directionContinues": 0.412
+   }
+  },
+  "rho6": 0.011
+ },
+ "researchOnly": true,
+ "executionAuthorized": false
+}
