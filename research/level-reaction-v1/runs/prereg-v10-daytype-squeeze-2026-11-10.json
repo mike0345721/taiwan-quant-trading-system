@@ -1,0 +1,59 @@
+{
+ "type": "preregistration",
+ "createdAt": "2026-11-10T01:21:06.637Z",
+ "study": "V10 day type + MA squeeze",
+ "spec": {
+  "version": "daytype-squeeze-v10",
+  "dayTypeDefinition": "efficiency ratio of a TX day session: ER = |last close - first open| / sum of absolute 5m price steps (open -> each 5m close). Trend day = top third of ER over all sample days, range day = bottom third.",
+  "preOpenPredictors": [
+   "prior night range / night open",
+   "prior night ER",
+   "prior day ER",
+   "|day open - prior day close| / prior day range",
+   "daily MA squeeze (TWII MA5/10/20/60 spread / ATR14, prior day)",
+   "NR7 (prior day range smallest of 7)"
+  ],
+  "intradayCheckpoints": [
+   "09:15 (first 6 bars)",
+   "09:45 (first 12 bars)"
+  ],
+  "maSqueeze": "spread = (max - min of MA5, MA10, MA20, MA60 of closes) / ATR14; squeeze when spread <= 20th percentile of the previous 250 values; expansion event = close above all four MAs (long) or below all four (short) while any of the previous 3 bars was in squeeze; one event per squeeze episode (first breakout)",
+  "squeezeData": {
+   "daily": "TWII daily 1997-2026, forward 20 days",
+   "hourly": "TX 60m bars (official archive, day+night), forward 10 bars"
+  },
+  "squeezeOutcome": "direction-signed forward move in ATR units (no costs, descriptive move size); control = all days/bars that are not squeeze events, signed by a random direction with the same long share as the events (5000 bootstrap draws by calendar year for daily, by month for hourly); also unsigned |move| vs all bars",
+  "primary": {
+   "P1": "pre-open: the largest |Spearman rho| among the 6 predictors vs day ER; p from 2000 max-statistic permutations",
+   "P2": "intraday: Spearman rho between ER of the first 12 bars (to 09:45) and ER of the rest of the day; one-sided p (rho > 0) from 2000 permutations",
+   "P3": "daily TWII squeeze breakout: mean signed forward-20-day move (ATR units) minus control; one-sided bootstrap p",
+   "P4": "hourly TX squeeze breakout: mean signed forward-10-bar move (ATR units) minus control; one-sided bootstrap p"
+  },
+  "inference": "Holm across P1-P4; pass = adjusted p < 0.05 with the stated sign",
+  "secondary": [
+   "trend-day hit rate when a predictor is in its top third (base rate 33%)",
+   "direction continuation: sign(first 30/60 min move) vs sign(rest of day)",
+   "squeeze breakout unsigned move size vs all bars (does a squeeze lead to a bigger move, in either direction)",
+   "non-squeeze breakouts (close above/below all MAs) for comparison"
+  ],
+  "data": "official TAIFEX 5m archive 2026-01-02..2026-11-06 (holdout already used in V6/V7); TWII daily from Yahoo",
+  "researchOnly": true,
+  "executionAuthorized": false
+ },
+ "specHash": "f2fc53631ee42dfd52cba0a6dee46e1d0b397a91dc2081b7bb8ed68f3b198d84",
+ "codeSha256": "424e2ae1256399b9c402e84a8da2657adb7a0e10c3e34027abc4577615a5c504",
+ "validationBeforeOutcomes": {
+  "squeezeNull4": "excess [-0.08,-0.13,-0.61,+0.11], p [0.84,0.80,1.00,0.26]",
+  "squeezePlanted": "excess +3.06 p 0.0002"
+ },
+ "priorKnowledge": "V4 notes already showed first-hour ER vs rest rho -0.03 and night range vs ER 0.04 on Jan-Aug; this run re-tests on Jan-Nov with a fixed design",
+ "cumulativePrimaryAttemptsBefore": 32,
+ "theseAttempts": [
+  33,
+  34,
+  35,
+  36
+ ],
+ "researchOnly": true,
+ "executionAuthorized": false
+}
