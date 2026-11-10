@@ -217,6 +217,73 @@ try {
     Must-Throw { & $module {param($b) Invoke-BoundStart $b -NoBrowser} $plan } 'BRIDGE_UNVERIFIED'
     Check ($runtime.starts.Count -eq 0) 'Unsafe bridge caused a launch'
   }
+
+  $researchPlan=Copy-Object $plan
+  $researchPlan|Add-Member NoteProperty researchRoot (Join-Path $fixtureRoot 'research')
+  [void][IO.Directory]::CreateDirectory((Join-Path $researchPlan.researchRoot 'data'))
+  [void][IO.Directory]::CreateDirectory((Join-Path $researchPlan.researchRoot 'reports'))
+  [IO.File]::WriteAllText((Join-Path $researchPlan.researchRoot 'data\research-v2.sqlite'),'SYNTHETIC_NOT_A_DATABASE')
+  function Research-Runtime {
+    $r=New-Runtime $researchPlan
+    $r.health|Add-Member NoteProperty researchReaderPaths ([pscustomobject]@{
+      databasePath=(Join-Path $researchPlan.researchRoot 'data\research-v2.sqlite')
+      reportPath=(Join-Path $researchPlan.researchRoot 'reports\latest-backtest.json')})
+    return $r
+  }
+  Case 'researchRoot repeated startup reuses the verified dashboard and owner' {
+    $module=Load-Module;$runtime=Research-Runtime;Mock-Runtime $module $runtime
+    $one=& $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan
+    $two=& $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan
+    Check ($runtime.starts.Count -eq 0) 'Repeated research binding spawned a duplicate'
+    Check ($one.dashboard.pid -eq $two.dashboard.pid -and $one.producer.pid -eq $two.producer.pid) 'Identity changed'
+  }
+  Case 'matching researchRoot recovers only the missing producer then permits repeat' {
+    $module=Load-Module;$runtime=Research-Runtime;$runtime.ownerPresent=$false;Mock-Runtime $module $runtime
+    & $module {
+      function script:Get-BoundHealth([int]$Port) {
+        if($Port -eq 8790){return [pscustomobject]@{ok=$true;mode='market_data_only';formalWeight=0;researchOnly=$true;executionAuthorized=$false;orderRoutesEnabled=$false}}
+        $script:testRuntime.health.runtimeEvidence.producer.reasons=$(if($script:testRuntime.ownerPresent){@()}else{@('LIVE_PRODUCER_PROCESS_MISSING','LIVE_PRODUCER_HEARTBEAT_STALE','LIVE_PRODUCER_INSTANCE_MISMATCH')})
+        $script:testRuntime.health.runtimeEvidence.producer.lock=$(if($script:testRuntime.ownerPresent){$script:testRuntime.lock}else{$null})
+        return $script:testRuntime.health
+      }
+    }
+    & $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan|Out-Null
+    & $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan|Out-Null
+    Check ($runtime.starts.Count -eq 1 -and $runtime.starts[0].role -ceq 'producer') 'Did not exclusively recover missing producer'
+  }
+  foreach($scenario in @('missing','null','missingDatabase','missingReport','wrongDatabase','wrongReport','nonString','array','relative')) {
+    Case "research path attestation $scenario refuses before missing producer launch" {
+      $module=Load-Module;$runtime=Research-Runtime;$runtime.ownerPresent=$false;Mock-Runtime $module $runtime
+      switch($scenario) {
+        missing {$runtime.health.PSObject.Properties.Remove('researchReaderPaths')}
+        null {$runtime.health.researchReaderPaths=$null}
+        missingDatabase {$runtime.health.researchReaderPaths.PSObject.Properties.Remove('databasePath')}
+        missingReport {$runtime.health.researchReaderPaths.PSObject.Properties.Remove('reportPath')}
+        wrongDatabase {$runtime.health.researchReaderPaths.databasePath+='-other'}
+        wrongReport {$runtime.health.researchReaderPaths.reportPath+='-other'}
+        nonString {$runtime.health.researchReaderPaths.databasePath=123}
+        array {$runtime.health.researchReaderPaths.databasePath=@($runtime.health.researchReaderPaths.databasePath)}
+        relative {$runtime.health.researchReaderPaths.databasePath='data\research-v2.sqlite'}
+      }
+      Must-Throw {& $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan} 'RESEARCH_INCUMBENT_UNVERIFIED'
+      Check ($runtime.starts.Count -eq 0) 'Unverified research root launched producer'
+    }
+  }
+  Case 'research path attestation is rechecked at final health verification' {
+    $module=Load-Module;$runtime=Research-Runtime;Mock-Runtime $module $runtime
+    & $module {
+      $script:dashboardChecks=0
+      function script:Get-BoundDashboardHealth($b) {
+        $script:dashboardChecks++
+        if($script:dashboardChecks -gt 1){$script:testRuntime.health.researchReaderPaths.reportPath+='-changed'}
+        return $script:testRuntime.health
+      }
+    }
+    Must-Throw {& $module {param($b)Invoke-BoundStart $b -NoBrowser} $researchPlan} 'RESEARCH_INCUMBENT_UNVERIFIED'
+    Check ((& $module {$script:dashboardChecks}) -eq 2) 'Did not reach final health verification'
+    Check ($runtime.starts.Count -eq 0) 'Health drift launched a duplicate'
+  }
+
   Case 'Windows named mutex serializes a second actual entry process' {
     $mutex=New-Object Threading.Mutex($false,'Global\TwChipBoundDailyUseV1'); $owned=$false
     try {

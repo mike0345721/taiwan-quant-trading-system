@@ -277,8 +277,20 @@ function Assert-BoundWorker($b, $Status, $Lock, $Process) {
   $created = [datetime]::Parse($Process.createdAt).ToUniversalTime()
   Assert-Bound ($age -ge -5 -and $age -le 15 -and ($started - $created).TotalSeconds -ge 0 -and ($started - $created).TotalSeconds -le 10 -and $Status.workerStartedAt -ceq $Lock.workerStartedAt) 'OWNER_LIFETIME'
 }
+function Assert-BoundResearchReader($b,$Health) {
+  if (-not $b.PSObject.Properties['researchRoot']) { return }
+  $expected=Get-BoundResearchPaths $b
+  Assert-Bound ($null -ne $Health -and $null -ne $Health.PSObject.Properties['researchReaderPaths']) 'RESEARCH_INCUMBENT_UNVERIFIED'
+  $actual=$Health.researchReaderPaths
+  Assert-Bound ($null -ne $actual -and $null -ne $actual.PSObject.Properties['databasePath'] -and
+    $null -ne $actual.PSObject.Properties['reportPath'] -and
+    $actual.databasePath -is [string] -and $actual.reportPath -is [string] -and
+    $actual.databasePath -ceq $expected.V2_RESEARCH_DATABASE_PATH -and
+    $actual.reportPath -ceq $expected.V2_BACKTEST_REPORT_PATH) 'RESEARCH_INCUMBENT_UNVERIFIED'
+}
 function Assert-BoundDashboard($b, $Health, $Process, [switch]$MissingProducer) {
   Assert-Bound ($null -ne $Health -and $null -ne $Process) 'DASHBOARD_UNVERIFIED'
+  Assert-BoundResearchReader $b $Health
   if (Get-BoundLocalMarketExpected $b) {
     Assert-Bound ($Health.localRelease.scope -ceq 'MARKET_RESEARCH_AI_DISABLED' -and $Health.localRelease.transport -ceq 'HTTPS' -and
       $Health.localRelease.certificateSha256 -ceq $b.localMarket.tlsCertSha256 -and
@@ -345,9 +357,6 @@ function Invoke-BoundStart($b,[switch]$NoBrowser) {
   }
   Write-BoundStartupStage 'CHECK_DASHBOARD'
   $dashboard = Get-BoundListener 8787
-  # Legacy health does not attest the research routes of an incumbent process.
-  # A new binding may not silently claim that an already-running reader uses it.
-  if ($dashboard -and $b.PSObject.Properties['researchRoot']) { Assert-Bound $false 'RESEARCH_INCUMBENT_UNVERIFIED' }
   if ($dashboard) { Assert-BoundDashboard $b (Get-BoundDashboardHealth $b) $dashboard -MissingProducer:($null -eq $owner) }
   Write-BoundStartupStage 'CHECK_BRIDGE'
   $bridge = Get-BoundListener 8790

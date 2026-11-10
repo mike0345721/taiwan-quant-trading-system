@@ -13,6 +13,74 @@ const configSource = fs.readFileSync(new URL('../src/config.mjs', import.meta.ur
 const appSource = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 const reason = 'CANDIDATE_READ_ONLY_DAILY_UPDATE';
 
+const redirectedReason = 'RESEARCH_READ_PATHS_REDIRECTED_DAILY_UPDATE';
+test('formal health reports the actual service paths, not config or environment guesses', async () => {
+  const paths = { databasePath: path.resolve('/synthetic-research/data/research-v2.sqlite'),
+    reportPath: path.resolve('/synthetic-research/reports/latest-backtest.json') };
+  const h = harness(undefined, paths);
+  const res = await h.request('/healthz', { authenticated: false });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.researchReaderPaths, paths);
+  assert.notEqual(paths.databasePath, h.config.v2DatabasePath);
+  assert.equal(res.body.runtimeReady, false);
+  assert.equal(h.starts.length, 0);
+});
+for (const kind of ['databasePath', 'reportPath', 'both']) test(`redirected ${kind} blocks the writer after auth and CSRF without changing batch status`, async () => {
+  const paths = {};
+  if (kind !== 'reportPath') paths.databasePath = path.resolve('/synthetic-research/data/research-v2.sqlite');
+  if (kind !== 'databasePath') paths.reportPath = path.resolve('/synthetic-research/reports/latest-backtest.json');
+  const h = harness(undefined, paths);
+  assert.equal((await h.request('/api/v2/daily-update', { method: 'POST', authenticated: false })).body.error, 'AUTH_REQUIRED');
+  assert.equal((await h.request('/api/v2/daily-update', { method: 'POST', csrf: false })).body.error, 'CSRF_INVALID');
+  const res = await h.request('/api/v2/daily-update', { method: 'POST' });
+  assert.equal(res.status, 403);
+  assert.equal(res.body.error, redirectedReason);
+  assert.deepEqual(res.body.data, { state: 'BLOCKED', reasonCodes: [redirectedReason] });
+  const status = await h.request('/api/v2/daily-update');
+  assert.deepEqual(status.body.data, h.batchStatus);
+  assert.deepEqual(status.body.manualRun, { allowed: false, state: 'BLOCKED', reasonCodes: [redirectedReason] });
+  assert.equal(status.body.processRunning, false);
+  assert.equal(h.starts.length, 0);
+});
+test('explicit appRoot defaults remain writable with the existing lifecycle', async () => {
+  const config = readConfig();
+  const h = harness(undefined, { databasePath: config.v2DatabasePath, reportPath: config.v2ReportPath });
+  assert.equal((await h.request('/api/v2/daily-update', { method: 'POST' })).status, 202);
+  assert.equal(h.starts.length, 1);
+  assert.equal((await h.request('/api/v2/daily-update')).body.manualRun, undefined);
+});
+for (const mode of ['candidateReadOnly', 'marketCandidate', 'ownerLocal']) test(`${mode} does not gain the formal path fields or the formal writer rule`, async () => {
+  const h = harness(mode === 'candidateReadOnly' ? '1' : undefined, {
+    databasePath: path.resolve('/synthetic-other/research.sqlite'),
+    reportPath: path.resolve('/synthetic-other/report.json'),
+    ownerLocal: mode === 'ownerLocal', marketCandidate: mode !== 'candidateReadOnly',
+  });
+  const health = await h.request('/healthz', { authenticated: false });
+  assert.equal(health.status, 200);
+  assert.equal(health.body.researchReaderPaths, undefined);
+  // Outer candidate route guards are separately covered by the candidate server tests.
+  const post = await h.request('/api/v2/daily-update', { method: 'POST' });
+  assert.equal(post.status, mode === 'candidateReadOnly' ? 403 : 202);
+  if (mode === 'candidateReadOnly') assert.equal(post.body.error, reason);
+});
+test('unchanged page displays redirected writer reason and does not poll or claim success', async () => {
+  const h = harness(undefined, { databasePath: path.resolve('/synthetic-other/research.sqlite') });
+  const alerts = [], handlers = {}, button = { disabled: false };
+  button.addEventListener = (event, handler) => { handlers[event] = handler; };
+  let polls = 0;
+  const context = { $: id => id === 'daily-update-button' ? button : { prepend: box => alerts.push(box) },
+    document: { createElement: () => ({ setAttribute() {} }) },
+    api: async (url, options) => { const res = await h.request(url, options); if (res.status >= 400) throw Error(res.body.error); return res.body; },
+    monitorDailyUpdate: async () => { polls++; },
+  };
+  vm.runInNewContext(appSource.slice(appSource.indexOf("$('daily-update-button').addEventListener"), appSource.indexOf("$('refresh-button').addEventListener")), context);
+  await handlers.click();
+  assert.equal(polls, 0); assert.equal(h.starts.length, 0);
+  assert.equal(alerts.length, 1); assert.ok(alerts[0].textContent.includes(redirectedReason));
+  assert.doesNotMatch(alerts[0].textContent, /已啟動/); assert.equal(button.disabled, false);
+});
+
+
 // Execute the real config and request handler in memory. No server import,
 // socket, child process, external request, real credential or data file is used.
 function readConfig(flag) {
@@ -27,7 +95,7 @@ function readConfig(flag) {
   return context.result;
 }
 
-function harness(flag) {
+function harness(flag, { databasePath, reportPath, ownerLocal = false, marketCandidate = false } = {}) {
   const config = readConfig(flag), starts = [], journal = [];
   const sessions = new SessionStore(60_000), session = sessions.create('127.0.0.1');
   const decisionJournalPath = path.join(config.dataDir, 'decision-workspace/journal.ndjson');
@@ -36,14 +104,18 @@ function harness(flag) {
     process: { execPath: 'synthetic-node', env: { V2_DATABASE_PATH: 'synthetic-protected-source' } },
     crypto: { randomUUID: () => 'synthetic-request' }, console,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
-    cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false, inlineHandler: async () => false,
+    cru55: null, formalEntry: null, marketCandidate, ownerLocal, inlineHandler: async () => false,
+    OWNER_COOKIE: 'synthetic-owner-cookie', ownerRequestAllowed: () => true, assertOwnerJournalFilesystemRoots() {},
+    assertMarketCandidateFilesystemRoots() {}, marketCandidateRouteAllowed: () => true, marketCandidateQueryAllowed: () => true,
+    marketCandidateStartup: { roots: {} }, OWNER_SCOPE: 'synthetic-owner', MARKET_CANDIDATE_SCOPE: 'synthetic-candidate',
     currentCru46RuntimeReadiness: () => ({ runtimeReady: false }),
     runtimeIdentity: { commit: 'a'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: { approvedMainCommit: 'b'.repeat(40), syncState: 'MISMATCH' },
     inlineEnabled: false, localMarketOnly: false, productSurfaceContract: {}, operatingCalendar: null,
     assessTaifexMarketSession: () => ({ state: 'UNKNOWN' }),
     readDataOperationsReaderIdentity,
-    v2Research: { dailyUpdateStatus: () => structuredClone(batchStatus) },
+    v2Research: { databasePath: databasePath ?? config.v2DatabasePath, reportPath: reportPath ?? config.v2ReportPath,
+      dailyUpdateStatus: () => structuredClone(batchStatus) },
     sendJson(res, status, body) { res.status = status; res.body = JSON.parse(JSON.stringify(body)); },
     readJson: async req => req.body,
     spawn(...args) { const child = new EventEmitter(); starts.push({ args, child }); return child; },
@@ -59,7 +131,7 @@ function harness(flag) {
   async function request(url, { method = 'GET', authenticated = true, csrf = true, body = {} } = {}) {
     const res = { setHeader() {} };
     await context.handle({ url, method, body, headers: {
-      ...(authenticated ? { cookie: `${config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session'}=${session.id}` } : {}),
+      ...(authenticated ? { cookie: `${ownerLocal ? 'synthetic-owner-cookie' : marketCandidate || config.candidateReadOnly ? 'twchip_candidate_session' : 'twchip_session'}=${session.id}` } : {}),
       ...(csrf ? { 'x-csrf-token': session.csrf } : {}),
     } }, res);
     return res;

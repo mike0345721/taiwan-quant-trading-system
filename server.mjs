@@ -582,6 +582,16 @@ const requestHandler = async (req, res) => {
     if (cru55 && !cru55.guard(req, res)) return;
     if (cru55 && await cru55.handle(req, res, url, () => requireSession(req, res))) return;
     if (formalEntry && await formalEntry(req, res, url, () => requireSession(req, res))) return;
+    // Report the reader's actual paths, not shell/config claims. Candidate and
+    // owner-local admission and response contracts remain unchanged.
+    const researchReaderPaths = !ownerLocal && !marketCandidate && !config.candidateReadOnly &&
+      !config.candidateV2Binding && !config.cru55Acceptance && !cru55
+      ? { databasePath: v2Research.databasePath, reportPath: v2Research.reportPath } : null;
+    const researchWriterBlocked = researchReaderPaths && [
+      [researchReaderPaths.databasePath, 'v2/data/research-v2.sqlite'],
+      [researchReaderPaths.reportPath, 'v2/reports/latest-backtest.json'],
+    ].some(([actual, relative]) => typeof actual !== 'string' ||
+      path.relative(path.join(config.appRoot, relative), actual) !== '');
     if (req.method === 'GET' && pathname === '/healthz') {
       const readiness = currentCru46RuntimeReadiness();
       sendJson(res, 200, {
@@ -590,6 +600,7 @@ const requestHandler = async (req, res) => {
         runtimeCommit: runtimeIdentity.commit,
         candidateReadOnly: config.candidateReadOnly,
         v2Reader: config.candidateV2Binding ? v2Research.readerIdentity() : null,
+        ...(researchReaderPaths ? { researchReaderPaths } : {}),
         dataOperationsReader: readDataOperationsReaderIdentity({
           candidateReadOnly: config.candidateReadOnly,
           manifestPath: process.env.DATA_OPERATIONS_MANIFEST_PATH,
@@ -1000,7 +1011,8 @@ const requestHandler = async (req, res) => {
       if (req.method === 'GET' && pathname === '/api/v2/daily-update') {
         sendJson(res, 200, { ok: true, data: v2Research.dailyUpdateStatus(), processRunning: Boolean(dailyUpdateProcess),
           ...(config.candidateReadOnly ? { manualRun: { allowed: false, state: 'BLOCKED',
-            reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } } : {}) });
+            reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } } : researchWriterBlocked
+            ? { manualRun: { allowed: false, state: 'BLOCKED', reasonCodes: ['RESEARCH_READ_PATHS_REDIRECTED_DAILY_UPDATE'] } } : {}) });
         return;
       }
 
@@ -1010,6 +1022,13 @@ const requestHandler = async (req, res) => {
         if (config.candidateReadOnly) {
           sendJson(res, 403, { ok: false, error: 'CANDIDATE_READ_ONLY_DAILY_UPDATE',
             data: { state: 'BLOCKED', reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } });
+          return;
+        }
+        // The manual writer still targets appRoot/v2; redirected readers cannot
+        // authorize it to update a different database or report directory.
+        if (researchWriterBlocked) {
+          sendJson(res, 403, { ok: false, error: 'RESEARCH_READ_PATHS_REDIRECTED_DAILY_UPDATE',
+            data: { state: 'BLOCKED', reasonCodes: ['RESEARCH_READ_PATHS_REDIRECTED_DAILY_UPDATE'] } });
           return;
         }
         if (dailyUpdateProcess) {

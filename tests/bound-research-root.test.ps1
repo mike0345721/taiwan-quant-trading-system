@@ -115,14 +115,8 @@ try{
   try{Reject {& $module {param($x)Start-BoundNode $x dashboard 'synthetic argv' $x.dashboard.root} $p} 'RESEARCH_PATH_UNAVAILABLE'}finally{[IO.File]::Move($db+'.saved',$db)}
   Check ((& $module {$script:launches.Count}) -eq $before) 'invalid path spawned a child'
  }
- Case 'existing dashboard cannot silently claim the new binding' {
-  & $module {
-   function script:Read-BoundJson {return $null}
-   function script:Get-BoundListener {param($Port)if($Port -eq 8787){return [pscustomobject]@{pid=42421}};throw 'TEST_LATE_LISTENER'}
-   function script:Assert-BoundDashboard {throw 'TEST_UNVERIFIED_DASHBOARD_HEALTH'}
-   function script:Get-BoundDashboardHealth {throw 'TEST_UNEXPECTED_HTTP'}
-  }
-  Reject {& $module {param($x)Invoke-BoundStart $x -NoBrowser} $bound} 'RESEARCH_INCUMBENT_UNVERIFIED'
+ Case 'health without actual research paths cannot claim the new binding' {
+  Reject {& $module {param($x)Assert-BoundResearchReader $x ([pscustomobject]@{})} $bound} 'RESEARCH_INCUMBENT_UNVERIFIED'
  }
  foreach($name in @('bound-daily-use','bound-startup-supervision')){
   Case ("Core module import is explicitly rejected: "+$name) {
