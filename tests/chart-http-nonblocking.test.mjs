@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import vm from 'node:vm';
 import { SessionStore, parseCookies, safeEqual } from '../src/security.mjs';
 import { inspectChartPayload } from '../src/dashboard-runtime-readiness.mjs';
@@ -16,8 +17,10 @@ function harness() {
   let peekCount = 0;
   const stale = { status: 'UNAVAILABLE', reason: 'CHART_SNAPSHOT_STALE', bars: [], availableAt: null };
   const context = {
-    URL, sessions, parseCookies, safeEqual, console, crypto: { randomUUID: () => 'synthetic-chart-request' },
-    config: { candidateReadOnly: false, host: '127.0.0.1', port: 18723 },
+    URL, path, sessions, parseCookies, safeEqual, console, crypto: { randomUUID: () => 'synthetic-chart-request' },
+    config: { candidateReadOnly: false, host: '127.0.0.1', port: 18723, appRoot: path.resolve('/synthetic-app') },
+    v2Research: { databasePath: path.resolve('/synthetic-app/v2/data/research-v2.sqlite'),
+      reportPath: path.resolve('/synthetic-app/v2/reports/latest-backtest.json') },
     process: { env: {} }, cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
     inlineHandler: async () => false,

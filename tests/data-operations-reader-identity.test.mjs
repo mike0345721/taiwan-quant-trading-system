@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import vm from 'node:vm';
 import { readDataOperationsReaderIdentity } from '../src/dashboard-data-operations-reader-identity.mjs';
 
@@ -19,8 +20,10 @@ function harness({ candidateReadOnly = true, manifestPath = 'C:/synthetic/govern
     return resolver ? resolver(options) : { bindingIdentity: { manifestSha256: manifestHash, calendarSha256: calendarHash } };
   };
   const context = {
-    URL, process: { env: { DATA_OPERATIONS_MANIFEST_PATH: manifestPath, DATA_OPERATIONS_OUTPUT_ROOT: outputRoot } },
-    config: { candidateReadOnly, dataDir: 'C:/synthetic/candidate/data' },
+    URL, path, process: { env: { DATA_OPERATIONS_MANIFEST_PATH: manifestPath, DATA_OPERATIONS_OUTPUT_ROOT: outputRoot } },
+    config: { candidateReadOnly, dataDir: 'C:/synthetic/candidate/data', appRoot: path.resolve('/synthetic-app') },
+    v2Research: { databasePath: path.resolve('/synthetic-app/v2/data/research-v2.sqlite'),
+      reportPath: path.resolve('/synthetic-app/v2/reports/latest-backtest.json') },
     crypto: { randomUUID: () => 'synthetic' }, requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => 'loopback',
     cru55: null, formalEntry: null, marketCandidate: false, ownerLocal: false, inlineHandler: async () => false, runtimeIdentity: { commit: 'c'.repeat(40), status: 'VERIFIED' },
     runtimeVersion: {}, currentCru46RuntimeReadiness: () => ({ runtimeReady: { ready: false, reasons: ['EXISTING_BLOCKER'] } }),
