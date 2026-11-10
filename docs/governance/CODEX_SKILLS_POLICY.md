@@ -691,3 +691,23 @@ Runtime
 > **Engineering APPROVE 不等於 Product Owner APPROVE。**
 
 > **任何 AI Skill 都不得越過 Product Owner Gate。**
+
+---
+
+## 19. pstack Skills（Verification 類）使用原則
+
+已安裝的 pstack Skills 只有四個，來源與 pinned commit 見 `.agents/skills/UPSTREAM.md`：
+
+| Skill | 用途 | 對應本專案規則 |
+|---|---|---|
+| `principle-explain-the-number` | 相信、回報或依據任何量測數字（回測績效、勝率、Sharpe、IC、延遲）前，先寫下會改變決策的門檻與 noise floor，找出限制因素，逐一排除「其實量到別的東西」的可能 | No Fake Intelligence；有模型 ≠ 有 Edge |
+| `principle-prove-it-works` | 宣告完成前，直接檢查真實產出（實際數值、exit code、DB 內容），不以自我回報或 proxy 代替 | No persisted evidence = NOT_VERIFIED |
+| `blast-radius` | 變更前找出 diff 以外可能壞掉的地方，並用實際執行的 script/test 證明「它安全的那一個事實」 | Truth 層（Identity、Contract、Timestamp、`availableAt`、Lineage）fail-closed |
+| `show-me-your-work` | 長時間或無人看管的工作，保留一列一決策的 TSV 決策紀錄供事後審查 | Owner Review 可追溯 |
+
+限制：
+
+- 這些 Skills 是工程驗證輔助，**不是研究門檻**。研究晉升仍只依 Research Spec、Frozen Protocol 與 Owner Decision。
+- `show-me-your-work` 的決策紀錄不是 Evidence，不得取代 Manifest、Ledger 或 Linear 驗收；預設放在 `.audit/`（git-ignored）。
+- Skill 內提到但未安裝的 companion skills（`poteto-mode`、`unslop`、`arena` 等）視為可選；無法執行的步驟須在交付時揭露，不得聲稱已完成。
+- 新增或更新任何 pstack Skill 需 Product Owner 批准。

@@ -84,3 +84,6 @@ v2/reports/*.txt
 *.zip
 *.7z
 *.rar
+
+# Agent decision logs (show-me-your-work skill)
+.audit/
