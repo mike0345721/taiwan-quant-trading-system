@@ -20,7 +20,8 @@
         "market-state-forward-shadow-governance.test.mjs",
         "market-state-forward-shadow-runtime.test.mjs",
         "market-state-forward-shadow-scheduler.test.mjs",
-        "runtime-identity.test.mjs"
+        "runtime-identity.test.mjs",
+        "start-daily-windows.test.mjs"
       ]
     },
     "artifacts": {

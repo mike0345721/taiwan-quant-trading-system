@@ -21,8 +21,10 @@
 - [ ] 0-5 儲存庫瘦身：文件、腳本、分支（C）
 - [ ] 0-6 每日批次結論分開：當日入庫與歷史稽核（B）
 
-已用工作包：0／6
+已用工作包：1／6
 
 ## 想法暫存
 
 （目前階段沒驗收前不做。想到就寫在這裡。）
+
+- 券商憑證只在 `standalone-v1`；執行目錄內的 `start-shioaji-readonly-hidden.ps1` 需要 `-OwnerApprovedStart` 又找不到憑證，所以 start-daily 暫用 `standalone-v1` 那份。0-4／0-5 封存時決定 Bridge 的正式位置。

@@ -121,8 +121,9 @@ function Invoke-DailyTick {
   }
 
   # Producer: its own worker.lock prevents duplicates; we only check whether one is running.
-  try { $producers = Get-DailyNode $ProducerScript } catch { $producers = $null; $actions += 'producer-process-check-failed' }
-  if ($null -eq $producers) { $producer = 'UNKNOWN' }
+  $checkFailed = $false
+  try { $producers = @(Get-DailyNode $ProducerScript) } catch { $checkFailed = $true; $actions += 'producer-process-check-failed' }
+  if ($checkFailed) { $producer = 'UNKNOWN' }
   elseif ($producers.Count -gt 0) { $producer = 'RUNNING(pid ' + (($producers | ForEach-Object { $_.ProcessId }) -join ',') + ')' }
   else {
     try {
