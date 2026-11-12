@@ -164,7 +164,7 @@ GitHub 的 roadmap / status 文件只是 snapshot，不得覆蓋 Linear CURRENT 
 每日只用這兩個腳本（Windows PowerShell 5.1，在執行目錄 `D:\Taiwan stock\approved-main-runtime` 執行）：
 
 - 啟動：`powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File scripts\start-daily.ps1`
-  開機捷徑也執行這一行。它是一個看門狗，每 60 秒檢查 Bridge（8790）、Producer、Dashboard（8787），缺哪個補哪個；同時間只會有一個在跑。
+  登入時由 Windows 工作排程器的 `ShihengStartDaily`（登入後 30 秒）執行這一行；不用「啟動資料夾」，因為 Windows 會把它延後 3 分鐘以上。它是一個看門狗，每 60 秒檢查 Bridge（8790）、Producer、Dashboard（8787），缺哪個補哪個；同時間只會有一個在跑。
 - 停止：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\stop-daily.ps1`
   停止看門狗、Dashboard、Producer；Bridge 不停。
 - 網址：`http://127.0.0.1:8787`
