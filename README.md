@@ -159,17 +159,22 @@ GitHub 的 roadmap / status 文件只是 snapshot，不得覆蓋 Linear CURRENT 
 
 長期願景與歷史設計背景仍可參考 [`PROJECT_VISION.md`](PROJECT_VISION.md)；它不是 CURRENT 授權來源。
 
-## Windows 本機啟動
+## 每日啟動與停止
 
-需要 Node.js 20 以上 LTS。
+每日只用這兩個腳本（Windows PowerShell 5.1，在執行目錄 `D:\Taiwan stock\approved-main-runtime` 執行）：
 
-快速方式：
+- 啟動：`powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File scripts\start-daily.ps1`
+  開機捷徑也執行這一行。它是一個看門狗，每 60 秒檢查 Bridge（8790）、Producer、Dashboard（8787），缺哪個補哪個；同時間只會有一個在跑。
+- 停止：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\stop-daily.ps1`
+  停止看門狗、Dashboard、Producer；Bridge 不停。
+- 網址：`http://127.0.0.1:8787`
+- 紀錄：`data\automation-logs\daily\start-daily-YYYY-MM-DD.log`，每輪一行三個角色的狀態。
 
-1. `1_SETUP.bat`：初始化登入密碼。
-2. `OPEN_DASHBOARD.bat`：啟動服務並開啟瀏覽器。
-3. 預設網址：`http://127.0.0.1:8787`
+其他 `start-*.ps1` 與 `.bat` 是舊啟動器，不再用於每日使用。
 
-也可手動：
+## Windows 本機初次設定
+
+需要 Node.js 22.13 以上。
 
 ```bash
 cd standalone-v1
