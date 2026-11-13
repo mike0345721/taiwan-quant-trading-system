@@ -9,6 +9,7 @@ import { attachTimestampDependencyQuality } from './chart-timestamp-dependency-q
 import { attachSourceTimeStructureEligibility, createSourceTimeStructureAudit } from './source-time-structure.mjs';
 import { CAPTURE_EVENT_KINDS, compactCaptureEvidence } from './chart-capture-coverage.mjs';
 import { readBoundedFile } from './daily-data-operations-files.mjs';
+import { chartCatchupProgress } from './dashboard-tx-chart-catchup.mjs';
 
 const ledgerCache = new Map();
 let stagedAudit = null;
@@ -696,7 +697,7 @@ function finishTxDecisionChart(result,{sources,sourceBudget,history,ledgerDates,
   });
   // Derive only after the existing source/capture restrictions have been applied.
   // This reads the already bounded OHLC projection, never the raw ledger again.
-  return Object.freeze({ ...chart, trendStrength: buildChartTrendStrength(chart) });
+  return Object.freeze({ ...chart, trendStrength: buildChartTrendStrength(chart), catchupProgress: chartCatchupProgress(chart) });
 }
 
 export function releaseTxChartAudit(){
