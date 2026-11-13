@@ -218,6 +218,11 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
         if (observed.chartError) return off();
         return result();
       }, peek: result, async close() { return deny('close'); } };
+    }, continuationPending: () => false },
+    // WP 0-2 background catch-up: in this harness start() issues the single startup
+    // warm request the server made before 0-2, and schedules no timer of its own.
+    'src/dashboard-tx-chart-pump.mjs': { createTxChartPump(options) {
+      return { start() { void options.load(); }, stop() {} };
     } },
     'src/cru55-formal-entry.mjs': { prepareFormalEntry: never },
     'src/market-change-feed.mjs': { buildMarketChangeFeed: () => ({ events: [] }), chartMarkersFromEvents: () => [] },
