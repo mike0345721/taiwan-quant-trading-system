@@ -2729,6 +2729,7 @@ const DW_REASON_LABELS = Object.freeze({
   FRESHNESS_CUTOFF_INVALID: 'Observed Flow freshness cutoff 無效',
   PRESSURE_CLASSIFIED_COVERAGE_INCOMPLETE: '分類成交量覆蓋尚未達 100%，正式方向不晉升',
   QUALITY_INSUFFICIENT_LONG_GAP: '路徑存在過長間隔',
+  SOURCE_CATCHUP_PENDING: '圖表補讀中，尚未追上即時',
 });
 
 function dwHumanize(value, fallback = '目前無法取得') {
@@ -4972,13 +4973,15 @@ function renderTxDecisionChart(payload, { fit = false, replaceData = false } = {
       visibleFailureReason = 'CHART_SERIES_WRITE_FAILED';
     }
   }
-  const visibleStatus = visibleRenderReady
+  // WP 0-2: while the server is still catching up, show its progress in words, not a code.
+  const catchupText = typeof payload?.catchupProgress?.text === 'string' ? payload.catchupProgress.text : null;
+  const visibleStatus = catchupText || (visibleRenderReady
     ? payload.status
-    : payloadEligible ? terminalUnavailable(visibleFailureReason) : payload?.status && payload.status !== 'UNAVAILABLE' ? payload.status : chartUnavailable;
+    : payloadEligible ? terminalUnavailable(visibleFailureReason) : payload?.status && payload.status !== 'UNAVAILABLE' ? payload.status : chartUnavailable);
   dwText('dw-chart-status', visibleStatus);
-  $('dw-chart-status').className = `dw-status-pill ${visibleRenderReady && payload?.status === 'READY' ? 'is-ready' : 'is-unavailable'}`;
+  $('dw-chart-status').className = `dw-status-pill ${visibleRenderReady && payload?.status === 'READY' && !catchupText ? 'is-ready' : 'is-unavailable'}`;
   $('dw-chart-empty').classList.toggle('hidden', visibleRenderReady);
-  dwText('dw-chart-empty-reason', dwHumanize(visibleFailureReason));
+  dwText('dw-chart-empty-reason', catchupText || dwHumanize(visibleFailureReason));
   if (globalThis.HomeWorkspace) renderHomeWorkspace();
   return { visibleRenderReady, reason: visibleRenderReady ? null : visibleFailureReason };
 }

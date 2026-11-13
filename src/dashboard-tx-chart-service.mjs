@@ -5,7 +5,7 @@ import { createTxChartReadBudget } from './dashboard-tx-chart-source.mjs';
 const frames = new Set(CHART_BAR_CONTRACT.supportedTimeframes);
 const continuationReasons = new Set(['SOURCE_CATCHUP_PENDING', 'DERIVED_HISTORY_VERIFYING', 'VERIFIED_SOURCE_PENDING_DERIVATION',
   'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'LEGACY_CACHE_MIGRATION_PENDING']);
-function continuationPending(chart) {
+export function continuationPending(chart) {
   return chart?.sourceAuditProgress?.state === 'PENDING' || chart?.sourceReadState === 'CATCHUP_PENDING'
     || [...(chart?.reasonCodes || []), ...(chart?.qualityReasons || []), ...(chart?.marketObservation?.reasonCodes || [])]
       .some(reason => continuationReasons.has(reason));

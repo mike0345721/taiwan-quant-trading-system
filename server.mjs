@@ -40,7 +40,8 @@ import { appendDecisionJournal, readDecisionJournal, appendDecisionOutcome, read
 import { loadGovernedTradingCalendar } from './src/market-state-forward-shadow-calendar.mjs';
 import { assessTaifexMarketSession } from './src/taifex-market-operation.mjs';
 import { loadOperatingCalendar } from './src/operating-calendar.mjs';
-import { createTxChartService } from './src/dashboard-tx-chart-service.mjs';
+import { createTxChartService, continuationPending } from './src/dashboard-tx-chart-service.mjs';
+import { createTxChartPump } from './src/dashboard-tx-chart-pump.mjs';
 import { observationDecisionSnapshot } from './src/market-observation-journal.mjs';
 import { prepareFormalEntry } from './src/cru55-formal-entry.mjs';
 import { buildMarketChangeFeed, chartMarkersFromEvents } from './src/market-change-feed.mjs';
@@ -204,6 +205,8 @@ const cru34LiveDataRoot = path.resolve(process.env.CRU34_LIVE_DATA_ROOT || readD
 const cru34LiveProjectionRoot = path.dirname(cru34LiveSnapshotPath || path.join(cru34LiveDataRoot, 'runtime', 'cru34-live', 'latest.json'));
 const txChartService = createTxChartService({ dataRoot: txChartDataRoot,
   cacheRoot: txChartCacheRoot, calendar: chartCalendar, producerRoot: cru34LiveProjectionRoot });
+const txChartPump = createTxChartPump({ load: () => txChartService.load({ timeframe: '5m', mode: 'LIVE' }),
+  isPending: continuationPending });
 const runtimeIdentity = marketCandidateStartup?.runtimeIdentity || readRuntimeIdentity(config.appRoot);
 const approvedMainIdentity = marketCandidateStartup?.approvedMainIdentity || readRuntimeIdentity(config.appRoot, { ref: 'refs/heads/main' });
 const runtimeStartedAt = marketCandidateStartup?.runtimeStartedAt || new Date().toISOString();
@@ -1092,11 +1095,11 @@ server.listen(config.port, config.host, async () => {
     console.log(`台股決策雷達 V3.7.3：${localMarketOnly || marketCandidate ? 'https' : 'http'}://${config.host}:${config.port}`);
     console.log(cru55 ? 'CRU-55 隔離整合候選；來源各自 dated；擷取停用；execution=false' : `模式：${config.mockData ? 'MOCK' : 'LIVE'}；只讀：是；券商連線：無`);
   }
-  // Warm only after listening, through the same bounded worker as chart requests.
+  // Keep the chart current without any open page (WP 0-2): the pump re-requests the
+  // same bounded worker until caught up, then every 5 seconds. Progress is checkpointed
+  // to dashboard-chart-cache, so a restart only reads the gap.
   // Health reads cached evidence and truthfully reports pending/stale state.
-  if (!cru55 && !config.cru55Acceptance) {
-    void txChartService.load({ timeframe: '5m', mode: 'LIVE' });
-  }
+  if (!cru55 && !config.cru55Acceptance) txChartPump.start();
   // Always check upstream sources on startup. The cached snapshot is shown only
   // while this first refresh is in progress or if an official source fails.
   if (!marketCandidate) refreshSnapshot().catch((error) => console.error('[initial refresh]', error.message));
@@ -1111,6 +1114,7 @@ if (!cru55 && !offlineCandidate && config.refreshIntervalMs > 0) {
 }
 
 function shutdown(signal) {
+  txChartPump.stop();
   void txChartService.close();
   void inlineAssistant.close();
   console.log(`收到 ${signal}，停止服務…`);
