@@ -236,8 +236,8 @@ def load_credentials(path: Path) -> dict[str, Any]:
     STARTUP_DIAGNOSTICS.stage = StartupStage.CREDENTIAL_READ
     if not path.exists():
         raise RuntimeError(
-            "missing DPAPI credentials; run 17_MIGRATE_SHIOAJI_SECURITY.bat "
-            "or 14_SETUP_SHIOAJI_READONLY.bat"
+            "missing DPAPI credentials; run scripts\\migrate-shioaji-credentials.ps1 "
+            "or scripts\\setup-shioaji-readonly.ps1"
         )
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:

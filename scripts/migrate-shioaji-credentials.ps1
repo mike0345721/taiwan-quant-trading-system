@@ -8,7 +8,7 @@ if (Test-Path $target) {
   exit 0
 }
 if (-not (Test-Path $source)) {
-  throw 'The old .shioaji.env file was not found. Run 14_SETUP_SHIOAJI_READONLY.bat.'
+  throw 'The old .shioaji.env file was not found. Run scripts\setup-shioaji-readonly.ps1.'
 }
 
 $values = @{}

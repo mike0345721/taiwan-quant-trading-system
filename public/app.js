@@ -592,7 +592,7 @@ function renderPrelive(prelive) {
   ].filter(Boolean);
   brokerStatus.textContent = live?.connected
     ? `● Shioaji 已連線｜唯讀行情｜${fmt(live.symbolsReceived || 0)} 個商品｜事件 ${fmt(live.eventsWritten || 0)} 筆｜${live.lowDisk ? '磁碟空間不足' : live.eventStorage === 'append_only_hash_chain' ? '雜湊鏈保存正常' : '事件保存待確認'}${liveWarnings.length ? `｜警示：${liveWarnings.join('、')}` : ''}｜下單功能關閉`
-    : `○ Shioaji 未連線｜${live?.error === 'bridge_timeout' ? '本機服務逾時' : '請啟動 15_START_SHIOAJI_READONLY.bat'}`;
+    : `○ Shioaji 未連線｜${live?.error === 'bridge_timeout' ? '本機服務逾時' : 'Bridge 由看門狗自動重啟，請稍候'}`;
   brokerStatus.classList.toggle('connected', Boolean(live?.connected));
   const scenarios = prelive?.costScenarios || [];
   $('prelive-cost-grid').replaceChildren(...scenarios.map((item) => {
@@ -2066,7 +2066,7 @@ function renderV2GlobalContext(data = state.v2) {
   if (!target) return;
   const labels = { SOX: '費城半導體指數', NDX: 'Nasdaq-100', USDTWD: '美元／新台幣' };
   if (!context?.available) {
-    target.textContent = '海外背景資料尚未建立，請執行 6_V2_UPDATE_HISTORY.bat。';
+    target.textContent = '海外背景資料尚未建立；每日收集批次（08:30／21:15）會補齊。';
     text('v2-global-status', '資料未完成'); $('v2-global-status').className = 'source-badge warn'; return;
   }
   target.replaceChildren(...context.latest.map((row) => globalCard(labels[row.symbol] || row.symbol, row)));
@@ -2499,7 +2499,7 @@ function renderV2Backtests(data) {
   const assumptions = data?.assumptions || {};
   text('v2-backtest-note', strategies.length
     ? `Walk-forward：至少 ${fmt(assumptions.minTrainDays)} 日訓練、每段 ${fmt(assumptions.testWindowDays)} 日驗證，最後 ${fmt((assumptions.holdoutPct || 0.2) * 100)}% 完全保留測試；每次進出先扣 ${fmt(assumptions.costPoints)} 點成本。盤後籌碼一律從下一個日盤開盤進場，海外背景才測當日日盤開盤至收盤。通過第一關只代表研究候選，不等於未來可獲利。`
-    : '尚無正式回測結果，請執行 7_V2_RUN_BACKTEST.bat。');
+    : '尚無正式回測結果；可在執行目錄的 v2 資料夾執行 node scripts\\run-backtests.mjs。');
   const stressTarget = $('v2-candidate-stress');
   if (stressTarget) {
     const candidates = strategies.filter((strategy) => strategy.gate === 'passed_first_gate' && !strategy.key?.startsWith('foreign_futures_price_oi_h'));
@@ -5886,7 +5886,7 @@ $('login-form').addEventListener('submit', async (event) => {
   } catch (error) {
     const messages = {
       TOO_MANY_ATTEMPTS: '嘗試次數過多。請關閉啟動視窗，重新開啟後再試。',
-      INVALID_CREDENTIALS: '密碼不正確。可執行 3_CHECK_PASSWORD.bat 檢查。',
+      INVALID_CREDENTIALS: '密碼不正確。可在執行目錄執行 node scripts\\check-password.mjs 檢查。',
       INVALID_RESPONSE: '伺服器回應異常，請查看黑色啟動視窗。',
     };
     text('login-error', messages[error.message] || '無法連線到登入服務，請查看黑色啟動視窗。');

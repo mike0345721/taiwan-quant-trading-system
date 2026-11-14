@@ -6,12 +6,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// ROADMAP.md was replaced by the Owner-approved v2 roadmap (CLAUDE.md supersedes the
-// old governance documents), so only the legacy AGENTS.md wording is still checked here.
-// AGENTS.md is archived in WP 0-5.
-test('AGENTS keeps the governed authority model without self-authorizing work', () => {
-  const agents = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
-
-  assert.match(agents, /Product Owner/);
-  assert.match(agents, /Linear.*CURRENT.*NEXT/);
+// WP 0-5: CLAUDE.md is the only governance file; the legacy AGENTS.md is archived, not active.
+test('CLAUDE.md is the governing rule file and the legacy AGENTS.md is only archived', () => {
+  const claude = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
+  assert.match(claude, /取代舊的 AGENTS\.md/);
+  assert.match(claude, /做之前要先問 Owner 的動作/);
+  assert.equal(fs.existsSync(path.join(root, 'AGENTS.md')), false, 'legacy governance must not sit at the root');
+  assert.ok(fs.existsSync(path.join(root, 'docs/archive/root/AGENTS.md')), 'legacy governance stays recoverable');
 });

@@ -6,7 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = path.join(root, '.env');
 const mode = String(process.argv[2] || '').toLowerCase();
 if (!['live', 'mock'].includes(mode)) throw new Error('Usage: node scripts/set-data-mode.mjs live|mock');
-if (!fs.existsSync(envPath)) throw new Error('Missing .env. Run 1_SETUP.bat first.');
+if (!fs.existsSync(envPath)) throw new Error('Missing .env. Run node scripts/windows-setup.mjs first.');
 
 const current = fs.readFileSync(envPath, 'utf8').replace(/^\uFEFF/, '');
 const value = mode === 'live' ? '0' : '1';

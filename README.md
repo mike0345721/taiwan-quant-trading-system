@@ -148,16 +148,13 @@ GitHub 的 roadmap / status 文件只是 snapshot，不得覆蓋 Linear CURRENT 
 
 ## 新工作如何開始
 
-一般維護／開發先讀最小集合：
+一般維護／開發先讀：
 
-1. [`AGENTS.md`](AGENTS.md)
-2. [`CURRENT_STATUS.md`](CURRENT_STATUS.md)
-3. [`docs/product/PROJECT_NARRATIVE_V1.md`](docs/product/PROJECT_NARRATIVE_V1.md)
-4. 與該工作相關的 Linear Issue / Master Dataset IDs
+1. [`CLAUDE.md`](CLAUDE.md)：規則與環境（唯一的治理文件）
+2. [`ROADMAP.md`](ROADMAP.md)：階段、工作包與想法暫存
+3. [`DECISIONS.md`](DECISIONS.md)：Owner 已定的決策
 
-再依任務選讀專項規格。
-
-長期願景與歷史設計背景仍可參考 [`PROJECT_VISION.md`](PROJECT_VISION.md)；它不是 CURRENT 授權來源。
+舊治理、規格與計畫文件已封存在 `docs/archive/`（WP 0-5），只作歷史參考。
 
 ## 每日啟動與停止
 
@@ -203,4 +200,4 @@ npm run security:scan
 - 歷史資料可以補市場路徑，但不能補「系統當時真的知道什麼」。
 - 未經 Product Owner 明確批准，不得建立或啟用 Broker Live Order Route。
 
-詳細治理見 [`AGENTS.md`](AGENTS.md)；欄位與 Dataset 定義見 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) 與 [`docs/data/MASTER_DATA_REQUIREMENTS_V1.md`](docs/data/MASTER_DATA_REQUIREMENTS_V1.md)。
+規則見 [`CLAUDE.md`](CLAUDE.md)；欄位與 Dataset 定義見 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) 與 [`docs/data/MASTER_DATA_REQUIREMENTS_V1.md`](docs/data/MASTER_DATA_REQUIREMENTS_V1.md)。

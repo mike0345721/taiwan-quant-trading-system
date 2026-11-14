@@ -116,4 +116,4 @@ password = '';
 console.log('');
 console.log('Setup completed successfully.');
 console.log('Password self-check: PASSED');
-console.log('Next, double-click 2_START.bat.');
+console.log('Next, start the dashboard with scripts\\start-daily.ps1 (or sign in again).');
