@@ -17,6 +17,7 @@ import { loadV1Snapshots, importSnapshots } from '../v2/src/history-importer.mjs
 import { rebuildFeatures } from '../v2/src/features.mjs';
 import { runQualityChecks } from '../v2/src/quality.mjs';
 import { buildDailyUpdateGateSummary } from '../src/daily-update-gates.mjs';
+import { buildDailyBatchVerdict } from '../src/daily-batch-verdict.mjs';
 
 const read = name => fs.readFileSync(path.join(dailyCodeRoot, name), 'utf8');
 const strip = text => text.replace(/\bimport\s*(?:[^;'"\n]*?from\s*|[\s\S]*?}\s*from\s*)?['"][^'"]+['"];\s*/g, '').replace(/^export /gm, '');
@@ -149,7 +150,7 @@ function runner(f, { dry = false, locked = false, fail = [] } = {}) {
   if (locked) fs.writeFileSync(lock, JSON.stringify({ pid: process.pid }));
   const context = { fs, path, fileURLToPath, process: proc, Date, Intl,
     dailyStorageRoots: () => f.roots, assertDailyArguments() {}, assertExistingDailyDatabase,
-    console: { log: value => outputs.push(value), error: value => outputs.push(value) }, buildDailyUpdateGateSummary,
+    console: { log: value => outputs.push(value), error: value => outputs.push(value) }, buildDailyUpdateGateSummary, buildDailyBatchVerdict,
     inspectDailyMarket: args => { inspections.push(args); return { status: 'VALID', tradeDate: args.tradeDate }; },
     spawnSync(exe, args, options) { calls.push({ exe, args, options }); return { status: fail.includes(path.basename(args[0])) ? 2 : 0 }; } };
   try { vm.runInNewContext(source, context); } catch (error) { if (!/EXIT_/.test(error.message)) throw error; outputs.push(error.message); }
@@ -166,7 +167,7 @@ test('entry execute delegates the same runner/code cwd; 35 mocked stages keep lo
   assert.equal(entryCalls[0][1][0], path.join(f.source, 'v2/scripts/run-v3-daily-update.mjs'));
   assert.equal(entryCalls[0][2].cwd, path.join(f.source, 'v2'));
   const run = runner(f, { fail: ['quality-report.mjs', 'audit-live-event-ledger-root.mjs', 'audit-data-continuity.mjs'] });
-  assert.equal(run.calls.length, 35); assert.equal(run.proc.exitCode, 1);
+  assert.equal(run.calls.length, 35); assert.equal(run.proc.exitCode, 0, 'only history audits failed (WP 0-6)');
   for (const call of run.calls) {
     assert.equal(path.dirname(call.args[0]), path.join(f.source, 'v2/scripts'));
     assert.equal(call.options.cwd, path.join(f.source, 'v2'));

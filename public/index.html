@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>勢衡｜市場決策系統 V3.9.8</title>
-  <link rel="stylesheet" href="/styles.css?v=3.9.8">
+  <link rel="stylesheet" href="/styles.css?v=3.9.9">
   <link rel="stylesheet" href="/trader-terminal-shell.css?v=ui1">
   <script src="/vendor/lightweight-charts.js" defer></script>
   <script src="/trader-terminal-shell.js?v=home2" defer></script>
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="/data-operations.css?v=cru52-a2b">
   <script src="/data-operations.js?v=cru52-a2b" defer></script>
   <script src="/home-workspace.js?v=home2" defer></script>
-  <script src="/app.js?v=home2" defer></script>
+  <script src="/app.js?v=home3" defer></script>
   <link rel="stylesheet" href="/ask-gpt-inline.css">
   <script src="/ask-gpt-inline.js?v=home2" defer></script>
   <link rel="stylesheet" href="/home-workspace.css?v=home2">
@@ -66,6 +66,11 @@
           <button id="logout-button" class="ghost" type="button">登出</button>
         </div>
       </header>
+
+      <details id="daily-batch-line" class="daily-batch-line" data-state="UNKNOWN" hidden>
+        <summary><span id="daily-batch-today">今日資料：讀取中…</span><small>展開看歷史稽核</small></summary>
+        <p id="daily-batch-history"></p>
+      </details>
 
       <div class="workspace-layout">
         <nav id="side-nav" class="side-nav" aria-label="面板分頁">

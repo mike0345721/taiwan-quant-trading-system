@@ -19,6 +19,7 @@ import * as journal from '../src/decision-journal.mjs';
 import { createDecisionSnapshot } from '../src/dashboard-decision-workspace.mjs';
 import { OWNER_COOKIE, OWNER_NOTICE, ownerRequestAllowed } from '../src/owner-local-acceptance.mjs';
 import { assertMarketCandidateFilesystemRoots, marketCandidateRouteAllowed, marketCandidateQueryAllowed } from '../src/cru21-market-candidate.mjs';
+import { buildDailyBatchVerdict } from '../src/daily-batch-verdict.mjs';
 
 const fixturePassword = randomFixtureBytes(24).toString('base64url');
 const source = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
@@ -35,7 +36,7 @@ function fixture(t) {
   const sessionPath=path.join(roots.privateDataRoot,'sessions.json');
   const decisionJournalPath=path.join(roots.journalRoot,'decision-workspace/journal.ndjson');
   const decisionOutcomesPath=path.join(roots.journalRoot,'decision-workspace/journal-outcomes.ndjson');
-  const context={...security,...httpUtils,...journal,OWNER_COOKIE,OWNER_NOTICE,ownerRequestAllowed,
+  const context={...security,...httpUtils,...journal,OWNER_COOKIE,OWNER_NOTICE,ownerRequestAllowed,buildDailyBatchVerdict,
     assertMarketCandidateFilesystemRoots,assertOwnerJournalFilesystemRoots,marketCandidateRouteAllowed,marketCandidateQueryAllowed,
     marketCandidateStartup:{roots},ownerLocal:true,marketCandidate:true,cru55:null,formalEntry:null,
     sessions:new security.SessionStore(60000,{filePath:sessionPath}),loginLimiter:new security.LoginRateLimiter(),

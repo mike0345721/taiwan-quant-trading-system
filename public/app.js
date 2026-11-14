@@ -5422,7 +5422,7 @@ async function loadDashboard() {
   const terminalRoot = $('decision-workspace');
   terminalRoot?.setAttribute('data-dashboard-load-state', 'LOADING');
   terminalRoot?.setAttribute('aria-busy', 'true');
-  if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest()]);
+  if (!state.guestReadOnly) void Promise.allSettled([loadHistory(), loadBacktest(), loadDailyBatchLine()]);
   const payload = await api('/api/v1/dashboard');
   if (dashboardRequestId !== state.dashboardRequestId || !(state.csrfToken || state.guestReadOnly) || !flowChannel.isCurrentSession(flowTicket)) return false;
   state.homeDashboardError = null;
@@ -5966,8 +5966,11 @@ async function monitorDailyUpdate() {
       continue;
     }
     const box = document.createElement('div');
-    box.className = update.state === 'completed' ? 'alert good' : update.state === 'completed_with_warnings' ? 'alert warning' : 'alert bad';
-    box.textContent = update.state === 'completed'
+    const today = payload.verdict?.todayIngestion;
+    renderDailyBatchLine(payload.verdict);
+    box.className = today ? (['PASS', 'NOT_EXPECTED'].includes(today.state) ? 'alert good' : today.state === 'PARTIAL' ? 'alert warning' : 'alert bad')
+      : update.state === 'completed' ? 'alert good' : update.state === 'completed_with_warnings' ? 'alert warning' : 'alert bad';
+    box.textContent = today ? `${today.line} ${payload.verdict.historicalAudit?.line || ''}`.trim() : update.state === 'completed'
       ? '每日資料更新完成；日資料、5分鐘回放與研究稽核已同步，正式研究門檻未被重新調整。'
       : update.state === 'completed_with_warnings'
         ? `每日資料已完成，但有 ${update.failures?.length || 0} 個來源待補；面板會標示尚待公布或舊資料。`
@@ -5988,6 +5991,21 @@ async function monitorDailyUpdate() {
     return;
   }
   throw new Error('DAILY_UPDATE_TIMEOUT');
+}
+
+// WP 0-6: one plain line for today's ingestion; history audits stay in the expandable part.
+function renderDailyBatchLine(verdict) {
+  const box = $('daily-batch-line');
+  if (!box) return;
+  const today = verdict?.todayIngestion, history = verdict?.historicalAudit;
+  box.hidden = false;
+  box.dataset.state = today?.state || 'UNKNOWN';
+  $('daily-batch-today').textContent = today?.line || '今日資料：讀不到每日批次的狀態。';
+  $('daily-batch-history').textContent = history?.line || '歷史稽核：沒有結果。';
+}
+async function loadDailyBatchLine() {
+  try { renderDailyBatchLine((await api('/api/v2/daily-update')).verdict); }
+  catch { renderDailyBatchLine(null); }
 }
 
 $('daily-update-button').addEventListener('click', async () => {

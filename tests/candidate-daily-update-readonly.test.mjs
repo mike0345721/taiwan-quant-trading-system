@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { SessionStore, parseCookies, safeEqual } from '../src/security.mjs';
 import { readDataOperationsReaderIdentity } from '../src/dashboard-data-operations-reader-identity.mjs';
+import { buildDailyBatchVerdict } from '../src/daily-batch-verdict.mjs';
 
 const serverSource = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 const configSource = fs.readFileSync(new URL('../src/config.mjs', import.meta.url), 'utf8');
@@ -100,7 +101,7 @@ function harness(flag, { databasePath, reportPath, ownerLocal = false, marketCan
   const sessions = new SessionStore(60_000), session = sessions.create('127.0.0.1');
   const decisionJournalPath = path.join(config.dataDir, 'decision-workspace/journal.ndjson');
   const batchStatus = { state: 'completed_with_warnings', completedAt: '2026-11-03T13:25:00Z', failures: [{ key: 'taifex' }] };
-  const context = { config, path, URL, sessions, parseCookies, safeEqual,
+  const context = { config, path, URL, sessions, parseCookies, safeEqual, buildDailyBatchVerdict,
     process: { execPath: 'synthetic-node', env: { V2_DATABASE_PATH: 'synthetic-protected-source' } },
     crypto: { randomUUID: () => 'synthetic-request' }, console,
     requestIsHttps: () => false, setSecurityHeaders() {}, clientIp: () => '127.0.0.1',
