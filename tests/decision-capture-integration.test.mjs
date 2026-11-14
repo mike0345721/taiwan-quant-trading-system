@@ -14,7 +14,7 @@ import * as changes from '../src/market-change-feed.mjs';
 import { observedFlowAtChart } from '../src/dashboard-observed-flow.mjs';
 import { assessCandidateMarketInputs } from '../src/candidate-market-inputs.mjs';
 import { appendDecisionJournal, readDecisionJournal } from '../src/decision-journal.mjs';
-import { normalizeObservation, observationCopyText } from '../public/market-observation.js';
+import { normalizeObservation, observationCopyText, explainReasons } from '../public/market-observation.js';
 
 const read = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 const server = read('server.mjs'), app = read('public/app.js'), moduleSource = read('public/market-observation.js');
@@ -151,7 +151,8 @@ test('captured observation ignores routine refresh and reset removes the prior l
   const context = vm.createContext({ window: {}, snapshot: null, selectedEventId: null, captured: false,
     controller: { abort: () => { aborted++; } }, requestId: 1, catchupTimer: null, minimumRefreshMs: 4500,
     clearTimeout, setTimeout, Date, AbortController, root: { setAttribute() {} }, el,
-    render() {}, handoff() {}, normalizeObservation, observationCopyText, stamp: String, list: value => String(value),
+    render() {}, handoff() {}, normalizeObservation, observationCopyText, explainReasons, stamp: String, list: value => String(value),
+    failure: null, lastGoodCutoff: null, staleNote: () => '', QUOTE_UNAFFECTED: '',
     selectedEvent: () => null, visible: () => true, timeframe: () => '5m', lastRequestAt: 0,
     fetch: async () => { requests++; throw Error('FIXTURE_STOP'); } });
   vm.runInContext(between(moduleSource, '  async function refresh(', "  el('mo-timeframe').addEventListener"), context);

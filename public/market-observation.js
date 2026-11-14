@@ -6,7 +6,60 @@ const timeMs = value => typeof value === 'number' ? (value < 1e12 ? value * 1000
 const number = value => finite(value) ? value.toLocaleString('zh-TW', { maximumFractionDigits: 3 }) : '未知';
 const describe = value => value == null ? '未知' : typeof value === 'string' ? value : JSON.stringify(value);
 const list = value => Array.isArray(value) ? value.map(describe).join('；') || '尚無' : describe(value);
-const stamp = value => Number.isFinite(timeMs(value)) ? new Date(timeMs(value)).toISOString() : '未知';
+// Taiwan has no daylight saving: Taipei is always UTC+8, so a fixed offset is exact and deterministic in tests.
+const TAIPEI_OFFSET_MS = 8 * 3600 * 1000;
+export function taipeiTime(value, { date = true, seconds = true } = {}) {
+  const ms = timeMs(value);
+  if (!Number.isFinite(ms)) return '未知';
+  const iso = new Date(ms + TAIPEI_OFFSET_MS).toISOString();
+  return `${date ? `${iso.slice(5, 7)}/${iso.slice(8, 10)} ` : ''}${iso.slice(11, seconds ? 19 : 16)}`;
+}
+const stamp = value => taipeiTime(value);
+
+// Plain-language meaning and "do I need to act" for machine reason codes; codes stay in technical details.
+const ACTION = Object.freeze({
+  AUTO: '不用處理，每 5 秒自動重試',
+  WATCH: '會自動重試；若超過 5 分鐘仍未恢復，請通知維護',
+  HANDLE: '需要處理：不會自動恢復，請通知維護（代碼見技術細節）',
+  LOGIN: '需要處理：請重新登入',
+});
+const SEVERITY = { AUTO: 1, WATCH: 2, LOGIN: 3, HANDLE: 4 };
+const REASON_RULES = [
+  [/^請先正常登入$|^HTTP_401$/, '登入已失效', 'LOGIN'],
+  [/REACQUISITION|_GAP$|BACKDATED|NOT_RETAINED/, '觀測來源中斷，無法接續', 'HANDLE'],
+  [/PENDING|VERIFYING|CATCHUP|PERSISTING|CAUGHT_UP/, '觀測正在補算', 'AUTO'],
+  [/^STALE$/, '觀測資料已過期', 'AUTO'],
+  [/^READ_TIMEOUT$|^HTTP_/, '網頁讀取觀測失敗', 'AUTO'],
+  [/BUDGET/, '資料量超過單次讀取上限', 'WATCH'],
+  [/COMPLETE_SESSION_NOT_PROVEN/, '本盤資料尚未完整', null],
+  [/FIXTURE|SYNTHETIC/, '測試資料', null],
+  [/UNAVAILABLE|MISSING/, '觀測來源暫時讀不到', 'WATCH'],
+  [/HASH|INVALID|INTEGRITY|MISMATCH|CHANGED|BINDING|NONCANONICAL|SCHEMA|REQUIRED/, '觀測資料檢查未通過', 'WATCH'],
+];
+export function reasonText(code) {
+  const value = String(code ?? '');
+  for (const [pattern, text, action] of REASON_RULES) if (pattern.test(value)) return { code: value, text, action };
+  return { code: value, text: '觀測暫時無法使用', action: 'WATCH' };
+}
+export function explainReasons(codes) {
+  const items = (Array.isArray(codes) ? codes : [codes]).filter(code => code != null && code !== '').map(reasonText);
+  const texts = [...new Set(items.map(item => item.text))];
+  const worst = items.filter(item => item.action).sort((a, b) => SEVERITY[b.action] - SEVERITY[a.action])[0];
+  return { text: texts.join('；') || '沒有異常', action: worst ? ACTION[worst.action] : '', handle: worst?.action === 'HANDLE' || worst?.action === 'LOGIN',
+    codes: items.map(item => item.code) };
+}
+const STATUS_TEXT = { OBSERVATION_CANDIDATE: '候選觀測', USABLE: '可用', UNAVAILABLE: '不可用' };
+const MODE_TEXT = { LIVE: '即時', REPLAY: '回放', FIXTURE: '測試資料', TRAINING: '訓練資料' };
+const QUOTE_UNAFFECTED = '主圖報價不受影響，僅此觀測圖層暫停';
+
+export function observationForceText(snapshot) {
+  const cvd = snapshot?.cvd || {};
+  if (!finite(cvd.value)) return '買賣力道未知（可分類成交不足）｜品質：僅供參考';
+  const signed = `${cvd.value > 0 ? '+' : ''}${number(cvd.value)}`;
+  const coverage = finite(cvd.classifiedCoverage) ? `${(cvd.classifiedCoverage * 100).toFixed(1)}%` : '未知';
+  const unknown = finite(cvd.unknownVolume) ? `${number(cvd.unknownVolume)} 口無法分類` : '無法分類口數未知';
+  return `買賣力道 ${signed} 口｜可分類 ${coverage}｜${unknown}｜品質：僅供參考`;
+}
 
 const CATCHUP_REASONS = new Set(['VERIFIED_SOURCE_PENDING_DERIVATION', 'VERIFIED_SOURCE_PERSISTED_PENDING_DERIVATION', 'DERIVATION_CATCHUP_PENDING',
   'DERIVED_HISTORY_VERIFYING', 'LEGACY_CACHE_MIGRATION_PENDING', 'LEGACY_CACHE_VALIDATION_PENDING', 'CHECKPOINT_PREFIX_VERIFYING']);
@@ -14,8 +67,10 @@ export function observationCatchup(snapshot, previous = null) {
   if (snapshot?.status !== 'UNAVAILABLE' || snapshot.snapshotId || !snapshot.reasonCodes?.length
       || !snapshot.reasonCodes.every(code => CATCHUP_REASONS.has(code))) return null;
   const progress = snapshot.sourceProgress || {};
-  return { retryMs: 250, message: `WARMING_UP · ${snapshot.reasonCodes.join(' / ')} · 已處理來源序位 ${number(progress.derivedThroughOrdinal)} · 已發布序位 ${number(progress.publishedThroughOrdinal)}。`
-    + (previous ? `仍顯示已驗證快照，截至 ${stamp(previous.cutoff)}；尚未發布新快照。` : '尚無可顯示的完整快照。') };
+  return { retryMs: 250, codes: snapshot.reasonCodes,
+    technical: `WARMING_UP · ${snapshot.reasonCodes.join(' / ')} · 已處理來源序位 ${number(progress.derivedThroughOrdinal)} · 已發布序位 ${number(progress.publishedThroughOrdinal)}`,
+    message: '觀測補算中，不用處理，會自動接上。'
+    + (previous ? `仍顯示舊資料，截至 ${stamp(previous.cutoff)}（台北），非即時。` : '尚無可顯示的完整快照。') + QUOTE_UNAFFECTED + '。' };
 }
 
 export function normalizeObservation(snapshot, timeframe) {
@@ -50,9 +105,10 @@ export function normalizeObservation(snapshot, timeframe) {
     profile: { ...snapshot.profile, bins, ...binDisplay }, structure: { ...snapshot.structure, events: structureEvents, zones }, events };
 }
 
-export function observationCopyText(snapshot, selectedEvent = null) {
+export function observationCopyText(snapshot, selectedEvent = null, { staleNote = '' } = {}) {
   if (!snapshot) return '';
   return ['勢衡｜SMC＋觀測 CVD＋成交量分布（研究用途）',
+    ...(staleNote ? [`注意：${staleNote}`] : []),
     '共用價格與成交來源，不是三份獨立證據。分類代理不是主力／外資真實買賣；成交量分布不是持倉成本。',
     '請分開描述位置、事件期間成交、結構、反證與失效條件；吸收僅為候選假說，不產生 BUY／SELL 或勝率。',
     JSON.stringify({ snapshotId: snapshot.snapshotId, cutoff: snapshot.cutoff, timeframe: snapshot.timeframe,
@@ -107,13 +163,17 @@ function mountObservation() {
   const svgNode = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v)); if (text != null) e.textContent = text; return e; };
   let snapshot = null, selectedEventId = null, controller = null, requestId = 0, lastRequestAt = 0, cursorIndex = 0;
   let catchupTimer = null, minimumRefreshMs = 4500, captured = false;
+  // failure: why the latest read did not produce a new snapshot. A retained snapshot is then shown as old, never as live.
+  let failure = null, lastGoodCutoff = null;
+  const staleNote = () => failure && snapshot ? `這是舊資料，截至 ${stamp(snapshot.cutoff)}（台北），非即時` : '';
+  const setTechnical = () => { el('mo-tech-status').textContent = failure?.technical ? `最近一次讀取：${failure.technical}` : ''; };
   const selectedEvent = () => snapshot?.events.find(e => e.id === selectedEventId) || null;
   const timeframe = () => el('mo-timeframe').value;
   const visible = () => root.open && !document.hidden && root.getClientRects().length > 0;
   const enabled = name => el(`mo-layer-${name}`).checked;
   const plotNow = () => snapshot && plotObservation(snapshot, Math.max(320, Math.min(960, el('mo-chart').getBoundingClientRect().width || 960)));
   function handoff() {
-    window.dispatchEvent(new CustomEvent('market-observation-selected', { detail: { snapshot, event: selectedEvent() } }));
+    window.dispatchEvent(new CustomEvent('market-observation-selected', { detail: { snapshot, event: selectedEvent(), stale: Boolean(failure && snapshot) } }));
   }
   function showEvent() {
     const event = selectedEvent(), target = el('mo-event-detail'); target.replaceChildren();
@@ -131,7 +191,16 @@ function mountObservation() {
   }
   function draw() {
     const svg = el('mo-chart'); svg.replaceChildren();
-    if (!snapshot) { el('mo-cursor').textContent = '等待同一快照的價格與觀測資料。'; return; }
+    root.classList.toggle('mo-is-stale', Boolean(failure && snapshot));
+    if (!snapshot) {
+      // Never leave a silent black box: say why, when it last worked and whether it retries by itself.
+      svg.setAttribute('viewBox', '0 0 960 470');
+      const lines = failure ? [`觀測圖暫停：${failure.text}`, `上次成功：${lastGoodCutoff ? `${stamp(lastGoodCutoff)}（台北）` : '本次開啟尚未成功'}`, failure.action, QUOTE_UNAFFECTED]
+        : ['等待觀測資料…', '展開面板後每 5 秒自動讀取'];
+      lines.forEach((line, i) => svg.append(svgNode('text', { x: 480, y: 180 + i * 30, 'text-anchor': 'middle', class: i ? 'mo-empty' : 'mo-empty-title' }, line)));
+      el('mo-cursor').textContent = failure ? `觀測圖暫停：${failure.text}。` : '等待同一快照的價格與觀測資料。';
+      return;
+    }
     const plot = plotNow();
     if (!plot) { svg.append(svgNode('text', { x: 32, y: 80, class: 'mo-axis' }, '價格資料不足；其他模組狀態請見摘要。')); return; }
     svg.setAttribute('viewBox', `0 0 ${plot.width} 470`);
@@ -187,8 +256,9 @@ function mountObservation() {
           svgNode('text', { x: plot.edge, y: plot.y(price) - 4, 'text-anchor': 'end', class: 'mo-axis' }, `${label} ${number(price)}`));
       }
     }
-    svg.append(svgNode('text', { x: plot.left, y: 450, class: 'mo-axis' }, stamp(plot.t0).slice(11, 19) + ' UTC'),
-      svgNode('text', { x: plot.right, y: 450, class: 'mo-axis', 'text-anchor': 'end' }, stamp(plot.t1).slice(11, 19) + ' UTC'),
+    if (failure) svg.append(svgNode('text', { x: plot.right, y: 22, 'text-anchor': 'end', class: 'mo-stale-badge' }, `舊資料 · 截至 ${taipeiTime(snapshot.cutoff, { date: false })} · 非即時`));
+    svg.append(svgNode('text', { x: plot.left, y: 450, class: 'mo-axis' }, taipeiTime(plot.t0, { date: false, seconds: false }) + ' 台北'),
+      svgNode('text', { x: plot.right, y: 450, class: 'mo-axis', 'text-anchor': 'end' }, taipeiTime(plot.t1, { date: false, seconds: false }) + ' 台北'),
       svgNode('line', { id: 'mo-crosshair', x1: plot.left, x2: plot.left, y1: 36, y2: 426, class: 'mo-crosshair' }));
     moveCursor(Math.min(cursorIndex, plot.bars.length - 1));
   }
@@ -206,13 +276,18 @@ function mountObservation() {
     el('mo-event-journal').disabled = !snapshot || !selectedEvent();
     if (!snapshot) {
       for (const key of ['position', 'force', 'structure', 'counterEvidence', 'dataStatus']) el('mo-' + key).textContent = '未知';
+      if (failure) el('mo-dataStatus').textContent = `${failure.text}｜${failure.action}`;
       el('mo-lineage').textContent = '沒有可驗證的同一快照。'; el('mo-profile-note').textContent = '成交量分布不可用。';
-      el('mo-events').replaceChildren(); showEvent(); draw(); return;
+      setTechnical(); el('mo-events').replaceChildren(); showEvent(); draw(); return;
     }
     const s = snapshot, identity = s.identity || {};
-    for (const key of ['position', 'force', 'structure', 'counterEvidence', 'dataStatus']) el('mo-' + key).textContent = list(s.summary?.[key]);
-    el('mo-lineage').textContent = `${identity.actualContract || '合約未知'} · ${identity.tradeDate || '交易日未知'} · ${identity.session || '盤別未知'} · 連續段 ${identity.continuityEpoch ?? '未知'} · ${s.mode || '模式未知'} · 截至 ${stamp(s.cutoff)} · snapshot ${s.snapshotId} · ${list(s.reasonCodes)}`;
-    el('mo-profile-note').textContent = `本盤觀測：${stamp(s.profile.observedStart)} ～ ${stamp(s.profile.observedEnd || s.cutoff)}；價格粒度 ${number(s.profile.binSize)}；價值區比例 ${finite(s.profile.valueAreaFraction) ? number(s.profile.valueAreaFraction * 100) + '%' : '未知'}；${s.profile.partial === false ? '完整性依來源證據' : '片段／完整性未證明'}。POC ${number(s.profile.poc)}／VAH ${number(s.profile.vah)}（上界不含）／VAL ${number(s.profile.val)}。HVN ${list(s.profile.hvn)}；LVN ${list(s.profile.lvn)}。${s.profile.sourceBinCount ? `圖層僅呈現目前價格範圍前 ${number(s.profile.displayedBinCount)} 個價位（來源共 ${number(s.profile.sourceBinCount)}，上限 2,000）；摘要保留完整來源分布。` : ''}上一完整盤：${s.previousProfile?.state || s.previousProfile?.status || 'UNAVAILABLE'} · ${s.previousProfile?.reason || `POC ${number(s.previousProfile?.poc)}／VA ${number(s.previousProfile?.val)}–${number(s.previousProfile?.vah)}`}。CVD 起點 ${stamp(s.cvd.observedStart)}，分段原因 ${s.cvd.resetReason || '未知'}，分類覆蓋 ${finite(s.cvd.classifiedCoverage) ? number(s.cvd.classifiedCoverage * 100) + '%' : '未知'}，UNKNOWN ${number(s.cvd.unknownVolume)}；換週期不重置累積。`;
+    for (const key of ['position', 'structure', 'counterEvidence']) el('mo-' + key).textContent = list(s.summary?.[key]);
+    el('mo-force').textContent = observationForceText(s);
+    el('mo-dataStatus').textContent = failure ? `舊資料，非即時｜${failure.text}｜${failure.action}` : explainReasons(s.reasonCodes).text;
+    el('mo-lineage').textContent = `${identity.actualContract || '合約未知'} · ${identity.tradeDate || '交易日未知'} · ${identity.session || '盤別未知'} · 連續段 ${identity.continuityEpoch ?? '未知'} · ${s.mode || '模式未知'} · 截至 ${stamp(s.cutoff)}（台北） · snapshot ${s.snapshotId} · ${list(s.reasonCodes)} · CVD 分段原因 ${s.cvd.resetReason || '未知'} · 上一完整盤 ${s.previousProfile?.state || s.previousProfile?.status || 'UNAVAILABLE'} ${s.previousProfile?.reason || ''}`;
+    setTechnical();
+    const previous = s.previousProfile || {}, previousReady = finite(previous.poc) && !previous.reason;
+    el('mo-profile-note').textContent = `本盤觀測：${stamp(s.profile.observedStart)} ～ ${stamp(s.profile.observedEnd || s.cutoff)}；價格粒度 ${number(s.profile.binSize)}；價值區比例 ${finite(s.profile.valueAreaFraction) ? number(s.profile.valueAreaFraction * 100) + '%' : '未知'}；${s.profile.partial === false ? '完整性依來源證據' : '片段／完整性未證明'}。POC ${number(s.profile.poc)}／VAH ${number(s.profile.vah)}（上界不含）／VAL ${number(s.profile.val)}。HVN ${list(s.profile.hvn)}；LVN ${list(s.profile.lvn)}。${s.profile.sourceBinCount ? `圖層僅呈現目前價格範圍前 ${number(s.profile.displayedBinCount)} 個價位（來源共 ${number(s.profile.sourceBinCount)}，上限 2,000）；摘要保留完整來源分布。` : ''}上一完整盤：${previousReady ? `POC ${number(previous.poc)}／VA ${number(previous.val)}–${number(previous.vah)}` : `暫無（${explainReasons(previous.reason || previous.state || previous.status || 'UNAVAILABLE').text}）`}。CVD 起點 ${stamp(s.cvd.observedStart)}，分類覆蓋 ${finite(s.cvd.classifiedCoverage) ? number(s.cvd.classifiedCoverage * 100) + '%' : '未知'}，無法分類 ${number(s.cvd.unknownVolume)} 口；換週期不重置累積。時間皆為台北時間。`;
     const selector = el('mo-events'); selector.replaceChildren(node('option', '選擇已確認事件'));
     selector.firstChild.value = '';
     for (const e of [...s.events].reverse()) { const option = node('option', `${stamp(e.availableAt || e.confirmedAt)} · ${e.title || e.eventType || e.type || e.id}`); option.value = e.id; selector.append(option); }
@@ -232,15 +307,24 @@ function mountObservation() {
       if (!response.ok) throw new Error(response.status === 401 ? '請先正常登入' : `HTTP_${response.status}`);
       const payload = await response.json(); if (current !== requestId) return;
       catchup = observationCatchup(payload.data, snapshot);
-      if (catchup) { el('mo-status').textContent = catchup.message; return; }
-      snapshot = normalizeObservation(payload.data, selected);
+      if (catchup) {
+        failure = { ...explainReasons(catchup.codes), technical: catchup.technical };
+        el('mo-status').textContent = catchup.message; render(); return;
+      }
+      snapshot = normalizeObservation(payload.data, selected); failure = null; lastGoodCutoff = snapshot.cutoff;
       if (!snapshot.events.some(e => e.id === selectedEventId)) selectedEventId = snapshot.events.at(-1)?.id || null;
-      el('mo-status').textContent = `${snapshot.reasonCodes?.includes('STALE') ? 'STALE · 已過期觀測，非即時' : snapshot.status || '候選觀測'} · ${snapshot.mode || '模式未知'} · ${snapshot.timeframe} · 非交易建議`;
+      const expired = snapshot.reasonCodes?.includes('STALE');
+      el('mo-status').textContent = `${expired ? '已過期觀測，非即時' : STATUS_TEXT[snapshot.status] || '候選觀測'} · ${MODE_TEXT[snapshot.mode] || '模式未知'} · ${snapshot.timeframe} · 截至 ${stamp(snapshot.cutoff)}（台北）${expired ? ` · ${QUOTE_UNAFFECTED}` : ''} · 非交易建議`;
       render(); handoff();
     } catch (error) {
       if (current !== requestId) return;
-      snapshot = null; selectedEventId = null;
-      el('mo-status').textContent = '觀測不可用 · ' + (error.name === 'AbortError' ? '讀取逾時' : error.message); render(); handoff();
+      // Keep the last good picture of the same timeframe, clearly marked old, instead of blanking the panel.
+      const codes = error.name === 'AbortError' ? ['READ_TIMEOUT'] : String(error.message || 'OBSERVATION_UNAVAILABLE').split(' / ');
+      failure = { ...explainReasons(codes), technical: codes.join(' / ') };
+      el('mo-status').textContent = snapshot
+        ? `舊資料，截至 ${stamp(snapshot.cutoff)}（台北），非即時 · ${failure.text} · ${failure.action} · ${QUOTE_UNAFFECTED}`
+        : `觀測暫停 · ${failure.text} · ${failure.action} · ${QUOTE_UNAFFECTED}`;
+      render(); handoff();
     } finally {
       clearTimeout(timeout); if (current === requestId) {
         controller = null; root.setAttribute('aria-busy', 'false');
@@ -251,7 +335,7 @@ function mountObservation() {
       }
     }
   }
-  el('mo-timeframe').addEventListener('change', () => { snapshot = null; selectedEventId = null; cursorIndex = 0; render(); handoff(); refresh(true); });
+  el('mo-timeframe').addEventListener('change', () => { snapshot = null; selectedEventId = null; cursorIndex = 0; failure = null; lastGoodCutoff = null; render(); handoff(); refresh(true); });
   el('mo-refresh').addEventListener('click', () => refresh(true));
   for (const layer of ['smc', 'cvd', 'profile']) el('mo-layer-' + layer).addEventListener('change', draw);
   el('mo-events').addEventListener('change', event => { selectedEventId = event.target.value || null; showEvent(); el('mo-event-journal').disabled = !selectedEvent(); handoff(); });
@@ -267,7 +351,7 @@ function mountObservation() {
     event.preventDefault(); moveCursor(event.key === 'Home' ? 0 : event.key === 'End' ? LIMITS.bars : cursorIndex + (event.key === 'ArrowLeft' ? -1 : 1));
   });
   el('mo-copy').addEventListener('click', async () => {
-    const text = observationCopyText(snapshot, selectedEvent()); if (!text) return;
+    const text = observationCopyText(snapshot, selectedEvent(), { staleNote: staleNote() }); if (!text) return;
     try { await navigator.clipboard.writeText(text); el('mo-feedback').textContent = '已複製同一快照與選取事件；未呼叫 AI。'; }
     catch { el('mo-copy-fallback').value = text; el('mo-copy-fallback').hidden = false; el('mo-copy-fallback').focus(); el('mo-copy-fallback').select(); el('mo-feedback').textContent = '剪貼簿不可用，請複製下方已選取文字。'; }
   });
@@ -283,24 +367,25 @@ function mountObservation() {
     reset: () => {
       clearTimeout(catchupTimer); catchupTimer = null;
       controller?.abort(); controller = null; requestId += 1; captured = false;
-      snapshot = null; selectedEventId = null; root.setAttribute('aria-busy', 'false');
+      snapshot = null; selectedEventId = null; failure = null; lastGoodCutoff = null; root.setAttribute('aria-busy', 'false');
       el('mo-status').textContent = '登入後重新讀取觀測快照。'; render(); handoff();
     },
     capture: value => {
       clearTimeout(catchupTimer); catchupTimer = null;
       controller?.abort(); controller = null; requestId += 1; captured = true;
-      root.setAttribute('aria-busy', 'false');
+      root.setAttribute('aria-busy', 'false'); failure = null;
       if (value?.snapshotId) {
-        snapshot = normalizeObservation(value, value.timeframe); el('mo-timeframe').value = value.timeframe;
+        snapshot = normalizeObservation(value, value.timeframe); el('mo-timeframe').value = value.timeframe; lastGoodCutoff = snapshot.cutoff;
         selectedEventId = snapshot.events.at(-1)?.id || null;
-        el('mo-status').textContent = `LOCKED · 截至 ${stamp(snapshot.cutoff)} · ${list(snapshot.reasonCodes)} · 成交來源截至 ${stamp(snapshot.profile.observedEnd)} · 主行情繼續更新；按更新重新追蹤觀測。`;
+        el('mo-status').textContent = `已鎖定快照 · 截至 ${stamp(snapshot.cutoff)}（台北） · ${explainReasons(snapshot.reasonCodes).text} · 成交來源截至 ${stamp(snapshot.profile.observedEnd)} · 主行情繼續更新；按「更新觀測」重新追蹤。`;
       } else {
         snapshot = null; selectedEventId = null;
-        el('mo-status').textContent = `本次擷取觀測尚未就緒 · ${list(value?.reasonCodes)}；按更新接續推導。`;
+        failure = { ...explainReasons(value?.reasonCodes || ['OBSERVATION_UNAVAILABLE']), technical: list(value?.reasonCodes) };
+        el('mo-status').textContent = `本次擷取觀測尚未就緒 · ${failure.text}；按「更新觀測」接續。`;
       }
       render(); handoff();
     },
-    selectedEvent, copyText: () => observationCopyText(snapshot, selectedEvent()), refresh: () => refresh(true) });
+    selectedEvent, copyText: () => observationCopyText(snapshot, selectedEvent(), { staleNote: staleNote() }), refresh: () => refresh(true) });
   if (visible()) refresh();
 }
 if (typeof document !== 'undefined') mountObservation();
