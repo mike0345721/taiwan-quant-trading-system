@@ -32,7 +32,7 @@
 - 開發目錄：`D:\shiheng`（main 的檢出）。執行目錄：`D:\Taiwan stock\approved-main-runtime`。這份檔案的正本在 `D:\shiheng\CLAUDE.md`。
 - 角色：Bridge 8790（Python，唯讀行情）、Producer（Node，算 Flow 投影）、Dashboard 8787（Node，`/healthz`）。
 - 啟停：登入排程 `ShihengStartDaily` 跑 `scripts\start-daily.ps1`（看門狗，每 60 秒補起掉的程序）；`scripts\stop-daily.ps1` 停 Dashboard 與 Producer，不停 Bridge。
-- 每日收集排程 `TwChipDashboard-DailyUpdate` 跑的是 `owner-acceptance-runtime\306d29c`（綁定檔鎖版本），不是執行目錄。
+- 每日收集排程 `TwChipDashboard-DailyUpdate` 跑的是 `owner-acceptance-runtime\30978ea`（綁定檔 `_v2\daily-writer-binding-30978ea.json` 鎖版本），不是執行目錄；批次程式要更新得另做新版本目錄與綁定檔。
 - 研究排程不可停、封存時不可移除：`TwChipDashboard-V4TrendPaper`、`-MultiMarketPaper`、`-PreopenCacheNight`、`-PreopenCacheDay`、`-PreopenReport`（紙上追蹤與開盤前報告，程式在 `standalone-v1\data\strategy-research` 與 `standalone-v1\data\preopen-report`）。
 - 研究資料庫：`D:\Taiwan stock\standalone-v1\v2\data\research-v2.sqlite`。
 - 啟動腳本一律用 Windows PowerShell 5.1（不是 PowerShell 7）。
