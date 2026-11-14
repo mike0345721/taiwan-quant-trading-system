@@ -18,7 +18,7 @@ const veto = read('no-trade-veto.json');
 const vix = read('vix-relative-research.json');
 const basis = read('basis-term-structure-research.json');
 const reverse = read('reverse-large-move-study.json');
-const protocol = fs.readFileSync(path.join(projectRoot, 'V3_6_2_CROSS_MARKET_RESEARCH_PROTOCOL.md'), 'utf8');
+const protocol = fs.readFileSync(path.join(projectRoot, 'docs/archive/root/V3_6_2_CROSS_MARKET_RESEARCH_PROTOCOL.md'), 'utf8');
 const protocolSha256 = crypto.createHash('sha256').update(protocol).digest('hex');
 
 const finite = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
