@@ -35,7 +35,7 @@ if (-not (Test-Dashboard)) {
 
 if (-not (Test-Dashboard)) {
   Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show('Dashboard startup failed. Run 2_START.bat to view the error.', 'Taiwan Stock Dashboard') | Out-Null
+  [System.Windows.MessageBox]::Show('Dashboard startup failed. Run node launcher.mjs to view the error.', 'Taiwan Stock Dashboard') | Out-Null
   exit 1
 }
 

@@ -28,7 +28,7 @@ if ($Remove) {
 }
 
 if (-not (Test-Path (Join-Path $root '.env'))) {
-  throw 'Please run 1_SETUP.bat before installing automation.'
+  throw 'Please run node scripts/windows-setup.mjs before installing automation.'
 }
 
 $shell = New-Object -ComObject WScript.Shell

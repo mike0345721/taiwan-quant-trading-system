@@ -52,7 +52,7 @@ test('safe diagnostics is an allowlist wrapper over governed project-status and 
 });
 
 test('Windows diagnostics entrypoint and package script invoke the same bounded collector', () => {
-  const batch = read('COLLECT_DIAGNOSTICS.bat');
+  const batch = read('scripts/archive/root/COLLECT_DIAGNOSTICS.bat');
   const pkg = JSON.parse(read('package.json'));
   assert.match(batch, /scripts\\collect-development-diagnostics\.mjs/);
   assert.equal(pkg.scripts.diagnostics, 'node scripts/collect-development-diagnostics.mjs');

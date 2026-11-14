@@ -8,7 +8,7 @@ const root = path.resolve(scriptsDir, '..');
 const envPath = path.join(root, '.env');
 
 function loadHash() {
-  if (!fs.existsSync(envPath)) throw new Error('.env was not found. Run 1_SETUP.bat first.');
+  if (!fs.existsSync(envPath)) throw new Error('.env was not found. Run node scripts/windows-setup.mjs first.');
   const text = fs.readFileSync(envPath, 'utf8').replace(/^\uFEFF/, '');
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();

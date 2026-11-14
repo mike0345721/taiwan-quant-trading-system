@@ -8,7 +8,7 @@ const envPath = process.env.DASHBOARD_ENV_PATH
   : path.join(root, '.env');
 
 if (!fs.existsSync(envPath)) {
-  console.error('找不到 .env。請先雙擊 1_SETUP.bat。');
+  console.error('找不到 .env。請先執行 node scripts/windows-setup.mjs。');
   process.exit(1);
 }
 
