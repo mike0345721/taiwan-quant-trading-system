@@ -10,6 +10,7 @@ import { readOperationsBinding, resolveOperationsReader, assertOperationsBinding
 import { prepareOperationsBinding } from '../scripts/prepare-data-operations-binding.mjs';
 import { inspectDailyMarket } from '../src/daily-market-applicability.mjs';
 import { buildDailyUpdateGateSummary } from '../src/daily-update-gates.mjs';
+import { buildDailyBatchVerdict } from '../src/daily-batch-verdict.mjs';
 import { loadOperatingCalendar } from '../src/operating-calendar.mjs';
 import { readSchedulerHealth } from '../src/data-operations-scheduler-health.mjs';
 
@@ -109,7 +110,7 @@ test('daily batch target stays fixed across midnight while each row observation 
     process: { argv: [], env: {}, pid: 123, execPath: 'synthetic-node' }, console: { log() {}, error() {} },
     fs: { mkdirSync() {}, openSync() { return 42; }, closeSync() {}, appendFileSync() {},
       writeFileSync(k, v) { files.set(k, v); }, renameSync(a, b) { files.set(b, files.get(a)); files.delete(a); }, unlinkSync(k) { files.delete(k); } },
-    spawnSync() { clock += 60_000; return { status: 0 }; }, buildDailyUpdateGateSummary,
+    spawnSync() { clock += 60_000; return { status: 0 }; }, buildDailyUpdateGateSummary, buildDailyBatchVerdict,
     inspectDailyMarket(args) { inspections.push(args); return { status: 'MISSING', tradeDate: args.tradeDate }; } });
   assert.ok(inspections.length > 2);
   assert.ok(inspections.every(x => x.tradeDate === '2026-11-06'));

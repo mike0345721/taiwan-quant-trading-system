@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildDailyUpdateGateSummary } from '../../src/daily-update-gates.mjs';
+import { buildDailyBatchVerdict } from '../../src/daily-batch-verdict.mjs';
 import { inspectDailyMarket } from '../../src/daily-market-applicability.mjs';
 
 import { dailyStorageRoots, assertDailyArguments } from '../../src/daily-storage-binding.mjs';
@@ -174,8 +175,11 @@ try {
   status.currentStage = null;
   status.completedAt = new Date().toISOString();
   status.gateSummary = buildDailyUpdateGateSummary({ stages: status.stages, failures: status.failures, marketDaily: inspectMarketDaily() });
+  // WP 0-6: the scheduler exit code reflects only today's ingestion; history audits keep failing visibly in the file.
+  Object.assign(status, buildDailyBatchVerdict(status));
+  process.exitCode = status.todayIngestion.exitCode;
   writeJsonAtomic(statusPath, status);
   try { fs.closeSync(lockHandle); } catch { /* already closed */ }
   try { fs.unlinkSync(lockPath); } catch { /* lock cleanup is best effort */ }
-  log(`FINAL ${status.state}`);
+  log(`FINAL ${status.state} today=${status.todayIngestion.state} history=${status.historicalAudit.state}`);
 }

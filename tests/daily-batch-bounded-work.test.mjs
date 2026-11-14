@@ -11,6 +11,7 @@ import { runQualityChecks } from '../v2/src/quality.mjs';
 import { validateOfficialBackfill } from '../v2/src/official-validation.mjs';
 import { rebuildOptionOiChanges } from '../v2/src/official-backfill.mjs';
 import { buildDailyUpdateGateSummary } from '../src/daily-update-gates.mjs';
+import { buildDailyBatchVerdict } from '../src/daily-batch-verdict.mjs';
 import { dailyStorageRoots, assertDailyArguments } from '../src/daily-storage-binding.mjs';
 import { assertExistingDailyDatabase } from '../src/daily-storage-database.mjs';
 
@@ -142,7 +143,7 @@ test('actual daily orchestration passes defer argument and preserves quality/val
   const source = withoutImports(script('run-v3-daily-update.mjs')).replaceAll('import.meta.url', JSON.stringify('file:///synthetic/v2/scripts/run-v3-daily-update.mjs'));
   const context = { path, Date, Intl, process: proc, fileURLToPath: () => '/synthetic/v2/scripts/run-v3-daily-update.mjs',
     dailyStorageRoots: () => dailyStorageRoots('/synthetic', {}), assertDailyArguments, assertExistingDailyDatabase,
-    buildDailyUpdateGateSummary, inspectDailyMarket: () => ({ status: 'VALID', tradeDate: '2026-11-06' }),
+    buildDailyUpdateGateSummary, buildDailyBatchVerdict, inspectDailyMarket: () => ({ status: 'VALID', tradeDate: '2026-11-06' }),
     console: { log() {}, error() {} },
     fs: { mkdirSync() {}, openSync: () => 1, closeSync() {}, unlinkSync() {}, renameSync() {}, appendFileSync() {},
       writeFileSync(_file, bytes) { const value = JSON.parse(bytes); if (value.stages) reports.push(value); } },
@@ -156,7 +157,9 @@ test('actual daily orchestration passes defer argument and preserves quality/val
   assert.equal(calls.find(c => path.basename(c.args[0]) === 'validate-official-history.mjs').timeout, 300000);
   assert.equal(calls.find(c => path.basename(c.args[0]) === 'status-report.mjs').timeout, 300000);
   const final = reports.at(-1);
-  assert.equal(final.state, 'failed'); assert.equal(proc.exitCode, 1);
+  // WP 0-6: history audits still fail visibly, but today's data arrived, so the scheduler exit code is 0.
+  assert.equal(final.state, 'failed'); assert.equal(proc.exitCode, 0);
+  assert.equal(final.todayIngestion.state, 'PASS'); assert.equal(final.historicalAudit.state, 'FAIL');
   assert.equal(final.gateSummary.quality, 'FAIL');
   assert.equal(final.failures.find(f => f.key === 'official_validation').error, 'exit_2');
   assert.notEqual(final.gateSummary.overall, 'PASS');

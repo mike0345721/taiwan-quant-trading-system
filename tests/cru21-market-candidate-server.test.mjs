@@ -224,6 +224,7 @@ function harness({ env: envPatch = {}, config: configPatch = {}, observed = {}, 
     'src/dashboard-tx-chart-pump.mjs': { createTxChartPump(options) {
       return { start() { void options.load(); }, stop() {} };
     } },
+    'src/daily-batch-verdict.mjs': { buildDailyBatchVerdict: () => null },
     'src/cru55-formal-entry.mjs': { prepareFormalEntry: never },
     'src/market-change-feed.mjs': { buildMarketChangeFeed: () => ({ events: [] }), chartMarkersFromEvents: () => [] },
     'src/runtime-identity.mjs': {

@@ -112,7 +112,7 @@ test('ReaderOnly routing retains actual missing canvas, series, Flow and pending
 
 function wireDashboardLoader(h, response) {
   Object.assign(h.context, { flowChannel: { ticket: () => ({}), isCurrentSession: () => true, merge() {} },
-    loadHistory: async () => {}, loadBacktest: async () => {}, loadIndexLeadership: async () => {},
+    loadHistory: async () => {}, loadBacktest: async () => {}, loadDailyBatchLine: async () => {}, loadIndexLeadership: async () => {},
     renderIndexLeadershipFailure() {}, renderSnapshotUnavailable() {}, renderDecisionWorkspace: value => { h.context.state.decisionWorkspace = value; },
     loadTxDecisionChart: async () => {}, loadLiveMarketPulse: async () => {}, loadDecisionJournal: async () => {}, renderPrelive() {} });
   h.context.state.csrfToken = 'fixture-csrf'; h.node('decision-workspace').setAttribute = () => {};

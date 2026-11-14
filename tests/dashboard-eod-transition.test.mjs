@@ -19,7 +19,7 @@ test('dashboard live to partial removes rejected snapshot and EOD output; later 
   const context = { state: { csrfToken: 'synthetic', snapshot: null, dashboardRequestId: 0 }, $: node,
     document: { createElement: () => ({ textContent: '', setAttribute() {}, append() {} }), querySelectorAll: () => [] },
     flowChannel: { ticket: () => 1, isCurrentSession: () => true, merge() {} },
-    api: async () => payload, loadHistory: async () => {}, loadBacktest: async () => {},
+    api: async () => payload, loadHistory: async () => {}, loadBacktest: async () => {}, loadDailyBatchLine: async () => {},
     render(snapshot) { context.state.snapshot = snapshot; node('market-cards').textContent = 'EOD_' + snapshot.revision; },
     renderDecisionWorkspace() { views.push(context.state.snapshot); },
     loadIndexLeadership: async () => {}, renderIndexLeadershipFailure() {},

@@ -986,3 +986,12 @@ footer { color: var(--muted); text-align: center; font-size: 12px; padding: 28px
   color: #fff3d6;
   font: 600 14px/1.5 system-ui, sans-serif;
 }
+
+/* WP 0-6 daily batch line: today's ingestion in one line, history audit in the expandable part. */
+.daily-batch-line { margin: 0 0 10px; padding: 6px 12px; border: 1px solid var(--line, #333); border-left-width: 4px; border-radius: 6px; font-size: 13px; }
+.daily-batch-line > summary { cursor: pointer; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.daily-batch-line > summary small { color: var(--muted); }
+.daily-batch-line > p { margin: 6px 0 2px; color: var(--muted); }
+.daily-batch-line[data-state="PASS"], .daily-batch-line[data-state="NOT_EXPECTED"] { border-left-color: var(--good, #2e9d5b); }
+.daily-batch-line[data-state="PARTIAL"], .daily-batch-line[data-state="RUNNING"] { border-left-color: var(--warning, #d9a400); }
+.daily-batch-line[data-state="FAILED"], .daily-batch-line[data-state="UNKNOWN"] { border-left-color: var(--danger); }

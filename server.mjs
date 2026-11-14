@@ -90,6 +90,7 @@ import {
 } from './src/http-utils.mjs';
 
 import { createDashboardServer, assertLocalMarketMode } from './src/dashboard-local-tls.mjs';
+import { buildDailyBatchVerdict } from './src/daily-batch-verdict.mjs';
 const [nodeMajor,nodeMinor]=process.versions.node.split('.').map(Number);
 if(nodeMajor<22||(nodeMajor===22&&nodeMinor<13)||(nodeMajor===23&&nodeMinor<4))throw new Error('DAILY_RELEASE_REQUIRES_NODE_22_13_OR_23_4_OR_NEWER');
 validateConfig();
@@ -1012,7 +1013,8 @@ const requestHandler = async (req, res) => {
       }
 
       if (req.method === 'GET' && pathname === '/api/v2/daily-update') {
-        sendJson(res, 200, { ok: true, data: v2Research.dailyUpdateStatus(), processRunning: Boolean(dailyUpdateProcess),
+        const dailyUpdate = v2Research.dailyUpdateStatus();
+        sendJson(res, 200, { ok: true, data: dailyUpdate, verdict: buildDailyBatchVerdict(dailyUpdate), processRunning: Boolean(dailyUpdateProcess),
           ...(config.candidateReadOnly ? { manualRun: { allowed: false, state: 'BLOCKED',
             reasonCodes: ['CANDIDATE_READ_ONLY_DAILY_UPDATE'] } } : researchWriterBlocked
             ? { manualRun: { allowed: false, state: 'BLOCKED', reasonCodes: ['RESEARCH_READ_PATHS_REDIRECTED_DAILY_UPDATE'] } } : {}) });
