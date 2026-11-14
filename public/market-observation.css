@@ -37,3 +37,9 @@
 .mo-copy-fallback { width: 100%; min-height: 180px; background: var(--bg); color: var(--text); border: 1px solid var(--line); }
 @media (max-width: 900px) { .mo-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mo-summary > div { border-bottom: 1px solid var(--line); } }
 @media (max-width: 600px) { .mo-body { padding: 0 10px 12px; } .mo-workspace > summary { padding: 12px 10px; } .mo-workspace > summary small { display: block; margin: 6px 0 0; } .mo-summary { grid-template-columns: 1fr; } .mo-summary > div { border-right: 0; } .mo-event-detail dl { grid-template-columns: 1fr; gap: 4px; } .mo-event-detail dd { margin-bottom: 8px; } .mo-toolbar button { min-height: 40px; } }
+.mo-empty-title { fill: var(--warning); font: 600 16px system-ui, sans-serif; }
+.mo-empty { fill: var(--muted); font: 13px system-ui, sans-serif; }
+.mo-stale-badge { fill: var(--warning); font: 600 12px system-ui, sans-serif; }
+.mo-is-stale .mo-chart > :not(.mo-stale-badge) { opacity: .55; }
+.mo-tech { margin: 8px 0; }
+.mo-tech > summary { color: var(--muted); font-size: 12px; cursor: pointer; }

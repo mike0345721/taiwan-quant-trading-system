@@ -17,8 +17,8 @@
   <link rel="stylesheet" href="/ask-gpt-inline.css">
   <script src="/ask-gpt-inline.js?v=home2" defer></script>
   <link rel="stylesheet" href="/home-workspace.css?v=home2">
-  <link rel="stylesheet" href="/market-observation.css?v=cru61-v1">
-  <script type="module" src="/market-observation.js?v=cru61-v1"></script>
+  <link rel="stylesheet" href="/market-observation.css?v=cru61-v2">
+  <script type="module" src="/market-observation.js?v=cru61-v2"></script>
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
@@ -432,7 +432,7 @@
               <p id="mo-cursor" class="mo-cursor" aria-live="polite">移動游標，或用左右鍵查看價格與 CVD。</p>
               <p class="mo-note">△／▽ 已確認高低點；B 結構突破；C 結構轉變；↶／↷ 掃過收回。標記位於首次確認時刻，圖形錨點與完整證據列於事件詳情。</p>
               <p id="mo-profile-note" class="mo-note">成交量分布不是實際持倉或主力成本。CVD 是成交分類代理。</p>
-              <p id="mo-lineage" class="mo-lineage">尚無快照。</p>
+              <details class="mo-tech"><summary>技術細節（代碼與來源）</summary><p id="mo-tech-status" class="mo-lineage"></p><p id="mo-lineage" class="mo-lineage">尚無快照。</p></details>
               <div class="mo-events">
                 <label for="mo-events">已確認事件與當時證據</label><select id="mo-events"><option value="">尚無已確認事件</option></select>
                 <div id="mo-event-detail" class="mo-event-detail"><p>未確認圖形不列入事件序列。</p></div>

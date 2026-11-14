@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { normalizeObservation, observationCopyText, plotObservation, observationCatchup } from '../public/market-observation.js';
+import { normalizeObservation, observationCopyText, plotObservation, observationCatchup, taipeiTime, reasonText, explainReasons, observationForceText } from '../public/market-observation.js';
 import { inspectEngineeringDocument } from './ui-browser-engineering-helper.mjs';
 import { guestBrowserPath } from './guest-browser-path.mjs';
 import { buildLiveEventRecord } from '../src/live-event-ledger.mjs';
@@ -14,13 +14,40 @@ test('bounded catch-up retains only the prior verified snapshot and never retrie
   const pending = { status: 'UNAVAILABLE', reasonCodes: ['DERIVATION_CATCHUP_PENDING'],
     sourceProgress: { derivedThroughOrdinal: 2000, publishedThroughOrdinal: 1000 } };
   assert.equal(observationCatchup(pending).retryMs, 250);
-  assert.match(observationCatchup(pending, prior).message, /仍顯示已驗證快照/);
+  assert.match(observationCatchup(pending, prior).message, /仍顯示舊資料，截至 08\/20 09:00:00（台北），非即時/);
+  assert.doesNotMatch(observationCatchup(pending, prior).message, /[A-Z]{4,}_/, 'codes stay out of the plain-language line');
+  assert.match(observationCatchup(pending).technical, /DERIVATION_CATCHUP_PENDING/);
   assert.equal(prior.snapshotId, 'prior');
   assert.match(observationCatchup(pending).message, /尚無可顯示/);
   assert.equal(observationCatchup({ ...pending, reasonCodes: ['OBSERVATION_SOURCE_UNAVAILABLE'] }), null);
   assert.equal(observationCatchup({ ...pending, reasonCodes: [...pending.reasonCodes, 'HASH_MISMATCH'] }), null);
   assert.equal(observationCatchup({ ...pending, snapshotId: 'new' }), null);
 });
+test('panel times are Taipei wall-clock, including across the UTC date line', () => {
+  assert.equal(taipeiTime('2026-11-13T01:10:05Z'), '11/13 09:10:05');
+  assert.equal(taipeiTime('2026-11-13T17:30:00Z'), '11/14 01:30:00', 'night session after midnight Taipei');
+  assert.equal(taipeiTime('2026-11-13T01:10:05Z', { date: false, seconds: false }), '09:10');
+  assert.equal(taipeiTime(null), '未知');
+});
+
+test('reason codes become plain Chinese plus whether the Owner must act', () => {
+  assert.deepEqual(reasonText('OBSERVATION_INPUT_REACQUISITION_GAP'), { code: 'OBSERVATION_INPUT_REACQUISITION_GAP', text: '觀測來源中斷，無法接續', action: 'HANDLE' });
+  assert.equal(reasonText('DERIVATION_CATCHUP_PENDING').action, 'AUTO');
+  assert.equal(reasonText('HTTP_503').text, '網頁讀取觀測失敗');
+  assert.equal(reasonText('SOMETHING_NEW').text, '觀測暫時無法使用');
+  const mixed = explainReasons(['READ_TIMEOUT', 'OBSERVATION_INPUT_REACQUISITION_GAP']);
+  assert.equal(mixed.handle, true); assert.match(mixed.action, /需要處理/);
+  assert.doesNotMatch(mixed.text + mixed.action, /[A-Z]{4,}_/);
+  assert.equal(explainReasons([]).text, '沒有異常');
+});
+
+test('buy/sell pressure reads as contracts, coverage and unclassified volume', () => {
+  assert.equal(observationForceText({ cvd: { value: -12, classifiedCoverage: .9772, unknownVolume: 79 } }),
+    '買賣力道 -12 口｜可分類 97.7%｜79 口無法分類｜品質：僅供參考');
+  assert.match(observationForceText({ cvd: { value: 5, classifiedCoverage: 1, unknownVolume: 0 } }), /^買賣力道 \+5 口/);
+  assert.match(observationForceText({ cvd: { value: null } }), /買賣力道未知/);
+});
+
 function fixture() {
   const iso = seconds => new Date(start + seconds * 1000).toISOString();
   return { schemaVersion: OBSERVATION_VERSION, snapshotId: 'SYNTHETIC-snapshot-1', cutoff: iso(600),
@@ -74,6 +101,7 @@ test('same snapshot is preserved across summary, copy and event; unknown is not 
   original.cvd.value = null;
   assert.match(observationCopyText(normalizeObservation(original, '1m')), /"value": null/);
   assert.equal(observationCopyText(null), '');
+  assert.match(observationCopyText(snapshot, null, { staleNote: '這是舊資料，非即時' }), /注意：這是舊資料，非即時/);
 });
 
 test('future or malformed observations cannot appear in an earlier cutoff chart', () => {
@@ -183,14 +211,20 @@ for (const width of [390, 1366]) test(`synthetic observation controls, cursor, j
   $('mo-layer-cvd').click();const layerOff=!$('mo-chart').querySelector('.mo-cvd-path');$('mo-layer-cvd').click();const layerOn=!!$('mo-chart').querySelector('.mo-cvd-path');
   $('mo-event-journal').click();const copy=api.copyText().includes(sample.snapshotId)&&api.copyText().includes(sample.events.at(-1).id);
   $('mo-timeframe').value='5m';$('mo-timeframe').dispatchEvent(new Event('change'));await sleep(100);const timeframe=api.currentSnapshot()?.timeframe==='5m'&&api.currentSnapshot()?.cvd.value===sample.cvd.value;
-  warming=2;await api.refresh();const warmingRetained=api.currentSnapshot()?.snapshotId===sample.snapshotId&&$('mo-status').textContent.includes('WARMING_UP')&&api.copyText().includes(sample.snapshotId);
-  await sleep(800);const warmingRecovered=!$('mo-status').textContent.includes('WARMING_UP')&&api.currentSnapshot()?.snapshotId===sample.snapshotId;
-  fail=true;await api.refresh();const cleared=api.currentSnapshot()===null&&$('mo-position').textContent==='未知'&&$('mo-copy').disabled&&$('mo-chart').children.length===0;
-  fail=false;await api.refresh();const recovered=$('mo-position').textContent===sample.summary.position;
-  const r=document.createElement('pre');r.id='ui-convergence-test-result';r.textContent=JSON.stringify({synthetic:true,width:innerWidth,docWidth:document.documentElement.scrollWidth,ready,compactMarkers,cursor,layerOff,layerOn,copy,timeframe,warmingRetained,warmingRecovered,cleared,recovered,journal,selected,viewBox:$('mo-chart').getAttribute('viewBox'),errors});document.body.append(r);</script>`;
+  warming=2;await api.refresh();const warmingRetained=api.currentSnapshot()?.snapshotId===sample.snapshotId&&$('mo-status').textContent.includes('補算中')&&!$('mo-status').textContent.includes('WARMING_UP')&&api.copyText().includes(sample.snapshotId);
+  await sleep(800);const warmingRecovered=!$('mo-status').textContent.includes('補算中')&&api.currentSnapshot()?.snapshotId===sample.snapshotId;
+  const chartText=()=>[...$('mo-chart').querySelectorAll('text')].map(t=>t.textContent).join('|');
+  const taipeiAxis=chartText().includes('台北')&&!chartText().includes('UTC')&&$('mo-force').textContent.startsWith('買賣力道');
+  fail=true;await api.refresh();const status=$('mo-status').textContent;
+  const retained=api.currentSnapshot()?.snapshotId===sample.snapshotId&&status.includes('舊資料')&&status.includes('非即時')&&status.includes('主圖報價不受影響')&&!status.includes('HTTP_')
+    &&!$('mo-copy').disabled&&api.copyText().includes('非即時')&&!!$('mo-chart').querySelector('.mo-stale-badge')&&$('mo-tech-status').textContent.includes('HTTP_503');
+  $('mo-timeframe').value='15m';$('mo-timeframe').dispatchEvent(new Event('change'));await sleep(100);
+  const explained=api.currentSnapshot()===null&&$('mo-copy').disabled&&chartText().includes('觀測圖暫停：網頁讀取觀測失敗')&&chartText().includes('上次成功')&&chartText().includes('自動重試');
+  fail=false;await api.refresh();const recovered=$('mo-position').textContent===sample.summary.position&&!$('mo-chart').querySelector('.mo-stale-badge');
+  const r=document.createElement('pre');r.id='ui-convergence-test-result';r.textContent=JSON.stringify({synthetic:true,width:innerWidth,docWidth:document.documentElement.scrollWidth,ready,compactMarkers,cursor,layerOff,layerOn,copy,timeframe,warmingRetained,warmingRecovered,taipeiAxis,retained,explained,recovered,journal,selected,viewBox:$('mo-chart').getAttribute('viewBox'),errors});document.body.append(r);</script>`;
   const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}body{padding:12px;background:var(--bg)}body::before{display:none}</style><body>${panel}${setup}<script type="module">${script}</script>${verification}</body></html>`;
   const result = await inspectEngineeringDocument({ binary, html, width, hostedLinuxResearchTest: true });
   assert.equal(result.width, width); assert.ok(result.docWidth <= width + 1, JSON.stringify(result));
-  for (const key of ['ready', 'compactMarkers', 'cursor', 'layerOff', 'layerOn', 'copy', 'timeframe', 'warmingRetained', 'warmingRecovered', 'cleared', 'recovered']) assert.equal(result[key], true, key);
+  for (const key of ['ready', 'compactMarkers', 'cursor', 'layerOff', 'layerOn', 'copy', 'timeframe', 'warmingRetained', 'warmingRecovered', 'taipeiAxis', 'retained', 'explained', 'recovered']) assert.equal(result[key], true, key);
   assert.equal(result.journal, 1); assert.ok(result.selected >= 3); assert.deepEqual(result.errors, []);
 });
